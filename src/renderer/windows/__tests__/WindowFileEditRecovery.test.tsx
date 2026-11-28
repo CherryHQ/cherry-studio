@@ -1,3 +1,4 @@
+import { mockFileObservationService } from '@test-mocks/renderer/FileObservationService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -18,6 +19,10 @@ vi.unmock('@cherrystudio/ui')
 const ipc = vi.hoisted(() => ({ request: vi.fn(), on: vi.fn(() => () => {}) }))
 const navigation = vi.hoisted(() => ({ openTab: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: ipc }))
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
+})
 vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => navigation }))
 const handle = { kind: 'path', path: AbsoluteFilePathSchema.parse('/notes/A.md') } as const
 let disk: string
@@ -61,6 +66,7 @@ function View({
 }
 
 beforeEach(() => {
+  mockFileObservationService.reset()
   MockUseCacheUtils.resetMocks()
   disk = 'original'
   fail = false

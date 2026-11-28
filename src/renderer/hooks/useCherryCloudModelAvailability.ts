@@ -3,8 +3,13 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { ipcApi } from '@renderer/ipc'
-import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  isManagedCherryAiProviderId,
+  isManagedCherryCloudModel
+} from '@shared/data/presets/cherryai'
+import { createUniqueModelId, type Model } from '@shared/data/types/model'
+import { createCherryCloudModelAccess } from '@shared/utils/cherryCloudModelAvailability'
 
 import { useCherryCloudReceipt } from './useCherryCloudReceipt'
 
@@ -39,11 +44,15 @@ export function useCherryCloudModelAvailability(enabled = true) {
   )
 
   return useMemo(() => {
+    const access = createCherryCloudModelAccess(fact)
     const freeModelIds = new Set(cloudAvailability?.freeModelIds)
-    const quotaExhaustedModelIds = new Set(cloudAvailability?.quotaExhaustedModelIds)
-    const agentModelIds = new Set(cloudAvailability?.availableModelIds.agent)
-    const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
     const settled = availabilityFreshness === 'fresh'
+    const amdActivationRequiredModels = cloudAvailability?.amdActivationRequiredModels ?? []
+    const signInRequiredModels = cloudAvailability?.signInRequiredModels ?? []
+    const catalogModelIds = cloudAvailability?.catalogModelIds ? new Set(cloudAvailability.catalogModelIds) : null
+    const amdActivationRequiredIds = new Set(
+      amdActivationRequiredModels.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
+    )
 
     return {
       /** False until a server snapshot arrives, including after a status reset. */
@@ -52,33 +61,36 @@ export function useCherryCloudModelAvailability(enabled = true) {
       availabilityFreshness,
       scopeId,
       revision: receipt?.status.revision,
-      /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */
-      isModelHidden: (model: Pick<Model, 'id' | 'providerId'>, includeAgentOnlyModels: boolean) =>
-        isManagedCherryCloudModel(model.providerId) &&
-        !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /** AMD models the account must authorize with AMD before use; offered as locked rows, not stored models. */
+      amdActivationRequiredModels,
+      /** Standalone models a signed-out user can unlock by signing in. */
+      signInRequiredModels,
+      isAmdActivationRequired: (model: Pick<Model, 'id' | 'providerId'>) =>
+        settled && amdActivationRequiredIds.has(model.id),
+      /** A Cloud model the server no longer lists at all, so no sign-in or plan can bring it back. */
+      isModelDelisted: (model: Pick<Model, 'id' | 'providerId'>) =>
+        settled && isManagedCherryCloudModel(model.providerId) && !!catalogModelIds && !catalogModelIds.has(model.id),
+      isModelHidden: access.isHidden,
       /** Unusable here per a settled snapshot: signed out, not entitled, or not enabled for this module. */
       isModelLocked: (model: Pick<Model, 'id' | 'providerId'>, includeAgentOnlyModels: boolean) =>
-        settled &&
-        isManagedCherryCloudModel(model.providerId) &&
-        !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+        settled && access.isHidden(model, includeAgentOnlyModels),
       /** The built-in CherryAI models and Cloud models granted only by a free plan. */
       isModelFree: (model: Pick<Model, 'id' | 'providerId'>) =>
         isManagedCherryAiProviderId(model.providerId) || freeModelIds.has(model.id),
-      isModelUnavailable: (model: Pick<Model, 'id' | 'providerId'>) =>
-        settled && isManagedCherryCloudModel(model.providerId) && quotaExhaustedModelIds.has(model.id),
+      isModelUnavailable: access.isUnavailable,
       getModelDescription: (model: Pick<Model, 'id' | 'providerId'>): string | undefined => {
         if (!isManagedCherryCloudModel(model.providerId)) return undefined
         const isFree = freeModelIds.has(model.id)
-        if (settled && quotaExhaustedModelIds.has(model.id)) {
+        if (access.isUnavailable(model)) {
           return t(isFree ? 'models.detail.free_quota_exhausted' : 'models.detail.quota_exhausted')
         }
         if (!isFree) return undefined
         return t(
-          generalModelIds.has(model.id)
-            ? 'models.detail.limited_time_free'
-            : 'models.detail.limited_time_free_agent_only'
+          access.isHidden(model, false)
+            ? 'models.detail.limited_time_free_agent_only'
+            : 'models.detail.limited_time_free'
         )
       }
     }
-  }, [cloudAvailability, availabilityError, availabilityFreshness, receipt?.status.revision, scopeId, t])
+  }, [fact, cloudAvailability, availabilityError, availabilityFreshness, receipt?.status.revision, scopeId, t])
 }

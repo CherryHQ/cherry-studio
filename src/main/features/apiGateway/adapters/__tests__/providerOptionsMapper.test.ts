@@ -9,6 +9,7 @@ import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegi
 import { ENDPOINT_TYPE, type EndpointType, type Model, type RuntimeReasoning } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { OpenAiResponsesMessageConverter } from '../converters/OpenAiResponsesMessageConverter'
 import {
   mapAnthropicThinkingToProviderOptions,
   mapGeminiThinkingToProviderOptions,
@@ -92,6 +93,16 @@ const openAIModel = model('openai', 'gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, {
   thinkingTokenLimits: { min: 1000, max: 11_000 }
 })
 
+it('projects Responses reasoning.effort onto the routed model even when the compatibility field conflicts', () => {
+  const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+  const options = new OpenAiResponsesMessageConverter().extractProviderOptions(target, openAIModel, {
+    input: 'Hello',
+    reasoning: { effort: 'xhigh' },
+    reasoning_effort: 'low'
+  })
+  expect(options).toMatchObject({ openai: { reasoningEffort: 'high' } })
+})
+
 const registryReasoningSupportWithBudget: ProtoReasoningSupport = {
   controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
   thinkingTokenLimits: { min: 1000, max: 11_000 }
@@ -150,10 +161,50 @@ describe('same-dialect lossless pass-through', () => {
         { type: 'enabled', budget_tokens: 4096 },
         'minimal'
       )
-    ).toEqual({ anthropic: { thinking: { type: 'enabled', budgetTokens: 4096 }, effort: 'low' } })
+    ).toEqual({ anthropic: { thinking: { type: 'adaptive', display: 'summarized' }, effort: 'low' } })
     mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'anthropic', wire: adaptiveWire })
-    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'disabled' }, 'ultra')).toEqual({
-      anthropic: { thinking: { type: 'disabled' }, effort: 'high' }
+    expect(mapAnthropicThinkingToProviderOptions(target, anthropicBudgetModel, { type: 'adaptive' }, 'ultra')).toEqual({
+      anthropic: { thinking: { type: 'adaptive' }, effort: 'high' }
+    })
+  })
+
+  it('translates legacy Anthropic thinking to adaptive effort when the target model requires it', () => {
+    const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    const opus55 = model('anthropic', 'claude-opus-5-5', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, {
+      selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }]
+    })
+    mocks.resolveReasoningProfile.mockReturnValueOnce({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES['anthropic'].alwaysOnWire
+    })
+
+    expect(mapAnthropicThinkingToProviderOptions(target, opus55, { type: 'enabled', budget_tokens: 4096 })).toEqual({
+      anthropic: { thinking: { type: 'adaptive', display: 'summarized' }, effort: 'high' }
+    })
+  })
+
+  it('maps legacy Anthropic thinking into Bedrock adaptive reasoning options', () => {
+    const bedrockWire: ReasoningWireProfile = {
+      auto: {
+        operations: [{ target: 'reasoningConfig.type', value: { source: 'literal', value: 'adaptive' } }]
+      },
+      effort: {
+        operations: [
+          { target: 'reasoningConfig.type', value: { source: 'literal', value: 'adaptive' } },
+          { target: 'reasoningConfig.maxReasoningEffort', value: { source: 'effort' } }
+        ]
+      }
+    }
+    const target = provider('bedrock', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    const opus55 = model('aws-bedrock', 'claude-opus-5-5', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, {
+      selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }]
+    })
+    mocks.resolveReasoningProfile.mockReturnValueOnce({ format: 'anthropic', wire: bedrockWire })
+
+    expect(mapAnthropicThinkingToProviderOptions(target, opus55, { type: 'enabled', budget_tokens: 4096 })).toEqual({
+      bedrock: { reasoningConfig: { type: 'adaptive', maxReasoningEffort: 'high' } }
     })
   })
 

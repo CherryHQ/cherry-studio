@@ -2,9 +2,10 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import { asSchema, type ToolSet, type UIMessageChunk } from 'ai'
+import { APICallError, asSchema, type ToolSet, type UIMessageChunk } from 'ai'
+import { Semaphore } from 'async-mutex'
 import { status } from 'elysia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -78,7 +79,7 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: mockLoggerWarn, error: vi.fn() }))
+    withContext: vi.fn(() => ({ debug: vi.fn(), silly: vi.fn(), info: vi.fn(), warn: mockLoggerWarn, error: vi.fn() }))
   }
 }))
 
@@ -93,25 +94,30 @@ vi.mock('../adapters', () => ({
     })
   },
   StreamAdapterFactory: {
-    createAdapter: () => ({
+    createAdapter: vi.fn(() => ({
       getMessageId: () => 'gateway-response',
       transformChunk: (chunk: UIMessageChunk) => {
         if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
         return [chunk]
       },
+      transformChunkWithOpening: (chunk: UIMessageChunk) => {
+        if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
+        return { opening: [], events: [chunk] }
+      },
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ done: true })
-    }),
-    getFormatter: () => ({
+    })),
+    getFormatter: vi.fn(() => ({
       formatEvent: (event: unknown) => `data: ${JSON.stringify(event)}\n\n`,
       formatDone: () => 'data: [DONE]\n\n'
-    })
+    }))
   }
 }))
 
-import type { OutputFormat } from '../adapters'
+import { StreamAdapterFactory, type OutputFormat } from '../adapters'
 import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessageConverter'
 import { OpenAiResponsesMessageConverter } from '../adapters/converters/OpenAiResponsesMessageConverter'
+import { StreamAdapterFactory as RealStreamAdapterFactory } from '../adapters/factory/StreamAdapterFactory'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
@@ -186,13 +192,16 @@ async function readAll(stream: ReadableStream<Uint8Array> | null): Promise<strin
   return out
 }
 
-async function startStreaming(signal?: AbortSignal) {
-  const response = processMessage({
-    params: { model: 'openai:gpt-4', stream: true, messages: [] },
-    inputFormat: 'openai',
-    outputFormat: 'openai',
-    signal
-  })
+async function startStreaming(signal?: AbortSignal, release?: () => void) {
+  const response = processMessage(
+    {
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      signal
+    },
+    release
+  )
   await vi.waitFor(() => expect(captured.listener).toBeDefined())
   return { response, listener: captured.listener! }
 }
@@ -339,12 +348,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const params = createAnthropicParams(
       'gpt-5',
       [
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'assistant', content: [call, structuredClone(call)] },
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'user', content: [output, structuredClone(output)] }
       ],
       true,
       'openai'
     )
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     await processAndCaptureStreamMessages(params)
@@ -372,6 +384,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     mockIsInternalAgentRequest.mockReturnValue(false)
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams('claude-opus-5', [
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [call, structuredClone(call)] }
     ])
 
@@ -390,6 +403,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams(
       'gpt-5',
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       [{ role: 'assistant', content: [call, structuredClone(call)] }],
       true,
       'openai'
@@ -441,6 +455,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'user', content: 'Build the requested feature' },
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -481,6 +496,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'Tool failed', is_error: true }]
       }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -514,6 +530,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' },
       { role: 'user', content: '' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -829,6 +846,25 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBe('')
   })
 
+  it.each(['completion', 'disconnect'] as const)(
+    'holds request capacity until %s after SSE commitment',
+    async (end) => {
+      const budget = new Semaphore(1)
+      const [, release] = await budget.acquire()
+      const controller = new AbortController()
+      const { response, listener } = await startStreaming(controller.signal, release)
+      commit(listener)
+      const pendingResponse = await response
+      expect(budget.getValue()).toBe(0)
+
+      if (end === 'completion') await listener.onDone({} as any)
+      else controller.abort()
+
+      await readAll(pendingResponse.body)
+      expect(budget.getValue()).toBe(1)
+    }
+  )
+
   it('marks streaming requests as caller-owned', async () => {
     const { response, listener } = await startStreaming()
     commit(listener)
@@ -943,6 +979,51 @@ describe('processMessage (error & pause)', () => {
     expect(text).not.toContain('secret body')
     expect(text).not.toContain('https://provider/v1')
   })
+
+  it.each([false, true])(
+    'keeps provider error details after stream commitment only for internal requests (%s)',
+    async (internal) => {
+      mockIsInternalAgentRequest.mockReturnValue(internal)
+      const onError = vi.fn()
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ authorization: 'Bearer fixture' }),
+        onError
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+      commit(listener)
+      const response = await pending
+      const upstream = new APICallError({
+        message: 'A provider-specific failure',
+        url: 'https://private.invalid',
+        requestBodyValues: { secret: 'request-secret' },
+        statusCode: 429,
+        responseHeaders: { 'retry-after': '37', authorization: 'private-token' },
+        responseBody: JSON.stringify({
+          error: { message: 'A provider-specific failure', type: 'custom_type', code: 'vendor_busy', param: 'mode' },
+          request_id: 'upstream-id'
+        })
+      })
+      await listener.onError({ status: 'error', error: serializeError(upstream) }, upstream)
+      const text = await readAll(response.body)
+      expect(response.status).toBe(200)
+      expect(onError).toHaveBeenCalledOnce()
+      expect(text).toContain('A provider-specific failure')
+      if (internal) {
+        expect(text).toContain('vendor_busy')
+        expect(text).toContain('custom_type')
+        expect(text).toContain('upstream-id')
+      } else {
+        expect(text).not.toContain('vendor_busy')
+        expect(text).not.toContain('upstream-id')
+      }
+      expect(text).not.toContain('request-secret')
+      expect(text).not.toContain('private-token')
+    }
+  )
 
   it('rejects with a 504 when the stream pauses before semantic commitment', async () => {
     const { response, listener } = await startStreaming()
@@ -1150,4 +1231,411 @@ describe('caller-owned Responses instructions', () => {
       await readAll((await response).body)
     }
   )
+})
+
+describe('processMessage (terminal finish reasons)', () => {
+  afterEach(() => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockReset()
+    vi.mocked(StreamAdapterFactory.getFormatter).mockReset()
+  })
+  const formats: { format: OutputFormat; path: string }[] = [
+    { format: 'gemini', path: '/v1beta/models/fixture:generateContent' },
+    { format: 'anthropic', path: '/v1/messages' },
+    { format: 'openai', path: '/v1/chat/completions' },
+    { format: 'openai-responses', path: '/v1/responses' }
+  ]
+  it.each([
+    { format: 'gemini', terminal: '"finishReason":"OTHER"', done: '"finishReason":"OTHER"' },
+    { format: 'anthropic', terminal: '"stop_reason":"end_turn"', done: 'event: message_stop' },
+    { format: 'openai', terminal: '"finish_reason":"stop"', done: 'data: [DONE]' },
+    { format: 'openai-responses', terminal: '"status":"completed"', done: 'event: response.completed' }
+  ] as const)('$format / other completes successfully', async ({ format, terminal, done }) => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+      RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+    )
+    vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+      RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+    )
+    const pending = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: format
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const listener = captured.listener!
+    listener.onChunk({ type: 'finish', finishReason: 'other' })
+    await listener.onDone({} as any)
+    const response = await pending
+    expect(response.status).toBe(200)
+    const body = await readAll(response.body)
+    expect(body).toContain(terminal)
+    expect(body).toContain(done)
+    expect(body).not.toContain('"error"')
+    expect(listener.isAlive?.()).toBe(false)
+  })
+  for (const { format, path } of formats) {
+    for (const reason of ['error'] as const) {
+      for (const withTool of [false, true]) {
+        for (const stream of [false, true]) {
+          it(`${format} / ${reason} / tool=${withTool} / stream=${stream}`, async () => {
+            vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+              RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+            )
+            vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+              RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+            )
+            const pending = processMessage({
+              params: { model: 'openai:gpt-4', stream, messages: [] },
+              inputFormat: 'openai',
+              outputFormat: format
+            })
+            const settled = pending.then(
+              (value) => ({ value }),
+              (error: unknown) => ({ error })
+            )
+            await vi.waitFor(() => expect(captured.listener).toBeDefined())
+            const listener = captured.listener!
+            if (withTool)
+              listener.onChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+            listener.onChunk({ type: 'finish', finishReason: reason })
+            listener.onChunk({ type: 'text-delta', id: 'late', delta: 'late' })
+            await listener.onDone({} as any)
+            const result = await settled
+            expect(listener.isAlive?.()).toBe(false)
+            if (stream) {
+              if (!('value' in result)) throw result.error
+              expect(result.value.status).toBe(200)
+              const body = await readAll(result.value.body)
+              const frames = body.trim().split(/\r?\n\r?\n/)
+              const payloads = frames.map((frame) => {
+                const data = frame.match(/^data:\s?(.*)$/m)
+                expect(data).not.toBeNull()
+                return JSON.parse(data![1])
+              })
+              const errors = payloads.filter((payload) => payload.error || payload.type === 'error')
+              expect(errors).toHaveLength(1)
+              const message = expect.stringContaining(reason)
+              if (format === 'gemini') expect(errors[0]).toEqual({ error: { code: 502, message, status: 'INTERNAL' } })
+              else if (format === 'anthropic') {
+                expect(frames.find((frame) => frame.startsWith('event: error'))).toBeDefined()
+                expect(errors[0]).toEqual({ type: 'error', error: { type: 'api_error', message } })
+              } else if (format === 'openai-responses')
+                expect(errors[0]).toEqual({ type: 'error', code: 'internal_error', message })
+              else expect(errors[0]).toEqual({ error: { message, type: 'server_error', code: 'internal_error' } })
+              expect(body).not.toContain('data: [DONE]')
+              expect(body).not.toContain('"finishReason":"STOP"')
+              expect(frames.some((frame) => /^event:\s*message_stop\s*$/m.test(frame))).toBe(false)
+              for (const payload of payloads) {
+                if (payload.type === 'message_delta') expect(payload.delta?.stop_reason || null).toBeNull()
+                for (const choice of payload.choices ?? []) expect(choice.finish_reason || null).toBeNull()
+                for (const candidate of payload.candidates ?? []) expect(candidate).not.toHaveProperty('finishReason')
+              }
+              expect(
+                payloads.some(
+                  (payload) => payload.type === 'response.completed' || payload.response?.status === 'completed'
+                )
+              ).toBe(false)
+              expect(body).not.toContain('late')
+            } else {
+              if (!('error' in result)) throw new Error('Expected rejection')
+              expect(result.error).toMatchObject({ statusCode: 502 })
+              const mapped = gatewayErrorHandler({
+                request: new Request(`http://fixture${path}`),
+                code: 'UNKNOWN',
+                error: result.error,
+                status
+              } as Parameters<typeof gatewayErrorHandler>[0])
+              expect(mapped.code).toBe(502)
+              expect(mapped.response).toMatchObject(
+                format === 'gemini'
+                  ? { error: { code: 502 } }
+                  : format === 'anthropic'
+                    ? { error: { type: 'api_error' } }
+                    : { error: { type: 'server_error', code: 'internal_error' } }
+              )
+            }
+          })
+        }
+      }
+    }
+  }
+})
+
+describe('processMessage (tool-input-error & file startup commitment)', () => {
+  beforeEach(() => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+      RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+    )
+    vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+      RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+    )
+  })
+
+  afterEach(() => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockReset()
+    vi.mocked(StreamAdapterFactory.getFormatter).mockReset()
+  })
+
+  const waitStartup = async <T>(pending: Promise<T>): Promise<T> =>
+    Promise.race([
+      pending,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Startup content timed out')), 500))
+    ])
+
+  async function readUntil(stream: ReadableStream<Uint8Array>, ...expected: string[]): Promise<string> {
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    let body = ''
+    try {
+      while (expected.some((value) => !body.includes(value))) {
+        const { done, value } = await reader.read()
+        if (done) break
+        body += decoder.decode(value, { stream: true })
+      }
+      return body
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  it.each([
+    { format: 'openai', argsKey: 'arguments' },
+    { format: 'anthropic', argsKey: 'partial_json' },
+    { format: 'openai-responses', argsKey: 'arguments' },
+    { format: 'gemini', argsKey: 'args' }
+  ] as const)(
+    '$format commits startup immediately on valid object tool-input-error without waiting for finish/onDone',
+    async ({ format, argsKey }) => {
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: format
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      listener.onChunk({
+        type: 'tool-input-error',
+        toolCallId: 'call-1',
+        toolName: 'unknown_tool',
+        input: { path: { nested: true } },
+        errorText: 'Schema mismatch'
+      })
+
+      const res = await waitStartup(pending)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('Content-Type')).toBe('text/event-stream')
+
+      const args = '{"path":{"nested":true}}'
+      const expectedName = '"name":"unknown_tool"'
+      const expectedArgs = `"${argsKey}":${format === 'gemini' ? args : JSON.stringify(args)}`
+      const beforeDone = await waitStartup(readUntil(res.body!, expectedName, expectedArgs))
+      expect(beforeDone).toContain(expectedName)
+      expect(beforeDone).toContain(expectedArgs)
+      if (format === 'openai') {
+        expect(beforeDone.indexOf('"role":"assistant"')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('"role":"assistant"')).toBeLessThan(beforeDone.indexOf(expectedName))
+      } else if (format === 'anthropic') {
+        expect(beforeDone.indexOf('event: message_start')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('event: message_start')).toBeLessThan(beforeDone.indexOf(expectedName))
+      } else if (format === 'openai-responses') {
+        expect(beforeDone.indexOf('event: response.created')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('event: response.in_progress')).toBeGreaterThan(
+          beforeDone.indexOf('event: response.created')
+        )
+        expect(beforeDone.indexOf('event: response.in_progress')).toBeLessThan(beforeDone.indexOf(expectedName))
+      }
+
+      await listener.onDone({} as any)
+      const body = beforeDone + (await readAll(res.body))
+      expect(body).toContain('"unknown_tool"')
+      expect(body).not.toContain('"error"')
+    }
+  )
+
+  it('gemini commits startup immediately on valid base64 data-URL file chunk without waiting for finish/onDone', async () => {
+    const pending = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'gemini'
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const listener = captured.listener!
+
+    listener.onChunk({
+      type: 'file',
+      mediaType: 'image/png',
+      url: 'data:image/png;base64,AAAA'
+    })
+
+    const res = await waitStartup(pending)
+    expect(res.status).toBe(200)
+
+    const inlineData = '"inlineData":{"mimeType":"image/png","data":"AAAA"}'
+    const beforeDone = await waitStartup(readUntil(res.body!, inlineData))
+    expect(beforeDone).toContain(inlineData)
+
+    await listener.onDone({} as any)
+    const body = beforeDone + (await readAll(res.body))
+    expect(body).toContain('"inlineData":{"mimeType":"image/png","data":"AAAA"}')
+    expect(body).not.toContain('"error"')
+  })
+
+  it.each(['openai', 'anthropic', 'openai-responses'] as const)(
+    '%s preserves a startup rejection after an ignored file chunk',
+    async (outputFormat) => {
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat
+      })
+      const error = serializeError(new Error('Upstream failed'))
+      const rejected = expect(pending).rejects.toEqual(error)
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      listener.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await listener.onError({ status: 'error', error })
+
+      await rejected
+    }
+  )
+
+  it.each([
+    { outputFormat: 'openai', openingMarker: '"role":"assistant"' },
+    { outputFormat: 'anthropic', openingMarker: 'event: message_start' },
+    { outputFormat: 'openai-responses', openingMarker: 'event: response.created' }
+  ] as const)(
+    '$outputFormat emits ordered single opening scaffolding when an ignored file chunk precedes text-delta or onDone',
+    async ({ outputFormat, openingMarker }) => {
+      const pendingWithText = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listenerWithText = captured.listener!
+      let settledWithText = false
+      void pendingWithText.then(() => {
+        settledWithText = true
+      })
+
+      listenerWithText.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await Promise.resolve()
+      expect(settledWithText).toBe(false)
+
+      listenerWithText.onChunk({ type: 'text-delta', id: 't1', delta: 'after ignored file' })
+      const resWithText = await waitStartup(pendingWithText)
+      await listenerWithText.onDone({} as any)
+      const bodyWithText = await readAll(resWithText.body)
+      expect(bodyWithText.split(openingMarker).length - 1).toBe(1)
+      expect(bodyWithText.indexOf(openingMarker)).toBeLessThan(bodyWithText.indexOf('after ignored file'))
+
+      captured.listener = undefined
+      const pendingDone = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listenerDone = captured.listener!
+      listenerDone.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await listenerDone.onDone({} as any)
+      const resDone = await waitStartup(pendingDone)
+      const bodyDone = await readAll(resDone.body)
+      expect(bodyDone.split(openingMarker).length - 1).toBe(1)
+    }
+  )
+
+  it.each([null, [], 'invalid-json', undefined])(
+    'rejects malformed tool-input-error before startup commitment when input is %j',
+    async (badInput) => {
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+      const settled = pending.then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error })
+      )
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      listener.onChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-call',
+        toolName: 'read_file',
+        input: badInput,
+        errorText: 'Invalid tool arguments'
+      })
+
+      const result = await settled
+      expect('error' in result).toBe(true)
+      expect((result as { error: Error }).error).toMatchObject({ message: 'Invalid tool arguments' })
+      expect(listener.isAlive?.()).toBe(false)
+    }
+  )
+
+  it('rejects non-base64 Gemini file chunk before startup commitment', async () => {
+    const pending = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'gemini'
+    })
+    const settled = pending.then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error })
+    )
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const listener = captured.listener!
+
+    listener.onChunk({
+      type: 'file',
+      mediaType: 'image/png',
+      url: 'https://example.com/image.png'
+    })
+
+    const result = await settled
+    expect('error' in result).toBe(true)
+    expect((result as { error: Error }).error).toMatchObject({
+      message: 'Generated Gemini file must contain base64 data'
+    })
+    expect(listener.isAlive?.()).toBe(false)
+  })
+
+  it('emits terminal SSE error frame when malformed tool-input-error or non-base64 file arrives after commitment', async () => {
+    for (const badChunk of [
+      {
+        type: 'tool-input-error' as const,
+        toolCallId: 'bad-call',
+        toolName: 'read_file',
+        input: null,
+        errorText: 'Invalid tool arguments'
+      },
+      {
+        type: 'file' as const,
+        mediaType: 'image/png',
+        url: 'https://example.com/image.png'
+      }
+    ]) {
+      captured.listener = undefined
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'gemini'
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      commit(listener)
+      const res = await pending
+      listener.onChunk(badChunk)
+
+      const body = await readAll(res.body)
+      expect(body).toContain('"error"')
+      expect(body).not.toContain('data: [DONE]')
+      expect(listener.isAlive?.()).toBe(false)
+    }
+  })
 })

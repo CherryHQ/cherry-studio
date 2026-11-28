@@ -72,14 +72,11 @@ function buildProviderOptions(
 
 /** Emit a native effort only when the resolved wire carries an effort field, projected through the descriptor pipeline. */
 function resolveNativeAnthropicEffort(
-  provider: Provider,
-  model: Model,
-  resolvedEndpoint: ReturnType<typeof resolveEffectiveEndpoint>,
+  context: ProviderReasoningContext,
   effort: GatewayReasoningEffort | null | undefined,
   maxTokens?: number
 ): GatewayReasoningEffort | undefined {
   if (effort == null || effort === 'default') return undefined
-  const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
   const invocation = resolveReasoningInvocation({
     selection: effort,
     model: context.invocationModel,
@@ -88,6 +85,31 @@ function resolveNativeAnthropicEffort(
   })
   const emission = invocation.emissions.find((candidate) => candidate.target === 'effort')
   return typeof emission?.value === 'string' ? (emission.value as GatewayReasoningEffort) : undefined
+}
+
+function canPassThroughAnthropicReasoning(
+  context: ProviderReasoningContext,
+  config: AnthropicThinkingConfig | undefined
+): boolean {
+  if (context.providerOptionsKey !== 'anthropic' || !config) return context.providerOptionsKey === 'anthropic'
+
+  const matchesThinkingType = (mode: 'off' | 'auto' | 'effort') =>
+    context.reasoningProfile.wire[mode]?.operations.some(
+      (operation) =>
+        operation.target === 'thinking.type' &&
+        operation.value.source === 'literal' &&
+        operation.value.value === config.type
+    ) ?? false
+
+  if (config.type === 'enabled') {
+    return (
+      matchesThinkingType('effort') &&
+      context.reasoningProfile.wire.effort?.operations.some(
+        (operation) => operation.target === 'thinking.budgetTokens' && operation.value.source === 'budget'
+      ) === true
+    )
+  }
+  return matchesThinkingType('off') || matchesThinkingType('auto') || matchesThinkingType('effort')
 }
 
 /** Keep Anthropic-native thinking envelopes byte-for-byte equivalent; effort arrives pre-projected. */
@@ -132,11 +154,12 @@ export function mapAnthropicThinkingToProviderOptions(
 ): ProviderOptions | undefined {
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const { endpointType } = resolvedEndpoint
+  let context: ProviderReasoningContext | undefined
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
-    return passThroughAnthropicReasoning(
-      config,
-      resolveNativeAnthropicEffort(provider, model, resolvedEndpoint, effort, maxTokens)
-    )
+    context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+    if (canPassThroughAnthropicReasoning(context, config)) {
+      return passThroughAnthropicReasoning(config, resolveNativeAnthropicEffort(context, effort, maxTokens))
+    }
   }
   // Ollama's ChatHandler 400s when `think` is true for a model that lacks
   // thinking capability. The SDK default ({type:'adaptive'}) would map to
@@ -156,10 +179,14 @@ export function mapAnthropicThinkingToProviderOptions(
   }
 
   if (effort != null) {
-    return buildProviderOptions(resolveProviderReasoningContext(provider, model, resolvedEndpoint), effort, maxTokens)
+    return buildProviderOptions(
+      context ?? resolveProviderReasoningContext(provider, model, resolvedEndpoint),
+      effort,
+      maxTokens
+    )
   }
   if (!config) return undefined
-  const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+  context ??= resolveProviderReasoningContext(provider, model, resolvedEndpoint)
   if (config.type === 'disabled') return buildProviderOptions(context, 'none', maxTokens)
   if (config.type !== 'enabled') return buildProviderOptions(context, 'auto', maxTokens)
 

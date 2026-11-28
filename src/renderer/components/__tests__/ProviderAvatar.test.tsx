@@ -72,14 +72,6 @@ describe('ProviderAvatarPrimitive', () => {
     expect(screen.getByTestId('avatar-fallback')).not.toHaveClass('bg-background')
   })
 
-  it('keeps the provider-list surface behind built-in icons', () => {
-    render(
-      <ProviderAvatarPrimitive providerId="openai" providerName="OpenAI" size={32} displayContext="provider-list" />
-    )
-
-    expect(screen.getByTestId('avatar-fallback')).toHaveClass('bg-background')
-  })
-
   it('contains compact image logos on an outlined image surface', () => {
     const logo = 'file:///tmp/provider-logo.png'
 

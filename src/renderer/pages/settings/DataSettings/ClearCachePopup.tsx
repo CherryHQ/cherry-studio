@@ -16,6 +16,7 @@ import {
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
+import { formatFileSize } from '@renderer/utils/file'
 import type { CacheCleanupGroup } from '@shared/types/cacheCleanup'
 import { CACHE_CLEANUP_GROUPS } from '@shared/types/cacheCleanup'
 import type { CacheCleanupGroupInspection, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
@@ -25,7 +26,7 @@ import { hasLegacyV1Marker, inspectLegacyV1BrowserData } from './legacyV1Browser
 const logger = loggerService.withContext('ClearCachePopup')
 
 interface ClearCachePopupParams {
-  onClear: (groups: CacheCleanupGroup[]) => Promise<boolean>
+  onClear: (groups: CacheCleanupGroup[]) => Promise<CacheCleanupGroup[]>
 }
 
 interface CleanupOptionState {
@@ -68,16 +69,6 @@ const CLEANUP_OPTIONS = [
 
 type Props = ClearCachePopupParams & PopupInjectedProps<void>
 
-export function formatCacheCleanupSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-
-  const units = ['B', 'KB', 'MB', 'GB'] as const
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  const value = bytes / 1024 ** unitIndex
-  const formatted = new Intl.NumberFormat(undefined, { maximumFractionDigits: value < 10 ? 2 : 1 }).format(value)
-  return `${formatted} ${units[unitIndex]}`
-}
-
 function mergeLegacySizes(
   mainInspection: CacheCleanupGroupInspection,
   browserSize: CacheCleanupSizeSnapshot
@@ -110,7 +101,8 @@ function getVisibleCleanupGroups(): CacheCleanupGroup[] {
 
 async function inspectCleanupGroup(
   group: CacheCleanupGroup,
-  signal: AbortSignal
+  signal: AbortSignal,
+  legacyMarker: boolean
 ): Promise<CacheCleanupGroupInspection> {
   try {
     signal.throwIfAborted()
@@ -119,7 +111,7 @@ async function inspectCleanupGroup(
     let inspection = response.results[0]
     if (!inspection) throw new Error(`Missing cache cleanup inspection for ${group}`)
 
-    if (group === 'legacy_v1') {
+    if (group === 'legacy_v1' && (legacyMarker || (inspection.size.bytes ?? 0) > 0)) {
       inspection = mergeLegacySizes(inspection, await inspectLegacyV1BrowserData(signal))
     }
     return inspection
@@ -154,16 +146,20 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     const abortController = new AbortController()
     inspectionAbortController.current = abortController
     const generation = ++inspectionGeneration.current
-    const groups = getVisibleCleanupGroups()
-    setVisibleGroups(groups)
-    setSelected((current) => new Set(groups.filter((group) => current.has(group))))
+    const legacyMarker = hasLegacyV1Marker()
+    setVisibleGroups(getVisibleCleanupGroups())
     setOptionStates(createLoadingOptionStates())
 
     await Promise.all(
-      groups.map(async (group) => {
+      CACHE_CLEANUP_GROUPS.map(async (group) => {
         try {
-          const inspection = await inspectCleanupGroup(group, abortController.signal)
-          if (generation !== inspectionGeneration.current) return
+          const inspection = await inspectCleanupGroup(group, abortController.signal, legacyMarker)
+          if (generation !== inspectionGeneration.current || abortController.signal.aborted) return
+          if (group === 'legacy_v1') {
+            const showLegacy = legacyMarker || (inspection.size.bytes ?? 0) > 0
+            setVisibleGroups(CACHE_CLEANUP_GROUPS.filter((key) => key !== 'legacy_v1' || showLegacy))
+            if (!showLegacy) setSelected((current) => new Set([...current].filter((key) => key !== 'legacy_v1')))
+          }
           setOptionStates((current) => ({ ...current, [group]: { loading: false, inspection } }))
         } catch (error) {
           if (!abortController.signal.aborted) {
@@ -243,7 +239,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     const size = state.inspection?.size
     if (!size || size.bytes === null) return t('settings.data.clear_cache.unavailable')
 
-    const formatted = formatCacheCleanupSize(size.bytes)
+    const formatted = formatFileSize(size.bytes)
     if (size.completeness === 'partial') return t('settings.data.clear_cache.total_partial', { size: formatted })
     return size.accuracy === 'estimated' ? t('settings.data.clear_cache.approximately', { size: formatted }) : formatted
   }
@@ -251,7 +247,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   const renderTotal = () => {
     if (totalLoading) return t('settings.data.clear_cache.calculating')
 
-    const formatted = formatCacheCleanupSize(totalBytes)
+    const formatted = formatFileSize(totalBytes)
     if (totalHasUnknown) {
       return t('settings.data.clear_cache.total_partial', { size: formatted })
     }
@@ -265,12 +261,13 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     if (!canConfirm) return
 
     setCleaning(true)
-    const success = await onClear(selectedGroups)
+    const remaining = await onClear(selectedGroups)
     if (!popupOpen.current) return
-    if (success) {
+    if (remaining.length === 0) {
       handleClose()
       return
     }
+    setSelected(new Set(remaining))
     setHasRunCleanup(true)
     setCleaning(false)
     void refreshInspections()

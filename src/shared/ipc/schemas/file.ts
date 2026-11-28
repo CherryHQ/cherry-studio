@@ -178,6 +178,10 @@ export const fileRequestSchemas = {
     output: z.void()
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.select_folder': defineRoute({
+    input: z.strictObject({ defaultPath: AbsoluteFilePathSchema.optional() }),
+    output: AbsoluteFilePathSchema.nullable()
+  }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.get_clipboard_status': defineRoute({ input: FileHandleSchema, output: clipboardCopyStatusSchema }),
   'file.copy_to_clipboard': defineRoute({ input: FileHandleSchema, output: z.void() }),
@@ -187,7 +191,11 @@ export const fileRequestSchemas = {
   // `activate` releases the buffered mutations once the renderer mirror is listening.
   // See docs/dev/references/file/directory-tree.md.
   'file.tree.create': defineRoute({
-    input: z.strictObject({ rootPath: AbsoluteFilePathSchema, options: DirectoryTreeOptionsSchema.optional() }),
+    input: z.strictObject({
+      rootPath: AbsoluteFilePathSchema,
+      options: DirectoryTreeOptionsSchema.optional(),
+      refresh: z.boolean().optional()
+    }),
     // Output schemas are not parsed at runtime, and `SerializedTreeNode` is recursive —
     // mirror it as a type instead of hand-writing a `z.lazy` shape nobody validates.
     output: z.custom<CreateTreeIpcResult>()

@@ -1790,6 +1790,36 @@ describe('listModels — openAICompatibleFetcher display names', () => {
   })
 })
 
+describe('listModels — Rapid-MLX', () => {
+  it.each(['http://localhost:8000', 'http://localhost:8009'])(
+    'discovers local models without credentials at %s/v1/models',
+    async (baseUrl) => {
+      getRotatedApiKeyMock.mockReturnValue('')
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: { data: [{ id: 'mlx-community/Qwen3-8B-4bit', object: 'model', owned_by: 'rapid-mlx' }] }
+      })
+      const provider = makeProvider({
+        id: 'rapid-mlx',
+        apiKeys: [],
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, adapterFamily: 'openai-compatible' }
+        }
+      })
+
+      const { models } = await listModels(provider, undefined, { throwOnError: true })
+
+      expect(models).toHaveLength(1)
+      expect(models[0]).toMatchObject({ apiModelId: 'mlx-community/Qwen3-8B-4bit', providerId: 'rapid-mlx' })
+      const request = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: HeadersInit }
+      expect(request.url).toBe(`${baseUrl}/v1/models`)
+      const headers = new Headers(request.headers)
+      expect(headers.has('authorization')).toBe(false)
+      expect(headers.has('x-api-key')).toBe(false)
+    }
+  )
+})
+
 describe('listModels — oMLX', () => {
   it('lists only chat models, dropping the diffusion and non-chat families', async () => {
     const provider = makeProvider({

@@ -44,7 +44,12 @@ describe.each(['modern', 'legacy'] as const)('Automation MCP output (%s)', (era)
           close: async () => {}
         }
       if (name === 'AgentSessionRuntimeService')
-        return { getLiveAssistantMessageId: () => 'message', onTurnTerminal: terminal.event, onRuntimeIdle: idle.event }
+        return {
+          getMcpInteractionHost: () => ({ windowId: 'window' }),
+          getLiveAssistantMessageId: () => 'message',
+          onTurnTerminal: terminal.event,
+          onRuntimeIdle: idle.event
+        }
       return get(name as Parameters<typeof get>[0])
     }) as typeof application.get)
     server = createAutomationReplServer('session', 'agent')

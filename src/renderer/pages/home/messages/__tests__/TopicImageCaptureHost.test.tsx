@@ -30,9 +30,9 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('../homeMessageListAdapter', async () => {
-  const { useMessageEditing } = (await vi.importActual('@renderer/components/chat/editing/MessageEditingContext')) as {
+  const { useMessageEditing } = await vi.importActual<{
     useMessageEditing: () => unknown
-  }
+  }>('@renderer/components/chat/editing/MessageEditingContext')
 
   return {
     useHomeMessageListProviderValue: vi.fn(() => {

@@ -24,6 +24,8 @@ Keep the persisted URL schema and the internal restore input schema unchanged. P
 
 New URL sources require an absolute HTTP or HTTPS URL. A mixed selection containing an invalid URL is rejected as a whole, so a correction cannot accidentally duplicate a partially imported batch. This is syntax validation, not a network access policy.
 
+The [multi-URL dialog decision](../feature/2026-11-17-knowledge-multi-url-input.md) filters invalid tokens before IPC and retains only unsubmitted tokens after partial acceptance; the IPC boundary still rejects mixed invalid requests in full.
+
 ## Verification
 
 - Regression — `src/main/ipc/handlers/__tests__/knowledge.test.ts`: malformed and non-HTTP URLs reject the batch before ingestion; valid URLs are accepted; existing invalid entity and internal restore inputs remain readable.

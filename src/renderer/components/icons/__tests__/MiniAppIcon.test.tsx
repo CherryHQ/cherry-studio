@@ -33,7 +33,7 @@ vi.mock('@renderer/components/icons/miniAppsLogo', async (importOriginal) => {
   CompoundLogo.colorPrimary = '#000000'
   return {
     getMiniAppsLogoRef: (logo: unknown) =>
-      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling' || logo === 'loading-logo'
+      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'loading-logo'
         ? { kind: 'provider', key: logo, meta: { id: logo, colorPrimary: '#000000' } }
         : actual.getMiniAppsLogoRef(logo as string | undefined),
     useMiniAppLogo: (logo: unknown) => (logo !== 'loading-logo' ? CompoundLogo : undefined)

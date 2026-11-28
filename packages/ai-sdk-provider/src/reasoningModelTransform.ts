@@ -4,7 +4,7 @@
  * OpenAI reasoning models (o1, o3, o4-mini, GPT-5) reject `max_tokens` and
  * require `max_completion_tokens` instead. The compatible SDK always sends
  * `max_tokens`, so this `transformRequestBody` hook rewrites the field for
- * matching models.
+ * matching models and removes conflicting legacy limits when both are present.
  */
 
 /**
@@ -28,11 +28,9 @@ export function isOpenAIReasoningModelId(modelId: string): boolean {
  */
 export function applyReasoningModelMaxTokensConversion(args: Record<string, any>): Record<string, any> {
   if (typeof args.model !== 'string') return args
-  if (!isOpenAIReasoningModelId(args.model)) return args
   if (args.max_tokens == null) return args
+  if (args.max_completion_tokens == null && !isOpenAIReasoningModelId(args.model)) return args
   const { max_tokens, ...rest } = args
-  // An explicit `max_completion_tokens` (custom parameter, delivered through
-  // `providerOptions`) outranks the `maxOutputTokens`-derived value, matching
-  // `@ai-sdk/openai`.
+  // An explicit completion limit takes precedence over the SDK-derived legacy limit.
   return args.max_completion_tokens != null ? rest : { ...rest, max_completion_tokens: max_tokens }
 }

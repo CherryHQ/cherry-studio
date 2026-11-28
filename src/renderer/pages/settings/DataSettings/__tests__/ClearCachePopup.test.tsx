@@ -82,16 +82,31 @@ describe('ClearCachePopup', () => {
     expect(screen.getByRole('button', { name: '清除缓存' })).toBeDisabled()
   })
 
-  it('hides v1 cleanup and skips its inspection when the persisted v1 state is absent', async () => {
+  it('hides v1 cleanup when there is neither a browser marker nor disk data', async () => {
     hasLegacyV1MarkerMock.mockReturnValue(false)
+    const inspect = inspectMock.getMockImplementation()!
+    inspectMock.mockImplementation((route, input) =>
+      input.groups[0] === 'legacy_v1'
+        ? Promise.resolve({
+            results: [{ group: 'legacy_v1', size: { bytes: 0, accuracy: 'exact', completeness: 'complete' } }]
+          })
+        : inspect(route, input)
+    )
 
     render(<ClearCachePopupContainer open resolve={vi.fn()} onClear={vi.fn()} />)
 
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     expect(screen.getAllByRole('checkbox')).toHaveLength(4)
     expect(screen.queryByText('v1 版本遗留数据')).not.toBeInTheDocument()
-    expect(inspectMock).not.toHaveBeenCalledWith('app.cache_cleanup.inspect', { groups: ['legacy_v1'] })
     expect(inspectBrowserMock).not.toHaveBeenCalled()
+  })
+
+  it('offers v1 cleanup for disk-only leftovers', async () => {
+    hasLegacyV1MarkerMock.mockReturnValue(false)
+    render(<ClearCachePopupContainer open resolve={vi.fn()} onClear={vi.fn()} />)
+
+    expect(await screen.findByText('v1 版本遗留数据')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '清除缓存' })).toBeDisabled()
   })
 
   it('cancels the legacy database scan when the popup closes', async () => {
@@ -121,7 +136,7 @@ describe('ClearCachePopup', () => {
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     await user.click(checkboxes[0])
     await user.click(checkboxes[1])
-    expect(screen.getByText('约 3 KB')).toBeInTheDocument()
+    expect(screen.getByText('约 3.0 KB')).toBeInTheDocument()
   })
 
   it('requires a destructive warning before selecting v1 data', async () => {
@@ -181,12 +196,12 @@ describe('ClearCachePopup', () => {
 
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     await user.click(screen.getAllByRole('checkbox')[0])
-    expect(screen.getAllByText('已统计 1 KB，部分大小未知')).toHaveLength(2)
+    expect(screen.getAllByText('已统计 1.0 KB，部分大小未知')).toHaveLength(2)
   })
 
   it('closes after a successful cleanup', async () => {
     const user = userEvent.setup()
-    const onClear = vi.fn().mockResolvedValue(true)
+    const onClear = vi.fn().mockResolvedValue([])
     const resolve = vi.fn()
     render(<ClearCachePopupContainer open resolve={resolve} onClear={onClear} />)
 
@@ -200,8 +215,8 @@ describe('ClearCachePopup', () => {
 
   it('blocks repeated cleanup and refreshes every size after an incomplete cleanup', async () => {
     const user = userEvent.setup()
-    let finishCleanup: ((success: boolean) => void) | undefined
-    const cleanup = new Promise<boolean>((resolve) => {
+    let finishCleanup: ((remaining: ['normal_cache']) => void) | undefined
+    const cleanup = new Promise<['normal_cache']>((resolve) => {
       finishCleanup = resolve
     })
     const onClear = vi.fn(() => cleanup)
@@ -210,21 +225,24 @@ describe('ClearCachePopup', () => {
 
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     await user.click(screen.getAllByRole('checkbox')[0])
+    await user.click(screen.getAllByRole('checkbox')[3])
     const confirmButton = screen.getByRole('button', { name: '清除缓存' })
     await user.click(confirmButton)
 
-    await waitFor(() => expect(onClear).toHaveBeenCalledWith(['normal_cache']))
+    await waitFor(() => expect(onClear).toHaveBeenCalledWith(['normal_cache', 'logs']))
     expect(confirmButton).toBeDisabled()
     expect(screen.getAllByRole('checkbox').every((checkbox) => checkbox.hasAttribute('disabled'))).toBe(true)
 
     await user.click(confirmButton)
     expect(onClear).toHaveBeenCalledTimes(1)
 
-    finishCleanup?.(false)
+    finishCleanup?.(['normal_cache'])
 
     await waitFor(() => expect(inspectMock).toHaveBeenCalledTimes(10))
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     expect(resolve).not.toHaveBeenCalled()
+    expect(screen.getAllByRole('checkbox')[0]).toBeChecked()
+    expect(screen.getAllByRole('checkbox')[3]).not.toBeChecked()
     expect(confirmButton).toBeEnabled()
   })
 })

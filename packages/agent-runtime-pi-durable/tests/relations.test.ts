@@ -1,10 +1,16 @@
-import { awaitWithContext, type Context } from '@earendil-works/chord/context'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { awaitWithContext, BACKGROUND_CONTEXT, type Context } from '@earendil-works/chord/context'
+import { copyJson, type JsonRepresentation } from '@earendil-works/chord/json'
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai'
 import {
   createRegistry,
   defineExtension,
   defineTask,
   defineTool,
+  Harness,
   MemoryStorage,
   StorageRequestError,
   type ConversationRecord,
@@ -12,12 +18,14 @@ import {
   type Storage,
   type ToolExecutionApi
 } from '@earendil-works/pi-durable'
+import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
+import { createScriptedHost, encodeEntry } from '@cherrystudio/agent-behavior'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
-import { createPiDurableRuntime, type PiDurableThreadHandle } from '../src'
+import { createPiDurableRuntime, readDurableWork, recoveryIndex, type PiDurableThreadHandle } from '../src'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -97,7 +105,7 @@ async function observe(handle: PiDurableThreadHandle) {
 }
 
 async function submit(handle: PiDurableThreadHandle) {
-  const result = await handle.input.submit({ inputId: runtimeId('input'), text: 'delegate', whenBusy: 'reject' })
+  const result = await handle.input.submit!({ inputId: runtimeId('input'), text: 'delegate' })
   expect(result.status).toBe('acknowledged')
 }
 
@@ -112,6 +120,72 @@ const owner = defineTask<null, { phase: 'run' }, null>({
   },
   async abort(_task, api, context) {
     await api.commit(async () => ({ status: 'terminal', outcome: { status: 'aborted' } }), context)
+  }
+})
+
+it('finishes the legacy inventory after an interrupted first indexed reopen', async () => {
+  const ctx = BACKGROUND_CONTEXT
+  const directory = await mkdtemp(join(tmpdir(), 'durable-inventory-'))
+  onTestFinished(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'store.sqlite')
+  const registry = createRegistry()
+  registry.install(defineExtension({ name: 'review-child-owner', tasks: [owner] }))
+  const storage = await openNodeSqliteStorage(path)
+  const models = createModels()
+  const faux = fauxProvider()
+  models.setProvider(faux.provider)
+  faux.setResponses([fauxAssistantMessage('unarchived child answer')])
+  const harness = await Harness.open(storage, { registry, models }, ctx)
+  const a = await harness.createConversation({ ownership: { kind: 'ownerless' } }, ctx)
+  const b = await harness.createConversation({ ownership: { kind: 'ownerless' } }, ctx)
+  const goal = {
+    id: 'a',
+    revision: 1,
+    objective: 'finish',
+    phase: 'active' as const,
+    roundsStarted: 0,
+    progressRounds: 0,
+    maxGoalRounds: 2,
+    tokensUsed: 0,
+    costUsed: 0,
+    wrapUpDone: false,
+    armed: true,
+    createdAt: 1,
+    updatedAt: 1
+  }
+  const head = await harness.commit((tx) => tx.appendEntry(a.id, { kind: 'cherry.goal', data: goal }), ctx)
+  const { child, task } = await harness.commit(async (tx) => {
+    await tx.forkConversation(a.id, head.id, { ownership: { kind: 'ownerless' } })
+    const task = await tx.createTask(owner, null, { conversationId: b.id, ownership: { kind: 'conversation' } })
+    const child = await tx.createConversation({ ownership: { kind: 'task', taskId: task } })
+    return { task, child }
+  }, ctx)
+  const childHandle = (await harness.conversation(child.id, ctx))!
+  await childHandle.configure({ model: { provider: 'faux', modelId: 'faux-1' } }, ctx)
+  const submission = await childHandle.submit({ type: 'input', content: 'Run child', whenBusy: 'reject' }, ctx)
+  expect((await submission.wait(ctx)).status).toBe('done')
+  await harness.waitForTask(task, ctx)
+  const required = [String(a.id), String(b.id), String(child.id)].sort()
+  try {
+    expect([...(await readDurableWork(storage)).roots.keys()].sort()).toEqual(required)
+    expect([...(await readDurableWork(storage, () => false)).roots.keys()]).toEqual([String(a.id)])
+    // This is the first root's committed onOpen disarm, before bind commits initialized=true.
+    await harness.commit(async (tx) => {
+      await tx.appendEntry(a.id, { kind: 'cherry.goal', data: { ...goal, revision: 2, armed: false } })
+      const index = await tx.doc(recoveryIndex)
+      index.behavior[a.id] = true
+      index.behavior[b.id] = true
+      index.archives[child.id] = true
+    }, ctx)
+  } finally {
+    await harness.close(ctx)
+  }
+  const reopened = await openNodeSqliteStorage(path)
+  try {
+    expect([...(await readDurableWork(reopened)).roots.keys()].sort()).toEqual(required)
+    expect([...(await readDurableWork(reopened, () => false)).roots.keys()]).toEqual([String(a.id)])
+  } finally {
+    await reopened.close(ctx)
   }
 })
 
@@ -523,12 +597,10 @@ it.each(['settled', 'shutdown'] as const)('joins admitted relation delivery befo
   await reading.promise
   await expect
     .poll(() =>
-      events.some(
-        (event) =>
-          event.type === 'snapshot' &&
-          event.messages.some((message) =>
-            message.parts.some((part) => part.type === 'text' && part.text === 'parent finished')
-          )
+      events.some((event) =>
+        (event.type === 'snapshot' ? event.messages : event.type === 'message.reconcile' ? [event.message] : []).some(
+          (message) => message.parts.some((part) => part.type === 'text' && part.text === 'parent finished')
+        )
       )
     )
     .toBe(true)
@@ -553,4 +625,77 @@ it.each(['settled', 'shutdown'] as const)('joins admitted relation delivery befo
     expect(events).toHaveLength(count)
   }
   expect(errors).toEqual([])
+})
+
+// Catches relation reads that scan a child's whole history for evidence its creation commit wrote first.
+it('reads child creation evidence without scanning the child history after it', async () => {
+  const storage = new MemoryStorage()
+  const childReads = new Set<number>()
+  let child: ConversationRecord | undefined
+  const registry = createRegistry()
+  registry.install(defineExtension({ name: 'owners', tasks: [owner] }))
+  const runtime = confirmed(
+    await createPiDurableRuntime({
+      backendId: runtimeId('origins'),
+      openStorage: async () =>
+        new Proxy(storage, {
+          get(target, key) {
+            if (key === 'scanEntries')
+              return async (...args: Parameters<Storage['scanEntries']>) => {
+                const page = await target.scanEntries(...args)
+                if (args[0].conversationId === child?.id) for (const entry of page.items) childReads.add(entry.id)
+                return page
+              }
+            const value = Reflect.get(target, key)
+            return typeof value === 'function' ? value.bind(target) : value
+          }
+        }),
+      harness: { models: createModels(), registry },
+      behavior: {
+        host: createScriptedHost({
+          settings: {
+            goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },
+            autonomy: 'auto',
+            permissionMode: 'default',
+            attendance: 'stream',
+            maxBackground: 2,
+            offloadThreshold: 4000
+          }
+        }),
+        configureChild: () => ({ model: { provider: 'faux', modelId: 'faux-1' } })
+      }
+    })
+  )
+  onTestFinished(async () => {
+    await runtime.shutdown()
+  })
+  let last: EntryRecord | undefined
+  const root = confirmed(
+    await runtime.create({
+      ownership: { kind: 'ownerless' },
+      agent: { model: { provider: 'faux', modelId: 'faux-1' } },
+      async init(tx, id) {
+        const taskId = await tx.createTask(owner, null, { conversationId: id, ownership: { kind: 'conversation' } })
+        child = await tx.createConversation({ ownership: { kind: 'task', taskId } })
+        const origin = { parentToolCallId: 'spawn', fork: false, description: 'Child', modelKey: 'original' }
+        await tx.appendEntry(
+          child.id,
+          copyJson(encodeEntry({ type: 'subagent-origin', value: origin }, 'origin')) as JsonRepresentation<
+            ReturnType<typeof encodeEntry>
+          >
+        )
+        for (let index = 0; index < 100; index++)
+          last = await tx.appendEntry(child.id, {
+            kind: 'pi.user',
+            model: [{ role: 'user', content: `child-${index}`, timestamp: index }]
+          })
+      }
+    })
+  )
+  const { events } = await observe(root)
+  expect(events[0]).toMatchObject({
+    subagents: [{ parent: root.thread, child: { ...root.thread, id: String(child!.id) } }]
+  })
+  expect(childReads.size).toBeGreaterThan(0)
+  expect(childReads.has(last!.id)).toBe(false)
 })

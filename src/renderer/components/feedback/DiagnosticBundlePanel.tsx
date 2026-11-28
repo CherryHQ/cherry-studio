@@ -7,7 +7,7 @@ import { Alert, Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogTit
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { formatDiagnosticBytes } from '@renderer/utils/diagnosticSourceSummary'
+import { formatFileSize } from '@renderer/utils/file'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
@@ -200,7 +200,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
                   {t('settings.about.diagnostics.success.summary', {
                     included: savedResult.includedFileCount,
                     omitted: savedResult.omittedFileCount,
-                    size: formatDiagnosticBytes(savedResult.archiveBytes)
+                    size: formatFileSize(savedResult.archiveBytes)
                   })}
                 </p>
               </div>
@@ -270,7 +270,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
             </div>
             <p className="text-muted-foreground text-sm leading-6">
               {t('settings.about.diagnostics.limit', {
-                size: formatDiagnosticBytes(sourceSelection.inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
+                size: formatFileSize(sourceSelection.inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
               })}
             </p>
             <label className="flex cursor-pointer items-center gap-3 text-sm">

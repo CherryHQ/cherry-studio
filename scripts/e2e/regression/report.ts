@@ -7,7 +7,6 @@ import {
   type AggregateReport,
   type CaseStatus,
   type Platform,
-  type ProviderMode,
   PLATFORMS,
   type RegressionRun,
   type RunMode,
@@ -24,18 +23,10 @@ const STATUS_LABELS: Record<CaseStatus, string> = {
 }
 
 const VERDICT_LABELS: Record<RunVerdict, string> = {
-  mock_pass: '✅ Mock tests passed (not real-provider acceptance)',
+  mock_pass: '✅ Mock tests passed (deterministic fixtures)',
   mock_failed: '❌ Mock tests failed',
   mock_blocked: '⛔ Mock tests blocked',
-  mock_not_applicable: '— No cases apply to this platform (mock)',
-  development_pass: '✅ Development tests passed',
-  development_failed: '❌ Development tests failed',
-  development_blocked: '⛔ Development tests blocked',
-  development_not_applicable: '— No cases apply to this platform (development)',
-  release_pass: '✅ Release acceptance passed',
-  release_failed: '❌ Release acceptance failed',
-  release_blocked: '⛔ Release acceptance blocked',
-  release_not_applicable: '— No cases apply to this platform (release)'
+  mock_not_applicable: '— No cases apply to this platform (mock)'
 }
 
 const PLATFORM_LABELS: Record<Platform, string> = {
@@ -142,7 +133,7 @@ export function renderMarkdown(run: RegressionRun): string {
     '| --- | --- |',
     ...metadataRows,
     '',
-    'Provider mode describes the configured backend. Case-owned fixtures are listed below; a mock result does not establish external model quality or real-provider acceptance.',
+    'Model responses use deterministic mock fixtures. Case-owned fixtures are listed below; these results do not establish external model quality.',
     '',
     ...testCases.flatMap(({ id }) =>
       (run.cases[id].dataSources ?? []).map((source) => `- **${id} data source:** ${escapeMarkdown(source)}`)
@@ -241,42 +232,27 @@ export function writeReports(run: RegressionRun, outputDirectory: string): void 
   writeFileSync(join(outputDirectory, 'junit.xml'), renderJUnit(run))
 }
 
-function aggregateVerdict(
-  runs: RegressionRun[],
-  missingPlatforms: Platform[],
-  expectedMode?: RunMode,
-  providerMode?: ProviderMode,
-  errors: string[] = []
-): RunVerdict {
-  const mode = runs[0]?.metadata.mode ?? expectedMode ?? 'tag'
-  const prefix = providerMode === 'mock' ? 'mock' : mode === 'tag' ? 'release' : 'development'
+function aggregateVerdict(runs: RegressionRun[], missingPlatforms: Platform[], errors: string[]): RunVerdict {
   const verdicts = runs.map(getRunVerdict)
-  if (verdicts.some((verdict) => verdict.endsWith('_failed'))) return `${prefix}_failed`
-  if (errors.length > 0 || missingPlatforms.length > 0 || verdicts.some((verdict) => verdict.endsWith('_blocked'))) {
-    return `${prefix}_blocked`
+  if (verdicts.includes('mock_failed')) return 'mock_failed'
+  if (errors.length > 0 || missingPlatforms.length > 0 || verdicts.includes('mock_blocked')) return 'mock_blocked'
+  if (verdicts.length > 0 && verdicts.every((verdict) => verdict === 'mock_not_applicable')) {
+    return 'mock_not_applicable'
   }
-  if (verdicts.length > 0 && verdicts.every((verdict) => verdict.endsWith('_not_applicable'))) {
-    return `${prefix}_not_applicable`
-  }
-  return `${prefix}_pass`
+  return 'mock_pass'
 }
 
-export function aggregateRuns(
-  runs: RegressionRun[],
-  expectedMode?: RunMode,
-  expectedProviderMode?: ProviderMode
-): AggregateReport {
+export function aggregateRuns(runs: RegressionRun[]): AggregateReport {
   const presentPlatforms = new Set(runs.map(({ metadata }) => metadata.platform))
   const missingPlatforms = PLATFORMS.filter((platform) => !presentPlatforms.has(platform))
-  const providerMode = expectedProviderMode ?? runs[0]?.metadata.providerMode
-  const errors = runs.some((run) => !run.metadata.providerMode || run.metadata.providerMode !== providerMode)
-    ? ['Provider evidence is missing or mixes mock and real backends; run both platforms in the same mode.']
+  const errors = runs.some((run) => run.metadata.providerMode !== 'mock' || !run.metadata.mockVersion)
+    ? ['Mock provider provenance or service version is missing or unsupported; rerun both platforms.']
     : []
   return {
     runs,
     missingPlatforms,
     errors,
-    verdict: aggregateVerdict(runs, missingPlatforms, expectedMode, providerMode, errors)
+    verdict: aggregateVerdict(runs, missingPlatforms, errors)
   }
 }
 
@@ -312,7 +288,7 @@ export function renderAggregateMarkdown(report: AggregateReport): string {
     '',
     ...report.errors.map((error) => `> **Evidence error:** ${escapeMarkdown(error)}`),
     '',
-    'Mock results are deterministic fixture checks, not real-provider acceptance. Case-owned fixture details are retained in each platform report.',
+    'Model responses use deterministic mock fixtures. Case-owned fixture details are retained in each platform report; these results do not establish external model quality.',
     '',
     '| Platform | Passed | Failed | Blocked | Incomplete | Duration | Verdict |',
     '| --- | ---: | ---: | ---: | ---: | --- | --- |',

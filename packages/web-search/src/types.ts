@@ -15,11 +15,12 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'yuanbao',
   'deepseek',
   'desearch',
-  'searchapi'
+  'searchapi',
+  'serpkite'
 ] as const)
 
 export type RemoteProviderId = (typeof REMOTE_PROVIDER_IDS)[number]
-export type WebSearchCapability = 'searchKeywords' | 'fetchUrls'
+export type WebSearchCapability = 'searchKeywords' | 'fetchUrls' | 'searchImages'
 export type WebSearchCredentials = Readonly<{
   apiKey?: string
   basicAuth?: Readonly<{ username: string; password: string }>
@@ -58,7 +59,12 @@ export type WebSearchCall = CallBase &
         }>
       }
     | { capability: 'fetchUrls'; config: Readonly<{ apiHost?: string; maxCharacters?: number }> }
+    | { capability: 'searchImages'; config: Readonly<{ apiHost?: string; maxResults: number }> }
   )
+
+export type WebSearchKeywordsCall = Extract<WebSearchCall, { capability: 'searchKeywords' }>
+export type WebSearchFetchUrlsCall = Extract<WebSearchCall, { capability: 'fetchUrls' }>
+export type WebSearchSearchImagesCall = Extract<WebSearchCall, { capability: 'searchImages' }>
 
 export type WebSearchResult = Readonly<{
   title: string
@@ -68,11 +74,28 @@ export type WebSearchResult = Readonly<{
   truncated?: boolean
 }>
 
+export type WebSearchImageResult = Readonly<{
+  contentUrl: string
+  snippet: string
+  width?: number
+  height?: number
+  hostPageUrl?: string
+  hostname?: string
+  sourceInput: string
+}>
+
 export type WebSearchResultSet = Readonly<{
   providerId: RemoteProviderId
-  capability: WebSearchCapability
+  capability: 'searchKeywords' | 'fetchUrls'
   input: string
   results: readonly WebSearchResult[]
+}>
+
+export type WebSearchImageResultSet = Readonly<{
+  providerId: RemoteProviderId
+  capability: 'searchImages'
+  input: string
+  results: readonly WebSearchImageResult[]
 }>
 
 export type WebSearchHttpRequest = Readonly<{
@@ -108,7 +131,7 @@ export type ProtocolContext = Readonly<{
 
 export type WebSearchProviderModule = Readonly<{
   metadata: WebSearchProviderMetadata
-  execute(context: ProtocolContext): Promise<readonly WebSearchResult[]>
+  execute(context: ProtocolContext): Promise<readonly (WebSearchResult | WebSearchImageResult)[]>
 }>
 
 export type ProviderRegistration = Readonly<{
@@ -116,6 +139,10 @@ export type ProviderRegistration = Readonly<{
   capabilities: readonly WebSearchCapability[]
 }>
 
+export type WebSearchExecuteResult<C extends WebSearchCall> = C extends WebSearchSearchImagesCall
+  ? WebSearchImageResultSet
+  : WebSearchResultSet
+
 export interface WebSearchClient {
-  execute(call: WebSearchCall): Promise<WebSearchResultSet>
+  execute<C extends WebSearchCall>(call: C): Promise<WebSearchExecuteResult<C>>
 }

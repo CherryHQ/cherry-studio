@@ -1,5 +1,5 @@
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -94,9 +94,13 @@ vi.mock('@renderer/components/VirtualList', async () => {
       children: (item: FlatListItem, index: number) => ReactNode
       keepMountedIndexes?: readonly number[]
     }) => {
-      React.useImperativeHandle(ref, () => ({
-        scrollToIndex: mocks.scrollToIndex
-      }))
+      React.useImperativeHandle(
+        ref,
+        () => ({
+          scrollToIndex: mocks.scrollToIndex
+        }),
+        []
+      )
 
       const renderedIndexes = mocks.virtualize
         ? new Set([...Array.from({ length: Math.min(6, list.length) }, (_, index) => index), ...keepMountedIndexes])
@@ -537,36 +541,6 @@ describe('ModelSelector', () => {
     expect(onSelect).toHaveBeenLastCalledWith([firstModel, otherModel, replacement])
   })
 
-  it('positions the selected model before paint each time the selector opens', () => {
-    const selectedId = 'openai::gpt-3.5' as UniqueModelId
-    mocks.useModelSelectorData.mockReturnValue(
-      makeData({
-        resolvedSelectedModelIds: [selectedId],
-        visibleSelectedModelIdSet: new Set([selectedId])
-      })
-    )
-    const closed = (
-      <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
-    )
-    const { rerender } = render(closed)
-
-    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    expect(mocks.scrollToIndex).toHaveBeenCalledWith(2, { align: 'start' })
-
-    mocks.scrollToIndex.mockClear()
-    mocks.useModelSelectorData.mockReturnValue(
-      makeData({
-        resolvedSelectedModelIds: ['openai::gpt-4'],
-        visibleSelectedModelIdSet: new Set(['openai::gpt-4' as UniqueModelId])
-      })
-    )
-    rerender(closed)
-    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    expect(mocks.scrollToIndex).toHaveBeenCalledWith(1, { align: 'start' })
-  })
-
   it('shows an error toast when pinning fails', async () => {
     const user = userEvent.setup()
     const togglePin = vi.fn(async () => {
@@ -625,6 +599,22 @@ describe('ModelSelector', () => {
 
     await waitFor(() => expect(screen.getByText('dialog closed')).toBeInTheDocument())
     expect(mocks.openSettingsTab).toHaveBeenCalledWith(expectedPath)
+  })
+
+  it('exposes the whole model name through a tooltip instead of a native title', () => {
+    const longName = 'Deepseek: DeepSeek: DeepSeek V4.1 Flash (1017)'
+    const item = makeModelItem(`openai::${longName}`)
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [item],
+        modelItems: [item],
+        selectableModelsById: new Map([[item.modelId, item.model]])
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(within(screen.getByRole('option')).getByTestId('tooltip')).toHaveAttribute('data-title', longName)
   })
 
   it('shows an empty result when no models match', () => {

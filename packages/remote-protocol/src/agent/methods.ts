@@ -11,10 +11,13 @@ import {
   interactionResponseSchema,
   workspaceSelectionSchema,
   messageListItemSchema,
+  modelOptionSchema,
+  modelSelectionSchema,
   modelSummarySchema,
   partSchema,
   sessionSchema
 } from './resources'
+import { taskMethods } from './tasks'
 import {
   uploadMetadataSchema,
   uploadReferenceSchema,
@@ -33,6 +36,7 @@ const session = { sessionId: opaqueId }
 const command = { commandId: opaqueId, ...session }
 const subscription = { subscriptionId: opaqueId }
 export const agentMethods = {
+  ...taskMethods,
   'agent.agents.list': method(
     z.strictObject(pageParams),
     pageOf(
@@ -44,6 +48,10 @@ export const agentMethods = {
       })
     )
   ),
+  'agent.models.list': method(
+    z.strictObject({ agentId: opaqueId, search: unicodeText.max(256).optional(), ...pageParams }),
+    pageOf(modelOptionSchema)
+  ),
   'agent.workspaces.list': method(
     z.strictObject({ agentId: opaqueId, ...pageParams }),
     pageOf(z.looseObject({ workspaceId: opaqueId, name: unicodeText.max(4096) })).extend({
@@ -51,7 +59,12 @@ export const agentMethods = {
     })
   ),
   'agent.sessions.list': method(
-    z.strictObject({ agentId: opaqueId.optional(), workspaceId: opaqueId.optional(), ...pageParams }),
+    z.strictObject({
+      agentId: opaqueId.optional(),
+      workspaceId: opaqueId.optional(),
+      taskId: opaqueId.optional(),
+      ...pageParams
+    }),
     pageOf(sessionSchema)
   ),
   'agent.sessions.get': method(z.strictObject(session), z.looseObject({ session: sessionSchema })),
@@ -61,12 +74,14 @@ export const agentMethods = {
         commandId: opaqueId,
         agentId: opaqueId,
         workspace: workspaceSelectionSchema,
+        model: modelSelectionSchema.optional(),
         title: unicodeText.max(4096).optional()
       }),
       z.strictObject({
         commandId: opaqueId,
         agentId: opaqueId,
         workspaceId: opaqueId,
+        model: modelSelectionSchema.optional(),
         title: unicodeText.max(4096).optional()
       })
     ]),

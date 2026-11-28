@@ -24,7 +24,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
-import { customAssistantName, ensureCustomAssistant } from '../helpers/assistants'
+import { customAssistantName, ensureCustomAssistant, linkAssistantKnowledge } from '../helpers/assistants'
 import { submitChatMarker } from '../helpers/chat'
 import { EMBEDDING_PROVIDER, ensureEmbeddingProvider, ensureKnowledgeBase, knowledgeName } from '../helpers/knowledge'
 import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
@@ -40,7 +40,7 @@ test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
   await test.step('Create and index a knowledge base, then verify recall', async () => {
     const providerId = await ensureEmbeddingProvider(app, page)
     await expect(page.getByRole('heading', { name: EMBEDDING_PROVIDER, exact: true, level: 1 })).toBeVisible()
-    await expect(page.getByText(app.config.customEmbeddingProvider.model, { exact: true })).toBeVisible()
+    await expect(page.getByText(app.embeddingProvider.model, { exact: true })).toBeVisible()
     await closeSettings(page)
     await ensureKnowledgeBase(app, page, providerId)
 
@@ -65,22 +65,7 @@ test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
   await test.step('Query the persisted knowledge base and verify the answer and citations', async () => {
     await ensureCustomAssistant(app, page)
     await page.getByRole('button', { name: `Edit Assistant: ${customAssistantName(app)}`, exact: true }).click()
-    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-    const assistantDialog = page.getByRole('dialog').last()
-    if (
-      !(await assistantDialog
-        .getByText(knowledgeName(app), { exact: true })
-        .isVisible()
-        .catch(() => false))
-    ) {
-      await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
-      await page
-        .getByRole('option')
-        .filter({ has: page.getByText(knowledgeName(app), { exact: true }) })
-        .click()
-    }
-    await expect(assistantDialog.getByText(knowledgeName(app), { exact: true })).toBeVisible()
-    await assistantDialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await linkAssistantKnowledge(page, knowledgeName(app))
 
     const sendQuestion = async () => {
       const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
@@ -317,7 +302,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
 
   const providerId = `mp60-${Date.now()}`
   const baseName = app.resourceName(`File processing ${Date.now()}`)
-  const upstream = app.config.customEmbeddingProvider
+  const upstream = app.embeddingProvider
   let holdResponse = false
   let releaseResponse!: () => void
   const responseGate = new Promise<void>((resolve) => {
@@ -351,7 +336,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
   testInfo.annotations.push({
     type: 'data-source',
     description:
-      'Real configured embedding API through a loopback response gate; the response is released after the real UI displays Embedding.'
+      'Mock embedding API through a loopback response gate; the response is released after the real UI displays Embedding.'
   })
   try {
     const configured = await page.evaluate(
@@ -483,7 +468,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
         await attachScreenshot('MP-60 indexed chunks')
         await testInfo.attach('MP-60 processing duration', {
           body: JSON.stringify(
-            { processingMs, chunks: await chunks.innerText(), provider: 'configured embedding provider', entries },
+            { processingMs, chunks: await chunks.innerText(), provider: 'loopback mock embedding provider', entries },
             null,
             2
           ),
@@ -630,6 +615,11 @@ test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => 
     expect(directory.data.source).toBe(documents)
     const row = page.getByRole('row', { name: `Open ${basename(documents)}`, exact: true })
     await expect(row.getByRole('gridcell').nth(2)).toHaveText('Folders')
+    // A folder import copies the children into the base before the folder lists them; entering it
+    // while it still reports Copying/Reading shows an empty folder and no child rows to assert.
+    await expect
+      .poll(async () => (await row.locator('[role="gridcell"]').nth(3).innerText()).trim(), { timeout: 180_000 })
+      .toMatch(/^(Ready|Error|Failed)$/)
     await screenshot('MP-61 imported directory and type')
     await row.click()
 
@@ -719,7 +709,7 @@ test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => 
 
     await test.step('Fetch a public article and verify indexed chunks reach Ready', async () => {
       const dialog = await openUrlDialog()
-      await dialog.getByPlaceholder('https://example.com', { exact: true }).fill(articleUrl)
+      await dialog.getByRole('textbox', { name: 'Enter webpage URLs:', exact: true }).fill(articleUrl)
       await attachScreenshot('MP-62 public article URL before submission')
       await dialog.getByRole('button', { name: 'Add', exact: true }).click()
       await expect(dialog).toBeHidden()
@@ -758,7 +748,7 @@ test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => 
 
     await test.step('An unreachable URL terminates with Error and an actionable failure reason', async () => {
       const dialog = await openUrlDialog()
-      await dialog.getByPlaceholder('https://example.com', { exact: true }).fill(unreachableUrl)
+      await dialog.getByRole('textbox', { name: 'Enter webpage URLs:', exact: true }).fill(unreachableUrl)
       await dialog.getByRole('button', { name: 'Add', exact: true }).click()
       await expect(dialog).toBeHidden()
       await expect
@@ -778,15 +768,9 @@ test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => 
 
     await test.step('Reject malformed URL before it becomes a data source', async () => {
       const dialog = await openUrlDialog()
-      await dialog.getByPlaceholder('https://example.com', { exact: true }).fill('not a valid URL')
-      const submit = dialog.getByRole('button', { name: 'Add', exact: true })
-      if (await submit.isEnabled()) {
-        await submit.click()
-        await expect.soft(dialog, 'Invalid URL must keep the input dialog open').toBeVisible({ timeout: 5_000 })
-        await expect
-          .soft(dialog.getByRole('alert'), 'Invalid URL must show validation feedback')
-          .toBeVisible({ timeout: 5_000 })
-      }
+      await dialog.getByRole('textbox', { name: 'Enter webpage URLs:', exact: true }).fill('not-a-valid-url')
+      await expect(dialog.getByRole('button', { name: 'Add', exact: true })).toBeDisabled()
+      await expect(dialog.getByText(/enter a complete HTTP or HTTPS URL/i)).toBeVisible()
       expect
         .soft(
           (await readItems()).map((item) => item.data.source),
@@ -833,7 +817,7 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
     const create = page.getByRole('dialog', { name: 'New Knowledge Base' })
     await create.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     await create.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-    await selectVisibleModel(page, app.config.customEmbeddingProvider.model, providerId)
+    await selectVisibleModel(page, app.embeddingProvider.model, providerId)
     await create.getByRole('button', { name: 'Create', exact: true }).click()
     await expect(create).toBeHidden({ timeout: 120_000 })
     const bases = await page.evaluate(() =>
@@ -955,9 +939,9 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
     const hits = hitResult.data
     expect(hits.length).toBeGreaterThan(0)
     expect(hits.length).toBeLessThanOrEqual(3)
-    expect(hits.some((hit) => hit.pageContent.includes('canary-seven'))).toBe(true)
+    expect(hits[0].pageContent).toContain('canary-seven')
     expect(hits.every((hit) => hit.itemId === itemId)).toBe(true)
-    await testInfo.attach('MP-66 real retrieval results', {
+    await testInfo.attach('MP-66 retrieval results with mock embeddings', {
       body: JSON.stringify(hits, null, 2),
       contentType: 'application/json'
     })
@@ -975,10 +959,7 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
     await assistantRow.hover()
     await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
     await page.getByRole('button', { name: `Edit Assistant: ${assistantName}`, exact: true }).click()
-    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-    await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
-    await page.getByText(name, { exact: true }).click()
-    await page.getByRole('dialog').last().getByRole('button', { name: 'Close', exact: true }).click()
+    await linkAssistantKnowledge(page, name)
     await page
       .locator('[data-ui~="chat.composer"] [contenteditable="true"]')
       .first()

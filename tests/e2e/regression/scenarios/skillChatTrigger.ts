@@ -13,7 +13,7 @@ import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
-// Uses the configured real provider; the expected reply exists only in the installed SKILL.md.
+// Uses the local mock model; the expected reply exists only in the installed SKILL.md.
 export async function skillChatTrigger(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
@@ -21,7 +21,7 @@ export async function skillChatTrigger(app: RegressionApp, page: Page, testInfo:
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const providerId = await ensureCustomChatProvider(app, page)
-  await openSettingsSection(page, 'API Gateway')
+  await openSettingsSection(page, 'Unified Gateway')
   const startGateway = page.getByRole('button', { name: 'Start', exact: true })
   const stopGateway = page.getByRole('button', { name: 'Stop', exact: true })
   await expect(startGateway.or(stopGateway)).toBeVisible()

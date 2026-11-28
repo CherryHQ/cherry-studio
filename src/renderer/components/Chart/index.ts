@@ -1,2 +1,2 @@
 export { Chart } from './Chart'
-export type { ChartProps } from './types'
+export type { ChartClickParams, ChartProps } from './types'

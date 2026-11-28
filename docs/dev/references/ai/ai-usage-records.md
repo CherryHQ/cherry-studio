@@ -1,13 +1,16 @@
 ---
 description: Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection
 sources:
+  - src/shared/ai/localAgentUsage.ts
   - src/main/data/db/schemas/aiUsageRecord.ts
   - src/main/data/services/AiUsageRecordService.ts
   - src/main/ai/utils/usageCapture.ts
   - src/main/ai/hooks/billingHook.ts
   - src/shared/data/types/providerBilling.ts
   - src/shared/utils/providerBilling.ts
+  - src/shared/utils/providerBillingDefaults.ts
   - src/shared/utils/usagePricing.ts
+  - src/renderer/pages/settings/UsageSettings
   - src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx
 ---
 
@@ -59,9 +62,35 @@ invoices remain authoritative.
   - `GET /ai-usage-records/stats`
   - `GET /ai-usage-records/timeline`
 
+## Local Agent observations
+
+`GET /ai-usage-records/local` paginates local observations by report date using
+message JSON and legacy `local-agent:*` records.
+
+| Scope | Source and interpretation |
+| --- | --- |
+| Native turn usage | Main writes `MessageData.localTurnUsage` with native session ID, reported model and tokens when available, report time and attribution. Cache and reasoning tokens are details of the totals. |
+| Native session cost | Main writes `MessageData.localSessionCost`. Usage shows the last snapshot per Agent and native session within the window, in its reported currency. A cumulative amount can include earlier activity. Updates replace the amount, including decreases and zero. |
+| Legacy turn summary | Historical synthetic records appear separately from provider lists, timelines and statistics. |
+
+Usage keeps native summaries out of provider billing and token totals. Missing
+values stay unknown. Explicit zeros and small positive costs remain distinguishable.
+The shared cache carries live costs before a message exists.
+`GET /agent-sessions/:sessionId/cost` reads persisted cost without starting a CLI.
+A new native session resets the display to unknown. Renderer writes and forks
+cannot copy or replace these observations.
+
+Gateway correlation uses a connection-scoped credential lease while the configured
+endpoint, credentials and native model match. Disposal revokes the lease. DeepSeek
+Harness, OpenCode, Kilo and Poolside can use a process-only overlay. A public-key
+request must match one active turn for the bound model. Ambiguous or unsupported
+requests retain unknown attribution.
+
 ## Invariants and ownership
 
-- Usage and cost have one fact source: `ai_usage_record`.
+- Provider invocation usage and cost come from `ai_usage_record`. ACP cumulative
+  costs are local diagnostic snapshots. See
+  [Local Agent Runtime](./local-agent-runtime.md#protocol-behavior).
 - Invocation amounts and request-time snapshots are insert-only. A duplicate
   `requestId` is ignored; a different payload logs an integrity warning.
 - Native response correlation can fill an initially unknown message link, including
@@ -125,7 +154,7 @@ The Cost calculation icon beside the provider's model filter opens draft billing
 settings; Save applies them, Cancel discards edits, and Reset removes only
 `providerSettings.billing`. Disabling schedules retains their rules.
 
-- The default multiplier is 1. A matching period replaces it. Multipliers are
+- The generic default multiplier is 1. A matching period replaces it. Multipliers are
   finite and nonnegative; zero makes known prices free, not missing prices.
 - Daily periods use a saved fixed UTC offset and whole-hour 24-hour pickers.
   Start is inclusive, end exclusive; `24:00` is allowed only as an end.
@@ -138,6 +167,28 @@ settings; Save applies them, Cancel discards edits, and Reset removes only
 - Each observable invocation freezes its prices and optional `billing` metadata
   at the start. Calls crossing a boundary retain those prices; later tool calls,
   retries and fallback models resolve again. Settings edits do not rewrite history.
+
+DeepSeek's first-party Flash, Pro and the two retired Flash aliases inherit the
+weekday schedule when no provider billing override or stored model-price override
+exists. Provider preset identity and the actual `https://api.deepseek.com` host must
+both match. Copies of that preset retain eligibility; third-party relays do not.
+Defaults resolve on read for existing and new accounts. Reset removes the override
+and restores applicable defaults; saving untouched defaults does not pin a copy.
+
+The catalog holds USD peak token prices. In Beijing time, Monday–Friday periods
+09:00–12:00 and 14:00–18:00 use multiplier 1; other times use 0.5. The schedule-level
+`cn-weekdays` condition checks only the day of week, in every year. Weekday holidays
+follow ordinary weekday rates; weekend makeup workdays remain off-peak. There is no
+holiday table or missing-year fallback. Legacy settings without this condition still
+apply daily. Snapshots retain default source and rule version. These are client estimates, not a claim
+about DeepSeek's undisclosed cross-boundary settlement rule.
+
+The settings preview accepts a date and highlights the current period for today.
+It uses the same default eligibility
+and multiplier resolver as capture. Model price overrides remain undiscounted
+unless the user explicitly saves provider billing rules. Turning off the calendar
+or schedule persists that choice. No currency conversion, historical recalculation
+or discount on separately billed search, file and speech APIs is performed.
 
 | Invocation path | Pricing capture |
 | --- | --- |
@@ -450,40 +501,19 @@ available in the general invocation list.
 
 ## Historical migration
 
-`AiUsageRecordMigrator` runs after chat and agent message migration.
-
-- It reads only migrated message rows; it does not join current provider,
-  model, assistant, or agent configuration.
-- Each usage-bearing assistant message becomes one `legacy-aggregate`.
-- `ChatMigrator` and `AgentsMigrator` estimate request count from raw blocks
-  and persist it in the migrated `MessageStats`, so resume does not rely on an
-  in-memory map.
-- The estimate starts at one and adds one for each consecutive/parallel tool
-  group followed by model output. Citation/file/source blocks do not split the
-  group, and a terminal tool group adds nothing.
-- Provider/model may remain unknown. Source comes only from
-  `messageSnapshot`. Credential attribution is always `unknown`.
-- Existing v1 cost is retained according to its stored semantics. Missing cost
-  is never recomputed from current pricing.
-- Legacy model pricing recognizes only absent/`$` as USD and `¥`/`￥` as CNY.
-  Other currency symbols are dropped instead of being assigned an invented
-  currency.
-- Legacy invocation metrics remain null; historical message timings are
-  preserved while usage/cost are rebuilt from the inserted record.
-- Stable request ids, keyset batches, progress reporting, rollback, and
-  row-by-row retry keep migration idempotent and resumable.
-
-See
-`src/main/data/migration/v2/migrators/README-AiUsageRecordMigrator.md` for the
-field mapping.
+Previously imported usage records remain in SQLite. New v1 imports require the [intermediate upgrade release](../data/v2-migration-guide.md); the current application does not rerun conversion or recompute historical costs.
 
 ## Query API and freshness
 
 `GET /ai-usage-records` is keyset-paginated (`limit` default 50, max 200) and
 sorts by `createdAt`, `totalTokens`, `cost`, `timeFirstTokenMs`, or
-`tokensPerSecond`. Cost sort requires and filters to one currency. Supplying
-`messageKind` and `messageId` together restricts the list to one message;
-supplying only one is rejected.
+`tokensPerSecond`. Cost sort requires `costCurrency` so unlike currencies never
+compete in the sort order, while keeping unpriced and other-currency rows after
+matching-currency entries rather than hiding them. Supplying `messageKind` and
+`messageId` together restricts the list to one message; supplying only one is
+rejected. Optional group-dimension filters (`providerId`, `modelId`,
+`sourceType`, `sourceId`, `apiKeyId`, `apiKeyAttribution`, `authMethod`) narrow
+the list to match a clicked analytics bucket.
 
 The message details card enables this message-scoped query only while the card
 is open and follows its keyset cursor until the message's records are loaded.
@@ -533,5 +563,4 @@ global SWR focus/reconnect revalidation is disabled.
 | `packages/aiCore/src/core/runtime/` | Embedding/image/rerank provider-call events |
 | `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts` | Direct Agent SDK capture |
 | `src/main/ai/runtime/pi/gatewayModelBinding.ts` | Shared Pi/Durable gateway binding and native context/display usage |
-| `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | v1 aggregate migration |
 | `src/renderer/pages/settings/UsageSettings/` | Usage read model consumers |

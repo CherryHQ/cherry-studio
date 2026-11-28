@@ -1,6 +1,7 @@
-import { formatApiHost, formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
+import { formatApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { AuthConfig, Provider } from '@shared/data/types/provider'
+import { formatOllamaApiHost } from '@shared/utils/api'
 import {
   isAzureOpenAIProvider,
   isCherryAIProvider,

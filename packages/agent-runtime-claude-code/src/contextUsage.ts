@@ -32,7 +32,7 @@ const estimated = (tokens: number) => ({ tokens, precision: 'estimated' as const
 
 export function normalizeContextUsage(
   native: SDKControlGetContextUsageResponse,
-  contextWindow: number
+  contextWindow?: number
 ): ThreadContextUsage {
   const categories = native.categories
     .filter((row) => row.kind !== 'free' && row.kind !== 'buffer')
@@ -96,11 +96,12 @@ export function normalizeContextUsage(
         ])
       )
       .digest('hex'),
-    contextWindow,
+    ...(contextWindow === undefined ? {} : { contextWindow }),
     used: estimated(native.totalTokens),
     basis: 'current-context',
     ...(reserved && { reserved }),
     ...(reserved &&
+      contextWindow !== undefined &&
       contextWindow === native.rawMaxTokens && {
         free: estimated(Math.max(0, contextWindow - native.totalTokens - reserved.tokens))
       }),
