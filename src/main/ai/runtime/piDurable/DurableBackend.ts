@@ -17,13 +17,11 @@ import type { DurableFollowup, DurableRecoveryWork, PiDurableRuntime } from '@ch
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { openDurableStorage, prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
 import { createPiTelemetry } from '@main/ai/observability'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { Sequencer } from '@shared/utils/async'
@@ -35,6 +33,7 @@ import { createPiBehaviorHost } from '../pi/piBehaviorHost'
 import { type AgentRuntimeConnectInput, type AgentRuntimeEvent, unavailableNativeContext } from '../types'
 import { prepareDurableDesktop } from './durableDesktop'
 import { readDurableRequest } from './durableRequest'
+import { projectFollowupEdit } from './recoverDurableReplies'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type Behavior = Awaited<ReturnType<typeof createPiBehaviorHost>>
@@ -674,10 +673,4 @@ function rewriteRetiredExtensions(
         ? { remove: [...patch.remove] }
         : {})
   }
-}
-
-function projectFollowupEdit(context: AgentSessionContextRow, messageId: string, serialized: string): void {
-  const part = JSON.parse(serialized) as Extract<CherryMessagePart, { type: 'text' }>
-  if (part?.type !== 'text' || typeof part.text !== 'string') throw new Error('Invalid Durable follow-up text part')
-  agentSessionMessageService.applyNativeFollowupEdit(context.sessionId, context.id, messageId, part)
 }

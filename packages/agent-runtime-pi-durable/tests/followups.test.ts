@@ -122,6 +122,23 @@ it('publishes admissions and doc-only edits to a live queue observer', async () 
   onTestFinished(async () => {
     await runtime.shutdown()
   })
+  const queuedCommitDocuments: string[][] = []
+  const commits = runtime.durable.observeCommits({
+    advance({ changes }) {
+      if (
+        changes.some(
+          (change) =>
+            change.type === 'submission' && change.value.status === 'queued' && change.value.requestId === 'Next'
+        )
+      ) {
+        queuedCommitDocuments.push(
+          changes.flatMap((change) => (change.type === 'document' ? [change.record.kind] : []))
+        )
+      }
+    },
+    end() {}
+  })
+  onTestFinished(() => commits.detach())
   const driver = confirmed(
     await runtime.create({
       ownership: { kind: 'ownerless' },
@@ -129,9 +146,15 @@ it('publishes admissions and doc-only edits to a live queue observer', async () 
     })
   )
   confirmed(await runtime.resume())
-  await driver.input.submit({ inputId: runtimeId('Active'), text: 'Active', whenBusy: 'reject' })
+  await driver.input.submit!({ inputId: runtimeId('Active'), text: 'Active' })
   await started
-  await driver.input.submit({ inputId: runtimeId('Next'), text: 'Next', whenBusy: 'follow-up' })
+  await expect(
+    driver.durable.submitStagedFollowup({ inputId: runtimeId('Next'), text: 'Next' })
+  ).resolves.toMatchObject({
+    status: 'acknowledged',
+    facts: ['accepted', 'queued']
+  })
+  expect(queuedCommitDocuments).toEqual([expect.arrayContaining(['cherry.recovery'])])
   expect(observed.at(-1)).toEqual([{ inputId: 'Next', revision: 0 }])
   expect(
     await driver.durable.changeFollowups({

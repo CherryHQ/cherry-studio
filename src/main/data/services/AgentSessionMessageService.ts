@@ -1251,22 +1251,22 @@ export class AgentSessionMessageService {
     )
   }
 
-  stagedFollowups() {
+  stagedFollowups(sessionId: string) {
     return application
       .get('DbService')
       .getDb()
       .select({
-        sessionId: sessionMessagesTable.sessionId,
         messageId: sessionMessagesTable.id,
-        contextId: sessionMessagesTable.inputContextId,
-        backendId: agentSessionContextTable.backendId,
-        threadId: agentSessionContextTable.nativeThreadId
+        contextId: sessionMessagesTable.inputContextId
       })
       .from(sessionMessagesTable)
       .innerJoin(sessionTable, eq(sessionTable.id, sessionMessagesTable.sessionId))
-      .leftJoin(agentSessionContextTable, eq(agentSessionContextTable.id, sessionMessagesTable.inputContextId))
       .where(
-        and(isNull(sessionTable.deletedAt), sql`json_extract(${sessionMessagesTable.data}, '$.stagedFollowup') = 1`)
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          isNull(sessionTable.deletedAt),
+          sql`json_extract(${sessionMessagesTable.data}, '$.stagedFollowup') = 1`
+        )
       )
       .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
       .all()
@@ -2728,7 +2728,7 @@ export class AgentSessionMessageService {
   }
 
   /** A `paused` user message is one the runtime withdrew before the agent received it. */
-  markUserMessageUnsent(sessionId: string, messageId: string, contextId?: string): void {
+  markUserMessageUnsent(sessionId: string, messageId: string, contextId?: string | null): void {
     const change = application.get('DbService').withWriteTx((tx) => {
       const changed = tx
         .update(sessionMessagesTable)
@@ -2745,12 +2745,16 @@ export class AgentSessionMessageService {
                   isNull(sessionMessagesTable.replyId),
                   isNull(sessionMessagesTable.deliveryStatus)
                 )
-              : undefined
+              : contextId === null
+                ? isNull(sessionMessagesTable.inputContextId)
+                : undefined
           )
         )
         .run()
       if (!changed.changes) return
-      return this.publishStagedFollowupTx(tx, sessionId, messageId, contextId) ? 'membership' : 'projection'
+      return this.publishStagedFollowupTx(tx, sessionId, messageId, contextId ?? undefined)
+        ? 'membership'
+        : 'projection'
     })
     if (change) this.publishDeliveryChange(sessionId, messageId, change)
   }

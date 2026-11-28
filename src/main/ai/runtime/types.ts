@@ -326,6 +326,7 @@ export interface AgentRuntimeConnection {
   /** Reconcile the captured context without submitting or resuming native execution. */
   lookupInput?(contextId: string, inputId: string): Promise<OperationResult<InputLookup>>
   changeFollowups?(change: AgentSessionFollowupChange): Promise<boolean>
+  acknowledgeFollowupProjection?(contextId: string, inputId: string): void
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts, permission mode included, are patched in place before the

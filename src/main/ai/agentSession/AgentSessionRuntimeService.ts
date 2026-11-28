@@ -113,7 +113,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { LocalAgentSessionRestoreError } from '../runtime/LocalAgentSessionRestoreError'
-import { recoverDurableFollowups, recoverDurableReplies } from '../runtime/piDurable/recoverDurableReplies'
+import { recoverDurableReplies } from '../runtime/piDurable/recoverDurableReplies'
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
@@ -614,13 +614,6 @@ export class AgentSessionRuntimeService extends BaseService {
   private async recoverNativeWork(): Promise<void> {
     if (this.isShuttingDown || this.isWriteQuiesced) return
     for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
-    await recoverDurableFollowups(
-      (sessionId) =>
-        !this.isShuttingDown &&
-        !this.isWriteQuiesced &&
-        !this.blockedRecovery.has(sessionId) &&
-        !this.isSessionBusy(sessionId)
-    )
     await this.recoverPendingReplies()
     for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
       if (this.isShuttingDown) return
@@ -3049,6 +3042,8 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         this.resolvePendingInput(entry, event.contextId, event.input)
         this.noteNativeOutcome(entry, event.contextId, event.input)
+        if (event.input.facts.includes('placed') || event.input.outcome)
+          connection?.acknowledgeFollowupProjection?.(event.contextId, event.input.inputId)
         break
       case 'steer-boundary':
         for (const inputId of event.inputIds) this.publishInputDelivery(entry, inputId)

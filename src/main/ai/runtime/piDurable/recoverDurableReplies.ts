@@ -1,6 +1,8 @@
-import type { ConversationId } from '@earendil-works/pi-durable'
+import type { ConversationId, EntryId, Storage } from '@earendil-works/pi-durable'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
+import type { FollowupProjection } from '@cherrystudio/agent-runtime-pi-durable'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
@@ -10,56 +12,81 @@ import { nativeOutcomeTerminal } from '@main/ai/agentSession/nativeSubmission'
 import { projectRuntimeMessage } from '@main/ai/agentSession/ThreadMessageProjection'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import { readDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('recoverDurableReplies')
 
-export async function recoverDurableFollowups(isWritable: (sessionId: string) => boolean): Promise<void> {
-  const staged = messages.stagedFollowups()
-  if (!staged.length) return
-  const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
-  for (const [backendId, group] of Map.groupBy(staged, (row) => row.backendId)) {
-    if (!backendId) {
-      for (const { sessionId, messageId } of group)
-        if (isWritable(sessionId)) messages.markUserMessageUnsent(sessionId, messageId)
-      continue
+export function projectFollowupEdit(context: AgentSessionContextRow, messageId: string, serialized: string): void {
+  const part = JSON.parse(serialized) as Extract<CherryMessagePart, { type: 'text' }>
+  if (part?.type !== 'text' || typeof part.text !== 'string') throw new Error('Invalid Durable follow-up text part')
+  messages.applyNativeFollowupEdit(context.sessionId, context.id, messageId, part)
+}
+
+export async function recoverDurableFollowups(
+  backendId: string,
+  storage: Storage,
+  isWritable: (sessionId: string) => boolean,
+  scope?: { context: AgentSessionContextRow; inputIds: readonly string[] }
+): Promise<{ acknowledged: FollowupProjection[]; replies: { sessionId: string; runId: string }[] }> {
+  const [{ followupEdit, readFollowupProjections }, { BACKGROUND_CONTEXT }] = await Promise.all([
+    import('@cherrystudio/agent-runtime-pi-durable'),
+    import('@earendil-works/chord/context')
+  ])
+  const acknowledged: FollowupProjection[] = []
+  const replies: { sessionId: string; runId: string }[] = []
+  const groups = Map.groupBy(await readFollowupProjections(storage), ({ threadId }) => threadId)
+  const scopedThread = scope?.context.nativeThreadId
+  if (scopedThread && !groups.has(scopedThread)) groups.set(scopedThread, [])
+  for (const [threadId, registered] of groups) {
+    if (scope && scopedThread !== threadId) continue
+    const context = scope?.context ?? contexts.rootForThread(backendId, threadId)
+    if (!context?.anchorMessageId || !isWritable(context.sessionId)) continue
+    const thread = Number(threadId) as ConversationId
+    if (!(await matchesDurableContext(storage, thread, context.id, BACKGROUND_CONTEXT))) continue
+
+    const tracked = new Set(registered.map(({ inputId }) => inputId))
+    const candidates = [...registered]
+    for (const inputId of scope?.inputIds ?? []) {
+      if (!tracked.has(inputId)) candidates.push({ threadId, inputId })
     }
-    try {
-      const storage = await openDurableStorage(contexts.backend(backendId), 'ro')
-      try {
-        for (const rows of Map.groupBy(group, (row) => row.contextId).values()) {
-          const { sessionId, contextId, threadId } = rows[0]
-          if (!contextId || !threadId || !isWritable(sessionId)) continue
-          const thread = Number(threadId) as ConversationId
-          if (!(await matchesDurableContext(storage, thread, contextId, BACKGROUND_CONTEXT))) continue
-          const placed: { id: string; entry: number }[] = []
-          for (const { messageId } of rows) {
-            const record = await storage.submissionByRequest(thread, messageId, BACKGROUND_CONTEXT)
-            if (!isWritable(sessionId)) break
-            if (!record || (record.status === 'unanswered' && record.entry === undefined))
-              messages.markUserMessageUnsent(sessionId, messageId, contextId)
-            else if (
-              (record.status === 'placed' || record.status === 'done' || record.status === 'unanswered') &&
-              record.entry !== undefined
-            )
-              placed.push({ id: messageId, entry: record.entry })
-          }
-          if (!placed.length || !isWritable(sessionId)) continue
-          const modelId = (await readDurableRequest(storage, threadId))?.modelId
-          if (isWritable(sessionId))
-            for (const { id } of placed.sort((a, b) => a.entry - b.entry))
-              messages.saveInputTimelinePosition(sessionId, id, contextId, 0, { modelId })
+    const placed: { item: FollowupProjection; entry: EntryId; terminal: boolean }[] = []
+    for (const item of candidates) {
+      const record = await storage.submissionByRequest(thread, item.inputId, BACKGROUND_CONTEXT)
+      if (!isWritable(context.sessionId)) break
+      if (messages.inputBinding(context.sessionId, item.inputId)?.contextId !== context.id) continue
+      if (!record && !tracked.has(item.inputId)) {
+        messages.markUserMessageUnsent(context.sessionId, item.inputId, context.id)
+      } else if (record?.type === 'input' && record.status !== 'queued') {
+        if (record.entry !== undefined) placed.push({ item, entry: record.entry, terminal: record.status !== 'placed' })
+        else if (record.status === 'unanswered') {
+          messages.markUserMessageUnsent(context.sessionId, item.inputId, context.id)
+          if (tracked.has(item.inputId) && !messages.isStagedFollowup(context.sessionId, item.inputId))
+            acknowledged.push(item)
         }
-      } finally {
-        await storage.close(BACKGROUND_CONTEXT)
       }
-    } catch (error) {
-      logger.warn('Could not recover saved follow-ups from their original Durable store', { backendId, error })
+    }
+    if (!placed.length) continue
+    const modelId = (await readDurableRequest(storage, threadId))?.modelId
+    for (const { item, entry, terminal } of placed.sort((a, b) => a.entry - b.entry)) {
+      if (!isWritable(context.sessionId)) break
+      if (messages.isStagedFollowup(context.sessionId, item.inputId)) {
+        const source = await storage.entry(thread, entry, BACKGROUND_CONTEXT)
+        if (!isWritable(context.sessionId)) break
+        if (!source?.entry) continue
+        const { textPart } = followupEdit(source.entry.data)
+        if (textPart !== undefined) projectFollowupEdit(context, item.inputId, textPart)
+        messages.saveInputTimelinePosition(context.sessionId, item.inputId, context.id, 0, { modelId })
+      }
+      const reply = messages.replyTo(context.sessionId, item.inputId)
+      if (!reply) continue
+      if (tracked.has(item.inputId)) acknowledged.push(item)
+      if (terminal && reply.status === 'pending') replies.push({ sessionId: context.sessionId, runId: reply.id })
     }
   }
+  return { acknowledged, replies }
 }
 
 export async function recoverDurableReplies(
