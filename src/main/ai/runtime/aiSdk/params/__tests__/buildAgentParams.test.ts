@@ -105,6 +105,29 @@ describe('buildAgentParams provider resolution', () => {
     expect(moved.replayRouteId).not.toBe(first.replayRouteId)
   })
 
+  // The provider builder decides signed-out access from this flag; dropping it here re-gates every utility task.
+  it('hands a utility-task request to provider config resolution', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: { baseURL: 'https://relay.test/v1', apiKey: 'k' } },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const build = (utilityTask?: boolean) =>
+      buildAgentParams({
+        request: { conversation: CONVERSATION, contextOwner: 'caller', utilityTask },
+        signal: undefined,
+        provider: makeProvider({ id: 'openai', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }),
+        model: makeModel({ providerId: 'openai', apiModelId: 'gpt-4o' })
+      })
+
+    await build(true)
+    await build()
+
+    expect(resolveProviderAiSdkConfigMock.mock.calls.map(([, , options]) => options?.utilityTask)).toEqual([
+      true,
+      undefined
+    ])
+  })
+
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
     const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
     const toolId = 'mcp__docs__read'

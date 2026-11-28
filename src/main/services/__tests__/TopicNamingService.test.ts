@@ -134,7 +134,9 @@ describe('TopicNamingService', () => {
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
         conversation: { id: 'topic-1', topicId: 'topic-1' },
-        uniqueModelId: 'openai::gpt-4o-mini'
+        uniqueModelId: 'openai::gpt-4o-mini',
+        // Naming must keep working for a signed-out user on the built-in free model.
+        utilityTask: true
       })
     )
     // A naming request must never carry the assistant id — buildAgentParams would

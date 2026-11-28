@@ -58,6 +58,7 @@ export async function fetchMessagesSummary({
   try {
     const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: model.id,
+      utilityTask: true,
       reasoningEffort: 'none',
       system: prompt,
       prompt: conversation
@@ -94,6 +95,7 @@ export async function fetchNoteSummary({
   try {
     const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: model.id,
+      utilityTask: true,
       reasoningEffort: 'none',
       system: prompt,
       prompt: purifiedContent
@@ -110,13 +112,16 @@ export async function fetchGenerate({
   model,
   throwOnError = false,
   signal,
-  onTextDelta
+  onTextDelta,
+  utilityTask
 }: {
   prompt: string
   content: string
   model?: Model
   throwOnError?: boolean
   signal?: AbortSignal
+  /** Marks a utility task (prompt helpers), not a conversation turn. */
+  utilityTask?: boolean
   /** Streams the reply: each text delta as it arrives; the returned text is still the whole reply. */
   onTextDelta?: (delta: string) => void
 }): Promise<string> {
@@ -152,6 +157,7 @@ export async function fetchGenerate({
       ...(requestId ? { requestId } : {}),
       ...(onTextDelta ? { streamDeltas: true } : {}),
       uniqueModelId: resolvedModel.id,
+      ...(utilityTask ? { utilityTask: true } : {}),
       reasoningEffort: 'none',
       system: prompt,
       prompt: content
