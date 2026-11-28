@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-23-non-vision-image-ocr.md
+2026-11-23-non-vision-image-ocr.md: 7f20dae059b8a0d2c0f5cb0b6c66b0cf6edd190a
+2026-11-23-non-vision-image-ocr.zh.md: 851c4c414a6cef8e8c1db26a97afbd26d8f8fcdb
