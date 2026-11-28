@@ -434,8 +434,9 @@ function assignSummaries(
   const parsed = new Map<number, string>()
   for (const line of text.split('\n')) {
     const match = /^[\s*_>#-]*FRAME_(\d+)[\s*_]*:[\s*_]*(.+?)\s*$/i.exec(line)
-    const summary = match?.[2]?.trim()
-    if (match && summary) parsed.set(Number(match[1]), summary)
+    // Label emphasis such as `**FRAME_0:**` leaves only markup; that is no description.
+    const summary = match?.[2]?.replace(/^[\s*_]+|[\s*_]+$/g, '')
+    if (match && summary && /[\p{L}\p{N}]/u.test(summary)) parsed.set(Number(match[1]), summary)
   }
   // A reply that names none of its frames was not understood; leave them for a retry.
   if (!batch.some((frame) => parsed.has(frame.timestampMs))) return

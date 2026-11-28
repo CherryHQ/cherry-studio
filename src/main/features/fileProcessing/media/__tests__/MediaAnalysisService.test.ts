@@ -1083,6 +1083,26 @@ describe('MediaAnalysisService', () => {
       expect(recovered.warnings).not.toContain('vision_failed')
     })
 
+    it('asks again when a reply carries only bold frame labels', async () => {
+      const labelsOnly = async () => ({
+        text: requestedFrames(runtime.generateText.mock.calls.length - 1)
+          .map((frame) => `**${frame}:**`)
+          .join('\n')
+      })
+      const answer = async () => ({
+        text: requestedFrames(runtime.generateText.mock.calls.length - 1)
+          .map((frame) => `${frame}: slide`)
+          .join('\n')
+      })
+      runtime.generateText.mockImplementationOnce(labelsOnly).mockImplementation(answer)
+
+      await expect(service.analyze(file)).rejects.toMatchObject({ code: 'unusable_media_analysis' })
+      const recovered = await service.analyze(file)
+
+      expect(runtime.generateText).toHaveBeenCalledTimes(2)
+      expect(recovered.visuals?.every((frame) => frame.summary === 'slide')).toBe(true)
+    })
+
     it('does not resolve a vision credential when every frame is already answered', async () => {
       runtime.config = { ...runtime.config, ocr: systemOcr }
       runtime.ocrImage.mockRejectedValue(new Error('OCR processor is misconfigured'))
