@@ -609,15 +609,15 @@ it('restores nested children under their immediate parent after an attachment fa
   const saved = savedChildView(inner).messages
   let failed = false
   const originalAttach = ChildThreadProjection.prototype.attach
-  const attach = vi.spyOn(ChildThreadProjection.prototype, 'attach').mockImplementation(function (
-    this: ChildThreadProjection
-  ) {
-    if (!failed && this.context.id === inner.id) {
-      failed = true
-      return Promise.reject(new Error('Child attachment temporarily unavailable'))
-    }
-    return originalAttach.call(this)
-  })
+  const attach = vi
+    .spyOn(ChildThreadProjection.prototype, 'attach')
+    .mockImplementation(function (this: ChildThreadProjection) {
+      if (!failed && this.context.id === inner.id) {
+        failed = true
+        return Promise.reject(new Error('Child attachment temporarily unavailable'))
+      }
+      return originalAttach.call(this)
+    })
   try {
     await test.connect()
     await expect.poll(() => failed).toBe(true)
@@ -997,28 +997,26 @@ it('recovers current content and one terminal result after observer overflow, th
   const paused = Promise.withResolvers<void>()
   const resume = Promise.withResolvers<void>()
   let held = false
-  const spy = vi.spyOn(ClaudeFeed.prototype, 'observe').mockImplementation(function (
-    this: ClaudeFeed,
-    sink,
-    needsRecovery
-  ) {
-    return observe.call(
-      this,
-      async (batch) => {
-        if (
-          needsRecovery &&
-          !held &&
-          batch.events.some((event) => event.type === 'message.reconcile' && event.message.role === 'assistant')
-        ) {
-          held = true
-          paused.resolve()
-          await resume.promise
-        }
-        await sink(batch)
-      },
-      needsRecovery
-    )
-  })
+  const spy = vi
+    .spyOn(ClaudeFeed.prototype, 'observe')
+    .mockImplementation(function (this: ClaudeFeed, sink, needsRecovery) {
+      return observe.call(
+        this,
+        async (batch) => {
+          if (
+            needsRecovery &&
+            !held &&
+            batch.events.some((event) => event.type === 'message.reconcile' && event.message.role === 'assistant')
+          ) {
+            held = true
+            paused.resolve()
+            await resume.promise
+          }
+          await sink(batch)
+        },
+        needsRecovery
+      )
+    })
   try {
     const connection = await test.connect()
     const first = test.input('Produce many blocks')
