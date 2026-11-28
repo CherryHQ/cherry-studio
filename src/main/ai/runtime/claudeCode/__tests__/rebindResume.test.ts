@@ -40,7 +40,7 @@ function fakeEvent(overrides: Partial<AgentSessionWorkspaceEventRow> = {}): Agen
     createdAt: 1000,
     surfacedAt: null,
     ...overrides
-  } as AgentSessionWorkspaceEventRow
+  }
 }
 
 interface HarnessOptions {
@@ -66,7 +66,7 @@ function harness(options: HarnessOptions = {}) {
     backendId: 'backend-1',
     currentCwd: '/projects/b',
     primaryRuntime: primaryRuntime as unknown as ClaudeCodeRuntime,
-    createConfig: { cwd: '/projects/b' } as never,
+    createConfig: { cwd: '/projects/b' },
     createRuntime: createRuntime as never,
     probeRuntimeOptions: (previousCwd: string) => ({ load: async () => ({ cwd: previousCwd }) }) as never,
     getLatestWorkspaceEvent: () => (options.event === undefined ? fakeEvent() : options.event)
