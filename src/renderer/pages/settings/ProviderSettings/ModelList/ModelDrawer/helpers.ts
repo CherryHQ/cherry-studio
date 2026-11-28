@@ -161,11 +161,12 @@ export function getInitialModelClassification(model?: Model | null): ModelClassi
 
 export function buildModelCapabilities(
   original: readonly ModelCapability[],
-  classification: ModelClassificationState
+  classification: ModelClassificationState,
+  preserveInputModalityCapabilities = false
 ): ModelCapability[] {
   const managedCapabilities = new Set<ModelCapability>([
     ...MODEL_PRIMARY_TYPE_CAPABILITIES,
-    ...LEGACY_INPUT_MODALITY_CAPABILITIES,
+    ...(preserveInputModalityCapabilities ? [] : LEGACY_INPUT_MODALITY_CAPABILITIES),
     ...Object.values(TOGGLE_TO_CAPABILITY)
   ])
   if (classification.primaryType !== null) {
