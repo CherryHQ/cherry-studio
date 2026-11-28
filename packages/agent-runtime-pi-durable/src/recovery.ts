@@ -28,12 +28,47 @@ export const recoveryIndex = defineDoc({
   version: 1,
   scope: 'session',
   checkpointWhen: () => false,
-  initial: (): { initialized: boolean; behavior: Record<string, true>; archives: Record<string, true> } => ({
+  initial: (): {
+    initialized: boolean
+    behavior: Record<string, true>
+    archives: Record<string, true>
+    followupProjections?: Record<string, Record<string, true>>
+  } => ({
     initialized: false,
     behavior: {},
     archives: {}
   })
 })
+
+export interface FollowupProjection {
+  threadId: string
+  inputId: string
+}
+
+export async function readFollowupProjections(storage: Storage): Promise<FollowupProjection[]> {
+  const address = await storage.findDocument(
+    { scope: { kind: 'session' }, kind: recoveryIndex.definition.kind },
+    'current',
+    ctx
+  )
+  const doc = address && (await storage.document(address.id, 'current', ctx))
+  const projections = doc?.value.followupProjections
+  if (!projections || typeof projections !== 'object') return []
+  return Object.entries(projections).flatMap(([threadId, inputs]) =>
+    inputs && typeof inputs === 'object' ? Object.keys(inputs).map((inputId) => ({ threadId, inputId })) : []
+  )
+}
+
+export async function acknowledgeFollowupProjections(tx: Tx, projected: readonly FollowupProjection[]) {
+  const { followupProjections } = await tx.doc(recoveryIndex)
+  if (!followupProjections) return
+  for (const { threadId, inputId } of projected) {
+    const inputs = followupProjections[threadId]
+    if (!inputs) continue
+    delete inputs[inputId]
+    if (!Object.keys(inputs).length) delete followupProjections[threadId]
+  }
+}
 
 export interface DurableRecoveryWork {
   readonly needsInventory: boolean

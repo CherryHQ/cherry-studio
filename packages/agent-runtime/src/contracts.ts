@@ -87,6 +87,7 @@ export interface Subagent {
 }
 export interface Activity {
   readonly state: 'active' | 'idle' | 'unknown'
+  readonly modelRetry?: { readonly modelId: string; readonly attempt: number; readonly reason: string }
 }
 export type ContextCategoryKey =
   | 'messages'

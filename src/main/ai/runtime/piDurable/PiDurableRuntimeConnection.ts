@@ -8,6 +8,7 @@ import {
   hasProductInputId,
   isPartBatch,
   runtimeId,
+  type Activity,
   type CompactThread,
   type InputState,
   type Observation,
@@ -60,6 +61,20 @@ import { saveDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('PiDurableRuntimeConnection')
 
+function projectRetryChange(
+  previous: Activity['modelRetry'],
+  current: Activity['modelRetry']
+): RetryPartData | undefined {
+  if (!current) return previous ? { state: 'settled' } : undefined
+  if (
+    previous?.modelId === current.modelId &&
+    previous.attempt === current.attempt &&
+    previous.reason === current.reason
+  )
+    return undefined
+  return { ...current, state: 'retrying' }
+}
+
 /** Root access and its observed child projections borrow the backend owner. */
 type DurableChildResource = {
   relation: Subagent
@@ -93,6 +108,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private closing = false
   private closePromise?: Promise<void>
   private active = false
+  private modelRetry?: Activity['modelRetry']
   private sending = false
   private compacting = false
   private autonomous = false
@@ -106,6 +122,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private readonly steers = new Set<string>()
   /** Inputs submitted while native work ran; their placement is announced even with an outcome. */
+  private readonly stagedFollowups = new Set<string>()
   private readonly queued = new Set<string>()
   /** Product inputs whose placement was announced; each placement starts its own reply once. */
   private readonly placed = new Set<string>()
@@ -173,7 +190,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
     this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
-    this.publishFollowups(this.handle.durable.followups())
+    const restored = this.handle.durable.followups()
+    for (const { inputId } of restored) this.stagedFollowups.add(inputId)
+    this.publishFollowups(restored, true)
     await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
     await this.handle.durable.configure(root.agent)
     this.providerSessionId = await this.handle.durable.providerSessionId()
@@ -316,7 +335,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           }
         const inputs = kind === 'steer' ? this.steers : this.queued
         inputs.add(inputId)
-        const submission = native({ inputId, text: wrapSteerReminder(text) })
+        const draft = { inputId, text: wrapSteerReminder(text) }
+        const staged = kind === 'follow-up' && messages.isStagedFollowup(this.input.sessionId, inputId)
+        if (staged) this.stagedFollowups.add(inputId)
+        const submission = staged ? handle.durable.submitStagedFollowup(draft) : native(draft)
         this.admission = submission.catch(() => undefined)
         const result = await submission.catch((error: unknown) => ({
           status: 'unknown' as const,
@@ -327,7 +349,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             message: error instanceof Error ? error.message : String(error)
           }
         }))
-        if (result.status === 'rejected' || result.status === 'unsupported') inputs.delete(inputId)
+        if (result.status === 'rejected' || result.status === 'unsupported') {
+          inputs.delete(inputId)
+          this.stagedFollowups.delete(inputId)
+        }
         return result
       }
     return {
@@ -336,6 +361,25 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         followUp: { persistence: 'durable', submit: submit('follow-up') }
       })
     }
+  }
+
+  acknowledgeFollowupProjection(contextId: string, inputId: string): void {
+    const runtime = this.runtime
+    const threadId = this.handle?.thread.id
+    if (
+      !runtime ||
+      !threadId ||
+      this.context?.id !== contextId ||
+      !this.stagedFollowups.has(inputId) ||
+      messages.isStagedFollowup(this.input.sessionId, inputId)
+    )
+      return
+    this.stagedFollowups.delete(inputId)
+    void Promise.all([import('@cherrystudio/agent-runtime-pi-durable'), import('@earendil-works/chord/context')])
+      .then(([{ acknowledgeFollowupProjections }, { BACKGROUND_CONTEXT }]) =>
+        runtime.durable.commit((tx) => acknowledgeFollowupProjections(tx, [{ threadId, inputId }]), BACKGROUND_CONTEXT)
+      )
+      .catch((error: unknown) => logger.warn('Durable follow-up projection acknowledgement failed', { inputId, error }))
   }
 
   readonly compactWithInstructions = true as const
@@ -359,11 +403,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private publishFollowups(queue: readonly DurableFollowup[]): void {
+  private publishFollowups(queue: readonly DurableFollowup[], restored?: true): void {
     if (queue === this.publishedFollowups || (!queue.length && !this.publishedFollowups?.length)) return
     this.publishedFollowups = queue
     this.events.push({
       type: 'followup-queue',
+      ...(restored && { restored }),
       queue: queue.flatMap(({ inputId, revision }) => {
         if (messages.inputBinding(this.input.sessionId, inputId)?.contextId !== this.context?.id) return []
         const message = messages.getSessionMessage(this.input.sessionId, inputId)
@@ -473,6 +518,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             logger.warn('Durable observation fault', { sessionId: this.input.sessionId, event })
           else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
             throw new Error(`Durable observation ended: ${event.reason}`)
+          if (event.type === 'snapshot' || event.type === 'activity.changed') {
+            const retry = projectRetryChange(this.modelRetry, event.activity.modelRetry)
+            this.modelRetry = event.activity.modelRetry
+            if (retry) this.events.push({ type: 'data-retry', id: 'retry', data: retry })
+          }
         }
       }
       if (!parts) this.projection.accept({ ...batch, events })
@@ -748,6 +798,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           relation.origin.description ?? id
         )
         const access = handle
+        let modelRetry: Activity['modelRetry']
         const projection = new ChildThreadProjection(
           context,
           {
@@ -756,6 +807,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
               return access.observe(async (event) => {
                 try {
                   await sink(event)
+                  if (event.type === 'snapshot' || event.type === 'activity.changed') {
+                    const retry = projectRetryChange(modelRetry, event.activity.modelRetry)
+                    modelRetry = event.activity.modelRetry
+                    if (retry) projection.retry(retry)
+                  }
                   if (event.type === 'subagent.upsert' && event.subagent.child)
                     void this.observeChild(event.subagent.child.id)
                   if (event.type === 'snapshot') {

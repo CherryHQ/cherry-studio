@@ -448,6 +448,7 @@
   "agent.session_delivery.status.consumed": "Procesat",
   "agent.session_delivery.status.delivering": "În curs de livrare",
   "agent.session_delivery.status.failed": "Eșuat",
+  "agent.session_delivery.waiting_for_model": "Se așteaptă trimiterea mesajului către model…",
   "agent.session_turn_origin.goal_round": "Runda obiectivului {{round}}",
   "agent.settings.permissionMode.title": "Mod de permisiune",
   "agent.settings.tooling.mcp.toggle": "Comută {{name}}",
