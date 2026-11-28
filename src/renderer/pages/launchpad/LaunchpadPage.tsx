@@ -25,6 +25,7 @@ import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
@@ -135,6 +136,10 @@ export default function LaunchpadPage() {
 
   const openLaunchpadItem = (favorite: SidebarAppId) => {
     if (shouldSuppressLaunchClick(favorite)) return
+    if (favorite === 'code_tools') {
+      openSettingsTab('/settings/local-agents')
+      return
+    }
 
     // Launchpad opens each app at its base entry (chat -> new conversation,
     // agents -> new session). Resuming the last-used instance is the sidebar's

@@ -174,7 +174,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   const elapsedText =
     !showElapsed || completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
   const summary =
-    props.outcome === 'error'
+    props.outcome === 'error' && message.status !== 'paused'
       ? t('message.tools.error')
       : toolItems.length > 0
         ? t('message.tools.groupHeader', { count: toolItems.length })

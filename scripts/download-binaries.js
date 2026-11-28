@@ -481,8 +481,13 @@ function chmodExec(filePath) {
   if (process.platform !== 'win32') fs.chmodSync(filePath, 0o755)
 }
 
+function isNonEmptyFile(filePath) {
+  const stats = statOrNull(filePath)
+  return stats !== null && stats.isFile() && stats.size > 0
+}
+
 function isUpToDate(binaryPaths, versionPath, expectedVersion) {
-  if (binaryPaths.some((binaryPath) => !fs.existsSync(binaryPath))) return false
+  if (!binaryPaths.every(isNonEmptyFile)) return false
   // No marker path means the directory itself is version-scoped.
   if (!versionPath) return true
   if (!fs.existsSync(versionPath)) return false
@@ -962,7 +967,9 @@ function verifyBundledBinaries(platform, arch, options = {}) {
       continue
     }
     for (const binary of pkg.binaries) {
-      if (!fs.existsSync(path.join(outputDir, binary))) problems.push(path.join(platformKey, binary))
+      if (!isNonEmptyFile(path.join(outputDir, binary))) {
+        problems.push(`${path.join(platformKey, binary)} (expected a non-empty regular file)`)
+      }
     }
     // BinaryManager refuses to extract a tool whose marker is missing, so a
     // bundle without one ships a dead toolchain and no error until runtime.

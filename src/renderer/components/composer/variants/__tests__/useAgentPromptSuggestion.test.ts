@@ -67,6 +67,26 @@ it('predicts after completion without adding tools, attachments, or reasoning to
   })
 })
 
+it('renders a native suggestion with no Cherry model and discards it on a native model switch', async () => {
+  request.mockResolvedValue({ supported: true, text: 'run the tests' })
+  const props = { ...initial, model: undefined, localModelId: 'native-a', busy: false }
+  const { result, rerender } = renderHook(useAgentPromptSuggestion, { initialProps: props })
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  expect(result.current.text).toBe('run the tests')
+  expect(request).toHaveBeenCalledWith('ai.agent.session.predict_prompt', {
+    sessionId: 'one',
+    replyId: 'answer',
+    localModelId: 'native-a',
+    requestId: expect.any(String)
+  })
+  request.mockResolvedValue({ supported: true, text: '' })
+  rerender({ ...props, localModelId: 'native-b' })
+  expect(result.current.text).toBe('')
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  expect(result.current.text).toBe('')
+  expect(request.mock.calls.some(([route]) => route === 'ai.text.generate')).toBe(false)
+})
+
 it.each([
   { selectableEfforts: ['high', 'low', 'none'], expected: 'none' },
   { selectableEfforts: ['high', 'low', 'minimal'], expected: 'minimal' },

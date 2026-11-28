@@ -235,7 +235,7 @@ function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | 
         <ContextUsageSummary
           title={label}
           emptyLabel={t('common.none')}
-          data={{ usedTokens: usage.contextTokens, maxTokens, percentage, modelName: model.name }}
+          data={{ usedTokens: usage.contextTokens, maxTokens, percentage, modelName: model.name, estimated: true }}
         />
       }>
       <ContextUsageMeter label={label} percentage={percentage} />

@@ -110,15 +110,25 @@ async function fixture(
         send: async ({ message }) => {
           connections.sent.push(message.id)
         },
-        redirect: ({ message }: { message: { id: string } }) => {
-          connections.steers.push(message.id)
-          return true
+        threadInput: {
+          steer: {
+            whenIdle: 'reject',
+            submit: async ({ inputId }) => {
+              connections.steers.push(inputId)
+              return { status: 'acknowledged', inputId, facts: ['accepted', 'queued'] }
+            }
+          },
+          ...(agentType === 'pi-durable' && {
+            followUp: {
+              persistence: 'durable',
+              submit: async ({ inputId }) => {
+                connections.followUps.push(inputId)
+                return { status: 'acknowledged' as const, inputId, facts: ['accepted', 'queued'] }
+              }
+            }
+          })
         },
         ...(agentType === 'pi-durable' && {
-          followUp: ({ message }: { message: { id: string } }) => {
-            connections.followUps.push(message.id)
-            return true
-          },
           lookupInput: async (_contextId: string, inputId: string) => {
             const input = recorded.get(inputId)
             return {
@@ -188,7 +198,7 @@ async function fixture(
     queue.close()
     await closed.promise
     queue = new AsyncEventQueue()
-    await service['commandConnection']('root')
+    await service['ensureSessionConnection']('root')
   }
   return { service, handle, context, user, reply, emit, project, views, done, reconnect, connections }
 }
@@ -715,28 +725,20 @@ function savedUser(parentId: string, value: string) {
   })
 }
 
-// Inputs queued before their replies exist sit above those replies, so row ancestry names the wrong input.
-it('links each steered input to the reply opened for it', async () => {
-  let next: StartRuntimeTurnInput | undefined
-  MockApplicationUtils.setService('AiStreamManager', {
-    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
-      next = input
-    }
-  })
+// Only native placement associates an input with the executing Run.
+it('links a placed steer to the active run while a pending input remains unowned', async () => {
   const f = await fixture()
   await f.project([text('first', 'Original answer')])
   const first = savedUser(f.reply.id, 'First steer')
   f.service.enqueueUserMessage('root', first)
-  const second = savedUser(first.id, 'Second steer')
-  f.service.enqueueUserMessage('root', second)
+  const second = savedUser(first.id, 'Still queued')
+  f.service.enqueueUserMessage('root', second, { followUp: true })
   await f.emit({ type: 'steer-boundary', inputIds: [first.id] })
-  const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage, isTopicDone: false }
-  await f.handle.listeners[0].onDone(result)
-  await f.handle.listeners[1].onDone(result)
-  await expect.poll(() => next).toBeDefined()
-
-  expect(messages.replyTo('root', first.id)?.id).toBe(next!.request.messageId)
+  expect(messages.replyTo('root', first.id)?.id).toBe(f.reply.id)
   expect(messages.replyTo('root', second.id)).toBeUndefined()
+  expect(messages.getSessionMessage('root', f.reply.id).status).toBe('pending')
+  await f.emit({ type: 'turn-complete' })
+  await f.done
 })
 
 // Two queued inputs leave Q2 -> Q3 -> A2 -> A3; closing during A3 must resume Q3 in A3, not in A2.
@@ -942,7 +944,7 @@ it.each([
     application.get('DbService').withWriteTx((tx) => messages.bindInputContextTx(tx, 'root', followup.id, f.context.id))
   expect(f.service.inspect('root')?.pendingMessageCount).toBe(0)
 
-  await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
+  await f.emit({ type: 'run-started', inputIds: [followup.id] })
   const first = await f.done
   await f.handle.listeners[0].onDone({ status: 'success', finalMessage: first.finalMessage, isTopicDone: false })
   await f.handle.listeners[1].onDone({ status: 'success', finalMessage: first.finalMessage, isTopicDone: false })
@@ -968,9 +970,9 @@ it('gives a Durable placement its own reply when it arrives before the previous 
   f.service.enqueueUserMessage('root', second, { followUp: true })
   f.service.enqueueUserMessage('root', third, { followUp: true })
 
-  await f.emit({ type: 'steer-boundary', inputIds: [second.id], followUp: true })
+  await f.emit({ type: 'run-started', inputIds: [second.id] })
   await f.project([text('second', 'Second answer')])
-  await f.emit({ type: 'steer-boundary', inputIds: [third.id], followUp: true })
+  await f.emit({ type: 'run-started', inputIds: [third.id] })
   const first = await f.done
   const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
   await f.handle.listeners[0].onDone(result)
@@ -1017,7 +1019,7 @@ it('saves a truncated answer as an output-limit error after its follow-up was pl
   await f.project([text('first', 'First answer')])
   const followup = savedUser(f.reply.id, 'Second question')
   f.service.enqueueUserMessage('root', followup, { followUp: true })
-  await f.emit({ type: 'steer-boundary', inputIds: [followup.id], followUp: true })
+  await f.emit({ type: 'run-started', inputIds: [followup.id] })
   const first = await f.done
   const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
   await f.handle.listeners[0].onDone(result)
@@ -1108,7 +1110,7 @@ it('opens a new reply when a queued Durable input starts native work', async () 
 })
 
 // The native successor can publish before the preceding reply has committed and created its row.
-it('retains a reserved steer reply until its stream takes ownership', async () => {
+it('retains a newly started queued run until its stream takes ownership', async () => {
   let next: StartRuntimeTurnInput | undefined
   MockApplicationUtils.setService('AiStreamManager', {
     startRuntimeTurn: (input: StartRuntimeTurnInput) => {
@@ -1123,7 +1125,7 @@ it('retains a reserved steer reply until its stream takes ownership', async () =
     message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Revised requirement' }] } }
   })
   f.service.enqueueUserMessage('root', followup)
-  await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
+  await f.emit({ type: 'run-started', inputIds: [followup.id] })
   const first = await f.done
   await f.project([text('second', 'Continuation before handoff')])
   const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
@@ -1209,6 +1211,34 @@ it('publishes the tool input when approval arrives before the native tool part',
       partIds: [expect.any(String)],
       parts: [{ type: 'dynamic-tool', toolCallId: 'tool-call-live', input, state: 'approval-requested' }]
     })
+  )
+})
+
+it('withdraws the matching live approval while leaving another request actionable', async () => {
+  const f = await fixture()
+  MockApplicationUtils.setService('AiStreamManager', { retireToolApproval: () => true })
+  for (const [toolCallId, approvalId] of [
+    ['one', 'old'],
+    ['one', 'current'],
+    ['two', 'other']
+  ]) {
+    await f.emit({
+      type: 'tool-approval-request',
+      request: { toolCallId, approvalId, toolName: 'write', input: {}, presentation: 'stream' }
+    })
+  }
+  for (const approvalId of ['old', 'other'])
+    await f.emit({
+      type: 'tool-approval-withdrawn',
+      contextId: f.context.id,
+      toolCallId: approvalId === 'old' ? 'one' : 'two',
+      approvalId
+    })
+  await vi.waitFor(() =>
+    expect(f.views.at(-1)?.parts).toEqual([
+      expect.objectContaining({ toolCallId: 'one', state: 'approval-requested', approval: { id: 'current' } }),
+      expect.objectContaining({ toolCallId: 'two', state: 'input-available' })
+    ])
   )
 })
 
@@ -1350,38 +1380,38 @@ it('releases unplaced inputBinding when recovering an unresolved steer across re
   const q1 = new AsyncEventQueue<AgentRuntimeEvent>()
   const q2 = new AsyncEventQueue<AgentRuntimeEvent>()
   const sentOnSecond: string[] = []
-  let firstCallbacks: Parameters<Parameters<typeof runtimeDriverRegistry.register>[0]['connect']>[0] | undefined
   runtimeDriverRegistry.register({
     type: 'pi',
     validateSession: () => {},
     connect: vi
       .fn()
-      .mockImplementationOnce(async (connectInput) => {
-        firstCallbacks = connectInput
-        return {
-          contextId: context.id,
-          events: q1,
-          send: ({ message }) => {
-            prepareNativeSubmission('root', message.id, context.id, 'reject')
-          },
-          redirect: ({ message }) => {
-            prepareNativeSubmission('root', message.id, context.id, 'steer')
-            firstCallbacks?.onInputPrepared?.(message.id, context.id)
-            return true
-          },
-          close: async () => q1.close()
-        }
-      })
+      .mockImplementationOnce(async () => ({
+        contextId: context.id,
+        events: q1,
+        send: ({ message }) => {
+          prepareNativeSubmission('root', message.id, context.id)
+        },
+        threadInput: {
+          steer: {
+            whenIdle: 'reject',
+            submit: async ({ inputId }) => ({ status: 'acknowledged', inputId, facts: ['accepted'] })
+          }
+        },
+        close: async () => q1.close()
+      }))
       .mockImplementationOnce(async () => ({
         contextId: context.id,
         events: q2,
         send: ({ message }) => {
-          prepareNativeSubmission('root', message.id, context.id, 'reject')
+          prepareNativeSubmission('root', message.id, context.id)
           sentOnSecond.push(message.id)
         },
-        lookupInput: async () => ({
-          status: 'unknown',
-          error: { operation: 'lookup-input', code: 'unavailable', message: 'unavailable' }
+        lookupInput: async (_contextId: string, inputId: string) => ({
+          status: 'confirmed',
+          value:
+            inputId === placedSteer.id
+              ? { found: true, input: { inputId: runtimeId<'input'>(inputId), facts: ['placed'] } }
+              : { found: false }
         }),
         reconcile: async () => 'current',
         close: async () => q2.close()
@@ -1449,4 +1479,273 @@ it('releases unplaced inputBinding when recovering an unresolved steer across re
   expect(messages.replyTo('root', unplacedSteer.id)?.id).toBe(starts[0].request.messageId)
   await reader.cancel().catch(() => undefined)
   await recoveredReader.cancel().catch(() => undefined)
+})
+
+// A redirect changes the input, not the native execution or its durable output owner.
+it('keeps steered inputs, late tool results and new output in one run until native terminal', async () => {
+  const f = await fixture()
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  const call = { type: 'dynamic-tool' as const, toolCallId: 'held', toolName: 'bash', input: { command: 'sleep 1' } }
+  const running = { id: 'tool', role: 'assistant' as const, parts: [{ ...call, state: 'input-available' as const }] }
+  await f.project([text('before', 'Before steer'), running])
+  const toolBefore = f.views.at(-1)!.partIds![1]
+  const first = savedUser(f.reply.id, 'First steer')
+  f.service.enqueueUserMessage('root', first)
+  await f.emit({ type: 'steer-boundary', inputIds: [first.id] })
+  const second = savedUser(first.id, 'Second steer')
+  f.service.enqueueUserMessage('root', second)
+  await f.emit({ type: 'steer-boundary', inputIds: [second.id] })
+  const completed = { ...running, parts: [{ ...call, state: 'output-available' as const, output: 'done' }] }
+  await f.project([completed, text('after', 'After steer')])
+
+  expect(messages.replyTo('root', first.id)?.id).toBe(f.reply.id)
+  expect(messages.replyTo('root', second.id)?.id).toBe(f.reply.id)
+  expect(messages.getSessionMessage('root', f.reply.id).status).toBe('pending')
+  expect(f.views.at(-1)?.parts).toEqual([
+    ...text('', 'Before steer').parts,
+    ...completed.parts,
+    ...text('', 'After steer').parts
+  ])
+  const toolAfter = dbh.db
+    .select()
+    .from(agentSessionMessagePartTable)
+    .all()
+    .find((part) => part.payload.type === 'dynamic-tool')
+  expect(toolAfter).toMatchObject({ id: toolBefore, messageId: f.reply.id, pos: 2 })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.role, 'assistant')).all()
+  ).toHaveLength(1)
+  await f.emit({ type: 'turn-complete' })
+  const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  for (const listener of f.handle.listeners) await listener.onDone(result)
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({ status: 'success' })
+  expect(f.connections.sent).toEqual([f.user.id])
+})
+
+it.each([
+  { outcome: 'aborted', status: 'paused' },
+  { outcome: undefined, status: 'paused' },
+  { outcome: 'completed', status: 'success' },
+  { outcome: 'failed', status: 'error' }
+] as const)(
+  'settles a stopped Run with a completed original input and a $outcome steer as $status',
+  async ({ outcome, status }) => {
+    MockApplicationUtils.setService('AiStreamManager', {
+      drainRuntimeReply: async () => {},
+      pauseRuntimeTurn: () => false
+    })
+    const f = await fixture(async () => {}, true, 'pi-durable')
+    const terminals: string[] = []
+    f.service.onTurnTerminal((event) => void terminals.push(event.status))
+    await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+    const steer = savedUser(f.reply.id, 'Steer before Stop')
+    f.service.enqueueUserMessage('root', steer)
+    await f.emit({ type: 'steer-boundary', inputIds: [steer.id] })
+    await f.project([text('answer', 'Partial steered answer')])
+    await f.emit({
+      type: 'input-state',
+      contextId: f.context.id,
+      input: { inputId: runtimeId(f.user.id), facts: ['accepted', 'placed'], outcome: 'completed' }
+    })
+    f.handle.abortController.abort('user-requested')
+    const paused: StreamPausedResult = {
+      status: 'paused',
+      isTopicDone: true,
+      finalMessage: (await f.done).finalMessage
+    }
+    for (const listener of f.handle.listeners) await listener.onPaused(paused)
+    const stopping = f.service.stopSession('root', 'user-requested')
+    await f.emit({
+      type: 'input-state',
+      contextId: f.context.id,
+      input: { inputId: runtimeId(steer.id), facts: ['accepted', 'placed'], ...(outcome && { outcome }) }
+    })
+    await f.emit({ type: 'turn-complete', status: 'paused' })
+    await f.emit({ type: 'stop-confirmed' })
+    await stopping
+    const saved = messages.getSessionMessage('root', f.reply.id)
+    expect(saved.status).toBe(status)
+    expect(saved.data.parts?.[0]).toEqual(text('', 'Partial steered answer').parts[0])
+    expect(terminals).toEqual([status])
+  }
+)
+
+it.each(['before', 'after'] as const)(
+  'settles a followed Run once when its input outcomes arrive %s the next execution starts',
+  async (reported) => {
+    MockApplicationUtils.setService('AiStreamManager', {
+      startRuntimeTurn: () => {},
+      drainRuntimeReply: async () => {}
+    })
+    const f = await fixture(undefined, false, 'pi-durable')
+    const terminals: string[] = []
+    f.service.onTurnTerminal((event) => {
+      if (event.assistantMessageId === f.reply.id && event.boundary === 'turn') terminals.push(event.status)
+    })
+    await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+    await f.project([text('answer', 'Partial answer')])
+    const steer = savedUser(f.reply.id, 'Correction')
+    f.service.enqueueUserMessage('root', steer)
+    await f.emit({ type: 'steer-boundary', inputIds: [steer.id] })
+    const failed: AgentRuntimeEvent = {
+      type: 'input-state',
+      contextId: f.context.id,
+      input: {
+        inputId: runtimeId(f.user.id),
+        facts: ['accepted', 'placed'],
+        outcome: 'unanswered',
+        error: { operation: 'input', code: 'output-truncated', message: 'Output limit reached' }
+      }
+    }
+    if (reported === 'before') await f.emit(failed)
+    const queued = savedUser(steer.id, 'Next execution')
+    f.service.enqueueUserMessage('root', queued, { followUp: true })
+    await f.emit({ type: 'run-started', inputIds: [queued.id] })
+    const result: StreamDoneResult = {
+      status: 'success',
+      finalMessage: (await f.done).finalMessage,
+      isTopicDone: false
+    }
+    for (const listener of f.handle.listeners) await listener.onDone(result)
+    if (reported === 'after') await f.emit(failed)
+    expect(messages.getSessionMessage('root', f.reply.id).status).toBe('success')
+    const aborted: AgentRuntimeEvent = {
+      type: 'input-state',
+      contextId: f.context.id,
+      input: { inputId: runtimeId(steer.id), facts: ['accepted', 'placed'], outcome: 'aborted' }
+    }
+    await f.emit(aborted)
+    await f.emit(aborted)
+    await vi.waitFor(() => expect(terminals).toEqual(['error']))
+    const saved = messages.getSessionMessage('root', f.reply.id)
+    expect(saved.status).toBe('error')
+    expect(saved.data.parts?.filter((part) => part.type === 'data-error')).toHaveLength(1)
+    expect(saved.data.parts?.[0]).toEqual(text('', 'Partial answer').parts[0])
+  }
+)
+
+it('publishes compaction progress and completion on one part without moving its timeline position', async () => {
+  const changes: AgentPartChange[] = []
+  const f = await fixture(undefined, false, 'pi', 0, (change) => changes.push(change))
+  await f.emit({ type: 'compaction-start', trigger: 'manual' })
+  const added = changes.find((part) => part.type === 'part-add')
+  expect(added).toMatchObject({ part: { type: 'data-compaction-anchor', data: { status: 'compacting' } } })
+  expect(storedParts(f.reply.id)).toEqual([])
+  await f.emit({ type: 'compaction-complete', anchor: { phase: 'agent-session', status: 'done' } })
+  expect(changes).toContainEqual(
+    expect.objectContaining({
+      type: 'part-put',
+      partId: added && 'partId' in added ? added.partId : undefined,
+      part: expect.objectContaining({ data: { phase: 'agent-session', status: 'done' } })
+    })
+  )
+  expect(storedParts(f.reply.id)).toHaveLength(1)
+})
+
+it('persists a terminal compaction marker when closing and reopening during compaction', async () => {
+  const changes: AgentPartChange[] = []
+  const f = await fixture(undefined, false, 'pi-durable', 0, (change) => changes.push(change))
+  await f.emit({ type: 'run-started', inputIds: [f.user.id] })
+  await f.project([text('before-close', 'Before compaction')])
+  await f.emit({ type: 'compaction-start', trigger: 'manual' })
+  const added = changes.find((part) => part.type === 'part-add')!
+  if (added.type !== 'part-add') throw new Error('Missing compaction part')
+  await f.service.closeSession('root')
+  const result: StreamPausedResult = { status: 'paused', finalMessage: f.views.at(-1)! }
+  for (const listener of f.handle.listeners) await listener.onPaused(result)
+  const saved = messages.getSessionMessage('root', f.reply.id)
+  expect(saved.status).toBe('paused')
+  expect(saved.data.parts).toContainEqual(
+    expect.objectContaining({
+      type: 'data-compaction-anchor',
+      data: expect.objectContaining({ status: 'skipped' })
+    })
+  )
+  const reopened = new RootMessageProjection(f.context.id, { lastPos: messages.lastTimelinePosition('root') })
+  expect(reopened.replyEntries(f.reply.id)).toContainEqual(
+    expect.objectContaining({
+      partId: added.partId,
+      pos: added.placement?.pos,
+      payload: expect.objectContaining({
+        type: 'data-compaction-anchor',
+        data: expect.objectContaining({ status: 'skipped' })
+      })
+    })
+  )
+})
+
+it('keeps a late child tool flow on its originating reply during the next turn', async () => {
+  const f = await fixture()
+  const tool = {
+    type: 'dynamic-tool' as const,
+    toolName: 'Agent',
+    toolCallId: 'first-task',
+    input: {},
+    state: 'output-available' as const,
+    output: 'started'
+  }
+  await f.project([reply([tool])])
+  await f.emit({ type: 'turn-complete' })
+  const completed: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onDone(completed)
+  await f.handle.listeners[1].onDone(completed)
+
+  const user = savedUser(f.reply.id, 'Next request')
+  const second = messages.saveMessage({
+    sessionId: 'root',
+    parentId: user.id,
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const handle = f.service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'pi',
+    modelId: 'test::model',
+    assistantMessageId: second.id,
+    userMessage: user
+  })
+  const stream = f.service.openTurnStream({
+    sessionId: 'root',
+    turnId: handle.turnId,
+    signal: handle.abortController.signal
+  })
+  const done = pipeMessageStream(
+    stream,
+    handle.abortController.signal,
+    { id: second.id, role: 'assistant' },
+    () => {},
+    () => {},
+    () => {}
+  )
+  await f.project([text('second', 'Foreground')])
+  const contextId = f.context.id
+  const ref = {
+    id: runtimeId<'item'>('child-result'),
+    session: { id: runtimeId<'thread'>(contextId), backendId: runtimeId<'backend'>('backend') }
+  }
+  await f.emit({
+    type: 'message-projection',
+    toolOwner: { toolCallId: tool.toolCallId, detached: true },
+    projection: {
+      contextId,
+      messages: [{ id: ref.id, role: 'assistant', parts: [] }],
+      live: [ref.id],
+      removed: [],
+      replaces: {}
+    }
+  })
+  await f.emit({
+    type: 'message.parts',
+    contextId,
+    ref,
+    changes: [
+      { type: 'open', kind: 'text', part: 0 },
+      { type: 'append', part: 0, text: 'Child finished' },
+      { type: 'finish', part: 0 }
+    ]
+  })
+  await f.emit({ type: 'turn-complete' })
+  expect((await done).finalMessage?.parts).toEqual(text('', 'Foreground').parts)
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual([tool, ...text('', 'Child finished').parts])
 })
