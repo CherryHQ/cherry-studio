@@ -3854,6 +3854,7 @@
   "preview.image": "Pré-visualização da imagem {{url}}",
   "preview.label": "Pré-visualização",
   "preview.next": "Próxima Imagem",
+  "preview.page_indicator": "Página {{current}} de {{total}}",
   "preview.pan_down": "mover para baixo",
   "preview.pan_left": "Deslocar para a esquerda",
   "preview.pan_right": "Deslocar para a direita",

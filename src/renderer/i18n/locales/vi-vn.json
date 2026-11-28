@@ -3854,6 +3854,7 @@
   "preview.image": "Xem trước hình ảnh {{url}}",
   "preview.label": "Xem trước",
   "preview.next": "Ảnh Tiếp Theo",
+  "preview.page_indicator": "Trang {{current}} / {{total}}",
   "preview.pan_down": "Quay xuống",
   "preview.pan_left": "Di chuyển sang trái",
   "preview.pan_right": "Quay sang phải",

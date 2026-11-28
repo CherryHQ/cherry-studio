@@ -3854,6 +3854,7 @@
   "preview.image": "แสดงตัวอย่างรูปภาพ {{url}}",
   "preview.label": "พรีวิว",
   "preview.next": "รูปภาพถัดไป",
+  "preview.page_indicator": "หน้า {{current}} จาก {{total}}",
   "preview.pan_down": "เลื่อนลง",
   "preview.pan_left": "เลื่อนซ้าย",
   "preview.pan_right": "เลื่อนขวา",

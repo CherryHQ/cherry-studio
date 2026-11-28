@@ -3854,6 +3854,7 @@
   "preview.image": "Anteprima dell'immagine {{url}}",
   "preview.label": "Anteprima",
   "preview.next": "Immagine successiva",
+  "preview.page_indicator": "Pagina {{current}} di {{total}}",
   "preview.pan_down": "Sposta in basso",
   "preview.pan_left": "Sposta a sinistra",
   "preview.pan_right": "Sposta a destra",

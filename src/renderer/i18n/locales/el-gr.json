@@ -3854,6 +3854,7 @@
   "preview.image": "Προεπισκόπηση εικόνας {{url}}",
   "preview.label": "Προεπισκόπηση",
   "preview.next": "Επόμενη Εικόνα",
+  "preview.page_indicator": "Σελίδα {{current}} από {{total}}",
   "preview.pan_down": "Μετακίνηση προς τα κάτω",
   "preview.pan_left": "Μετακίνηση προς τα αριστερά",
   "preview.pan_right": "μετακίνηση προς τα δεξιά",
