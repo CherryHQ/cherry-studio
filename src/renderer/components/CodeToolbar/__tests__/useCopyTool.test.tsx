@@ -73,4 +73,33 @@ describe('useCopyTool', () => {
     rerender({ showPreviewTools: false })
     expect(result.current.some((tool) => tool.id === 'copy-image')).toBe(false)
   })
+
+  it('hides the image-copy action only while the preview reports no image', () => {
+    const onCopySource = vi.fn().mockResolvedValue(true)
+    const previewRef = { current: null }
+    const { result, rerender } = renderHook(
+      ({ previewImageReady }) => {
+        const [tools, setTools] = useState<ActionTool[]>([])
+        useCopyTool({
+          showPreviewTools: true,
+          previewRef,
+          previewImageReady,
+          onCopySource,
+          setTools
+        })
+        return tools
+      },
+      { initialProps: { previewImageReady: undefined as boolean | undefined } }
+    )
+    const hasCopyImage = () => result.current.some((tool) => tool.id === 'copy-image')
+
+    // A preview that does not report readiness keeps the action.
+    expect(hasCopyImage()).toBe(true)
+
+    rerender({ previewImageReady: false })
+    expect(hasCopyImage()).toBe(false)
+
+    rerender({ previewImageReady: true })
+    expect(hasCopyImage()).toBe(true)
+  })
 })

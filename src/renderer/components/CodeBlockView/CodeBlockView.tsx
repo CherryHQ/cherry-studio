@@ -35,6 +35,7 @@ import { FileIcon } from '@renderer/components/icons/FileIcon'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
+import { usePreviewImageReady } from '@renderer/components/Preview/usePreviewImageReady'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { toast } from '@renderer/services/toast'
@@ -297,12 +298,18 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const showPreviewTools =
     Boolean(specialViewDefinition?.supportsImageActions) && (viewMode === 'special' || viewMode === 'split')
 
+  const { previewImageReady, onImageReadyChange: handleImageReadyChange } = usePreviewImageReady(
+    JSON.stringify([language, source, isStreaming, showPreviewTools]),
+    language === 'plantuml'
+  )
+
   const handleToggleExpanded = useCallback(() => setExpandOverride((current) => !current), [])
   const handleToggleWrapped = useCallback(() => setWrapOverride((current) => !current), [])
 
   useCopyTool({
     showPreviewTools,
     previewRef: specialViewRef,
+    previewImageReady,
     onCopySource: handleCopySource,
     setTools
   })
@@ -433,12 +440,13 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
         <SpecialView
           ref={specialViewDefinition.supportsImageActions ? specialViewRef : undefined}
           enableToolbar={codeImageTools}
-          isStreaming={isStreaming}>
+          isStreaming={isStreaming}
+          onImageReadyChange={handleImageReadyChange}>
           {source}
         </SpecialView>
       </Suspense>
     )
-  }, [source, codeImageTools, isStreaming, specialViewDefinition])
+  }, [source, codeImageTools, isStreaming, specialViewDefinition, handleImageReadyChange])
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {

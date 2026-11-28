@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PlantUmlRenderResponse } from '@renderer/workers/plantUml.worker'
 
 import PlantUmlPreview from '../PlantUmlPreview'
+import { usePreviewImageReady } from '../usePreviewImageReady'
 
 vi.mock('@renderer/components/ActionTools', () => ({
   useImageTools: () => ({ pan: vi.fn(), zoom: vi.fn(), copy: vi.fn(), download: vi.fn(), dialog: vi.fn() })
@@ -58,6 +59,64 @@ describe('PlantUmlPreview', () => {
     const diagram = getHost(container).shadowRoot?.querySelector('svg')
     expect(diagram).toHaveTextContent('Alice to Bob')
     expect(diagram?.querySelector('image, style')).toBeNull()
+  })
+
+  it('reports image readiness through onImageReadyChange', async () => {
+    const onImageReadyChange = vi.fn()
+    const { rerender } = render(<PlantUmlPreview onImageReadyChange={onImageReadyChange}>{source}</PlantUmlPreview>)
+    expect(onImageReadyChange).toHaveBeenLastCalledWith(false)
+
+    await advance()
+    await reply({ svg: svg('<text>Alice to Bob</text>') })
+    expect(onImageReadyChange).toHaveBeenLastCalledWith(true)
+
+    rerender(<PlantUmlPreview onImageReadyChange={onImageReadyChange}>{nextSource}</PlantUmlPreview>)
+    expect(onImageReadyChange).toHaveBeenLastCalledWith(false)
+
+    await advance()
+    await reply({ error: 'Cannot include diagram' })
+    expect(onImageReadyChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it.each([undefined, '', '   '])('does not report ready when the engine supplies no SVG: %j', async (missingSvg) => {
+    const onImageReadyChange = vi.fn()
+    const { container } = render(<PlantUmlPreview onImageReadyChange={onImageReadyChange}>{source}</PlantUmlPreview>)
+    await advance()
+    await reply({ svg: missingSvg } as PlantUmlRenderResponse)
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toBeFalsy()
+    expect(onImageReadyChange).not.toHaveBeenCalledWith(true)
+    expect(screen.getByText('error.render.block')).toBeInTheDocument()
+  })
+
+  it('keeps the attached diagram and render job stable across preview layout switches', async () => {
+    const PreviewHost = ({ layout }: { layout: 'special' | 'split' | 'source' }) => {
+      const mounted = layout !== 'source'
+      const { onImageReadyChange, previewImageReady } = usePreviewImageReady(
+        JSON.stringify(['plantuml', source, false, mounted]),
+        true
+      )
+      return (
+        <div data-ready={String(previewImageReady)}>
+          {mounted && <PlantUmlPreview onImageReadyChange={onImageReadyChange}>{source}</PlantUmlPreview>}
+        </div>
+      )
+    }
+    const { container, rerender } = render(<PreviewHost layout="special" />)
+    await advance()
+    await reply({ svg: svg('<text>Preserved</text>') })
+    const attached = getHost(container).shadowRoot?.querySelector('svg')
+    const worker = FakeWorker.current
+    expect(attached).toBeTruthy()
+    rerender(<PreviewHost layout="split" />)
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toBe(attached)
+    expect(container.firstElementChild).toHaveAttribute('data-ready', 'true')
+    await advance()
+    expect(FakeWorker.current).toBe(worker)
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toBe(attached)
+    rerender(<PreviewHost layout="source" />)
+    rerender(<PreviewHost layout="special" />)
+    expect(container.firstElementChild).toHaveAttribute('data-ready', 'false')
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toBeFalsy()
   })
 
   it('preserves the rendered diagram background when mounting the preview', async () => {

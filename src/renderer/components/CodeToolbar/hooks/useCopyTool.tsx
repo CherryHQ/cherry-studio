@@ -11,11 +11,22 @@ import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 interface UseCopyToolProps {
   showPreviewTools?: boolean
   previewRef: React.RefObject<BasicPreviewHandles | null>
+  /**
+   * Image readiness reported by the preview via `onImageReadyChange`. `undefined`
+   * means the preview does not report it, so the action stays available.
+   */
+  previewImageReady?: boolean
   onCopySource: () => Promise<boolean>
   setTools: React.Dispatch<React.SetStateAction<ActionTool[]>>
 }
 
-export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setTools }: UseCopyToolProps) => {
+export const useCopyTool = ({
+  showPreviewTools,
+  previewRef,
+  previewImageReady,
+  onCopySource,
+  setTools
+}: UseCopyToolProps) => {
   const [copied, setCopiedTemporarily] = useTemporaryValue(false)
   const [copiedImage, setCopiedImageTemporarily] = useTemporaryValue(false)
   const { t } = useTranslation()
@@ -51,7 +62,8 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setToo
 
     registerTool(baseTool)
 
-    if (includePreviewTools) {
+    // Hide the action when the preview reports there is no rendered image to copy.
+    if (includePreviewTools && previewImageReady !== false) {
       registerTool(copyImageTool)
     }
 
@@ -59,5 +71,15 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setToo
       removeTool(TOOL_SPECS.copy.id)
       removeTool(TOOL_SPECS['copy-image'].id)
     }
-  }, [registerTool, removeTool, t, copied, copiedImage, handleCopySource, handleCopyImage, showPreviewTools])
+  }, [
+    registerTool,
+    removeTool,
+    t,
+    copied,
+    copiedImage,
+    handleCopySource,
+    handleCopyImage,
+    showPreviewTools,
+    previewImageReady
+  ])
 }
