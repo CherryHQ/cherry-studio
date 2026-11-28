@@ -826,7 +826,8 @@ describe('HistoryRecordsView assistant mode', () => {
       refetch
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopics.mockRejectedValue(new Error('Delete failed'))
+    const failure = new Error('Delete failed')
+    hookMocks.deleteTopics.mockRejectedValue(failure)
     const onActiveRecordChange = vi.fn()
 
     render(
@@ -850,7 +851,19 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
     expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledExactlyOnceWith('Could not move to Recycle Bin')
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        title: 'Could not move to Recycle Bin',
+        cause: failure,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'Delete failed',
+            source: 'history',
+            operation: 'topic.delete'
+          })
+        })
+      })
+    )
   })
 
   it('reports all stale bulk topics once without changing selection or active state', async () => {
@@ -1558,6 +1571,47 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+  })
+
+  it('reports a history menu delete failure without showing the raw cause', async () => {
+    const user = userEvent.setup()
+    const failure = new Error('disk locked')
+    hookMocks.deleteTopic.mockRejectedValueOnce(failure)
+    hookMocks.useTopics.mockReturnValue({
+      topics: [createTopic()],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Could not move to Recycle Bin',
+          cause: failure,
+          data: expect.objectContaining({
+            localizedErrorMessage: 'Could not move to Recycle Bin',
+            errorContext: expect.objectContaining({
+              message: 'disk locked',
+              source: 'history',
+              operation: 'topic.delete',
+              recordId: 'topic-alpha'
+            })
+          })
+        })
+      )
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('disk locked')
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 
   it('switches to the adjacent topic after archiving the active topic from the history row context menu', async () => {

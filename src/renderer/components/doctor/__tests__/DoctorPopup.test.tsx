@@ -677,7 +677,7 @@ describe('DoctorPopup', () => {
   it('forwards an explicit report snapshot instead of a global cached result', async () => {
     publishDiagnosis('global', 'Global cached conclusion.')
     const snapshot: DiagnosticAiDiagnosis = {
-      source: 'error-summary',
+      source: 'doctor-agent',
       status: 'completed',
       text: 'Explicit conclusion.'
     }

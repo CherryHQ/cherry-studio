@@ -42,6 +42,8 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import FileCommentBox from '@renderer/components/FileCommentBox'
 import type { LineComment } from '@renderer/components/FileEditor'
 import { canProduceSelectionReference, FilePreview, hasRenderedFilePreview } from '@renderer/components/FilePreview'
@@ -1090,36 +1092,47 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </div>
           )}
           {fileSession?.saveError && (
-            <div
-              role="alert"
-              className="flex shrink-0 flex-wrap items-center gap-2 border-b border-error-border bg-error-subtle px-3 py-2 text-xs text-error-subtle-foreground">
-              <AlertCircle className="size-4 shrink-0" />
-              <span className="min-w-0 flex-1">
-                {t(
-                  fileSession.metadataRecoveryPending
-                    ? 'agent.preview_pane.edit.metadata_pending'
-                    : 'agent.preview_pane.edit.save_failed'
-                )}
-              </span>
-              {!fileSession.metadataRecoveryPending && (
+            <ErrorNotice
+              variant="inline"
+              className="shrink-0 rounded-none border-x-0 border-t-0"
+              title={t(
+                fileSession.metadataRecoveryPending
+                  ? 'agent.preview_pane.edit.metadata_pending'
+                  : 'agent.preview_pane.edit.save_failed'
+              )}
+              action={
+                fileSession.metadataRecoveryPending
+                  ? undefined
+                  : {
+                      label: t('common.retry'),
+                      onClick: () => void handleRetryFailedSave(),
+                      disabled: fileSession.isSaving
+                    }
+              }
+              extra={
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="link"
                   size="sm"
+                  className="h-auto min-h-0 px-0 text-foreground-tertiary shadow-none hover:text-foreground hover:no-underline dark:text-foreground-tertiary dark:hover:text-foreground"
                   disabled={fileSession.isSaving}
-                  onClick={() => void handleRetryFailedSave()}>
-                  {t('common.retry')}
+                  onClick={handleDiscardFailedSave}>
+                  {t('agent.preview_pane.edit.discard')}
                 </Button>
-              )}
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={fileSession.isSaving}
-                onClick={handleDiscardFailedSave}>
-                {t('agent.preview_pane.edit.discard')}
-              </Button>
-            </div>
+              }
+              detail={
+                <ErrorDetailAction
+                  error={fileSession.saveError}
+                  message={t(
+                    fileSession.metadataRecoveryPending
+                      ? 'agent.preview_pane.edit.metadata_pending'
+                      : 'agent.preview_pane.edit.save_failed'
+                  )}
+                  operation="file.save"
+                  source="agent.preview"
+                />
+              }
+            />
           )}
           <div data-file-edit className="relative min-h-0 flex-1 overflow-hidden">
             {editMode === 'edit' && fileSession?.status === 'ready' ? (

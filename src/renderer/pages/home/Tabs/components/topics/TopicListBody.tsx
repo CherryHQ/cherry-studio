@@ -89,6 +89,7 @@ interface TopicListBodyProps {
   assistantMoveTargets: readonly TopicMoveAssistantTarget[]
   displayMode: TopicDisplayMode
   exportMenuOptions: TopicExportMenuOptions
+  listError: unknown
   listRef: RefObject<HTMLDivElement | null>
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
@@ -110,7 +111,7 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'listRef' | 'variant'>
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'listError' | 'listRef' | 'variant'>
 
 export function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
@@ -119,6 +120,7 @@ export function TopicListBody(props: TopicListBodyProps) {
     assistantMoveTargets,
     displayMode,
     exportMenuOptions,
+    listError,
     listRef,
     notesPath,
     onAutoRename,
@@ -206,7 +208,17 @@ export function TopicListBody(props: TopicListBodyProps) {
     <ResourceList.Body<Topic>
       listRef={listRef}
       draggable={variant === 'draggable'}
-      errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
+      errorFallback={
+        <ResourceList.ErrorState
+          message={t('error.boundary.default.message')}
+          detail={{
+            error: listError,
+            message: t('error.boundary.default.message'),
+            source: 'resource.list',
+            operation: 'topic.list'
+          }}
+        />
+      }
       emptyFallback={
         <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
           {t('chat.topics.empty.title')}

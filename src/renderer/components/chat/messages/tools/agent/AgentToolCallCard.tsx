@@ -1,7 +1,10 @@
-import { Check, ChevronRight, Circle, CircleStop, Loader2, TriangleAlert } from 'lucide-react'
+import { AlertCircle, Check, ChevronRight, Circle, CircleStop, Loader2 } from 'lucide-react'
+import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { useToolResult } from '@renderer/hooks/useToolResult'
 import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
@@ -78,6 +81,35 @@ export function AgentToolCallCard({
   const output = isDeferredToolOutput(rawOutput) || isPersistedToolOutput(rawOutput) ? undefined : rawOutput
   const actions = useOptionalMessageListActions()
   const { t } = useTranslation()
+  const failed = hasError || status === 'error'
+  // An oversized failure arrives as a reference; Details reads its bounded preview for the cause.
+  const { output: deferredFault } = useToolResult(failed ? deferredOutput?.$deferredToolResult : undefined)
+  const faultOutput = output ?? deferredFault
+  const rawErrorText = failed ? extractToolErrorText(faultOutput) : undefined
+  const toolFault = useMemo(() => {
+    if (!failed) return undefined
+    if (rawErrorText) return rawErrorText
+    if (faultOutput !== undefined) return faultOutput
+    return { status: 'error' as const }
+  }, [failed, faultOutput, rawErrorText])
+  // Details sits on the header row, even when the disclosure below it is expanded.
+  const withToolFault = (node: ReactNode, headerHeightClass: string) =>
+    toolFault ? (
+      <div className="flex w-full min-w-0 items-start gap-2">
+        <div className="min-w-0 flex-1">{node}</div>
+        <div className={cn('flex shrink-0 items-center', headerHeightClass)}>
+          <ErrorDetailAction
+            error={toolFault}
+            message={t('message.tools.error')}
+            source="agent.tool"
+            operation="agent.tool.call"
+            recordId={toolCallId}
+          />
+        </div>
+      </div>
+    ) : (
+      node
+    )
   const renderedItem =
     isCherrySessionTool &&
     (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
@@ -106,9 +138,8 @@ export function AgentToolCallCard({
         : ''
     const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
-    const failed = hasError || status === 'error'
     const Icon = failed
-      ? TriangleAlert
+      ? AlertCircle
       : running
         ? Loader2
         : status === 'done'
@@ -126,7 +157,7 @@ export function AgentToolCallCard({
             ? t('message.tools.cancelled')
             : t('message.tools.pending')
     const selected = actions?.isAgentToolFlowActive?.(toolCallId ?? '') ?? false
-    return (
+    return withToolFault(
       <Tooltip content={title} delay={600} asChild>
         <Button
           variant="ghost"
@@ -159,7 +190,8 @@ export function AgentToolCallCard({
           )}
           <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
         </Button>
-      </Tooltip>
+      </Tooltip>,
+      'h-8'
     )
   }
 
@@ -187,7 +219,7 @@ export function AgentToolCallCard({
   const canShowInlineDetails =
     showInlineDetails && toolContentItem.children !== undefined && toolContentItem.children !== null
 
-  return (
+  return withToolFault(
     <AgentToolDisclosure
       className="w-full max-w-full rounded-none border-0 bg-transparent"
       defaultActiveKey={isStreaming && toolName === AgentToolsType.Workflow ? [String(renderedItem.key)] : []}
@@ -197,6 +229,7 @@ export function AgentToolCallCard({
       stateId={toolCallId}
       showInlineDetails={canShowInlineDetails}
       unmountOnClose={!!deferredOutput}
-    />
+    />,
+    'h-7'
   )
 }

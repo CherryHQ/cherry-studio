@@ -240,7 +240,7 @@ describe('DoctorDialog', () => {
   it('forwards an explicit snapshot without attaching a global cached result', async () => {
     publishDiagnosis('global', 'Global cached conclusion.')
     const snapshot: DiagnosticAiDiagnosis = {
-      source: 'error-summary',
+      source: 'doctor-agent',
       status: 'completed',
       text: 'Explicit conclusion.'
     }

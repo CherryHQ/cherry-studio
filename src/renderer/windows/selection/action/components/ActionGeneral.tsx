@@ -7,6 +7,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useStreamCommands } from '@renderer/hooks/useStreamCommands'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
@@ -79,16 +81,16 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   }, [action, language, t])
 
   const [isPreparing, setIsPreparing] = useState(false)
-  const [completionError, setCompletionError] = useState<string | null>(null)
+  const [completionError, setCompletionError] = useState<{ message: string; cause: unknown } | null>(null)
   const [requestStartedAt, setRequestStartedAt] = useState('')
 
   const {
     sendMessage,
     stop: stopChat,
     projection
-  } = useStreamCommands(temporaryTopicId ?? '', (err) => {
+  } = useStreamCommands(temporaryTopicId ?? '', (err, cause) => {
     setIsPreparing(false)
-    setCompletionError(getSelectionActionErrorMessage(err, t))
+    setCompletionError({ message: getSelectionActionErrorMessage(err, t), cause })
   })
 
   // Temporary topics use the message identities assigned by Main.
@@ -132,7 +134,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   )
 
   const isStreaming = isPending
-  const error = completionError
+  const error = completionError?.message ?? null
 
   const fetchResult = useCallback(() => {
     if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
@@ -203,10 +205,20 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
             </Suspense>
           )}
         </div>
-        {error && (
-          <div className="mt-3 mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
-            {error}
-          </div>
+        {error && completionError && (
+          <ErrorNotice
+            variant="inline"
+            className="my-3"
+            title={error}
+            detail={
+              <ErrorDetailAction
+                error={completionError.cause}
+                message={error}
+                source="selection"
+                operation="selection.action"
+              />
+            }
+          />
         )}
       </div>
       <div className="min-h-3" />

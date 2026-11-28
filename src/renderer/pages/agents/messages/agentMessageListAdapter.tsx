@@ -365,6 +365,7 @@ export function useAgentMessageListProviderValue({
     deleteMessage,
     canDeleteMessage,
     diagnosticReport,
+    errorSource: 'agent',
     getDoctorSubject,
     selectAllPagination
   })

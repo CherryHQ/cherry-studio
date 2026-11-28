@@ -4,8 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'r
 import { ipcApi } from '@renderer/ipc'
 import { messageProjectionService, streamDispatchService } from '@renderer/services/aiTransport'
 import type { AiChatRequestBody, AiStreamOpenRequest } from '@shared/ai/transport'
+import type { UniqueModelId } from '@shared/data/types/model'
 
-export function useStreamCommands(topicId: string, onError?: (error: Error) => void) {
+export function useStreamCommands(
+  topicId: string,
+  /**
+   * `cause` is the stored error part data when available, so provider status and body survive.
+   * `executionId` is the failed execution's model; absent when dispatch itself fails.
+   */
+  onError?: (error: Error, cause: unknown, executionId?: UniqueModelId) => void
+) {
   const errorHandler = useRef(onError)
   errorHandler.current = onError
   const owner = useMemo(() => ({ topicId }), [topicId])
@@ -38,7 +46,7 @@ export function useStreamCommands(topicId: string, onError?: (error: Error) => v
       const part = message?.parts.find((item) => item.type === 'data-error')
       if (part?.type !== 'data-error') continue
       const failure = new Error(part.data.message ?? 'Stream error')
-      errorHandler.current?.(failure)
+      errorHandler.current?.(failure, part.data, execution.executionId)
     }
   }, [projection])
 
@@ -46,7 +54,7 @@ export function useStreamCommands(topicId: string, onError?: (error: Error) => v
     async (request: AiStreamOpenRequest) => {
       const result = await streamDispatchService.dispatch(topicId, request)
       if (currentOwner.current !== owner || result.ok) return
-      errorHandler.current?.(result.error)
+      errorHandler.current?.(result.error, result.error)
     },
     [owner, topicId]
   )

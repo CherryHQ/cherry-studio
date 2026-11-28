@@ -7,6 +7,8 @@ import { Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useStreamCommands } from '@renderer/hooks/useStreamCommands'
@@ -19,12 +21,15 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { autoReadService, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
 import type { ExecutionFinishEvent } from '@renderer/types/message'
+import { classifyError } from '@renderer/utils/errorClassifier'
+import { serializeToastError } from '@renderer/utils/errorToast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { projectedReplies } from '@renderer/utils/message/projectedReplies'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 
 import ClipboardPreview from './components/ClipboardPreview'
@@ -124,16 +129,41 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [clipboardText, isFirstMessage, userInputText])
 
   const [isPreparing, setIsPreparing] = useState(false)
-  const [flowError, setFlowError] = useState<string | null>(null)
+  const [flowError, setFlowError] = useState<{
+    message: string
+    cause: unknown
+    providerId?: string
+    modelId?: string
+  } | null>(null)
+  // Doctor resolves the failed model from the provider and its local model id.
+  const failedModel = useMemo<{ providerId?: string; modelId?: string }>(
+    () =>
+      currentModel ? { providerId: currentModel.providerId, modelId: parseUniqueModelId(currentModel.id).modelId } : {},
+    [currentModel]
+  )
+  // A failure belongs to the model it was sent with, even if settings change while it runs.
+  const sentModelRef = useRef(failedModel)
+  // The card shows a localized conclusion; the provider's raw text stays in Details.
+  const summarizeFlowError = useCallback(
+    (cause: unknown, executionId?: UniqueModelId) => {
+      // Main may resolve the model itself, so the failed execution outranks the send-time snapshot.
+      // Error handling must not throw on an unexpected id; fall back to the send-time snapshot.
+      const sentModel = isUniqueModelId(executionId) ? parseUniqueModelId(executionId) : sentModelRef.current
+      const { category, i18nKey } = classifyError(serializeToastError(cause), sentModel.providerId)
+      const message = category === 'unknown' ? t('error.diagnosis.unknown') : t(i18nKey)
+      return { message, cause, ...sentModel }
+    },
+    [t]
+  )
 
   const [inputs, setInputs] = useState<{ topicId: string; messages: CherryUIMessage[] }>()
   const {
     projection,
     sendMessage,
     stop: stopChat
-  } = useStreamCommands(temporaryTopicId ?? '', (err) => {
+  } = useStreamCommands(temporaryTopicId ?? '', (_err, cause, executionId) => {
     setIsPreparing(false)
-    setFlowError(err.message)
+    setFlowError(summarizeFlowError(cause, executionId))
   })
 
   // Local inputs and projected assistant messages share the existing message list.
@@ -392,6 +422,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
+        sentModelRef.current = failedModel
         const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
         const input: CherryUIMessage = {
           id: crypto.randomUUID(),
@@ -408,12 +439,25 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           void sendMessage(message)
         }
       } catch (streamError) {
-        const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
-        setFlowError(resolvedError.message)
-        logger.error('Error fetching result:', resolvedError)
+        setFlowError(summarizeFlowError(streamError))
+        logger.error(
+          'Error fetching result:',
+          streamError instanceof Error
+            ? streamError
+            : new Error(typeof streamError === 'string' ? streamError : 'An error occurred')
+        )
       }
     },
-    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, temporaryTopicId]
+    [
+      currentModel,
+      failedModel,
+      isAssistantMode,
+      isTopicReady,
+      requestText,
+      sendMessage,
+      summarizeFlowError,
+      temporaryTopicId
+    ]
   )
 
   const handlePause = useCallback(() => {
@@ -577,9 +621,21 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             />
           </Suspense>
           {flowError && (
-            <div className="mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
-              {flowError}
-            </div>
+            <ErrorNotice
+              variant="inline"
+              className="mb-3"
+              title={flowError.message}
+              detail={
+                <ErrorDetailAction
+                  error={flowError.cause}
+                  message={flowError.message}
+                  source="quickAssistant"
+                  operation="quick_assistant.send"
+                  providerId={flowError.providerId}
+                  modelId={flowError.modelId}
+                />
+              }
+            />
           )}
 
           <Separator className="my-2.5" />

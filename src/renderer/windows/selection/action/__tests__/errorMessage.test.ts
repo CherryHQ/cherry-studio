@@ -1,23 +1,24 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
 
+const translations: Record<string, string> = {
+  'error.diagnosis.unknown': 'An error occurred',
+  'translate.error.not_configured': 'Translation model is not configured'
+}
+const translate = (key: string) => translations[key] ?? key
+
 describe('getSelectionActionErrorMessage', () => {
   it('localizes controlled translate error keys', () => {
-    const translate = vi.fn(() => 'Translation model is not configured')
-
     expect(getSelectionActionErrorMessage(new Error('translate.error.not_configured'), translate)).toBe(
       'Translation model is not configured'
     )
-    expect(translate).toHaveBeenCalledWith('translate.error.not_configured')
   })
 
-  it('preserves unknown error messages without translating them', () => {
-    const translate = vi.fn((key: string) => key)
-
+  it('shows a localized generic message instead of an unclassified raw error', () => {
     expect(getSelectionActionErrorMessage(new Error('Provider returned an unexpected response'), translate)).toBe(
-      'Provider returned an unexpected response'
+      'An error occurred'
     )
-    expect(translate).not.toHaveBeenCalled()
+    expect(getSelectionActionErrorMessage('socket hang up', translate)).toBe('An error occurred')
   })
 })

@@ -5,6 +5,9 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
 import { CommandFocusScope, CommandHint } from '@renderer/components/command'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice, type ErrorNoticeAction } from '@renderer/components/ErrorNotice'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 
@@ -749,25 +752,24 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
   )
 }
 
-type ErrorStateProps = ComponentProps<'div'> & {
+type ErrorStateProps = {
+  className?: string
   message?: ReactNode
-  ref?: Ref<HTMLDivElement>
+  action?: ErrorNoticeAction
+  detail?: InlineErrorDetailInput
 }
 
-function ErrorState({ className, message, ref, children, ...props }: ErrorStateProps) {
+function ErrorState({ className, message, action, detail }: ErrorStateProps) {
   const { t } = useTranslation()
 
   return (
-    <div
-      ref={ref}
-      role="alert"
-      className={cn(
-        'm-2 rounded-md border border-error-border bg-error-subtle p-3 text-error-subtle-foreground text-sm',
-        className
-      )}
-      {...props}>
-      {message ?? children ?? t('error.boundary.default.message')}
-    </div>
+    <ErrorNotice
+      variant="inline"
+      className={cn('m-2', className)}
+      title={message ?? t('error.boundary.default.message')}
+      action={action}
+      detail={detail ? <ErrorDetailAction {...detail} /> : undefined}
+    />
   )
 }
 
