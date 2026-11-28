@@ -63,6 +63,7 @@
   * [智能体入门](advanced-basic/agent.md)
   * [智能体工作区](advanced-basic/agent-workspace/README.md)
     * [创建智能体与模型分工](advanced-basic/agent-workspace/create-agent.md)
+    * [接入本地智能体](advanced-basic/agent-workspace/local-agents.md)
     * [工作目录、任务与文件](advanced-basic/agent-workspace/workspaces-tasks-files.md)
     * [模型分工与智能体绘画](advanced-basic/agent-workspace/models-image.md)
     * [内置工具、知识库、技能与 MCP](advanced-basic/agent-workspace/tools-knowledge-skills-mcp.md)
