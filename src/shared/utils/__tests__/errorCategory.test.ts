@@ -565,6 +565,25 @@ describe('credit-balance rejection classification', () => {
   })
 })
 
+describe('request payload size rejection', () => {
+  it.each([undefined, 400, 413])('recognizes the reported wording with status %s', (status) => {
+    expect(classifyErrorCategory({ text: 'Request payload is too large', status })).toBe('payload')
+  })
+
+  it.each([
+    'Response is too large',
+    'Response payload is too large',
+    'Response payload too large',
+    'Response body payload is too large',
+    'Response body payload too large',
+    'Response  payload is too large'
+  ])('does not treat a large response as an oversized request: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
+    expect(classifyErrorCategory({ text, status: 413 })).toBe('payload')
+  })
+})
+
 describe('request body buffer limit', () => {
   it.each([undefined, 400, 413])('recognizes the proxy rejection with status %s', (status) => {
     expect(

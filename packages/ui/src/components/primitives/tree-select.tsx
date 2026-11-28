@@ -323,7 +323,7 @@ export function TreeSelect({
               disabled={option.disabled}
               onClick={() => handleSelect(option)}
               className={cn(
-                'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors outline-none',
+                'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-[color] outline-none',
                 selected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/60',
                 option.disabled && 'pointer-events-none opacity-50',
                 option.selectable === false && 'text-muted-foreground'

@@ -37,6 +37,11 @@ interface RtkExecution {
   env: NodeJS.ProcessEnv
 }
 
+export interface RtkRewrite {
+  command: string
+  approvalRequired: boolean
+}
+
 interface ProbeOutcome {
   execution: RtkExecution | null
   /** false when the outcome is definitive (absent / too old / batch wrapper). */
@@ -152,13 +157,14 @@ async function getRtkExecution(): Promise<RtkExecution | null> {
 
 /**
  * Rewrite a shell command using rtk for token-optimized output.
- * Returns the rewritten command, or null if no rewrite is available.
+ * Returns the rewritten command with its approval requirement, or null if no rewrite is available.
  */
-export async function rtkRewrite(command: string): Promise<string | null> {
+export async function rtkRewrite(command: string): Promise<RtkRewrite | null> {
   const execution = await getRtkExecution()
   if (!execution) return null
 
   let stdout: string
+  let approvalRequired = false
   try {
     stdout = await executeCommand(execution.path, ['rewrite', command], {
       capture: true,
@@ -166,30 +172,25 @@ export async function rtkRewrite(command: string): Promise<string | null> {
       timeout: REWRITE_TIMEOUT_MS
     })
   } catch (error) {
-    if (error instanceof CommandFailedError) {
-      // Upstream contract violation (rtk-ai/rtk#3634): `rtk rewrite` prints the
-      // rewritten command but exits 3 on success, so accept it while rtk ships
-      // the fix. Exit 1 is the documented "no rtk equivalent" outcome.
-      if (error.code === 3) {
-        const rewritten = error.stdout.trim()
-        if (rewritten && rewritten !== command) {
-          logger.warn('rtk rewrite reported success via its non-standard exit code 3 (rtk-ai/rtk#3634)', {
-            code: error.code
-          })
-          return rewritten
-        }
-      } else if (error.code !== 1) {
-        logger.warn('rtk rewrite failed', { code: error.code, error: error.message })
-      }
+    // Exit 3 is RTK's Ask verdict: rewrite, but require host user approval.
+    if (error instanceof CommandFailedError && error.code === 3) {
+      stdout = error.stdout
+      approvalRequired = true
     } else {
-      logger.warn('rtk rewrite failed', { error: error instanceof Error ? error.message : String(error) })
+      if (error instanceof CommandFailedError) {
+        if (error.code === 1) return null
+        logger.warn('rtk rewrite failed', { code: error.code, error: error.message })
+      } else {
+        logger.warn('rtk rewrite failed', { error: error instanceof Error ? error.message : String(error) })
+      }
+      return null
     }
-    return null
   }
 
   const rewritten = stdout.trim()
-  if (!rewritten || rewritten === command) {
+  if (!rewritten || (!approvalRequired && rewritten === command)) {
     return null
   }
-  return rewritten
+  if (approvalRequired) logger.debug('rtk rewrite requires approval', { code: 3 })
+  return { command: rewritten, approvalRequired }
 }

@@ -172,6 +172,16 @@ def main():
     ))
     if command == "upload":
         stage_build(client, prefix, *args)
+    elif command == "reuse-non-mac":
+        source_run_id, = args
+        if not source_run_id.isdecimal() or source_run_id == run_id:
+            raise ValueError("Recovery requires a different source run ID")
+        inventories = {
+            f"{edition}/{group}.json": read_json(client, f"{base}/{source_run_id}/{edition}/{group}.json")
+            for edition in EDITIONS for platform in ("windows", "linux") for group in inventory_groups(platform)
+        }
+        for name, inventory in inventories.items():
+            write_json(client, f"{prefix}/{name}", inventory)
     elif command == "assemble":
         assemble(client, base, prefix, *args)
     elif command == "begin-draft":

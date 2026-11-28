@@ -6,7 +6,8 @@ import { parseArgs, TextDecoder } from 'node:util'
 
 const FORMAT_VERSION = 1
 const MAX_GIT_OUTPUT = 64 * 1024 * 1024
-const UTF8 = new TextDecoder('utf-8', { fatal: true })
+// A leading BOM in Git path bytes belongs to the filename.
+const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
 
 function runGitBytes(cwd, args) {
   const result = spawnSync('git', ['-C', cwd, '-c', 'core.fsmonitor=false', ...args], {
@@ -89,7 +90,7 @@ export function collectChangeScope({ base, head = 'HEAD' }, cwd = process.cwd())
   const root = decode(
     requireGit(cwd, ['rev-parse', '--show-toplevel'], 'cannot locate a Git worktree'),
     'repository root'
-  ).trim()
+  ).replace(/\n$/u, '')
   const baseSha = resolveCommit(root, 'base', base)
   const headSha = resolveCommit(root, 'head', head)
   const mergeBases = decode(

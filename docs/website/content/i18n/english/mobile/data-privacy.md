@@ -4,7 +4,7 @@ icon: shield-check
 
 # Data, privacy, and permissions
 
-Conversations and configuration are stored on the current device. Cloud models and connected tools still receive the information needed for your requests.
+Conversations/configuration stay in the current device space. Personal and organization/private-deployment spaces retain separate local data rather than merging on switch; organization services still own managed resources and permissions. Cloud models and tools receive request content, so local storage does not imply an entirely offline task.
 
 ## Where does data go?
 
@@ -17,13 +17,17 @@ Conversations and configuration are stored on the current device. Cloud models a
 | Translation | Original replies or skill documents go to the translation model; completed results are stored locally |
 | iOS health queries | Each query confirms the recipient; results enter history and may accompany later messages |
 | Remote desktop conversations | Messages and attachments go to the authorized computer for its models and tools to process |
-| Desktop import | Selected provider addresses, keys, and supported model configuration transfer over the local network |
+| Desktop import | Selected provider addresses, keys, and models transfer over the paired, reachable connection |
+| Voice/transcription | System dictation follows its OS service; local file transcription creates text that later model tasks can still send |
+| SSH | Exchanges requests/files with the configured server; results may enter model context, but dedicated authentication secrets are not chat input |
+| DeepSeek import | Downloads and imports an export locally; does not itself call a DeepSeek model or upload history to another model service |
+| AI diagnosis | Explicit model selection/start sends redacted errors, configuration, checks, and technical-log summaries, excluding chat text and attachment contents |
 
 Retention depends on each service's policy and account settings. Local storage does not make a cloud conversation entirely offline.
 
 ## Anonymous usage and error reports
 
-First use or a privacy-policy update asks you to **Agree and continue** or **Disagree** after explaining anonymous data use. Change your choice later in **Settings → Privacy**.
+Fresh installations choose anonymous usage sharing after welcome; existing installations receive updated policy disclosures. Sharing starts checked for new users and can be changed before continuing; saved user choices are retained. Change it later in **Settings → Privacy**. This does not grant all model, plugin, or OS permissions.
 
 * **Share anonymous usage data:** includes installation identity, app/system versions, models used, and token quantities; not conversation text, files, or API keys.
 * **Send anonymous error reports:** helps investigate crashes and failures, with a separate setting.
@@ -52,7 +56,7 @@ Open **Settings → System permissions**. Tool approval and operating-system aut
 | No health records | Confirm records exist and that data type is authorized |
 | Pairing works but configuration cannot load | Check local-network access and [desktop import](desktop-sync.md) |
 
-Agent capability switches control whether that agent can use the related built-in tools; system permissions control the app’s access to device data. Manage plugins and custom MCP tools separately. Disabling an agent’s capability does not revoke system permission; use system settings to revoke access. Automatic tool approval does not bypass system permissions. Android currently does not offer the iOS reminder and health-record tools.
+Old built-in agent capability switches have been removed. Standard/Minimal mode controls app-tool use, OS permissions control device access, and configuration supplies service connections. Custom MCP, Skill bindings, and organization policy remain separate. Revoke OS access in system settings; automatic approval does not bypass it. Android currently lacks iOS reminder/health tools.
 
 <div data-mobile-gallery="single">
 <figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/system-permissions.webp"><img src="../../../assets/mobile/en/system-permissions.webp" alt="System permissions show location, calendar, reminders, health, camera, and photos"></a><figcaption><p><strong>iPhone</strong> · System permissions show location, calendar, reminders, health, camera, and photos</p></figcaption></figure>
@@ -60,7 +64,7 @@ Agent capability switches control whether that agent can use the related built-i
 
 ## Before changing devices or removing app data
 
-Create a full archive in **Settings → Backup and restore**, save outside the app, and confirm it exists. Restore replaces current data rather than merging it. Archives are unencrypted and contain database-held model keys and custom tool headers. Plugin grants, secure-storage account credentials, system permissions, and computer pairing need attention again; see [Backup and restore](backup-and-restore.md).
+Create a full archive in **Settings → Data → Backup and restore**, save outside the app, and confirm it exists. Restore replaces current data rather than merging it. Archives are unencrypted and contain database-held model keys and custom tool headers. Plugin grants, secure-storage account credentials, system permissions, and computer pairing need attention again; see [Backup and restore](backup-and-restore.md).
 
 [Sharing and export](sharing-and-export.md) preserves selected results; images, HTML, and Markdown cannot restore the full app. Desktop configuration import does not transfer local chat history, and remote conversations remain on the computer.
 
@@ -72,9 +76,9 @@ No. Deletion or answering again does not undo calendar changes, edited external 
 
 ## Submitted feedback and screenshots
 
-Submitting through **Settings → About → Feedback** includes diagnostics from the last 24 hours: error/request summaries and system information. Diagnostic logs exclude conversation text and credentials. Your description and any screenshot can contain private material, so inspect them first.
+Submitting through **Settings → About us → Feedback** includes diagnostics from the last 24 hours: error/request summaries and system information. Diagnostic logs exclude conversation text and credentials. Your description and any screenshot can contain private material, so inspect them first.
 
-Shake feedback is off by default. When enabled, shaking in the foreground captures the current page and opens the form. The screenshot stays local unless you enable its inclusion for that submission. Deleting local feedback history does not delete an already submitted report. This flow is separate from anonymous-usage and automatic-error-report controls.
+Shake feedback is off by default. When enabled, shaking in the foreground captures the current page and opens the form. The screenshot stays local unless you enable its inclusion for that submission. Deleting local feedback history does not delete an already submitted report. This flow is separate from anonymous-usage/error-report controls and from the explicit actions/data scope of [checks and AI diagnosis](diagnostics.md).
 
 ## What should a bug report include?
 

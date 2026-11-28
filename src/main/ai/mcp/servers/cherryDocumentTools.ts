@@ -13,7 +13,12 @@ import { isWinArm64 } from '@main/core/platform'
 import { t } from '@main/i18n'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
 import { isSameOrInside, realpath } from '@main/utils/file'
-import { inspectPdfText, isScannedPdfError } from '@main/utils/pdfText'
+import {
+  extractPdfTextLayerMarkdown,
+  inspectPdfText,
+  isMalformedPdfError,
+  isScannedPdfError
+} from '@main/utils/pdfText'
 import {
   TO_MARKDOWN_DESCRIPTION,
   TO_MARKDOWN_TOOL_NAME,
@@ -103,6 +108,11 @@ async function convertWithAnydoc(bytes: Buffer, extension: string): Promise<stri
     return await anydoc.toMarkdownBytes(bytes, anydoc.formatFromExtension(extension) ?? undefined)
   } catch (error) {
     if (pdf && isScannedPdfError(error)) return null
+    if (pdf && isMalformedPdfError(error)) {
+      const reason = error instanceof Error ? error.message : String(error)
+      logger.warn(`anydoc rejected PDF as malformed (${reason}); falling back to pdfjs text layer`)
+      return await extractPdfTextLayerMarkdown(bytes)
+    }
     throw error
   }
 }

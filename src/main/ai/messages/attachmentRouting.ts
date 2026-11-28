@@ -30,7 +30,7 @@ import type { UIMessage } from 'ai'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
-import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
+import type { NativeFileSupport } from '@main/ai/messages/nativeFileSupport'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -135,6 +135,8 @@ export interface PrepareChatContext {
    * has the file reference.
    */
   keepUnroutableFileParts?: boolean
+  /** Count native parts without materializing them, and never invoke OCR while estimating. */
+  estimateOnly?: boolean
   /** Called when an inlined attachment was capped, i.e. `read_file` is needed for the rest. */
   onTruncated?: (handle: string) => void
   signal?: AbortSignal
@@ -222,6 +224,10 @@ async function prepareChatMessage<T extends UIMessage>(
   const kept: UIMessage['parts'] = []
   const composerFileTokenIds = collectComposerFileTokenIds(message)
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
+    if (ctx.estimateOnly) {
+      kept.push(part)
+      return true
+    }
     const inlined = await materializeNativeFilePart(part)
     if (!inlined) return false
     kept.push(inlined)
@@ -239,7 +245,7 @@ async function prepareChatMessage<T extends UIMessage>(
       // Legacy / gateway part — eager materialization, but do not let media
       // bypass the native-support gate applied to first-party attachments.
       const name = part.filename ?? 'file'
-      const inlined = await materializeNativeFilePart(part)
+      const inlined = ctx.estimateOnly ? part : await materializeNativeFilePart(part)
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
         kept.push(noteOf(name))
@@ -290,6 +296,7 @@ async function prepareChatMessage<T extends UIMessage>(
       // provider request, carrying why the fallback produced nothing. Gateway-
       // backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
+        if (ctx.estimateOnly) throw new NonVisionImageOcrError()
         const outcome = await ocrNonVisionImage(fileEntryId, ctx.signal)
         if (outcome.kind !== 'text') {
           logger.warn('Non-vision image OCR produced no readable text', {
@@ -339,6 +346,18 @@ export async function prepareChatMessages<T extends UIMessage = UIMessage>(
   const prepared = await Promise.all(messages.map((message) => prepareChatMessage(message, ctx, pending)))
   await applyInlineCaps(pending, ctx)
   return prepared
+}
+
+export async function prepareChatMessagesForEstimate<T extends UIMessage>(
+  messages: T[],
+  ctx: PrepareChatContext
+): Promise<T[] | null> {
+  try {
+    return await prepareChatMessages(messages, { ...ctx, estimateOnly: true })
+  } catch (error) {
+    if (error instanceof NonVisionImageOcrError) return null
+    throw error
+  }
 }
 
 /**

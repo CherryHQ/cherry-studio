@@ -88,6 +88,27 @@ it('uses the prerequisite installer instead of starting an unsafe bridge install
   expect(screen.queryByRole('button', { name: installation.action })).not.toBeInTheDocument()
 })
 
+it.each(['prerequisite', 'bridge'] as const)('lets portable users download the %s directly', async (target) => {
+  render(
+    <LegacyUpgradeApp
+      screen={{
+        ...copy,
+        downloadPrerequisite: 'Download v1.9.13 Portable',
+        download: 'Download v2.2.2 Portable',
+        showBridgeDownload: true,
+        installation: { ...installation, enabled: false, prerequisite: true }
+      }}
+    />
+  )
+
+  const prerequisite = screen.getByRole('button', { name: 'Download v1.9.13 Portable' })
+  const bridge = screen.getByRole('button', { name: 'Download v2.2.2 Portable' })
+  expect(prerequisite).toBeEnabled()
+  expect(bridge).toBeEnabled()
+  await act(async () => fireEvent.click(target === 'bridge' ? bridge : prerequisite))
+  expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledExactlyOnceWith('legacy-upgrade:download', target)
+})
+
 it('offers the pinned prerequisite installation without offering the migration release', async () => {
   const prerequisite = { ...installation, prerequisite: true, action: 'Install 1.9.12' }
   render(<LegacyUpgradeApp screen={{ ...copy, installation: prerequisite }} />)

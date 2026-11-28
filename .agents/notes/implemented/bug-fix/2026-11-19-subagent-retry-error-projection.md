@@ -18,6 +18,8 @@ Streaming caller requests emit the same stable `data-retry` status as chat. A ty
 
 This updates the retry boundary in [SDK forwarding](../architecture/2026-11-09-gateway-sdk-forwarding.md) and [object transport](../architecture/2026-11-18-agent-object-transport.md). Public HTTP gateway requests retain their no-retry policy; native scheduling, tools, context and recovery remain with the harness.
 
+[Model retry](../../../../docs/dev/references/ai/model-retry.md#output-token-limits) also recovers from a provider's output-budget rejection in Chat and trusted Work requests. Catalog limits can differ from the serving endpoint's limits. The retry uses the failed provider request to confirm that changing the SDK option can lower the budget, then retries the same call with a smaller value. This keeps provider middleware and retry status in the existing execution path. [Work reports](https://github.com/CherryHQ/cherry-studio/issues/20240) and [Chat reports](https://github.com/CherryHQ/cherry-studio/issues/22197) capture the observed provider errors.
+
 ## Alternatives considered
 
 - Keep native retries: loses the shared model retry/status path and risks multiplying attempts if gateway retry is also enabled.
@@ -33,6 +35,8 @@ Provider concurrency limits still apply. Recoverable failures may succeed after 
 
 - Regression — `ChildThreadProjection.test.ts` and native Durable `projection.test.ts` preserve empty/partial failures across live projection, archive and reopening, without overriding later successful native outcomes.
 - Regression — `gatewayIntegration.test.ts` uses real gateway execution against a loopback provider to verify retry recovery, four-attempt exhaustion with the final 429 body, cancellation, partial-stream non-replay and retry/settled events.
+- Regression — `gatewayIntegration.test.ts` exercises output-budget reduction on Chat, Pi and the trusted Anthropic gateway path. `createRetryableWrap.test.ts` covers provider ceilings, decrement and exhaustion, cancellation, and retaining the lower budget across a transient error.
+- Regression — A patched ai-retry 1.11.1 uses the options that opened a failed stream. Wrapper tests cover a reduced stream followed by a 503 or another ceiling, and OpenAI wire captures verify provider override precedence and shared retry accounting after key failover.
 - Regression — `singleStep.test.ts` proves caller model wrapping executes retries without stacking SDK retries or local tools; `PiDurableRuntimeConnection.test.ts` proves native root and child retries are disabled.
 - Regression — Pi and Pi Durable connection tests route root and two concurrent child retry statuses independently; child projection tests keep only the latest live status and exclude it from the archive.
 - Regression — Isolated Electron with aimock 1.48.0 ran 20 native children: 15 completed and five exhausted their retry budget. Root and child retry indicators appeared, updated and cleared; reopening retained the original concurrency error and no retry indicator. Read-only SQLite inspection found no `data-retry` parts in the root or 20 child archives. This is local simulated-provider evidence, not a production release claim.
