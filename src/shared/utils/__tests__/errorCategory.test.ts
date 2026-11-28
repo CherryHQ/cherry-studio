@@ -25,6 +25,19 @@ describe('classifyErrorCategory unusable API responses', () => {
   })
 })
 
+describe('classifyErrorCategory reasoning-only provider rejection', () => {
+  const text = 'upstream returned reasoning without output text; retry'
+
+  it.each([undefined, 400])('recognizes the response failure with status %s', (status) => {
+    expect(classifyErrorCategory({ text, status })).toBe('parse')
+  })
+
+  it('preserves transport status precedence and does not classify ordinary reasoning mentions', () => {
+    expect(classifyErrorCategory({ text, status: 503 })).toBe('server')
+    expect(classifyErrorCategory({ text: 'reasoning is not supported', status: 400 })).toBe('bad_request')
+  })
+})
+
 describe('classifyErrorCategory HTTP 400', () => {
   it('identifies a provider request failure without guessing its cause', () => {
     expect(classifyErrorCategory({ status: 400, text: 'API Error: 400 Provider returned error' })).toBe('bad_request')
