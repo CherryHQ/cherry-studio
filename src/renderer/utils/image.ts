@@ -991,6 +991,8 @@ const PREVIEW_UPSCALE = 3
 const PREVIEW_TARGET_LONG_EDGE = 2400
 const PREVIEW_MAX_LONG_EDGE = 4096
 
+const roundPreviewDimension = (value: number): number => Math.max(1, Math.round(value))
+
 const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
   const clone = svgElement.cloneNode(true) as SVGElement
   // Responsive inline styles would constrain the standalone `<img>`; the
@@ -1015,13 +1017,13 @@ const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
     const viewWidth = viewBox[2]
     const viewHeight = viewBox[3]
     const scale = Math.max(PREVIEW_UPSCALE, PREVIEW_TARGET_LONG_EDGE / Math.max(viewWidth, viewHeight))
-    let width = Math.round(viewWidth * scale)
-    let height = Math.round(viewHeight * scale)
+    let width = roundPreviewDimension(viewWidth * scale)
+    let height = roundPreviewDimension(viewHeight * scale)
     const longest = Math.max(width, height)
     if (longest > PREVIEW_MAX_LONG_EDGE) {
       const downscale = PREVIEW_MAX_LONG_EDGE / longest
-      width = Math.round(width * downscale)
-      height = Math.round(height * downscale)
+      width = roundPreviewDimension(width * downscale)
+      height = roundPreviewDimension(height * downscale)
     }
     clone.setAttribute('width', String(width))
     clone.setAttribute('height', String(height))

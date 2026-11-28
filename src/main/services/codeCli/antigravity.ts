@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises'
 
 import { application } from '@application'
+import {
+  antigravityGatewayModel,
+  antigravityGeminiSettings,
+  antigravityGeminiEnvironment
+} from '@cherrystudio/agent-runtime-antigravity-acp/terminal'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { atomicWriteFile } from '@main/utils/file'
@@ -8,7 +13,7 @@ import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { ANTIGRAVITY_MODEL_PATH_SEPARATOR, formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 import { getRawModelId } from '@shared/utils/model'
 
@@ -48,7 +53,7 @@ async function ensureGeminiModeSettings(): Promise<string> {
     }
   }
 
-  await atomicWriteFile(settingsPath, `${JSON.stringify({ ...settings, modelProvider: 'gemini' }, null, 2)}\n`, {
+  await atomicWriteFile(settingsPath, antigravityGeminiSettings(settings), {
     mode: 0o600
   })
   return geminiDir
@@ -71,15 +76,7 @@ export async function prepareAntigravityLaunch(input: NormalRunInput): Promise<A
     })
     apiKey = gatewayApiKey
     baseUrl = gatewayClientOrigin(host, port)
-    // Only this path form is ambiguous about the separator: the route splits on the first
-    // one, so a provider id carrying it would address the wrong provider.
-    if (input.providerId.includes(ANTIGRAVITY_MODEL_PATH_SEPARATOR)) {
-      throw new Error(
-        `Provider id "${input.providerId}" contains "${ANTIGRAVITY_MODEL_PATH_SEPARATOR}" and cannot be addressed by antigravity-cli`
-      )
-    }
-    const gatewayModel = formatGatewayModelId(input.providerId, input.model)
-    model = `gemini-api://${gatewayModel.replace(':', ANTIGRAVITY_MODEL_PATH_SEPARATOR)}`
+    model = antigravityGatewayModel(formatGatewayModelId(input.providerId, input.model))
   } else {
     const provider = providerService.getByProviderId(input.providerId)
     const userModel = resolveUserModelForLaunch(input.providerId, input.model)
@@ -94,10 +91,7 @@ export async function prepareAntigravityLaunch(input: NormalRunInput): Promise<A
   if (!isShellSafeModelId(model)) throw new Error(`Unsupported model id for antigravity-cli: ${model}`)
 
   return {
-    env: {
-      GEMINI_API_KEY: apiKey,
-      ...(baseUrl ? { GOOGLE_GEMINI_BASE_URL: baseUrl } : {})
-    },
+    env: antigravityGeminiEnvironment(apiKey, baseUrl),
     geminiDir: await ensureGeminiModeSettings(),
     model
   }

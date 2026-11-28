@@ -627,18 +627,35 @@ required service tier.`
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
   })
 
-  it('shows size guidance and the original status-less request buffer error', () => {
-    const providerMessage = '413 Failed to buffer the request body: length limit exceeded'
+  it.each(['Request payload is too large', '413 Failed to buffer the request body: length limit exceeded'])(
+    'shows size guidance and the original status-less error: %s',
+    (providerMessage) => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'Error', message: providerMessage, stack: null }}
+          message={message}
+        />
+      )
+      expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
+      expect(screen.getByText(providerMessage)).toBeInTheDocument()
+      expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+    }
+  )
+
+  it('keeps response body size failures eligible for diagnosis without request-size guidance', () => {
+    mocks.actions = { diagnoseMessageError: vi.fn() }
     render(
       <ErrorBlock
         partId="message-1-part-0"
-        error={{ name: 'Error', message: providerMessage, stack: null }}
+        error={{ name: 'Error', message: 'Response body payload is too large', stack: null }}
         message={message}
       />
     )
-    expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
-    expect(screen.getByText(providerMessage)).toBeInTheDocument()
-    expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.payload')).toBeNull()
   })
 
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
@@ -911,6 +928,30 @@ required service tier.`
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
+  // #25526: Claude Code formats HTTP 400 rejections as `API Error: 400 {json}`; the upstream
+  // reason must remain visible instead of being stripped by container filtering.
+  it('surfaces the upstream message from a Claude Code JSON 400 error', () => {
+    mocks.translations.set('error.diagnosis.bad_request', enUS['error.diagnosis.bad_request'])
+    mocks.translations.set('error.http.400', enUS['error.http.400'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeResultError',
+          message:
+            'API Error: 400 {"code":"11-128","message":"Illegal API invocation from an unapproved channel","type":"error","error":{"code":"11-128","type":"invalid_request_error","message":"Illegal API invocation from an unapproved channel"}}',
+          stack: null,
+          statusCode: 400
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('Provider request failed (HTTP 400)')).toBeInTheDocument()
+    expect(screen.getByText(/Illegal API invocation from an unapproved channel/)).toBeInTheDocument()
+  })
+
   it('requires another click to diagnose in a changed app language', async () => {
     const user = userEvent.setup()
     const diagnoseMessageError = vi.fn().mockResolvedValueOnce('English summary').mockResolvedValueOnce('中文摘要')
@@ -995,6 +1036,34 @@ required service tier.`
     expect(screen.getByText('error.diagnosis.proxy')).toBeInTheDocument()
     await user.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
+  })
+
+  it('identifies a deleted provider in a streamed turn and opens the provider list', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('error.diagnosis.provider_unavailable', enUS['error.diagnosis.provider_unavailable'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: "Provider with id 'removed-provider' not found",
+          streamStage: 'response-stream',
+          stack: null
+        }}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Provider removed-provider no longer exists in this app. Choose a model from another provider in this conversation.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.stream')).toBeNull()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider')
   })
 
   // #22571: the stale assistant-bound model is gone from the install, so the headline must name

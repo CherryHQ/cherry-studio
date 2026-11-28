@@ -43,10 +43,12 @@ describe('CherrySupportSeeder', () => {
     const [support] = builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)
     expect(support).toMatchObject({
       id: CHERRY_SUPPORT_AGENT_ID,
+      type: 'pi-durable',
       model: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
     })
     expect(support.configuration).toMatchObject({
-      builtin_role: BUILTIN_AGENT_ROLE.SUPPORT
+      builtin_role: BUILTIN_AGENT_ROLE.SUPPORT,
+      permission_mode: 'auto'
     })
     expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.ASSISTANT)).toHaveLength(1)
     const [session] = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.agentId, support.id)).all()

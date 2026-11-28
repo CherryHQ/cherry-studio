@@ -75,6 +75,13 @@ Shell commands are shown in full in a scrollable, copyable preview. The optional
 rejection reason expands on demand. Opening task details or expanding the reason
 with Enter never submits an approval decision.
 
+The composer identifies the requesting Agent or subagent. Child requests carry the
+spawning tool-call ID in provider metadata; the card uses that identity to show the
+matching task name and background status, with a link to the task in Agent sessions.
+Shell commands are shown in full in a scrollable, copyable preview. The optional
+rejection reason expands on demand. Opening task details or expanding the reason
+with Enter never submits an approval decision.
+
 ## End-to-end flow
 
 1. **Tool needs approval** — at `execute` time, the wrapper checks

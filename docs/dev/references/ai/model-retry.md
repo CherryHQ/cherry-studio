@@ -82,7 +82,9 @@ policy and checks route-bound tool continuations. An eligible fallback, a
 model retry policy, or a replay route guard can install the wrapper. Key failover
 is attempted first for 401/429 responses. When model retry is enabled, a selected
 replacement key still receives the configured same-model retry for other
-retryable errors (such as 503/529) before cross-model fallback begins.
+retryable errors (such as 503/529) before cross-model fallback begins. A recognized
+context overflow reaches retry from the provider adapter as a non-retryable
+failure. Chat context recovery can retry with a compacted prompt.
 
 ```ts
 // ai-retry's condition-based API (ai-retry/language-model). The retry STRATEGY
