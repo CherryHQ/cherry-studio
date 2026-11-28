@@ -190,7 +190,8 @@ External entries are best-effort references to user-owned paths:
 - `rename(id, newName)` renames the physical file within its current parent and updates the row;
 - `trash` and `restore` reject external entries;
 - `permanentDelete(id)` removes only the row and leaves the user's file on disk;
-- missing paths are reported through `DanglingState`, not treated as permission to delete the row.
+- missing paths are reported through `DanglingState`; only an explicit removal can detach a missing
+  translation original whose persistent references are all optional source references.
 
 UI copy must distinguish removing an external reference from deleting an internal managed file or
 an arbitrary path on disk.
