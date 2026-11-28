@@ -1680,6 +1680,7 @@
   "error.diagnosis.payload": "請求內容過大，請減少檔案或文字大小",
   "error.diagnosis.permission": "提供者拒絕了此要求。請檢查錯誤詳細資料、帳號方案、API 金鑰權限，或你對此資源的存取權限",
   "error.diagnosis.prefill_memory": "可用記憶體不足，無法處理此請求。請縮短對話或改用較小的模型。",
+  "error.diagnosis.provider_unavailable": "此應用程式中已找不到服務供應商 {{provider}}。請在目前的對話中選擇其他供應商的模型。",
   "error.diagnosis.proxy": "代理或 SSL 憑證錯誤，請檢查代理和網路設定",
   "error.diagnosis.quota": "帳戶額度已用完，請儲值或更換供應商",
   "error.diagnosis.rate_limit": "請求過於頻繁，請稍等片刻再試，或更換為更高速率的模型",

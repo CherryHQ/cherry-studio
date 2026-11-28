@@ -7,7 +7,7 @@ import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 
 import type { SlashCommand } from './slashCommands'
 
@@ -144,3 +144,8 @@ export const AGENT_RUNTIME_CAPABILITIES = {
       PI_CAPABILITIES.builtinTools(platform).filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
   }
 } as const satisfies Record<AgentType, AgentRuntimeCapabilities>
+
+export function isAgentModelSelectable(agentType: AgentType | undefined, model: Model, provider?: Provider): boolean {
+  const compatible = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].isModelCompatible : undefined
+  return !isNonChatModel(model) && (compatible?.(provider, model) ?? true)
+}

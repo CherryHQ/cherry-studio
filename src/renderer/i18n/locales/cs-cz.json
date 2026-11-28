@@ -1682,6 +1682,7 @@
   "error.diagnosis.payload": "Obsah požadavku je příliš velký, zmenšete soubor nebo text",
   "error.diagnosis.permission": "Poskytovatel tento požadavek odmítl. Zkontrolujte podrobnosti chyby, svůj tarif, oprávnění klíče API nebo přístup k tomuto zdroji",
   "error.diagnosis.prefill_memory": "K zpracování tohoto požadavku není dostatek paměti. Zkraťte konverzaci nebo použijte menší model.",
+  "error.diagnosis.provider_unavailable": "Poskytovatel {{provider}} už v této aplikaci neexistuje. V této konverzaci vyberte model od jiného poskytovatele.",
   "error.diagnosis.proxy": "Chyba proxy nebo certifikátu SSL, zkontrolujte nastavení proxy a sítě",
   "error.diagnosis.quota": "Kvóta účtu je vyčerpána, dobijte kredit nebo přepněte poskytovatele",
   "error.diagnosis.rate_limit": "Příliš mnoho požadavků za krátkou dobu. Počkejte chvíli a zkuste to znovu, nebo přepněte na model s vyšším limitem",

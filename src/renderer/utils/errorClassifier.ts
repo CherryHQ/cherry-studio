@@ -143,6 +143,9 @@ export function getLocalModelResolutionFailure(
     return null
   }
 
+  const providerIdMatch = /^Provider with id '(.+)' not found$/s.exec(message)
+  if (providerIdMatch) return { providerId: providerIdMatch[1] }
+
   // Format 4: "Model with id 'provider/model' not found" (DataApiErrorFactory.notFound)
   const modelIdMatch = /^Model with id '([^']+)' not found$/.exec(message)
   if (modelIdMatch) {
@@ -183,7 +186,11 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
   // Checked before text classification: the unknown-text fallback would reclassify this local
   // resolution failure as `bad_request` ("请求错误… If you changed model settings, reset them").
-  if (getLocalModelResolutionFailure(error)) return classify('model')
+  const localFailure = getLocalModelResolutionFailure(error)
+  if (localFailure) {
+    const model = classify('model')
+    return localFailure.providerId && !localFailure.modelId ? { ...model, navTarget: '/settings/provider' } : model
+  }
   const numStatus = getErrorHttpStatus(error)
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
