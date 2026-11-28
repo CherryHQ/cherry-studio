@@ -2710,8 +2710,15 @@ export class AgentSessionMessageService {
       if (row?.role !== 'user' || row.inputContextId !== contextId || row.delivery) return false
       const parts = [...(row.data.parts ?? [])]
       const index = parts.findIndex((part) => part.type === 'text')
-      if (index < 0 || JSON.stringify(parts[index]) === JSON.stringify(text)) return false
-      parts[index] = text
+      if (index < 0 && (!text.text.trim() || !parts.some((part) => part.type === 'file'))) return false
+      if (index >= 0 && JSON.stringify(parts[index]) === JSON.stringify(text)) return false
+      const partIds = readAgentSessionMessagePartIdsTx(tx, messageId)
+      if (index < 0) {
+        parts.push(text)
+        partIds.push(uuidv7())
+      } else {
+        parts[index] = text
+      }
       const updatedAt = Date.now()
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       tx.update(sessionMessagesTable).set({ updatedAt }).where(eq(sessionMessagesTable.id, messageId)).run()
@@ -2719,7 +2726,7 @@ export class AgentSessionMessageService {
         sessionId,
         messageId,
         parts,
-        partIds: readAgentSessionMessagePartIdsTx(tx, messageId),
+        partIds,
         timestampMs: updatedAt
       })
       return true

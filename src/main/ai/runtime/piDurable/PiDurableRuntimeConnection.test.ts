@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { realpath } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import {
@@ -3463,6 +3464,40 @@ describe('desktop Pi Durable connection', () => {
     expect(nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(true)
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('adds text to a queued attachment-only input and dispatches the edited message', async () => {
+    const held = answerByInput()
+    const { connection, events } = await connect()
+    await connection.send({ message: message('first') })
+    await held.reached
+    const file = {
+      type: 'file' as const,
+      mediaType: 'text/plain',
+      filename: 'notes.txt',
+      url: pathToFileURL(join(directory, 'notes.txt')).href
+    }
+    writeFileSync(join(directory, 'notes.txt'), 'Attachment contents')
+    const queued = messages.saveMessage({
+      sessionId: input.sessionId,
+      stageFollowup: true,
+      message: { role: 'user', data: { parts: [file] } }
+    })
+
+    try {
+      await expect(submitBusy(connection, 'followUp', queued)).resolves.toMatchObject({ status: 'acknowledged' })
+      await expect(
+        connection.changeFollowups({ type: 'edit', inputId: queued.id, revision: 0, text: 'Read this second' })
+      ).resolves.toBe(true)
+      expect(messages.getSessionMessage(input.sessionId, queued.id).data.parts).toEqual([
+        file,
+        { type: 'text', text: 'Read this second' }
+      ])
+    } finally {
+      held.open()
+    }
+    await done(events)
+    expect(text(events)).toContain('second answer')
   })
 
   it('reports each queued Run checkpoint before idle and replays the exact answer positions on reopen', async () => {

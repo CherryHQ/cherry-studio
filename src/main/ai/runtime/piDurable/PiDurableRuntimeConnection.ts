@@ -429,9 +429,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const parts = message.data.parts ?? []
     const index = parts.findIndex((part) => part.type === 'text')
     const original = parts[index]
-    if (original?.type !== 'text') return false
-    const replacement = replaceFollowupText(original, change.text)
-    const edited = parts.map((part, partIndex) => (partIndex === index ? replacement : part))
+    if (original?.type !== 'text' && (!change.text.trim() || !parts.some((part) => part.type === 'file'))) return false
+    const replacement = replaceFollowupText(
+      original?.type === 'text' ? original : { type: 'text', text: '' },
+      change.text
+    )
+    const edited = [...parts]
+    edited[index < 0 ? edited.length : index] = replacement
     return this.handle.durable.changeFollowups({
       type: 'edit',
       inputId: change.inputId,
