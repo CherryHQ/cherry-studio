@@ -55,6 +55,7 @@ import { defaultLanguage } from '@shared/utils/languages'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
+import { DefaultMcpServersSettings } from './DefaultMcpServersSettings'
 
 function getRetryFallbackModelsTriggerLabel(
   rawFallbackModelIds: readonly UniqueModelId[],
@@ -537,6 +538,7 @@ const GeneralSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
       <ContextManagementSettings />
+      <DefaultMcpServersSettings />
       <SettingGroup theme={theme}>
         <SettingTitle className="justify-start gap-1.5">
           {t('settings.general.sections.retry')} <HelpTooltip content={t('settings.models.retry.description')} />
@@ -602,7 +604,7 @@ const GeneralSettings: FC = () => {
                       className={cn(
                         'h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
                         hasInvalidRetryFallbackModels &&
-                          'aria-expanded:border-error-border aria-expanded:ring-error/20 aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-invalid:ring-error/40 dark:aria-expanded:ring-error/40'
+                          'aria-expanded:border-error-border aria-expanded:ring-error/20 aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-expanded:ring-error/40 dark:aria-invalid:ring-error/40'
                       )}>
                       <span className="min-w-0 flex-1 truncate">{retryFallbackModelsTriggerLabel}</span>
                       <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
@@ -701,7 +703,7 @@ const GeneralSettings: FC = () => {
             <SettingRow className="gap-3">
               <SettingRowTitle>{t('settings.developer.client_id')}</SettingRowTitle>
               <div className="flex min-w-0 items-center gap-2">
-                <span className="select-text break-all text-right font-mono text-foreground-tertiary text-xs">
+                <span className="text-right font-mono text-xs break-all text-foreground-tertiary select-text">
                   {clientId}
                 </span>
                 <CopyButton textToCopy={clientId} successFeedback="icon" />

@@ -14,6 +14,8 @@ export type AssistantCreateValues = {
   prompt: string
   knowledgeBaseIds: string[]
   mcpServerIds?: string[]
+  /** Reviewed creation-time MCP selection; explicit mcpServerIds still wins. Assistant-only. */
+  reviewedMcpServerIds?: string[]
   enableWebSearch?: boolean
   /** Absent leaves the Assistant unconstrained, like one saved before the setting existed. */
   replyLanguage?: AssistantReplyLanguage
@@ -32,7 +34,9 @@ export function buildCreateAssistantDto(values: AssistantCreateValues): CreateAs
     description: values.description,
     prompt: values.prompt,
     knowledgeBaseIds: values.knowledgeBaseIds,
-    ...(values.mcpServerIds?.length ? { mcpServerIds: values.mcpServerIds } : {}),
+    // An explicit selection is intentional even when empty: [] must not drop into default inheritance.
+    ...(values.mcpServerIds !== undefined ? { mcpServerIds: values.mcpServerIds } : {}),
+    ...(values.reviewedMcpServerIds !== undefined ? { reviewedMcpServerIds: values.reviewedMcpServerIds } : {}),
     ...(Object.keys(settingsPatch).length ? { settings: { ...DEFAULT_ASSISTANT_SETTINGS, ...settingsPatch } } : {})
   }
 }

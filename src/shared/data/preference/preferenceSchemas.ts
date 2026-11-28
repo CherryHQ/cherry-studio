@@ -148,6 +148,8 @@ export interface PreferenceSchemas {
     'app.zoom_factor': number
     // target-key-definitions/complex/complex
     'assistant.archive.related_topics': boolean
+    // target-key-definitions/complex/complex
+    'assistant.default_mcp_server_ids': string[]
     // redux/settings/assistantIconType
     'assistant.icon_type': PreferenceTypes.AssistantIconType
     // redux/settings/assistantsTabSortType
@@ -798,6 +800,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'app.user.name': '',
     'app.zoom_factor': 1,
     'assistant.archive.related_topics': false,
+    'assistant.default_mcp_server_ids': [],
     'assistant.icon_type': 'emoji',
     'assistant.tab.sort_type': 'list',
     'chat.code.collapsible': false,

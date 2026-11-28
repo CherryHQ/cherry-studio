@@ -125,6 +125,7 @@ class ImportService {
         name: i18n.t(importerKey, {
           defaultValue: `${importer.name} Import`
         }),
+        mcpServerIds: [],
         emoji: importer.emoji
       }
       const assistant = await dataApiService.post('/assistants', { body: dto })

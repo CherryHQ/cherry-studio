@@ -38,6 +38,7 @@ import {
 } from '../components/EditDialogShared'
 import { type CreatedResource, ResourceCreateResultView, ResourceCreateWorkingView } from './ResourceCreateResult'
 import { AdvancedStep } from './steps/AdvancedStep'
+import { AssistantMcpReviewStep } from './steps/AssistantMcpReviewStep'
 import { AutoCreateEntry } from './steps/AutoCreateEntry'
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
@@ -73,7 +74,16 @@ type ResourceCreateWizardProps = {
   initialValues?: Partial<Pick<ResourceCreateWizardFormValues, 'name' | 'description' | 'avatar' | 'prompt'>>
 }
 
-type StepId = 'basic' | 'system-prompt' | 'tools' | 'capability' | 'knowledge' | 'mcp' | 'channels' | 'advanced'
+type StepId =
+  | 'basic'
+  | 'system-prompt'
+  | 'tools'
+  | 'capability'
+  | 'knowledge'
+  | 'mcp'
+  | 'mcp-review'
+  | 'channels'
+  | 'advanced'
 type WizardView = 'entry' | 'steps' | 'working' | 'result'
 
 const AUTO_CREATE_TIMEOUT_MS = 60_000
@@ -201,6 +211,7 @@ function WizardFooter({
   isLast,
   isSubmitting,
   imagePending,
+  selectionRequired,
   mcpInstallPending,
   onCancel,
   onBack,
@@ -213,6 +224,7 @@ function WizardFooter({
   isLast: boolean
   isSubmitting: boolean
   imagePending: boolean
+  selectionRequired: boolean
   mcpInstallPending: boolean
   onCancel: () => void
   onBack: () => void
@@ -220,17 +232,21 @@ function WizardFooter({
   onCreate: () => void
 }) {
   const { t } = useTranslation()
-  const [name, modelId, channels] = useWatch({ control: form.control, name: ['name', 'modelId', 'channels'] })
+  const [name, modelId, channels, reviewedMcpServerIds] = useWatch({
+    control: form.control,
+    name: ['name', 'modelId', 'channels', 'reviewedMcpServerIds']
+  })
+  const selectionPending = selectionRequired && reviewedMcpServerIds === undefined
   const submitting = isSubmitting || form.formState.isSubmitting
   const rootError = form.formState.errors.root?.message
   const basicValid = (name?.trim().length ?? 0) > 0 && Boolean(modelId)
   // A channel the main process would reject fails the whole create, so it blocks here instead.
   const channelsValid = channels.every((channel) => toAgentChannelDraft(channel, channels) !== null)
-  const canProceed = (stepIndex !== 0 || basicValid) && (stepId !== 'channels' || channelsValid)
+  const canProceed = (stepIndex !== 0 || basicValid) && (stepId !== 'channels' || channelsValid) && !selectionPending
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
-      {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
+    <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-6 py-3">
+      {rootError ? <span className="mr-auto text-xs text-destructive">{rootError}</span> : null}
       <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
@@ -247,7 +263,7 @@ function WizardFooter({
         <Button
           type="button"
           loading={submitting}
-          disabled={!basicValid || !channelsValid || imagePending || mcpInstallPending}
+          disabled={!basicValid || !channelsValid || imagePending || mcpInstallPending || selectionPending}
           onClick={onCreate}>
           {t('library.config.dialogs.create.submit')}
         </Button>
@@ -348,7 +364,8 @@ export function ResourceCreateWizard({
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
     const systemPrompt = { id: 'system-prompt' as const, label: t('library.config.prompt.label') }
     const knowledge = { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
-    if (kind === 'assistant') return [basic, systemPrompt, knowledge]
+    if (kind === 'assistant')
+      return [basic, systemPrompt, { id: 'mcp-review' as const, label: t('settings.mcp.title') }, knowledge]
 
     const tools = { id: 'tools' as const, label: t('library.config.dialogs.edit.tools_tab') }
     const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
@@ -453,6 +470,7 @@ export function ResourceCreateWizard({
   }
 
   const goNext = () => {
+    if (steps[stepIndex]?.id === 'mcp-review' && form.getValues('reviewedMcpServerIds') === undefined) return
     if (mcpInstallDraft.current.pending > 0) return
     if (stepIndex === 0) {
       const { name, modelId } = form.getValues()
@@ -526,8 +544,9 @@ export function ResourceCreateWizard({
       description: values.description.trim(),
       prompt: values.prompt.trim(),
       knowledgeBaseIds: values.knowledgeBaseIds,
+      ...(kind === 'assistant' ? { reviewedMcpServerIds: values.reviewedMcpServerIds } : {}),
       skillIds: values.skillIds,
-      mcpServerIds: values.mcpServerIds,
+      ...(kind === 'agent' || generated ? { mcpServerIds: values.mcpServerIds } : {}),
       enableWebSearch: values.enableWebSearch,
       disabledTools: values.disabledTools,
       channels: channels.filter((channel) => channel !== null),
@@ -561,6 +580,7 @@ export function ResourceCreateWizard({
   const submitForm = form.handleSubmit((values) => submitValues(values))
   const handleCreate = async () => {
     if (submitPendingRef.current || submitting || imagePending || mcpInstallDraft.current.pending > 0) return
+    if (kind === 'assistant' && form.getValues('reviewedMcpServerIds') === undefined) return
     submitPendingRef.current = true
     try {
       await submitForm()
@@ -803,6 +823,16 @@ export function ResourceCreateWizard({
                       {currentStep.id === 'system-prompt' ? (
                         <SystemPromptStep form={form} portalContainer={dialogContentElement} />
                       ) : null}
+                      {kind === 'assistant' ? (
+                        <div hidden={currentStep.id !== 'mcp-review'}>
+                          <AssistantMcpReviewStep
+                            form={form}
+                            active={open && currentStep.id === 'mcp-review'}
+                            disabled={submitting}
+                            portalContainer={dialogContentElement}
+                          />
+                        </div>
+                      ) : null}
                       {currentStep.id === 'knowledge' ? (
                         <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
                       ) : null}
@@ -835,6 +865,7 @@ export function ResourceCreateWizard({
                     isSubmitting={isSubmitting}
                     imagePending={imagePending}
                     mcpInstallPending={mcpInstallPending}
+                    selectionRequired={kind === 'assistant' && currentStep.id === 'mcp-review'}
                     onCancel={requestClose}
                     onBack={goBack}
                     onNext={goNext}

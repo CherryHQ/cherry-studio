@@ -20,6 +20,8 @@ export type ResourceEditDialogTarget = (
 export type ResourceCreateValues = AgentCreateValues & {
   /** Assistant-only web search switch, set by auto create. */
   enableWebSearch?: boolean
+  /** Reviewed creation-time MCP selection for Assistants; explicit mcpServerIds still wins. */
+  reviewedMcpServerIds?: string[]
 }
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'

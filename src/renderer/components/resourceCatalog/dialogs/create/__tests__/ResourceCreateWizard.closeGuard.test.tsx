@@ -18,6 +18,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // Capture the close-control props the wizard hands to the UI dialog so the test can
 // drive overlay / Esc / pointer-down-outside deterministically (radix's real Esc
 // wiring doesn't fire onOpenChange reliably under jsdom).
+const ipc = vi.hoisted(() => ({ request: vi.fn() }))
+
 const dialog = vi.hoisted(() => ({
   onOpenChange: undefined as ((open: boolean) => void) | undefined,
   closeOnOverlayClick: undefined as boolean | undefined,
@@ -28,6 +30,10 @@ const dialog = vi.hoisted(() => ({
   mountCount: 0,
   unmountCount: 0,
   settingsNavigate: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipc.request }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -64,6 +70,24 @@ vi.mock('../steps/KnowledgeStep', () => ({
 }))
 
 // Only BasicInfoStep needs behavior — it fills the fields that gate navigation.
+vi.mock('../steps/AssistantMcpReviewStep', async () => {
+  const { useEffect } = await import('react')
+  return {
+    AssistantMcpReviewStep: ({
+      form,
+      active
+    }: {
+      form: { setValue: (name: string, value: unknown) => void }
+      active: boolean
+    }) => {
+      useEffect(() => {
+        if (active) form.setValue('reviewedMcpServerIds', [])
+      }, [form, active])
+      return null
+    }
+  }
+})
+
 vi.mock('../steps/BasicInfoStep', () => ({
   BasicInfoStep: ({
     form,
@@ -206,6 +230,7 @@ afterEach(() => {
   dialog.mountCount = 0
   dialog.unmountCount = 0
   dialog.settingsNavigate.mockReset()
+  ipc.request.mockReset()
   vi.restoreAllMocks()
 })
 
@@ -256,6 +281,7 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit).toHaveBeenCalledTimes(1)
@@ -301,6 +327,7 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeEnabled()
 
     rerender(
@@ -316,15 +343,7 @@ describe('ResourceCreateWizard close protection', () => {
 
     expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeDisabled()
 
-    rerender(
-      <ResourceCreateWizard
-        kind="assistant"
-        open
-        onOpenChange={onOpenChange}
-        onStartConversation={vi.fn()}
-        onSubmit={onSubmit}
-      />
-    )
+    rerender(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
     expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeEnabled()
   })
 

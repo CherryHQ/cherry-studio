@@ -9,6 +9,11 @@ import { toast } from '@renderer/services/toast'
 
 import { AssistantLibraryDialog } from '../AssistantLibraryDialog'
 
+const presetReview = vi.hoisted(() => ({ reviewMcp: vi.fn(async (): Promise<string[] | null> => []) }))
+vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
+  usePresetMcpReview: () => ({ reviewMcp: presetReview.reviewMcp, reviewDialog: null })
+}))
+
 const createAssistantMock = vi.fn(async () => ({ id: 'assistant-1' }))
 
 type VirtualizerOptionsMock = {
@@ -125,6 +130,7 @@ vi.mock('@cherrystudio/ui', () => {
 })
 
 beforeEach(() => {
+  presetReview.reviewMcp.mockResolvedValue([])
   vi.clearAllMocks()
   virtualizerMocks.measureElement.mockClear()
   assistantCatalogMocks.state.isLoading = false
@@ -181,10 +187,21 @@ describe('AssistantLibraryDialog', () => {
     await user.click(addButtons[0])
 
     await waitFor(() => expect(createAssistantMock).toHaveBeenCalledTimes(1))
-    expect(createAssistantMock).toHaveBeenCalledWith(expect.objectContaining({ name: 'Web Generator' }))
+    expect(createAssistantMock).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Web Generator', reviewedMcpServerIds: [] })
+    )
     expect(onAssistantAdded).toHaveBeenCalledTimes(1)
     expect(toast.success).toHaveBeenCalledWith('common.add_success')
     expect(await screen.findByText('library.assistant_catalog.go_to_chat')).toBeInTheDocument()
+  })
+
+  it('does not add a preset when MCP review is cancelled', async () => {
+    const user = userEvent.setup()
+    presetReview.reviewMcp.mockResolvedValueOnce(null)
+    renderDialog()
+    await user.click(screen.getAllByText('library.assistant_catalog.add')[0])
+    await waitFor(() => expect(presetReview.reviewMcp).toHaveBeenCalled())
+    expect(createAssistantMock).not.toHaveBeenCalled()
   })
 
   it('clears added preset actions when the dialog closes', async () => {

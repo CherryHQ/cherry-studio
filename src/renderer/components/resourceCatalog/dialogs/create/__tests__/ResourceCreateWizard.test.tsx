@@ -15,6 +15,8 @@ import type { Provider } from '@shared/data/types/provider'
 
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '../types'
 
+const mcpStepState = vi.hoisted(() => ({ pending: false, snapshotRead: vi.fn(() => ['Reviewed server']) }))
+
 const manualMcp = vi.hoisted(() => ({ install: vi.fn<() => Promise<McpServer>>() }))
 
 const autoConfigure = vi.hoisted(() => ({
@@ -115,6 +117,25 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
 // the Next button; SystemPromptStep fills the prompt.
+vi.mock('../steps/AssistantMcpReviewStep', async () => {
+  const { useEffect, useState } = await import('react')
+  return {
+    AssistantMcpReviewStep: ({
+      form,
+      active
+    }: {
+      form: { setValue: (name: string, value: unknown) => void }
+      active: boolean
+    }) => {
+      const [snapshot] = useState(() => mcpStepState.snapshotRead())
+      useEffect(() => {
+        if (active && !mcpStepState.pending) form.setValue('reviewedMcpServerIds', [])
+      }, [form, active])
+      return <span data-testid="review-catalog">{snapshot.join(',')}</span>
+    }
+  }
+})
+
 vi.mock('../steps/BasicInfoStep', () => ({ BasicInfoStep: StepHarness }))
 // The entry shares the basic step's fields (one form), so it gets the same harness.
 vi.mock('../steps/AutoCreateEntry', () => ({ AutoCreateEntry: StepHarness }))
@@ -392,6 +413,8 @@ async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, ki
   if (kind === 'assistant') {
     await replacePrompt(user, 'draft prompt')
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await waitFor(() => expect(screen.getByRole('button', { name: NEXT })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
     return
   }
@@ -442,6 +465,8 @@ function expectDefaults(kind: ResourceCreateWizardKind, name = '') {
 afterEach(() => {
   cleanup()
   onSubmitSpy.mockReset()
+  mcpStepState.pending = false
+  mcpStepState.snapshotRead.mockReturnValue(['Reviewed server'])
   modelHook.defaultModel = undefined
   modelHook.defaultProvider = { id: 'provider', name: 'Provider', isEnabled: true } as Provider
   modelHook.agentModelFilter.mockReset()
@@ -453,6 +478,37 @@ afterEach(() => {
 })
 
 describe('ResourceCreateWizard', () => {
+  it('blocks unresolved MCP selection without blocking back or cancel', async () => {
+    const user = userEvent.setup()
+    mcpStepState.pending = true
+    modelHook.defaultModel = makeModel()
+    const onOpenChange = vi.fn()
+    const onSubmit = vi.fn()
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        initialName="New assistant"
+        onOpenChange={onOpenChange}
+        onSubmit={onSubmit}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+    expect(screen.getByRole('button', { name: CANCEL })).toBeEnabled()
+    const back = screen.getByRole('button', { name: 'library.config.dialogs.create.back' })
+    expect(back).toBeEnabled()
+    await user.click(back)
+    expect(screen.getByRole('textbox', { name: 'draft prompt' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: CANCEL }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('asks before discarding a typed draft', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
@@ -676,6 +732,7 @@ describe('ResourceCreateWizard', () => {
 
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
     expect(onSubmit).toHaveBeenCalledWith(
@@ -704,6 +761,7 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
 
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
@@ -800,7 +858,8 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: 'fill system prompt' }))
 
-    // Step 2 → 3 (assistant: knowledge)
+    // Review MCP defaults before continuing to knowledge.
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
 
@@ -828,6 +887,7 @@ describe('ResourceCreateWizard', () => {
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
@@ -984,12 +1044,13 @@ describe('ResourceCreateWizard agent steps', () => {
   /** The command the caller would send for the submitted values. */
   const submittedCommand = (onSubmit: ReturnType<typeof vi.fn>) => buildCreateAgentCommand(onSubmit.mock.calls[0][0])
 
-  it('keeps the Assistant on basic, System Prompt and knowledge', async () => {
+  it('keeps the Assistant on basic, System Prompt, MCP review and knowledge', async () => {
     await startManual(userEvent.setup(), 'assistant')
 
     expect(railLabels()).toEqual([
       'library.config.dialogs.create.step.basic',
       PROMPT_ROW,
+      'settings.mcp.title',
       'library.config.dialogs.create.step.knowledge'
     ])
   })
@@ -1472,6 +1533,7 @@ describe('ResourceCreateWizard auto create', () => {
     await user.click(screen.getByRole('button', { name: 'fill name' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))
@@ -1481,10 +1543,10 @@ describe('ResourceCreateWizard auto create', () => {
         description: 'Review my GitHub PRs',
         prompt: '',
         knowledgeBaseIds: [],
-        mcpServerIds: [],
         enableWebSearch: false
       })
     )
+    expect(onSubmit.mock.calls.at(-1)![0]).not.toHaveProperty('mcpServerIds')
   })
 
   it('installs a picked featured MCP server before creating, and sends its new server ID', async () => {
@@ -1800,6 +1862,41 @@ describe('ResourceCreateWizard result page', () => {
     expect(summaryValue(HEARTBEAT_ROW)).toHaveTextContent(`${RESULT}.heartbeat_every:30`)
   })
 
+  it('shows saved Assistant MCP bindings rather than the manual payload placeholder', async () => {
+    MockUseDataApiUtils.mockQueryData('/assistants/:id', { id: 'assistant-1', mcpServerIds: ['mcp-github'] } as never)
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+    await createManually(user)
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
+    expect(summaryValue(MCP_ROW)).toHaveTextContent('GitHub')
+  })
+
+  it('does not claim a reviewed server was saved when saved bindings are empty', async () => {
+    MockUseDataApiUtils.mockQueryData('/assistants/:id', { id: 'assistant-1', mcpServerIds: [] } as never)
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+    await createManually(user)
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
+    expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_added`)
+    expect(summaryValue(MCP_ROW)).not.toHaveTextContent('GitHub')
+  })
+
+  it('retains the review catalog snapshot when navigating Back from Knowledge', async () => {
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByTestId('review-catalog')).toBeVisible()
+    expect(screen.getByTestId('review-catalog')).toHaveTextContent('Reviewed server')
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    mcpStepState.snapshotRead.mockReturnValue([])
+    await user.click(screen.getByRole('button', { name: /settings\.mcp\.title$/ }))
+    expect(screen.getByTestId('review-catalog')).toBeVisible()
+    expect(screen.getByTestId('review-catalog')).toHaveTextContent('Reviewed server')
+  })
+
   it('shows bound knowledge tools when revisiting Tools and matches the saved Agent summary', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn<ComponentProps<typeof ResourceCreateWizard>['onSubmit']>().mockResolvedValue('agent-1')
@@ -1857,6 +1954,7 @@ describe('ResourceCreateWizard result page', () => {
   })
 
   it('says what an empty manual Assistant lacks in its own words', async () => {
+    MockUseDataApiUtils.mockQueryData('/assistants/:id', { id: 'assistant-1', mcpServerIds: [] } as never)
     const user = userEvent.setup()
     render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
 

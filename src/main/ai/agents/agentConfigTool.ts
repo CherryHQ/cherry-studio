@@ -623,9 +623,10 @@ async function executeAgentCreate({
  */
 function planAssistantCreate(input: z.infer<typeof CreateAssistantToolInputSchema>, fallbackModel: string | undefined) {
   const knowledgeBaseIds = unique(input.knowledgeBaseIds ?? [])
-  const mcpServerIds = unique(input.mcpServerIds ?? [])
+  // Omission inherits the configured default; an explicit (possibly empty) selection is intentional.
+  const mcpServerIds = input.mcpServerIds === undefined ? undefined : unique(input.mcpServerIds)
   assertKnownIds('knowledge base', knowledgeBaseIds, listKnowledgeBaseCatalog())
-  assertKnownIds('MCP server', mcpServerIds, listMcpServerCatalog([]))
+  if (mcpServerIds) assertKnownIds('MCP server', mcpServerIds, listMcpServerCatalog([]))
   const replyLanguage = input.language === undefined ? undefined : parseLanguage(input.language)
   const modelId = input.model ? resolveModel(input.model, 'assistant') : resolveDefaultModel(fallbackModel, 'assistant')
   const emoji = (input.emoji && toAvatarEmoji(input.emoji)) || DEFAULT_ASSISTANT_CREATE_AVATAR
@@ -635,7 +636,7 @@ function planAssistantCreate(input: z.infer<typeof CreateAssistantToolInputSchem
     model: modelId,
     instructions: input.prompt.trim(),
     knowledgeBaseIds,
-    mcps: mcpServerIds,
+    mcps: mcpServerIds ?? [],
     languageMode: replyLanguage?.mode ?? 'off',
     languageCustom: replyLanguage?.mode === 'custom' ? replyLanguage.language : ''
   }
@@ -677,7 +678,7 @@ function executeAssistantCreate(
     setLine('model', form),
     setLine('instructions', form),
     ...(knowledgeBaseIds.length ? [setLine('knowledgeBases', form)] : []),
-    ...(mcpServerIds.length ? [setLine('mcpServers', form)] : []),
+    ...(mcpServerIds?.length ? [setLine('mcpServers', form)] : []),
     ...(input.webSearch ? [setLine('webSearch', form)] : []),
     ...(replyLanguage ? [setLine('language', form)] : [])
   ]

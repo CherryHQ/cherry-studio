@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, EmojiAvatar } from '@cherrystudio/ui'
 import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { ChannelQrLoginDialog } from '@renderer/components/channel/ChannelQrLoginDialog'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import type { AutoConfigProgressView } from '@renderer/hooks/resourceCatalog'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
@@ -289,6 +290,11 @@ export function ResourceCreateResultView({
   const { skills } = useInstalledSkills(undefined, { enabled: isAgent })
   const { bases } = useKnowledgeBases()
   const { mcpServers } = useMcpServers()
+  const { data: savedAssistant, error: savedAssistantError } = useQuery('/assistants/:id', {
+    params: { id: created.id },
+    enabled: !isAgent,
+    swrOptions: { revalidateOnMount: true }
+  })
 
   const namesOf = (items: readonly { id: string; name: string }[], ids: readonly string[], empty: string) => {
     const selected = new Set(ids)
@@ -347,11 +353,13 @@ export function ResourceCreateResultView({
             </SummaryRow>
           ) : null}
           <SummaryRow label={t('library.config.agent.section.tools.tab.mcp')}>
-            {namesOf(
-              mcpServers,
-              values.mcpServerIds ?? [],
-              isAgent ? t('library.config.dialogs.create.result.empty.not_bound') : notAdded
-            )}
+            {!isAgent && !savedAssistant
+              ? t(savedAssistantError ? 'common.error' : 'common.loading')
+              : namesOf(
+                  mcpServers,
+                  isAgent ? (values.mcpServerIds ?? []) : (savedAssistant?.mcpServerIds ?? []),
+                  isAgent ? t('library.config.dialogs.create.result.empty.not_bound') : notAdded
+                )}
           </SummaryRow>
           <SummaryRow label={t('library.config.dialogs.create.step.knowledge')}>
             {namesOf(bases, values.knowledgeBaseIds, t('library.config.dialogs.create.result.empty.not_linked'))}

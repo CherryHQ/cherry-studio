@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest'
 
 import { CreateAssistantSchema, ImportAssistantSchema, UpdateAssistantSchema } from '../assistants'
 
+describe('reviewed creation MCP selection', () => {
+  it('preserves reviewed emptiness on create but does not extend update or import contracts', () => {
+    expect(CreateAssistantSchema.parse({ name: 'New', reviewedMcpServerIds: [] })).toEqual({
+      name: 'New',
+      reviewedMcpServerIds: []
+    })
+    expect(CreateAssistantSchema.safeParse({ name: 'New', reviewedMcpServerIds: [1] }).success).toBe(false)
+    expect(UpdateAssistantSchema.safeParse({ reviewedMcpServerIds: ['a'] }).success).toBe(false)
+    expect(ImportAssistantSchema.safeParse({ name: 'Imported', reviewedMcpServerIds: ['a'] }).success).toBe(false)
+  })
+})
+
 describe('ImportAssistantSchema', () => {
   it('accepts and normalizes a v1 group name beyond the current edit limit', () => {
     const longName = 'x'.repeat(65)

@@ -44,7 +44,13 @@ const ASSISTANT_MUTABLE_FIELDS = {
  * - `name` is required (non-empty)
  * - `mcpServerIds` / `knowledgeBaseIds` are synced to junction tables
  */
-export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial().required({ name: true })
+export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
+  .partial()
+  .required({ name: true })
+  .extend({
+    /** Reviewed creation-time selection; missing/inactive servers are skipped. Explicit mcpServerIds still wins. */
+    reviewedMcpServerIds: z.array(z.string()).optional()
+  })
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 export const DuplicateAssistantSchema = AssistantSchema.pick({ name: true })

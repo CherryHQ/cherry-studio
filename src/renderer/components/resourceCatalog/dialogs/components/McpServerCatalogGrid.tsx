@@ -1,0 +1,146 @@
+import type { TFunction } from 'i18next'
+import { Settings } from 'lucide-react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { isBrowserMcpServer } from '@shared/utils/mcp'
+
+import { type CatalogItem, CatalogToggleGrid } from './CatalogPicker'
+
+const MCP_SERVERS_SETTINGS_PATH = '/settings/mcp/servers'
+
+function getStatusBadge(t: TFunction, state: McpRuntimeStatus['state']) {
+  switch (state) {
+    case 'connected':
+      return t('settings.mcp.runtimeStatus.connected', 'Connected')
+    case 'connecting':
+      return t('settings.mcp.runtimeStatus.connecting', 'Connecting')
+    case 'error':
+      return t('settings.mcp.runtimeStatus.unavailable', 'Unavailable')
+    default:
+      return undefined
+  }
+}
+
+function getStatusBadgeClassName(state: McpRuntimeStatus['state']) {
+  switch (state) {
+    case 'connected':
+      return 'border-success-border bg-success-subtle text-success-subtle-foreground'
+    case 'connecting':
+      return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
+    case 'error':
+      return 'border-error-border bg-error-subtle text-error-subtle-foreground'
+    default:
+      return undefined
+  }
+}
+
+function getServerState(server: McpServer, status: McpRuntimeStatus | undefined): McpRuntimeStatus['state'] {
+  return server.isActive ? (status?.state ?? 'connecting') : 'disabled'
+}
+
+export function McpServerCatalogGrid({
+  enabledIds,
+  disabled = false,
+  emptyLabel,
+  onOpenSettings,
+  onToggle,
+  portalContainer,
+  title,
+  servers
+}: {
+  enabledIds: ReadonlySet<string>
+  disabled?: boolean
+  emptyLabel: string
+  onOpenSettings?: () => void
+  onToggle: (id: string, enabled: boolean) => void
+  portalContainer: HTMLElement | null
+  title?: string
+  /** Initial catalog while the live availability query revalidates. */
+  servers?: McpServer[]
+}) {
+  const { t } = useTranslation()
+  const { data, isLoading, error, refetch } = useQuery('/mcp-servers', { swrOptions: { revalidateOnMount: true } })
+  const mcpServers = useMemo<McpServer[]>(() => {
+    const live = data?.items
+    const seed = (servers ?? []).filter((server) => !isBrowserMcpServer(server))
+    const base = (live ?? servers ?? []).filter((server) => !isBrowserMcpServer(server))
+    if (!live) return base
+    // A stale cache can miss a server another window just attached as a default.
+    // Keep selected seed rows visible so the user can still review and clear them.
+    const liveIds = new Set(base.map((server) => server.id))
+    const hiddenSelected = seed.filter((server) => !liveIds.has(server.id) && enabledIds.has(server.id))
+    return hiddenSelected.length > 0 ? [...base, ...hiddenSelected] : base
+  }, [data, servers, enabledIds])
+  const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
+  const settingsLabel = title ? `${title} ${t('settings.title')}` : t('settings.mcp.title')
+  const catalog = useMemo<CatalogItem[]>(
+    () =>
+      mcpServers.map((server) => {
+        const state = getServerState(server, mcpStatuses[server.id])
+
+        return {
+          id: server.id,
+          name: server.name,
+          inactiveBadge: server.isActive ? undefined : t('library.config.tools.inactive_badge'),
+          statusBadge: getStatusBadge(t, state),
+          statusBadgeClassName: getStatusBadgeClassName(state),
+          pickable: server.isActive
+        }
+      }),
+    [mcpServers, mcpStatuses, t]
+  )
+
+  const handleOpenMcpSettings = () => {
+    openSettingsTab(MCP_SERVERS_SETTINGS_PATH)
+    onOpenSettings?.()
+  }
+
+  return (
+    <div>
+      {error ? (
+        <div role="alert" className="space-y-2">
+          <p>{t('settings.mcp.catalog_load_failed')}</p>
+          <Button type="button" variant="outline" onClick={() => void refetch()}>
+            {t('common.retry')}
+          </Button>
+        </div>
+      ) : null}
+      {title ? (
+        <div className="flex items-center gap-1.5">
+          <div className="text-[13px] leading-none font-medium text-foreground">{title}</div>
+          <Tooltip content={settingsLabel} portalContainer={portalContainer ?? undefined}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={settingsLabel}
+              title={settingsLabel}
+              onClick={handleOpenMcpSettings}
+              className="flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground">
+              <Settings size={12} strokeWidth={1.7} />
+            </Button>
+          </Tooltip>
+        </div>
+      ) : null}
+      <div hidden={Boolean(error) && !data && !servers} className={title ? 'mt-2' : undefined}>
+        <CatalogToggleGrid
+          items={catalog}
+          enabledIds={enabledIds}
+          disabled={disabled}
+          loading={servers === undefined && isLoading}
+          onToggle={onToggle}
+          emptyLabel={emptyLabel}
+          portalContainer={portalContainer}
+          layout="list"
+        />
+      </div>
+    </div>
+  )
+}

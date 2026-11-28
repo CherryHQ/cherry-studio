@@ -30,6 +30,8 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 import { cn } from '@renderer/utils/style'
 
+import { usePresetMcpReview } from '../dialogs/create'
+
 // Local "browse everything" tab that sits before the preset categories. It is dialog-only —
 // the shared catalog surface has no such concept — so it lives here rather than in the catalog hook.
 const LIBRARY_ALL_TAB = '__all__'
@@ -75,6 +77,7 @@ export function AssistantLibraryDialog({
 }: AssistantLibraryDialogProps) {
   const { t } = useTranslation()
   const { createAssistant } = useAssistantMutations()
+  const { reviewMcp, reviewDialog } = usePresetMcpReview()
   const { isLoading, presets: rawPresets } = useAssistantCatalogPresets({ enabled: open })
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<string>(LIBRARY_ALL_TAB)
@@ -117,7 +120,12 @@ export function AssistantLibraryDialog({
 
   const addPreset = useCallback(
     async (preset: AssistantCatalogPreset) => {
-      const assistant = await createAssistant(toCreateAssistantDtoFromCatalogPreset(preset))
+      const reviewedMcpServerIds = await reviewMcp()
+      if (reviewedMcpServerIds === null) return null
+      const assistant = await createAssistant({
+        ...toCreateAssistantDtoFromCatalogPreset(preset),
+        reviewedMcpServerIds
+      })
       setAddedAssistantPresets((current) => ({
         ...current,
         [getAssistantPresetCatalogKey(preset)]: assistant.id
@@ -126,7 +134,7 @@ export function AssistantLibraryDialog({
       toast.success(t('common.add_success'))
       return assistant
     },
-    [createAssistant, onAssistantAdded, t]
+    [createAssistant, onAssistantAdded, reviewMcp, t]
   )
 
   const handleAddPreset = useCallback(
@@ -182,6 +190,7 @@ export function AssistantLibraryDialog({
 
   return (
     <>
+      {reviewDialog}
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           size="xl"
@@ -193,7 +202,7 @@ export function AssistantLibraryDialog({
 
           <div className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-5 pb-3">
             <div
-              className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto [&::-webkit-scrollbar]:hidden"
               data-testid="library-tabs">
               <div className="flex items-center gap-1">
                 {tabs.map((tab) => {
