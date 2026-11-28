@@ -667,7 +667,14 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       }
       if (!parts) this.projection.accept({ ...batch, events })
       const completion = batch.completion
-      const nativeRun = completion && { contextId: this.context!.id, inputs: completion.inputs }
+      const nativeRun = completion && {
+        contextId: this.context!.id,
+        inputs: completion.inputs.map((input): InputState => {
+          const { inputId, nativeInput, ...state } = input
+          // A Skill submission has a native identity but no saved user message.
+          return nativeInput && isSkillCommandInput(inputId) ? { ...state, nativeInput } : input
+        })
+      }
       if (nativeRun && completion?.nextRunId !== undefined) this.events.push({ type: 'native-run-complete', nativeRun })
       // The answer before a placed input arrives in the same batch, so the boundary follows its projection.
       if (placements.length) {

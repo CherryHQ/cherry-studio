@@ -1979,6 +1979,79 @@ describe('desktop Pi Durable connection', () => {
     expect(messages.captureHead(input.sessionId)).toBe(head)
   })
 
+  it('preserves native output truncation on a saved Skill reply', async () => {
+    const { sessionId } = input
+    const skillDir = join(directory, '.agents', 'skills', 'review')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(join(skillDir, 'SKILL.md'), '---\nname: review\ndescription: Review changes\n---\nReview changes.\n')
+    const partialReply = 'Partial reply before the output limit.'
+    setScript([assistantReply(partialReply, 'length')])
+    BaseService.resetInstances()
+    const service = new AgentSessionRuntimeService()
+    let started: StartRuntimeTurnInput | undefined
+    MockApplicationUtils.setService('AiStreamManager', {
+      startRuntimeTurn: (start: StartRuntimeTurnInput) => {
+        started = start
+      },
+      drainRuntimeReply: async () => {},
+      pauseRuntimeTurn: () => {}
+    })
+    try {
+      await service._doInit()
+      sharedHosts()
+      await expect(
+        service.runSlashCommand(sessionId, '/skill:review', undefined, undefined, 'skill:review')
+      ).resolves.toMatchObject({ accepted: true })
+      const { request, abortController, listeners } = await vi.waitFor(
+        () => {
+          expect(started).toBeDefined()
+          return started!
+        },
+        { timeout: 10_000 }
+      )
+      const signal = abortController!.signal
+      const assistantId = request.messageId!
+      const source = service.openTurnStream({ sessionId, turnId: request.runtime!.turnId, signal })
+      const result = await pipeMessageStream(
+        source,
+        signal,
+        { id: assistantId, role: 'assistant' },
+        () => {},
+        () => {},
+        () => {}
+      )
+      if (result.threw) {
+        const error = result.threw.error
+        for (const listener of listeners)
+          await listener.onError(
+            { status: 'error', finalMessage: result.finalMessage, error: serializeError(error) },
+            error
+          )
+      } else {
+        for (const listener of listeners)
+          await listener.onDone({ status: 'success', isTopicDone: true, finalMessage: result.finalMessage })
+      }
+      const { items } = messages.listSessionMessages(sessionId)
+      expect(items).toHaveLength(1)
+      expect(items[0]).toMatchObject({
+        role: 'assistant',
+        status: 'error',
+        data: {
+          parts: expect.arrayContaining([
+            expect.objectContaining({ type: 'text', text: partialReply }),
+            expect.objectContaining({
+              type: 'data-error',
+              data: expect.objectContaining({ i18nKey: 'output_token_limit_reached', finishReason: 'length' })
+            })
+          ])
+        }
+      })
+    } finally {
+      await service._doDestroy()
+      MockApplicationUtils.resetServices()
+    }
+  }, 20_000)
+
   it.each([false, true])(
     'reads the current workspace Skill descriptor for slash completion (Cursor=%s)',
     async (cursor) => {
