@@ -46,9 +46,9 @@ import { assistantMessage, wireProcess } from '../../../../../../packages/agent-
 import type { AgentRuntimeConnection, AgentRuntimeEvent, AgentRuntimeConnectInput } from '../../types'
 import type * as AgentSessionWarmup from '../agentSessionWarmup'
 import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
+import { ClaudeSdkConnection } from '../ClaudeSdkConnection'
 import type { ClaudeCodeProcessDiagnostics } from '../processExitDiagnostics'
 import { createClaudeCodeQueryOptions } from '../queryOptions'
-import { registerMcpSessionCatalogSync } from '../settingsBuilder'
 import type * as SettingsBuilder from '../settingsBuilder'
 
 vi.mock(
@@ -236,7 +236,7 @@ it.each(['before-start', 'spawn'] as const)(
             : undefined) as never
     )
     if (stage === 'before-start')
-      vi.mocked(registerMcpSessionCatalogSync).mockImplementationOnce(() => {
+      vi.spyOn(ClaudeSdkConnection.prototype as any, 'observeRoot').mockImplementationOnce(() => {
         throw new Error('fixture setup failure')
       })
     await expect(test.connect()).rejects.toThrow(
@@ -277,6 +277,25 @@ it('cancels after reservation without spawning and returns the reserved slot', a
       signal: controller.signal
     })
   ).rejects.toThrow('connection cancelled before spawn')
+  expect(manager.releaseLiveSpawnPreflight).toHaveBeenCalledOnce()
+  expect(ports.spawn).not.toHaveBeenCalled()
+})
+
+it('cancels during native setup without spawning and releases admission', async () => {
+  const test = await desktop()
+  const controller = new AbortController()
+  vi.spyOn(ClaudeSdkConnection.prototype as any, 'observeRoot').mockImplementationOnce(async () => {
+    controller.abort(new Error('host cancelled during setup'))
+  })
+  const manager = application.get('ClaudeCodeProcessManager')
+  await expect(
+    test.connect(undefined, undefined, true, {
+      sessionId: test.sessionId,
+      agentId: 'fixture',
+      modelId: 'native-test::claude-sonnet-4-6',
+      signal: controller.signal
+    })
+  ).rejects.toThrow('host cancelled during setup')
   expect(manager.releaseLiveSpawnPreflight).toHaveBeenCalledOnce()
   expect(ports.spawn).not.toHaveBeenCalled()
 })
