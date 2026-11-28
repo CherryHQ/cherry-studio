@@ -80,7 +80,30 @@ export function validateSpec(spec: SandboxSpec): SandboxSpec {
     if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0 || value > 2147483647)) invalid()
   }
   if (spec.limits.stopGraceMs >= spec.limits.stopTimeoutMs) invalid()
-  const copy = structuredClone(spec)
+  const copy: SandboxSpec = {
+    ownerId: spec.ownerId,
+    environmentId: spec.environmentId,
+    runtimeProfileId: spec.runtimeProfileId,
+    command: {
+      executable: spec.command.executable,
+      args: [...spec.command.args],
+      cwd: spec.command.cwd,
+      env: { ...spec.command.env }
+    },
+    filesystem: {
+      read: [...spec.filesystem.read],
+      write: [...spec.filesystem.write],
+      denyRead: [...spec.filesystem.denyRead],
+      denyWrite: [...spec.filesystem.denyWrite]
+    },
+    ...(spec.mounts ? { mounts: spec.mounts.map(({ source, target, access }) => ({ source, target, access })) } : {}),
+    network:
+      spec.network.mode === 'proxy'
+        ? { mode: 'proxy', targets: spec.network.targets.map(({ host, port }) => ({ host, port })) }
+        : { mode: spec.network.mode },
+    channel: spec.channel,
+    limits: { ...spec.limits }
+  }
   function freeze(value: object) {
     Object.values(value).forEach((child) => {
       if (child && typeof child === 'object') freeze(child)
