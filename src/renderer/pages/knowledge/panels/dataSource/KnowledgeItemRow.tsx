@@ -227,7 +227,7 @@ const KnowledgeItemRow = ({
         onKeyDown={canActivate ? handleRowKeyDown : undefined}
         className={cn(
           KNOWLEDGE_ITEM_ROW_GRID,
-          'group/row rounded-md px-2.5 py-1.5 transition-colors',
+          'group/row rounded-md px-2.5 py-1.5 transition-[color]',
           canActivate && 'cursor-pointer focus-visible:bg-muted focus-visible:outline-none',
           // Match the navigator base rows: hover highlight for any row, solid selected background
           // for the checked one.
