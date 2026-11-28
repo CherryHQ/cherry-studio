@@ -26,6 +26,10 @@ Agent 输入框目前把大多数斜杠命令作为普通聊天输入发送。ru
 
 打开或重新激活普通 ACP、Claude Agent、本地 Claude Code 或 Codex 会话时，沿现有连接路径刷新命令目录。Main 复用可用连接，或等待正在进行的打开或恢复操作。Claude 读取 SDK 目录，已连接的 Codex 重新读取 Skill 列表。历史页、已归档会话或非活跃标签不会为了读取命令启动 runtime。Pi 和 Pi Durable 使用内置目录。
 
+Pi 和 Pi Durable 也从会话可用的托管与工作区 Skill 中提供 `/skill:<name>` 补全，沿用现有 Skill 生效规则。Cursor 为其文档列出的用户和项目 Skill 目录提供相同语法。Cherry 从 Skill 描述文件读取候选名称和说明，再请 Cursor agent 按现有工具权限读取选中的描述文件。Cursor SDK 没有公开原生 Skill 发现和调用能力。ACP 命令目录仍由各 harness 提供。
+
+提交 Skill 命令时会根据所选会话重新验证候选。Runtime 通过现有斜杠命令分发，以 Skill 引用和可选参数启动模型回合。Cherry 保留助理回复，调用原文不进入会话历史和输入召回。
+
 ## 备选方案
 
 - 只在渲染进程过滤命令文本。命令行仍留在产品消息树和输入历史中，也可能改变后续回放时被视作会话输入的内容。
@@ -44,6 +48,8 @@ Agent 输入框目前把大多数斜杠命令作为普通聊天输入发送。ru
 - AC8 — 未识别的斜杠文本、第一个参数之后的新参数，以及缺少子命令元数据的原生命令均不会打开子命令补全。按 Escape 保留已输入的草稿。（verification: renderer — implementation owner）
 
 - AC9 — 打开或切回普通 Claude 或 Codex 会话时，界面从当前连接更新命令说明。切回 Codex 后可以看到更新后的 Skill 元数据。浏览只读历史或非活跃标签时不会为此打开连接。（verification: renderer, Main and native catalog — implementation owner）
+
+- AC10 — Pi 和 Pi Durable 补全会话可用的 Skill 名称和说明。Cursor 补全受支持目录里的用户和项目 Skill。选择候选只修改草稿。提交已知 Skill 命令时，runtime 收到选中的描述文件和参数，Cherry 保留真实回复且没有命令消息或 ↑ 召回记录。补全后被移除的 Skill 提交时会被拒绝，草稿保留。（verification: catalog, runtime, and renderer — implementation owner）
 
 ## 风险
 

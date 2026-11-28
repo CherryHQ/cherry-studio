@@ -26,6 +26,10 @@ Tab, Enter on a highlighted candidate, and clicking a candidate insert its text 
 
 Opening or reactivating an ordinary interactive ACP, Claude Agent, local Claude Code, or Codex conversation refreshes its live command catalog through the existing connection path. Main reuses an available connection or joins the in-flight open or restore. Claude reads the SDK catalog, and an active Codex connection requests a new Skill listing. A historical, archived, or inactive view does not start a runtime to read commands. Pi and Pi Durable read their builtin catalog.
 
+Pi and Pi Durable also offer `/skill:<name>` from the managed and workspace Skill sources available to the session. Their existing Skill selection rules determine eligibility. Cursor offers the same syntax for user and project Skill folders that Cursor documents. Cherry reads the Skill descriptor for the candidate name and description, and asks the Cursor agent to read the selected descriptor using its existing tool permissions. The Cursor SDK does not expose native Skill discovery or invocation. Native ACP catalogs continue to come from the harness.
+
+Submitting a Skill command revalidates the candidate against the selected session. The runtime starts a model turn with the Skill reference and optional arguments through the existing slash-command dispatch. Cherry preserves the assistant reply and keeps the invocation out of conversation history and input recall.
+
 ## Alternatives considered
 
 - Filter command text only in the renderer. This leaves command rows in the product tree and input history and can change which input a later replay treats as conversation.
@@ -44,6 +48,8 @@ Opening or reactivating an ordinary interactive ACP, Claude Agent, local Claude 
 - AC8 — Unknown slash text, a new argument after the first, and a native command without subcommand metadata do not open subcommand completion. Escape preserves the typed draft. (verification: renderer — implementation owner)
 
 - AC9 — Activating or returning to an ordinary Claude or Codex conversation updates the displayed command descriptions from the current connection. Codex sees updated Skill metadata on return. Browsing read-only history or an inactive view opens no connection for this purpose. (verification: renderer, Main and native catalog — implementation owner)
+
+- AC10 — Pi and Pi Durable complete available Skill names and descriptions. Cursor completes user and project Skills from its supported folders. Selection changes the draft only. Sending a recognized Skill command passes the selected descriptor and arguments to the runtime, preserves its real reply, and leaves no Cherry command row or ArrowUp entry. A Skill removed after completion is rejected with the draft intact. (verification: catalog, runtime, and renderer — implementation owner)
 
 ## Risks
 
