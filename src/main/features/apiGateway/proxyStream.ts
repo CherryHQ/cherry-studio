@@ -10,7 +10,7 @@ import { StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame, internalGatewayError } from './errors'
 import type { MessageConfig } from './gatewayRequest'
 import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
-import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
+import { isStartupCommitChunk, requiresSemanticFrames, streamInterruptedError } from './streamLifecycle'
 
 export type { MessageConfig } from './gatewayRequest'
 
@@ -120,9 +120,13 @@ async function startMessage(config: MessageConfig, release?: () => void): Promis
         let callbackError: SerializedError | undefined
         const sseListener = new SseListener(write, complete, () => !closed, {
           id: `gateway:${streamId}`,
-          // Commit before transforming a semantic chunk: adapter output for `start`
-          // is protocol scaffolding, not proof that the provider has started.
+          // Keep commit-before-transform for existing startup chunks such as finish(error).
           formatChunk: (chunk) => {
+            if (startupState === 'pending' && requiresSemanticFrames(chunk)) {
+              const { opening, events } = adapter.transformChunkWithOpening(chunk)
+              if (events.length > 0) commit()
+              return [...opening, ...events].map((event) => formatter.formatEvent(event))
+            }
             if (isStartupCommitChunk(chunk)) commit()
             return adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event))
           },

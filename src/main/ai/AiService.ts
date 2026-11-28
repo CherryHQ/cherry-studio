@@ -7,7 +7,8 @@ import {
   type FinishReason,
   isToolUIPart,
   type LanguageModelUsage,
-  type ModelMessage
+  type ModelMessage,
+  NoImageGeneratedError
 } from 'ai'
 
 import { application } from '@application'
@@ -36,8 +37,10 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
-import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { downloadImageAsBase64, downloadPublicImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { CompactionSink } from '@shared/ai/compaction'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import {
@@ -65,12 +68,12 @@ import {
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
-import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
+import type { NativeFileSupport } from './messages/nativeFileSupport'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
@@ -80,8 +83,9 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
+import { ToolContinuationRouteError } from './provider/replayRoute'
 import { resolveSdkConfig } from './provider/sdkConfig'
-import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
+import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
 import {
   Agent,
   buildAgentParams,
@@ -303,7 +307,7 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
-  resolvedModel?: { readonly provider: Provider; readonly model: Model }
+  resolvedModel?: { readonly provider: Provider; readonly model: Model; readonly replayRouteId?: string }
 }
 
 /** Chat requests additionally carry the turn's correlation and the stream manager's sinks. */
@@ -657,6 +661,8 @@ export class AiService extends BaseService {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
+      endpointType,
+      replayRouteId: primaryReplayRouteId,
       credentialReceipt,
       tools,
       plugins,
@@ -719,6 +725,9 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
+    if (request.resolvedModel?.replayRouteId && request.resolvedModel.replayRouteId !== primaryReplayRouteId) {
+      throw new ToolContinuationRouteError()
+    }
     const agentRef: { current?: Agent } = {}
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
@@ -731,6 +740,7 @@ export class AiService extends BaseService {
             agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
           )
         : undefined
+    let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (!retryDisabledForRequest) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -751,7 +761,9 @@ export class AiService extends BaseService {
         request.requestOptions?.maxRetries,
         apiKeyFallbacks.length > 0
       )
+      if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: {
@@ -792,10 +804,17 @@ export class AiService extends BaseService {
         // PersistenceListener strips it before the message is saved.
         onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
       })
+    } else if (request.contextOwner !== 'caller') {
+      wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
+        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        fallbacks: []
+      })
     }
 
     const agent = new Agent({
       contextOwner: request.contextOwner,
+      endpointType,
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
@@ -805,7 +824,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
+      options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [
         this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
         ...(request.runtimeTimingSink
@@ -869,6 +888,25 @@ export class AiService extends BaseService {
     )
   }
 
+  /**
+   * Cancellable streamed generation: the same result as {@link runTextRequest}, with each text delta
+   * reported to `onTextDelta` as it arrives. A model that cannot stream answers in one piece.
+   */
+  async runTextStreamRequest(
+    requestId: string,
+    request: AsInProcess<AiGenerateRequest>,
+    onTextDelta: (delta: string) => void
+  ): Promise<AiGenerateResult> {
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateTextWithMode(
+        { ...request, requestOptions: { ...request.requestOptions, signal } },
+        [],
+        'stream',
+        onTextDelta
+      )
+    )
+  }
+
   async generateText(
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
@@ -879,7 +917,8 @@ export class AiService extends BaseService {
   private async generateTextWithMode(
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[],
-    mode: 'generate' | 'stream'
+    mode: 'generate' | 'stream',
+    onTextDelta?: (delta: string) => void
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
@@ -889,6 +928,7 @@ export class AiService extends BaseService {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
+      replayRouteId: primaryReplayRouteId,
       credentialReceipt,
       tools,
       plugins,
@@ -919,6 +959,7 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel =
       request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
+    let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -938,7 +979,9 @@ export class AiService extends BaseService {
         request.requestOptions?.maxRetries,
         apiKeyFallbacks.length > 0
       )
+      if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: { assistantId: request.assistantId },
@@ -972,6 +1015,14 @@ export class AiService extends BaseService {
       })
     }
 
+    if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries === 0) {
+      wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
+        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        fallbacks: []
+      })
+    }
+
     // Same media gating as the streaming path — `agent.generate` hands `ModelMessage[]` to the
     // SDK as-is, so without these the structured tool-result media the converter produces would
     // be JSON/base64-encoded or rejected on OpenAI/Ollama, diverging from `stream`.
@@ -985,7 +1036,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
+      options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'), ...hookParts],
       mediaCapabilities,
       toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
@@ -996,7 +1047,12 @@ export class AiService extends BaseService {
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return this.withRuntimeActivity('ai:generate-text', () =>
-      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal, mode)
+      agent.generate(
+        request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] },
+        signal,
+        mode === 'stream' && model.supportsStreaming === false ? 'generate' : mode,
+        onTextDelta
+      )
     )
   }
 
@@ -1136,6 +1192,10 @@ export class AiService extends BaseService {
     }
 
     const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const imageDownloadSettings =
+      sdkConfig.providerId === 'openai-compatible'
+        ? (sdkConfig.providerSettings as AppProviderSettingsMap['openai-compatible'])
+        : undefined
     const promptParam = inputImages
       ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -1144,8 +1204,12 @@ export class AiService extends BaseService {
     // canonical bag to each provider's wire — a registered profile for the
     // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
     // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
+    const wireProviderId =
+      sdkConfig.providerId === 'newapi' && sdkConfig.providerOptionsKey === 'google' ? 'google' : sdkConfig.providerId
+    const registration = WIRE_REGISTRY[wireProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
+    // OpenAI-compatible models read providerOptions[actualProviderId], not the adapter id.
+    const deliveryKey = sdkConfig.providerId === 'openai-compatible' ? sdkConfig.providerOptionsKey : wireProviderId
+    const imageProviderOptions = buildVendorProviderOptions(deliveryKey, params, registration, vendorBag)
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
     // native binding's `map` (in `splitParamValues`).
@@ -1156,6 +1220,8 @@ export class AiService extends BaseService {
     // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
+    let imageDownloadFailed = false
+    let imageDownloadErrorDetails: string | undefined
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -1170,9 +1236,25 @@ export class AiService extends BaseService {
         return Promise.all(
           downloads.map(async ({ url }) => {
             if (signal?.aborted) return null
-            const downloaded = await downloadImageAsBase64(url.toString())
+            const downloaded =
+              sdkConfig.providerId === 'google'
+                ? await downloadPublicImageAsBase64(url.href, signal)
+                : imageDownloadSettings
+                  ? await downloadImageAsBase64(url.href, {
+                      baseURL: imageDownloadSettings.baseURL,
+                      apiKey: imageDownloadSettings.apiKey,
+                      signal,
+                      onHttpError: (host, status) => {
+                        imageDownloadErrorDetails = `${host}, HTTP ${status}`
+                      }
+                    })
+                  : await downloadImageAsBase64(url.href)
             if (signal?.aborted) return null
-            if (!downloaded) return null
+            if (!downloaded) {
+              imageDownloadFailed = true
+              if (imageDownloadSettings) imageDownloadErrorDetails ??= url.host
+              return null
+            }
             return {
               data: Buffer.from(downloaded.data, 'base64'),
               mediaType: downloaded.media_type
@@ -1198,7 +1280,20 @@ export class AiService extends BaseService {
           ...imageParams,
           onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
         }
-      )
+      ).catch((error: unknown) => {
+        if (
+          (sdkConfig.providerId === 'google' || imageDownloadSettings) &&
+          imageDownloadFailed &&
+          !signal?.aborted &&
+          NoImageGeneratedError.isInstance(error)
+        ) {
+          const message = t('paintings.image_download_failed')
+          throw createPaintingGenerateError('REMOTE_ERROR', {
+            message: imageDownloadErrorDetails ? `${message} (${imageDownloadErrorDetails})` : message
+          })
+        }
+        throw error
+      })
 
       const dataUrls: Base64String[] = []
       let filteredCount = 0

@@ -27,6 +27,51 @@ it('restores committed history into the initial snapshot', async () => {
   await projection.close()
 })
 
+it('retains failed tool evidence and displays only its text blocks as the error', async () => {
+  const content = [
+    { type: 'text' as const, text: 'first' },
+    { type: 'image' as const, data: 'aGVsbG8=', mimeType: 'image/png' },
+    { type: 'text' as const, text: 'second' }
+  ]
+  const { session } = await createTestSession({
+    stream: scriptedModel([]).model,
+    history: [
+      assistantReply([{ type: 'toolCall', id: 'tool-1', name: 'read', arguments: {} }]),
+      {
+        role: 'toolResult',
+        toolCallId: 'tool-1',
+        toolName: 'read',
+        isError: true,
+        timestamp: 1,
+        content,
+        details: null,
+        structuredContent: { failures: [0, false] }
+      }
+    ]
+  })
+  const projection = new PiProjection(
+    ref,
+    session,
+    (error) => {
+      throw error
+    },
+    false
+  )
+  try {
+    const tool = projection.feed.snapshot.messages
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === 'dynamic-tool')
+    expect(tool).toMatchObject({ state: 'output-error', errorText: 'first\nsecond' })
+    expect(tool?.state === 'output-error' && tool.resultProviderMetadata?.pi?.result).toStrictEqual({
+      content,
+      details: null,
+      structuredContent: { failures: [0, false] }
+    })
+  } finally {
+    await projection.close()
+  }
+})
+
 it('captures queued native text blocks at arrival', async () => {
   const { model } = scriptedModel([
     assistantReply([

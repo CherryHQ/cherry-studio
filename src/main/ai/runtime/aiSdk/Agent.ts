@@ -18,6 +18,7 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { isAbortError } from '@main/utils/error'
 
+import { usesAnthropicMessagesSdk } from '../../messages/anthropicThinking'
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
@@ -28,6 +29,7 @@ import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
+import { getTerminalModelError } from './retry/createRetryableWrap'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
@@ -185,7 +187,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
     signal?: AbortSignal,
-    mode: 'generate' | 'stream' = 'generate'
+    mode: 'generate' | 'stream' = 'generate',
+    /** Stream mode only: each text delta as it arrives, before the result resolves. */
+    onTextDelta?: (delta: string) => void
   ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
@@ -219,6 +223,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           if (part.type === 'error') throw part.error
           if (part.type === 'abort') throw signal?.reason ?? new Error('Model check aborted')
           if (part.type === 'finish') finished = true
+          if (part.type === 'text-delta') onTextDelta?.(part.text)
         }
         signal?.throwIfAborted()
         const [text, usage, finishReason, rawFinishReason, steps] = await Promise.all([
@@ -257,9 +262,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
 
       logAiFailure(logger, 'agent generate error', err, 'agent.ai_sdk.generate', classifyAiSdkFailure(err))
+      const terminalError = getTerminalModelError(err)
       if (hooks.onError) {
         try {
-          await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
+          await hooks.onError({
+            error: terminalError instanceof Error ? terminalError : new Error(String(terminalError))
+          })
         } catch (hookErr) {
           logAiFailure(logger, 'hooks.onError threw; rethrowing original', hookErr, 'agent.ai_sdk.hook', {
             source: 'application',
@@ -270,7 +278,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           })
         }
       }
-      throw err
+      throw terminalError
     }
   }
 
@@ -376,7 +384,16 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         initialMessages,
         params.mediaCapabilities,
         params.tools,
-        params.toolResultMediaCapabilities
+        params.toolResultMediaCapabilities,
+        {
+          preserveSignedGeminiWhitespace: true,
+          preserveEmptyAnthropicThinking:
+            params.contextOwner !== 'caller' &&
+            usesAnthropicMessagesSdk(params.providerId, {
+              endpointType: params.endpointType,
+              sdkConfig: { modelId: params.modelId }
+            })
+        }
       )
       let hasUsedProvidedMessageId = false
 
@@ -491,7 +508,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
 
         const streamError = normalizeStreamError(
-          err,
+          getTerminalModelError(err),
           params.errorContext?.providerId ?? params.providerId,
           params.errorContext?.modelId ?? params.modelId
         )

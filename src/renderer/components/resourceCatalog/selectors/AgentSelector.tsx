@@ -2,6 +2,7 @@ import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } fro
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import {
   ResourceCreateWizard,
   type ResourceCreateWizardValues
@@ -13,7 +14,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail, ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
-import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
@@ -71,6 +72,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const [createdAgent, setCreatedAgent] = useState<AgentDetail | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -100,13 +102,16 @@ export function AgentSelector(props: AgentSelectorProps) {
 
   const items: AgentSelectorItem[] = useMemo(
     () => [
-      ...(data?.items ?? []).map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        description: getAgentDescriptionForDisplay(agent, t),
-        emoji: getAgentAvatarFromConfiguration(agent.configuration),
-        avatarSrc: agent.avatarSrc
-      })),
+      ...(data?.items ?? [])
+        .filter((agent) => agent.type !== 'local' || agent.localRuntime?.enabled)
+        .map((agent) => ({
+          id: agent.id,
+          name: agent.name,
+          description: getAgentDescriptionForDisplay(agent, t),
+          icon: agent.localRuntime ? <LocalAgentIcon presetId={agent.localRuntime.presetId} size={20} /> : undefined,
+          emoji: getAgentAvatarFromConfiguration(agent.configuration),
+          avatarSrc: agent.avatarSrc
+        })),
       ...(additionalItems ?? [])
     ],
     [additionalItems, data, t]
@@ -146,11 +151,13 @@ export function AgentSelector(props: AgentSelectorProps) {
   const handleCreateDialogOpenChange = useCallback(
     (nextOpen: boolean) => {
       setCreateDialogOpen(nextOpen)
-      if (!nextOpen) {
-        onDialogCloseAutoFocus?.()
-      }
+      if (nextOpen) return
+      onDialogCloseAutoFocus?.()
+      if (!createdAgent) return
+      setCreatedAgent(null)
+      handleSelectorOpenChange(!autoSelectOnCreate)
     },
-    [onDialogCloseAutoFocus]
+    [autoSelectOnCreate, createdAgent, handleSelectorOpenChange, onDialogCloseAutoFocus]
   )
 
   const handleSubmitCreate = useCallback(
@@ -163,33 +170,32 @@ export function AgentSelector(props: AgentSelectorProps) {
         throw error
       }
 
-      setCreateDialogOpen(false)
-      onDialogCloseAutoFocus?.()
+      setCreatedAgent(created)
       try {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh agents after selector create', { error })
         toast.error(t('selector.create_dialog.refresh_failed'))
       }
-      if (autoSelectOnCreate) {
-        if (props.selectionType === 'item') {
-          props.onChange({
-            id: created.id,
-            name: created.name,
-            description: getAgentDescriptionForDisplay(created, t),
-            emoji: getAgentAvatarFromConfiguration(created.configuration),
-            avatarSrc: created.avatarSrc
-          })
-        } else {
-          props.onChange(created.id)
-        }
-        handleSelectorOpenChange(false)
-        return
-      }
-      handleSelectorOpenChange(true)
+      return created.id
     },
-    [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
+    [createAgent, refetch, t]
   )
+
+  const handleStartCreatedConversation = () => {
+    if (!createdAgent) return
+    if (props.selectionType === 'item') {
+      props.onChange({
+        id: createdAgent.id,
+        name: createdAgent.name,
+        description: getAgentDescriptionForDisplay(createdAgent, t),
+        emoji: getAgentAvatarFromConfiguration(createdAgent.configuration),
+        avatarSrc: createdAgent.avatarSrc
+      })
+    } else {
+      props.onChange(createdAgent.id)
+    }
+  }
 
   const createDialog = (
     <ResourceCreateWizard
@@ -198,6 +204,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       isSubmitting={isCreatingAgent}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
+      onStartConversation={autoSelectOnCreate ? handleStartCreatedConversation : undefined}
     />
   )
 

@@ -94,9 +94,10 @@ export class AgentGlobalSkillService {
     if (!query.agentId) return skills
 
     const enabledMap = this.loadEnabledMap(query.agentId)
+    const isLocalAgent = agentService.getAgent(query.agentId)?.type === 'local'
     return skills.map((s) => ({
       ...s,
-      isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin'
+      isEnabled: enabledMap.get(s.id) ?? (isLocalAgent || s.source === 'builtin')
     }))
   }
 
