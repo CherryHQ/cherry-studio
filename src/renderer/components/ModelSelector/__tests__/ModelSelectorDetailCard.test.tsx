@@ -34,6 +34,7 @@ vi.mock('@renderer/i18n/label', async (importOriginal) => ({
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({
+    i18n: { language: 'en-US' },
     t: (key: string) => {
       const labels: Record<string, string> = {
         'assistants.settings.reasoning_effort.default': 'Default',

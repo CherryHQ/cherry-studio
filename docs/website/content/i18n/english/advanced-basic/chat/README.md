@@ -23,6 +23,12 @@ If a task requires continuous local file read/write, multiple tool calls, or lon
 
 <figure><img src="../../../../assets/7eea2d9eab50983603d6641b.webp" alt="The model selector with a search box, a Multi-select button and a model list"><figcaption><p>The model selector allows you to choose one or more models for the same question. </p></figcaption></figure>
 
+## Compare Reference Prices
+
+Open a model's detail card in the selector by hovering over or focusing its row. While the row is focused and the card is open, use Page Down / Page Up to scroll long price lists. Reference prices show the configured/catalog input, output and cache rates per million tokens, including available token thresholds and image/pixel or minute rates. Zero is a known zero rate; unavailable is not free. Currency is shown explicitly, and unspecified non-token currency is not guessed.
+
+The ordinary selector applies existing provider billing rules at the displayed reference time when rules exist. Reopen the card to refresh that time. Cards without provider context label rates as unadjusted. Custom model prices are labeled separately. These are estimates, not live provider quotes or final bills: request time, token tiers, cache use and other charges may change what you pay. Edit rates in the existing model/provider billing settings, not the selector.
+
 ## Recommended Order
 
 {% stepper %}
