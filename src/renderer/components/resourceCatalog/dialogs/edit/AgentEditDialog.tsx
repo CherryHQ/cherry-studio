@@ -32,7 +32,7 @@ import {
 } from '@shared/ai/agentForm'
 import type { AgentPromptOverrides } from '@shared/ai/agentPromptSections'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { BUILTIN_AGENT_ROLE, isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -850,6 +850,14 @@ function AgentSettingsCards({
           patchAgentForm={patchAgentForm}
           permissionModeCards={getPermissionModeCards(agent.type)}
         />
+        {agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT ? (
+          <p className="text-muted-foreground text-xs">
+            {t(
+              'library.config.agent.field.permission_mode.support_headless_hint',
+              'Shell commands are unavailable to Cherry Support in scheduled tasks and headless channels, regardless of permission mode. Use another agent for headless shell execution.'
+            )}
+          </p>
+        ) : null}
         <ReplyLanguageRow form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
       </SettingsSection>
 

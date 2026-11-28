@@ -2297,6 +2297,7 @@
   "library.config.agent.field.name.label": "에이전트 이름",
   "library.config.agent.field.name.placeholder": "에이전트 이름을 입력하세요",
   "library.config.agent.field.permission_mode.label": "권한 모드",
+  "library.config.agent.field.permission_mode.support_headless_hint": "권한 모드와 관계없이 Cherry Support는 예약 작업 및 헤드리스 채널에서 셸 명령을 사용할 수 없습니다. 헤드리스 셸 실행에는 다른 에이전트를 사용하세요.",
   "library.config.agent.field.runtime.option.claude_code": "Claude",
   "library.config.agent.field.runtime.option.pi": "Pi",
   "library.config.agent.field.runtime.option.pi_durable": "Pi Durable",
