@@ -37,14 +37,11 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
+import type { OutputFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('ObsidianExportDialog')
 
-interface FileInfo {
-  path: string
-  type: 'folder' | 'markdown'
-  name: string
-}
+type FileInfo = OutputFor<'export.obsidian.get_files'>[number]
 
 const ObsidianProcessingMethod = {
   APPEND: '1',
@@ -208,9 +205,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     tags: obsidianTags || '',
     createdAt: new Date().toISOString().split('T')[0],
     source: 'Cherry Studio',
-    processingMethod: processingMethod,
-    folder: ''
+    processingMethod
   })
+  const [destination, setDestination] = useState<FileInfo>()
   const [hasTitleBeenManuallyEdited, setHasTitleBeenManuallyEdited] = useState(false)
   const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
   const [files, setFiles] = useState<FileInfo[]>([])
@@ -319,8 +316,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       }
       await navigator.clipboard.writeText(content)
       const success = await exportMarkdownToObsidian({
-        ...state,
-        folder: state.folder,
+        title: state.title,
+        processingMethod: state.processingMethod,
+        destination,
         vault: selectedVault
       })
       if (!success) {
@@ -350,29 +348,25 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     handleChange('title', newTitle)
     setHasTitleBeenManuallyEdited(true)
   }
-  const handleVaultChange = (value: string) => {
-    setSelectedVault(value)
-    setState((prevState) => ({ ...prevState, folder: '' }))
-  }
   const handleFileSelect = (value: string) => {
-    handleChange('folder', value)
-    if (value) {
-      const selectedFile = files.find((file) => file.path === value)
-      if (selectedFile) {
-        if (selectedFile.type === 'markdown') {
-          const fileName = selectedFile.name
-          const titleWithoutExt = fileName.endsWith('.md') ? fileName.substring(0, fileName.length - 3) : fileName
-          handleChange('title', titleWithoutExt)
-          setHasTitleBeenManuallyEdited(false)
-          handleChange('processingMethod', ObsidianProcessingMethod.APPEND)
-        } else {
-          handleChange('processingMethod', ObsidianProcessingMethod.NEW_OR_OVERWRITE)
-          if (!hasTitleBeenManuallyEdited) {
-            handleChange('title', title)
-          }
-        }
+    if (!value && !destination) return
+    const selected = files.find((file) => file.path === value)
+    setDestination(selected)
+    if (selected?.type === 'markdown') {
+      const fileName = selected.name
+      handleChange('title', fileName.endsWith('.md') ? fileName.slice(0, -3) : fileName)
+      setHasTitleBeenManuallyEdited(false)
+      handleChange('processingMethod', ObsidianProcessingMethod.APPEND)
+    } else {
+      handleChange('processingMethod', selected ? ObsidianProcessingMethod.NEW_OR_OVERWRITE : processingMethod)
+      if (!hasTitleBeenManuallyEdited) {
+        handleChange('title', title)
       }
     }
+  }
+  const handleVaultChange = (value: string) => {
+    setSelectedVault(value)
+    handleFileSelect('')
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -424,7 +418,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     if (selectedVault) {
       return (
         <TreeSelect
-          value={state.folder}
+          value={destination?.path ?? ''}
           onChange={handleFileSelect}
           placeholder={i18n.t('chat.topics.export.obsidian_path_placeholder')}
           searchPlaceholder={i18n.t('common.search')}

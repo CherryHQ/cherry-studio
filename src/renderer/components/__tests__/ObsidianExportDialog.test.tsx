@@ -1,22 +1,10 @@
-// The front-matter contract is the subject; real @cherrystudio/ui primitives are rendered
-// because the global stand-in has no TreeSelect and nothing here depends on primitive behavior.
+// Destination selection uses the real TreeSelect, which is absent from the global stand-in.
 vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal())
 
-const { ipcRequest, exportMarkdownToObsidian } = vi.hoisted(() => ({
-  ipcRequest: vi.fn(),
-  exportMarkdownToObsidian: vi.fn()
-}))
+const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipcRequest, on: vi.fn(() => () => {}) }
-}))
-
-vi.mock('@renderer/services/ExportService', () => ({
-  exportMarkdownToObsidian,
-  messagesToMarkdown: vi.fn(),
-  messageToMarkdown: vi.fn(),
-  messageToMarkdownWithReasoning: vi.fn(),
-  topicToMarkdown: vi.fn()
 }))
 
 import { mockUsePreference } from '@test-mocks/renderer/usePreference'
@@ -36,21 +24,35 @@ beforeEach(() => {
   mockUsePreference.mockReturnValue(['', vi.fn()])
   ipcRequest.mockImplementation(async (route: string) => {
     if (route === 'export.obsidian.get_vaults') return [{ name: 'Notes', path: '/vaults/Notes' }]
-    if (route === 'export.obsidian.get_files') return []
+    if (route === 'export.obsidian.get_files')
+      return [
+        { path: 'Archive.md', name: 'Archive.md', type: 'folder' },
+        { path: 'Archive.md/Log.md', name: 'Log.md', type: 'markdown' }
+      ]
     return undefined
   })
-  exportMarkdownToObsidian.mockResolvedValue(true)
+  vi.spyOn(window, 'open').mockReturnValue(null)
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
-const exportNewNote = async (title: string, tags: string) => {
+const exportNewNote = async (
+  title: string,
+  tags: string,
+  selections: string[] = [],
+  processingMethod: React.ComponentProps<
+    typeof PopupContainer
+  >['processingMethod'] = ObsidianProcessingMethod.NEW_OR_OVERWRITE
+) => {
   const user = userEvent.setup()
   render(
     <PopupContainer
       title={title}
       obsidianTags={tags}
-      processingMethod={ObsidianProcessingMethod.NEW_OR_OVERWRITE}
+      processingMethod={processingMethod}
       open
       resolve={vi.fn()}
       rawContent={body}
@@ -59,11 +61,34 @@ const exportNewNote = async (title: string, tags: string) => {
 
   const confirm = await screen.findByRole('button', { name: i18n.t('chat.topics.export.obsidian_btn') })
   await waitFor(() => expect(confirm).toBeEnabled())
+  const root = i18n.t('chat.topics.export.obsidian_root_directory')
+  let selected = root
+  for (const selection of selections) {
+    const next = selection || root
+    await user.click(await screen.findByText(selected, { selector: '[role="combobox"] span' }))
+    await user.type(screen.getByPlaceholderText(i18n.t('common.search')), next)
+    await user.click(screen.getByRole('treeitem', { name: (name) => name.includes(next) }))
+    selected = next
+  }
   await user.click(confirm)
-  await waitFor(() => expect(exportMarkdownToObsidian).toHaveBeenCalled())
+  await waitFor(() => expect(window.open).toHaveBeenCalled())
 
   return matter(await navigator.clipboard.readText())
 }
+
+describe('Obsidian export destination', () => {
+  it.each([
+    { selections: ['Archive.md'], path: 'Archive.md/Meeting.md', mode: 'overwrite' },
+    { selections: ['Log.md'], path: 'Archive.md/Log.md', mode: 'append' },
+    { selections: ['Log.md', ''], path: 'Meeting.md', mode: 'overwrite' },
+    { selections: ['Archive.md', ''], initialMode: ObsidianProcessingMethod.APPEND, path: 'Meeting.md', mode: 'append' }
+  ])('opens $path with $mode', async ({ selections, initialMode, path, mode }) => {
+    await exportNewNote('Meeting', '', selections, initialMode)
+    const params = new URL(String(vi.mocked(window.open).mock.calls[0][0])).searchParams
+    expect(params.get('file')).toBe(path)
+    expect(params.get(mode)).toBe('true')
+  })
+})
 
 describe('ObsidianExportDialog front matter', () => {
   it('keeps a ": " title and turns comma-separated "#" tags into a plain tag list', async () => {

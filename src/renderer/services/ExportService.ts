@@ -46,6 +46,7 @@ import {
   getToolCitationExport
 } from '@renderer/utils/message/find'
 import type { ContentHash } from '@shared/data/types/file'
+import type { OutputFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema, type FileVersion } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
@@ -1210,18 +1211,17 @@ export const exportMarkdownToYuque = async (title: string, content: string): Pro
   }
 }
 
-/**
- * 导出Markdown到Obsidian
- * @param attributes 文档属性
- * @param attributes.title 标题
- * @param attributes.created 创建时间
- * @param attributes.source 来源
- * @param attributes.tags 标签
- * @param attributes.processingMethod 处理方式
- * @param attributes.folder 选择的文件夹路径或文件路径
- * @param attributes.vault 选择的Vault名称
- */
-export const exportMarkdownToObsidian = async (attributes: any): Promise<boolean> => {
+export const exportMarkdownToObsidian = async ({
+  vault,
+  title,
+  destination,
+  processingMethod
+}: {
+  vault: string
+  title: string
+  destination?: OutputFor<'export.obsidian.get_files'>[number]
+  processingMethod?: string
+}): Promise<boolean> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
     return false
@@ -1230,50 +1230,27 @@ export const exportMarkdownToObsidian = async (attributes: any): Promise<boolean
   setExportingState(true)
 
   try {
-    // 从参数获取Vault名称
-    const obsidianVault = attributes.vault
-    let obsidianFolder = attributes.folder || ''
-    let isMarkdownFile = false
-
-    if (!obsidianVault) {
+    if (!vault) {
       toast.error(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
       return false
     }
 
-    if (!attributes.title) {
+    if (!title) {
       toast.error(i18n.t('chat.topics.export.obsidian_title_required'))
       return false
     }
 
-    // 检查是否选择了.md文件
-    if (obsidianFolder && obsidianFolder.endsWith('.md')) {
-      isMarkdownFile = true
-    }
+    const filePath =
+      destination?.type === 'markdown'
+        ? destination.path
+        : [destination?.path, `${transformObsidianFileName(title)}.md`].filter(Boolean).join('/')
+    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(filePath)}&vault=${encodeURIComponent(vault)}&clipboard`
 
-    let filePath = ''
-
-    // 如果是.md文件，直接使用该文件路径
-    if (isMarkdownFile) {
-      filePath = obsidianFolder
-    } else {
-      // 否则构建路径
-      //构建保存路径添加以 / 结尾
-      if (obsidianFolder && !obsidianFolder.endsWith('/')) {
-        obsidianFolder = obsidianFolder + '/'
-      }
-
-      //构建文件名
-      const fileName = transformObsidianFileName(attributes.title)
-      filePath = obsidianFolder + fileName + '.md'
-    }
-
-    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(filePath)}&vault=${encodeURIComponent(obsidianVault)}&clipboard`
-
-    if (attributes.processingMethod === '3') {
+    if (processingMethod === '3') {
       obsidianUrl += '&overwrite=true'
-    } else if (attributes.processingMethod === '2') {
+    } else if (processingMethod === '2') {
       obsidianUrl += '&prepend=true'
-    } else if (attributes.processingMethod === '1') {
+    } else if (processingMethod === '1') {
       obsidianUrl += '&append=true'
     }
 
