@@ -4904,6 +4904,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
         modelId: baseTurnInput.modelId,
+        sessionId: 'session-1',
         result: usage
       })
     )
@@ -4976,6 +4977,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', {
           modelId: baseTurnInput.modelId,
+          sessionId: 'session-1',
           result: latestUsage
         })
       )
@@ -5031,6 +5033,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(entry.contextUsageRefresh).toBeUndefined())
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
         modelId: baseTurnInput.modelId,
+        sessionId: 'session-1',
         result: unavailable
       })
     })
@@ -5720,6 +5723,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
       modelId: baseTurnInput.modelId,
+      sessionId: 'session-1',
       result: usage
     })
   })
@@ -5806,6 +5810,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
         modelId: baseTurnInput.modelId,
+        sessionId: 'session-1',
         result: usage
       })
     )

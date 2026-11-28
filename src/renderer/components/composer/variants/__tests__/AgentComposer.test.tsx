@@ -3243,6 +3243,7 @@ describe('AgentComposer', () => {
     }
     MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
       modelId: 'minimax::MiniMax-M3',
+      sessionId: 'session-1',
       result: {
         status: 'confirmed',
         value: {
@@ -3277,6 +3278,7 @@ describe('AgentComposer', () => {
 
     MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
       modelId: 'openai::gpt-4o',
+      sessionId: 'session-1',
       result: {
         status: 'confirmed',
         value: {
