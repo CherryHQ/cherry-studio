@@ -435,12 +435,14 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 function setupAssistantHistory({
+  isAssistantListComplete = true,
   activeRecordId = null,
   assistants = [createAssistant()],
   onLocalPermanentDeletePendingChange,
   pinnedIds,
   topics = [createTopic()]
 }: {
+  isAssistantListComplete?: boolean
   activeRecordId?: string | null
   assistants?: Assistant[]
   onLocalPermanentDeletePendingChange?: (id: string | null) => void
@@ -456,19 +458,22 @@ function setupAssistantHistory({
   const onClose = vi.fn()
   const onRecordSelect = vi.fn()
   const onActiveRecordChange = vi.fn()
+  const onActiveTopicArchived = vi.fn()
   const rendered = render(
     <HistoryRecordsView
       mode="assistant"
       open
+      isAssistantListComplete={isAssistantListComplete}
       activeRecordId={activeRecordId}
       onClose={onClose}
       onRecordSelect={onRecordSelect}
       onActiveRecordChange={onActiveRecordChange}
+      onActiveTopicArchived={onActiveTopicArchived}
       onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
     />
   )
 
-  return { ...rendered, onClose, onRecordSelect, onActiveRecordChange }
+  return { ...rendered, onClose, onRecordSelect, onActiveRecordChange, onActiveTopicArchived }
 }
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
@@ -1595,9 +1600,59 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
   })
 
+  it('keeps unknown history ownership scoped', async () => {
+    const user = userEvent.setup()
+    const view = setupAssistantHistory({
+      isAssistantListComplete: false,
+      activeRecordId: 'topic-alpha',
+      topics: [createTopic({ assistantId: 'not-in-loaded-page' }), createTopic({ id: 'A1', name: 'A1' })]
+    })
+    const menu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')!
+    await user.click(
+      within(menu.querySelector('[data-testid="context-menu-content"]') as HTMLElement).getByRole('button', {
+        name: 'Archive'
+      })
+    )
+    await act(async () => {
+      await flushCommandMenuAction()
+      await flushAnimationFrame()
+    })
+    expect(view.onActiveTopicArchived).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'topic-alpha' }),
+      expect.any(Symbol)
+    )
+    expect(view.onActiveRecordChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps global adjacency for a topic whose assistant no longer exists', async () => {
+    const user = userEvent.setup()
+    const view = setupAssistantHistory({
+      activeRecordId: 'topic-alpha',
+      topics: [createTopic({ assistantId: 'deleted-assistant' }), createTopic({ id: 'topic-beta', name: 'Beta topic' })]
+    })
+    const menu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')!
+    await user.click(
+      within(menu.querySelector('[data-testid="context-menu-content"]') as HTMLElement).getByRole('button', {
+        name: 'Archive'
+      })
+    )
+    await act(async () => {
+      await flushCommandMenuAction()
+      await flushAnimationFrame()
+    })
+    expect(view.onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta' }))
+    expect(view.onActiveTopicArchived).not.toHaveBeenCalled()
+  })
+
   it('clears the only active topic through the context menu without opening a conversation', async () => {
     const user = userEvent.setup()
-    const { onActiveRecordChange, onRecordSelect, onClose } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
+    const { onActiveRecordChange, onActiveTopicArchived, onRecordSelect, onClose } = setupAssistantHistory({
+      activeRecordId: 'topic-alpha',
+      topics: [
+        createTopic(),
+        createTopic({ id: 'other-assistant-topic', assistantId: 'assistant-2', name: 'Other topic' })
+      ]
+    })
     const menu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const content = menu?.querySelector('[data-testid="context-menu-content"]')
     await user.click(within(content as HTMLElement).getByRole('button', { name: 'Archive' }))
@@ -1608,7 +1663,11 @@ describe('HistoryRecordsView assistant mode', () => {
       await flushAnimationFrame()
     })
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
+    expect(onActiveTopicArchived).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'topic-alpha' }),
+      expect.any(Symbol)
+    )
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })

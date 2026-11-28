@@ -36,6 +36,11 @@ interface HistoryRecordsViewBaseProps {
 type HistoryRecordsViewProps =
   | (HistoryRecordsViewBaseProps & {
       mode: 'assistant'
+      getArchiveSelectionVersion?: () => number
+      isAssistantListComplete?: boolean
+      onActiveTopicArchived?: (topic: RendererTopic, token?: symbol) => void
+      onLocalArchiveRecordSelected?: (archived: RendererTopic, replacement: RendererTopic, token?: symbol) => void
+      onLocalArchivePendingChange?: (topicId: string, pending: boolean, token?: symbol) => void
       onRecordSelect?: (topic: RendererTopic) => void
       onActiveRecordChange?: (topic: RendererTopic | null) => void
       /** Active while History is permanently deleting `id`; `null` after that attempt settles. */
@@ -60,6 +65,11 @@ const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
             activeRecordId={props.activeRecordId}
             onClose={props.onClose}
             onRecordSelect={props.onRecordSelect}
+            getArchiveSelectionVersion={props.getArchiveSelectionVersion}
+            isAssistantListComplete={props.isAssistantListComplete}
+            onActiveTopicArchived={props.onActiveTopicArchived}
+            onLocalArchiveRecordSelected={props.onLocalArchiveRecordSelected}
+            onLocalArchivePendingChange={props.onLocalArchivePendingChange}
             onActiveRecordChange={props.onActiveRecordChange}
             onLocalPermanentDeletePendingChange={props.onLocalPermanentDeletePendingChange}
             toolbarLeading={props.toolbarLeading}
