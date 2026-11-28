@@ -53,6 +53,7 @@ export default function ComposerDockTransitionFrame({
 }: ComposerDockTransitionFrameProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
+  const hasMeasuredInsetsRef = useRef(false)
   const [bottomOverlayInsets, setBottomOverlayInsets] = useState<ChatBottomOverlayInsets | null>(null)
   const [composerInlineInsets, setComposerInlineInsets] = useState<ComposerInlineInsets>(ZERO_COMPOSER_INLINE_INSETS)
   const isDocked = placement === 'docked'
@@ -75,9 +76,11 @@ export default function ComposerDockTransitionFrame({
     if (!node) return
     let observer: ResizeObserver | null = null
     let observedInsetTarget: HTMLElement | null = null
+    let rafId = 0
 
     const updateInset = () => {
       if (!isDocked || !hasComposer) {
+        hasMeasuredInsetsRef.current = false
         setBottomOverlayInsets(null)
         setComposerInlineInsets((current) =>
           current.left === 0 && current.right === 0 ? current : ZERO_COMPOSER_INLINE_INSETS
@@ -92,6 +95,7 @@ export default function ComposerDockTransitionFrame({
       }
       const root = rootRef.current
       if (!insetTarget || !root) {
+        hasMeasuredInsetsRef.current = false
         setBottomOverlayInsets(null)
         setComposerInlineInsets((current) =>
           current.left === 0 && current.right === 0 ? current : ZERO_COMPOSER_INLINE_INSETS
@@ -104,6 +108,7 @@ export default function ComposerDockTransitionFrame({
       // list's bottom margin to the full stage height and collapse the list to
       // zero height, so keep the last good insets until the composer lays out.
       if (insetTargetRect.width === 0 && insetTargetRect.height === 0) return
+      hasMeasuredInsetsRef.current = true
       const composerRect = node.getBoundingClientRect()
       const rootRect = root.getBoundingClientRect()
       const scroller = root.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
@@ -129,18 +134,36 @@ export default function ComposerDockTransitionFrame({
           : nextComposerInlineInsets
       )
     }
-    updateInset()
 
-    if (typeof ResizeObserver === 'undefined') return
+    const scheduleUpdateInset = () => {
+      if (rafId !== 0) return
+      rafId = requestAnimationFrame(() => {
+        rafId = 0
+        updateInset()
+      })
+    }
 
-    observer = new ResizeObserver(updateInset)
-    if (rootRef.current) observer.observe(rootRef.current)
-    observer.observe(node)
-    const scroller = rootRef.current?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
-    if (scroller) observer.observe(scroller)
-    updateInset()
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(scheduleUpdateInset)
+      if (rootRef.current) observer.observe(rootRef.current)
+      observer.observe(node)
+      const scroller = rootRef.current?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
+      if (scroller) observer.observe(scroller)
+      const initialInsetTarget = isDocked && hasComposer ? findComposerViewportInsetTarget(node) : null
+      if (initialInsetTarget) {
+        observer.observe(initialInsetTarget)
+        observedInsetTarget = initialInsetTarget
+      }
+    }
 
-    const mutationObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(updateInset)
+    // Reuse prior inset measurements on Activity reappear and refresh in rAF instead of blocking commit.
+    if (!isDocked || !hasComposer || !hasMeasuredInsetsRef.current) {
+      updateInset()
+    } else {
+      scheduleUpdateInset()
+    }
+
+    const mutationObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(scheduleUpdateInset)
     mutationObserver?.observe(node, {
       attributes: true,
       attributeFilter: ['data-composer-active-layer', 'data-composer-active-override'],
@@ -148,6 +171,10 @@ export default function ComposerDockTransitionFrame({
     })
 
     return () => {
+      if (rafId !== 0) {
+        cancelAnimationFrame(rafId)
+        rafId = 0
+      }
       mutationObserver?.disconnect()
       observer?.disconnect()
     }
