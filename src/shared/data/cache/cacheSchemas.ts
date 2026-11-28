@@ -1,3 +1,6 @@
+import type { AgentSessionFollowup } from '@shared/ai/agentSessionFollowups'
+import type { AgentSessionRuntimeControls } from '@shared/ai/agentSessionRuntimeControls'
+import type { LocalAgentSessionOverrides } from '@shared/ai/localAgent'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
@@ -7,8 +10,9 @@ import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp
 import type { Currency } from '@shared/data/types/model'
 import type { CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { CodeBuddyWebUiStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import type { SelectionAgentCapsule } from '@shared/types/selection'
 import type { MarketplaceSkillMember, SkillSubscriptionSnapshot } from '@shared/types/skillMarketplace'
 import type { StorageHealth } from '@shared/types/storageMonitor'
@@ -143,6 +147,7 @@ export type UseCacheSchema = {
   'ui.window.chat.sidebar.width': number
   'ui.window.chat.artifact_pane.width': number
   'ui.window.chat.resource_pane.width': number
+  'ui.window.chat.profile_pane.width': number
   'ui.window.chat.right_pane_open_override': boolean | null
   'ui.window.agent.right_pane_open_override': boolean | null
 
@@ -170,6 +175,8 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
+  'local_agent.versions': Record<string, { path: string; current?: string; latest?: string; canUpgrade: boolean }>
+  'code_cli.versions': Record<string, { snapshot?: BinaryToolSnapshot; latest?: string }>
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
   // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
@@ -240,6 +247,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.chat.sidebar.width': 275,
   'ui.window.chat.artifact_pane.width': 460,
   'ui.window.chat.resource_pane.width': 275,
+  'ui.window.chat.profile_pane.width': 360,
   'ui.window.chat.right_pane_open_override': null,
   'ui.window.agent.right_pane_open_override': null,
   'ui.window.chat.topic.expansion.time': [],
@@ -260,6 +268,8 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
+  'local_agent.versions': {},
+  'code_cli.versions': {},
   'agent.composer_draft.${sessionId}': {
     text: '',
     tokens: [],
@@ -313,8 +323,12 @@ export type SharedCacheSchema = {
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.runtime_controls.${sessionId}': AgentSessionRuntimeControls | null
+  'agent.session.stream_topic.${sessionId}': string | null
+  'agent.session.followups.${topicId}': AgentSessionFollowup[]
   'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
+  'agent.session.cost.${sessionId}': CacheValueTypes.CacheAgentSessionCost
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
@@ -323,11 +337,15 @@ export type SharedCacheSchema = {
   'message.context.compacting.${messageId}': boolean
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
+  'feature.openclaw.gateway_owned': boolean
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   'feature.deepseek_harness.status': ManagedToolStatusState
+  'feature.local_agent.web_ui.status': Record<string, ManagedToolStatusState>
+  'feature.codebuddy.web_ui.status': CodeBuddyWebUiStatus
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  'feature.api_gateway.endpoint': { host: string; port: number } | null
   'feature.remote_access.discovery_status': 'inactive' | 'starting' | 'available' | 'unavailable'
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
@@ -397,8 +415,12 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.runtime_controls.${sessionId}': null,
+  'agent.session.stream_topic.${sessionId}': null,
+  'agent.session.followups.${topicId}': [],
   'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,
+  'agent.session.cost.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
   'agent.session.background_tasks.${sessionId}': [],
@@ -407,10 +429,14 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'message.context.compacting.${messageId}': false,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
+  'feature.openclaw.gateway_owned': false,
   'feature.openclaw.gateway_status': 'stopped',
   'feature.deepseek_harness.status': { status: 'stopped' },
+  'feature.local_agent.web_ui.status': {},
+  'feature.codebuddy.web_ui.status': { status: 'stopped', owned: false },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'feature.api_gateway.endpoint': null,
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
@@ -438,9 +464,12 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
+  'local_agent.model_catalogs': Record<string, CacheValueTypes.LocalAgentModelCacheEntry>
   'ui.model_selector.presentation': 'popover' | 'dialog'
   'ui.model_selector.cherryai_pinned': boolean
   'ui.browser.import_prompt_hidden': boolean
+  // Set by the composer's "don't ask again" when another surface replaces a non-empty draft.
+  'ui.composer.prefill_confirm_hidden': boolean
   'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
@@ -455,6 +484,12 @@ export type RendererPersistCacheSchema = {
   // Right-pane width for the topic/session list tab. Separate from the artifact pane's key so a
   // width dragged for an artifact never widens the list (and vice versa).
   'ui.chat.resource_pane.width': number
+  // Right-pane width for the Assistant / Agent profile; its own key so the other panes keep theirs.
+  'ui.chat.profile_pane.width': number
+  // Generated Agent suggestions / Assistant opening questions, regenerated when the identity hash changes.
+  'ui.chat.profile_pane.starters': CacheValueTypes.ProfileStartersCache
+  // Assistant / Agent IDs whose suggestions or opening questions the user hid.
+  'ui.chat.profile_pane.hidden_starters': string[]
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
@@ -522,9 +557,11 @@ export type RendererPersistCacheSchema = {
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
+  'local_agent.model_catalogs': {},
   'ui.model_selector.presentation': 'popover',
   'ui.model_selector.cherryai_pinned': true,
   'ui.browser.import_prompt_hidden': false,
+  'ui.composer.prefill_confirm_hidden': false,
   'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
@@ -535,6 +572,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 280,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
+  'ui.chat.profile_pane.width': 360,
+  'ui.chat.profile_pane.starters': {},
+  'ui.chat.profile_pane.hidden_starters': [],
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
@@ -606,6 +646,7 @@ export type MainPersistCacheSchema = {
   // a @main enum (no reverse import), so the key type is `string`; the
   // windowBoundsTracker is the sole writer and controls which keys appear.
   'window.bounds': Record<string, CacheValueTypes.WindowBoundsState>
+  'local_agent.session_overrides': Record<string, LocalAgentSessionOverrides>
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
@@ -616,7 +657,8 @@ export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'cherry_cloud.notification_cursors': {},
   'cherryin.models.last_attempt_at': null,
   'internal.persist_probe': 0,
-  'window.bounds': {}
+  'window.bounds': {},
+  'local_agent.session_overrides': {}
 }
 
 // ============================================================================

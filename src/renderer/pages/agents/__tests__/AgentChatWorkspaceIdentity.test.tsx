@@ -13,7 +13,11 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import AgentChat from '../AgentChat'
 import type { AgentConversationBootstrap } from '../useAgentConversationBootstrap'
 
-const history = vi.hoisted(() => ({ messages: [] as CherryUIMessage[], refresh: vi.fn() }))
+const history = vi.hoisted(() => ({
+  messages: [] as CherryUIMessage[],
+  persistedPartsByMessageId: {},
+  refresh: vi.fn()
+}))
 const defaultQuery = mockUseQuery.getMockImplementation()!
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
@@ -36,7 +40,7 @@ vi.mock('../components/AgentRightPane', () => ({
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
     messages: history.messages,
-    persistedPartsByMessageId: {},
+    persistedPartsByMessageId: history.persistedPartsByMessageId,
     isLoading: false,
     hasOlder: false,
     refresh: history.refresh
@@ -47,13 +51,12 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({ activeExecutions: [], sendMessage: vi.fn(), stop: vi.fn() })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({ overlay: {}, liveAssistants: [], disposeOverlay: vi.fn(), reset: vi.fn() })
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => [] }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: () => {} }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+  useTopicStreamStatus: () => ({ isPending: false })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
@@ -182,5 +185,37 @@ describe('AgentChat top-bar workspace identity', () => {
 
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith(nextWorkspace.id)
     expect(window.api.ipcApi.request).not.toHaveBeenCalledWith('external_app.target.open', expect.anything())
+  })
+
+  it('keeps the selected workspace when switching an empty session to a local agent', async () => {
+    const localAgent = {
+      id: 'local-agent-1',
+      name: 'Claude Code',
+      type: 'local' as const,
+      model: null,
+      modelName: null,
+      orderKey: 'a1',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      localRuntime: { providerId: 'claude-provider', presetId: 'claude', enabled: true, args: [], env: {} }
+    }
+    mockUseQuery.mockImplementation((path, options) => {
+      const result = defaultQuery(path, options)
+      if (path === '/agent-workspaces') return { ...result, data: [workspace, nextWorkspace] }
+      if (path === '/agents') return { ...result, data: { items: [bootstrap.resources.agent, localAgent] } }
+      if (path === '/pins') return { ...result, data: [] }
+      return result
+    })
+    const user = userEvent.setup()
+    const onSessionWorkspaceChange = vi.fn()
+    renderConversation(onSessionWorkspaceChange)
+
+    const topBar = within(screen.getByRole('banner'))
+    await user.click(topBar.getByRole('button', { name: /My agent/ }))
+
+    const agentList = await screen.findByRole('listbox')
+    await user.click(within(agentList).getByRole('option', { name: /Claude Code/ }))
+
+    expect(onSessionWorkspaceChange).not.toHaveBeenCalled()
   })
 })

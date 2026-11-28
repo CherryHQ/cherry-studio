@@ -11,6 +11,7 @@ import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type * as PdfText from '@main/utils/pdfText'
 
 const {
+  extractPdfTextLayerMarkdownMock,
   formatFromExtensionMock,
   getPhysicalPathMock,
   inspectPdfTextMock,
@@ -20,6 +21,7 @@ const {
   startTaskMock,
   toMarkdownBytesMock
 } = vi.hoisted(() => ({
+  extractPdfTextLayerMarkdownMock: vi.fn(),
   formatFromExtensionMock: vi.fn(),
   getPhysicalPathMock: vi.fn(),
   inspectPdfTextMock: vi.fn(),
@@ -57,6 +59,7 @@ vi.mock('@application', async () => {
 
 vi.mock('@main/utils/pdfText', async (importOriginal) => ({
   ...(await importOriginal<typeof PdfText>()),
+  extractPdfTextLayerMarkdown: extractPdfTextLayerMarkdownMock,
   inspectPdfText: inspectPdfTextMock
 }))
 
@@ -99,6 +102,7 @@ function textOf(result: Result): string {
 describe('cherry-tools to_markdown', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    extractPdfTextLayerMarkdownMock.mockResolvedValue('Fallback PDF text layer')
     formatFromExtensionMock.mockReturnValue('docx')
     inspectPdfTextMock.mockResolvedValue({ pageCount: 2, hasTextlessPages: false })
     listAgentSessionAttachmentsMock.mockReturnValue([])
@@ -273,5 +277,38 @@ describe('cherry-tools to_markdown', () => {
 
     await expect(readFile(stale)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(readFile(recent, 'utf-8')).resolves.toBe('new')
+  })
+
+  it('falls back to the pdfjs text layer when anydoc rejects a text-layer PDF as malformed', async () => {
+    const { tools, workspacePath } = await makeTools()
+    const bytes = Buffer.from('%PDF-1.4 cnki')
+    await writeFile(path.join(workspacePath, 'cnki.pdf'), bytes)
+    formatFromExtensionMock.mockReturnValue('pdf')
+    inspectPdfTextMock.mockResolvedValue({ pageCount: 8, hasTextlessPages: false })
+    const message = "malformed document: couldn't parse input: invalid file trailer"
+    toMarkdownBytesMock.mockRejectedValue(Object.assign(new Error(message), { code: 'malformed' }))
+    extractPdfTextLayerMarkdownMock.mockResolvedValue('Page one text\n\nPage two text')
+
+    const result = await tools.call({ path: 'cnki.pdf' })
+
+    expect(result.isError).toBeFalsy()
+    await expect(readFile(JSON.parse(textOf(result)).path, 'utf-8')).resolves.toBe('Page one text\n\nPage two text')
+    expect(extractPdfTextLayerMarkdownMock).toHaveBeenCalledWith(bytes)
+    expect(startTaskMock).not.toHaveBeenCalled()
+    expect(loggerWarnMock).toHaveBeenCalledWith(expect.stringContaining(message))
+  })
+
+  it('does not fall back to the pdfjs text layer when anydoc rejects a PDF as encrypted', async () => {
+    const { tools, workspacePath } = await makeTools()
+    await writeFile(path.join(workspacePath, 'locked.pdf'), Buffer.from('%PDF-1.4 locked'))
+    formatFromExtensionMock.mockReturnValue('pdf')
+    inspectPdfTextMock.mockResolvedValue({ pageCount: 8, hasTextlessPages: false })
+    toMarkdownBytesMock.mockRejectedValue(Object.assign(new Error('document is encrypted'), { code: 'encrypted' }))
+
+    const result = await tools.call({ path: 'locked.pdf' })
+
+    expect(result.isError).toBe(true)
+    expect(extractPdfTextLayerMarkdownMock).not.toHaveBeenCalled()
+    expect(startTaskMock).not.toHaveBeenCalled()
   })
 })

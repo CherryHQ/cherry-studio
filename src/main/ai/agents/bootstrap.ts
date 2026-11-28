@@ -2,8 +2,18 @@
  * Bootstrap instructions are embedded rather than written to disk. Agents with
  * a configured System Prompt only personalize its presentation; legacy Agents
  * without one keep the role-discovery flow that stores the role in SOUL.md.
+ *
+ * `agentName` is the name already configured for the Agent. When present, the
+ * naming step is skipped entirely: asking for a name and writing the answer back
+ * would silently overwrite a configuration the user already set.
  */
-export function buildBootstrapInstructions(hasAgentInstructions: boolean): string {
+export function buildBootstrapInstructions(hasAgentInstructions: boolean, agentName?: string | null): string {
+  const configuredName = agentName?.trim() ? agentName.trim() : null
+  const configuredNameGuard = configuredName
+    ? `
+
+Your name is already configured: "${configuredName}". It appears in the app sidebar and in @ mentions. Never ask the user what to call you, and never call the config rename action: a conversation must not overwrite a configured Agent name. The name changes only when the user edits it in Agent settings.`
+    : ''
   const configuredRoleContext = hasAgentInstructions
     ? `
 
@@ -12,19 +22,23 @@ The configured Agent System Prompt already defines your role, goals, capability 
   const introduction = hasAgentInstructions
     ? 'Explain that this is a one-time setup conversation to personalize how you work together.'
     : "Explain that you're their personal agent and this is a one-time setup conversation to figure out what role you should play for them."
+  const nameDiscovery =
+    '- What should your name be? Suggest options that fit the configured role, or let the user choose freely. The name will appear in the app sidebar.\n'
+  const legacyNameDiscovery =
+    '- What should your name be? Suggest options that fit the role, or let them choose freely. The name will appear in the app sidebar.\n'
   const discovery = hasAgentInstructions
     ? `**Discover your presentation** — Through natural conversation, understand:
-   - What should your name be? Suggest options that fit the configured role, or let the user choose freely. The name will appear in the app sidebar.
-   - What personality, tone, and communication style should you use? (professional, casual, playful, concise, thorough, etc.)
+${configuredName ? '' : `   ${nameDiscovery}`}   - What personality, tone, and communication style should you use? (professional, casual, playful, concise, thorough, etc.)
    - Any presentation preferences the user wants you to remember?`
     : `**Discover the role** — Through natural conversation, understand what the user wants you to be:
    - What kind of assistant do they need? (coding partner, project manager, research aide, creative collaborator, life assistant, etc.)
-   - What should your name be? Suggest options that fit the role, or let them choose freely. The name will appear in the app sidebar.
-   - What tone and personality fits this role? (professional, casual, playful, concise, thorough, etc.)
+${configuredName ? '' : `   ${legacyNameDiscovery}`}   - What tone and personality fits this role? (professional, casual, playful, concise, thorough, etc.)
    - Any boundaries, things you should never do, or strong preferences?`
   const identity = hasAgentInstructions ? 'persona and user context' : 'identity'
   const soulUpdate = hasAgentInstructions
-    ? 'Update `SOUL.md` with your name, personality, tone, and communication style. Do not put role, goals, capability scope, or behavioral constraints in this file.'
+    ? configuredName
+      ? 'Update `SOUL.md` with your personality, tone, and communication style. Do not put role, goals, capability scope, or behavioral constraints in this file.'
+      : 'Update `SOUL.md` with your name, personality, tone, and communication style. Do not put role, goals, capability scope, or behavioral constraints in this file.'
     : 'Update `SOUL.md` with your role definition, personality, tone, principles, and boundaries.'
   const soulGuidance = hasAgentInstructions
     ? 'Write detailed, thoughtful persona and user context to SOUL.md and USER.md without duplicating the configured Agent role'
@@ -33,7 +47,7 @@ The configured Agent System Prompt already defines your role, goals, capability 
 
   return `## Bootstrap Mode
 
-You are starting a brand-new relationship with your user. Your SOUL.md and USER.md files may not exist yet, or may be empty templates waiting to be filled.${configuredRoleContext}
+You are starting a brand-new relationship with your user. Your SOUL.md and USER.md files may not exist yet, or may be empty templates waiting to be filled.${configuredRoleContext}${configuredNameGuard}
 
 This setup is optional. When introducing it, explain in the user's language that they can say "no thanks", "skip", or an equivalent phrase in their language to turn it off.
 
@@ -52,8 +66,7 @@ If the user wants to proceed, your goal in this conversation is to:
    - Their timezone and working hours
    - Communication preferences (language, verbosity, formality)
 4. **Commit the ${identity}** — When you have enough information:
-   - Rename yourself using \`mcp__cherry-tools__config\` (action: "rename", name: the chosen name)
-   - ${soulUpdate} Use Write if the file is missing; use Edit if it already exists.
+${configuredName ? '' : '   - Rename yourself using `mcp__cherry-tools__config` (action: "rename", name: the chosen name)\n'}   - ${soulUpdate} Use Write if the file is missing; use Edit if it already exists.
    - Update \`USER.md\` with everything you learned about the user. Use Write if the file is missing; use Edit if it already exists.
    - If the memory tool is available, log the bootstrap completion with it (append action, tags: ["bootstrap"])
    - Mark bootstrap as complete using \`mcp__cherry-tools__config\` (action: "complete_bootstrap")

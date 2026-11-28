@@ -121,9 +121,11 @@ it.each(['unmapped-model', 'gateway-model[1m]'])(
       })
       expect(test.view.snapshot.contextUsage).toMatchObject(
         model === 'unmapped-model'
-          ? { status: 'unknown' }
+          ? { status: 'confirmed', value: { model } }
           : { status: 'confirmed', value: { model, contextWindow: 1000000 } }
       )
+      if (model === 'unmapped-model' && test.view.snapshot.contextUsage?.status === 'confirmed')
+        expect(test.view.snapshot.contextUsage.value).not.toHaveProperty('contextWindow')
     } finally {
       await test.close()
     }
@@ -131,7 +133,7 @@ it.each(['unmapped-model', 'gateway-model[1m]'])(
 )
 
 it.each(['failure', 'unknown-window'])(
-  'publishes a valid unknown context read to current and new observers: %s',
+  'publishes failed and partial context reads to current and new observers: %s',
   async (mode) => {
     let reads = 0
     const test = await wireFixture({
@@ -147,10 +149,15 @@ it.each(['failure', 'unknown-window'])(
       await test.view.subscription.drain()
       expect(test.view.snapshot.contextUsage?.status).toBe('confirmed')
       const result = await test.root.contextUsage()
-      expect(result).toMatchObject({
-        status: 'unknown',
-        error: { code: mode === 'failure' ? 'native-error' : 'unknown-window' }
-      })
+      if (mode === 'failure') {
+        expect(result).toMatchObject({ status: 'unknown', error: { code: 'native-error' } })
+      } else {
+        expect(result).toMatchObject({
+          status: 'confirmed',
+          value: { model: 'unmapped-model', used: { tokens: native.totalTokens } }
+        })
+        if (result.status === 'confirmed') expect(result.value).not.toHaveProperty('contextWindow')
+      }
       await test.view.subscription.drain()
       expect(test.view.snapshot.contextUsage).toEqual(result)
       const late = await observe(test.root)

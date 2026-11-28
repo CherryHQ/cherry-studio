@@ -6,6 +6,7 @@ import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
 const mocks = vi.hoisted(() => ({
+  broadcast: vi.fn(),
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
@@ -155,6 +156,7 @@ describe('AgentChatContextProvider', () => {
     mocks.captureHead.mockReturnValue('branch-head')
     mocks.branchTip.mockImplementation((_sessionId, messageId) => messageId)
     mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'WindowManager') return { broadcast: mocks.broadcast }
       if (name === 'AgentSessionRuntimeService') {
         return {
           prepareBranch: async () => {},
@@ -244,6 +246,12 @@ describe('AgentChatContextProvider', () => {
       expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } }),
       { headless: false }
     )
+    expect(mocks.broadcast.mock.calls.flatMap(([, effects]) => effects)).toContainEqual({
+      endpoint: '/agent-sessions/:sessionId/messages',
+      kind: 'membership',
+      routeParams: { sessionId: 'session-1' },
+      entityIds: prepared.reservedMessages!.map(({ id }) => id)
+    })
     expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(provider.isPersistentConversation).toBe(true)
@@ -580,6 +588,61 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }), {
       headless: true
     })
+  })
+
+  it('does not auto-name a busy follow-up turn', async () => {
+    const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'busy hello' }] }))
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
+    expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1')
+  })
+
+  it.each([false, true])('repairs technical OpenClaw titles only when not manually named: %s', async (manual) => {
+    mocks.hasSessionMessages.mockReturnValue(true)
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'agent:main:acp-bridge:uuid',
+      isNameManuallyEdited: manual
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      localRuntime: { presetId: 'openclaw', providerId: 'provider-openclaw', enabled: true, args: [], env: {} }
+    })
+    const validated = await provider.validateDispatch(openReq())
+    expect(validated.shouldAutoNameInitialTurn).toBe(!manual)
+  })
+
+  it('does not auto-name a later idle turn in a session with messages', async () => {
+    mocks.hasSessionMessages.mockReturnValue(true)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).not.toHaveBeenCalled()
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ shouldAutoName: false }))
+  })
+
+  it('rejects a local turn with a Cherry knowledge scope before saving messages', async () => {
+    runtimeDriverRegistry.register({ type: 'local', connect: vi.fn(), validateSession: mocks.runtimeValidateSession })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'local', model: null, configuration: {} })
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        openReq({
+          userMessageParts: [
+            { type: 'text', text: 'search the selected base' },
+            { type: 'data-knowledge-scope', data: { baseIds: ['base-1'] } }
+          ]
+        })
+      )
+    ).rejects.toThrow('knowledge bases are not supported by the agent runtime')
+    expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
   })
 
   it('rejects agent sessions without a registered runtime driver', async () => {

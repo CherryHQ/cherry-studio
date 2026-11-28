@@ -42,7 +42,12 @@ import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { cn } from '@renderer/utils/style'
 
-import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
+import {
+  MAX_COLLAPSED_CODE_HEIGHT,
+  SPECIAL_VIEW_COMPONENTS,
+  SPECIAL_VIEWS,
+  type SpecialViewDefinition
+} from './constants'
 import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 import { useCodeBlockWrapLines } from './wrapLinesContext'
@@ -126,24 +131,34 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const canEdit = codeEditor.enabled && editable && !isStreaming
   const hasSpecialView = SPECIAL_VIEWS.includes(language)
-  const specialViewDefinition = hasSpecialView
+  const specialViewDefinition: SpecialViewDefinition | undefined = hasSpecialView
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
 
-  const [viewState, setViewState] = useState({
-    mode: 'special' as ViewMode,
-    previousMode: 'special' as ViewMode
-  })
+  const [viewState, setViewState] = useState<{ language: string; mode: ViewMode; previousMode: ViewMode }>(() => ({
+    language,
+    mode: 'special',
+    previousMode: 'special'
+  }))
+  if (viewState.language !== language) {
+    setViewState({
+      language,
+      mode: 'special',
+      previousMode: 'special'
+    })
+  }
   const viewMode = useMemo<ViewMode>(() => {
+    if (language === 'plantuml' && isStreaming) return 'source'
     if (viewState.mode === 'edit' && !canEdit) return 'source'
     if (!hasSpecialView && viewState.mode !== 'edit') {
       return 'source'
     }
     return viewState.mode
-  }, [canEdit, hasSpecialView, viewState.mode])
+  }, [canEdit, hasSpecialView, isStreaming, language, viewState.mode])
 
   const setViewMode = useCallback((newMode: ViewMode) => {
     setViewState((current) => ({
+      ...current,
       mode: newMode,
       // 当新模式不是 'split' 时才更新
       previousMode: newMode !== 'split' ? newMode : current.previousMode
@@ -156,7 +171,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       if (current.mode === 'split') {
         return { ...current, mode: current.previousMode }
       }
-      return { mode: 'split', previousMode: current.mode }
+      return { ...current, mode: 'split', previousMode: current.mode }
     })
   }, [])
 
@@ -464,9 +479,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       style={codeBlockStyle}
       className={cn(
         'code-block relative w-full min-w-0 overflow-clip rounded-lg',
-        isInSpecialView && language !== 'plantuml'
-          ? 'bg-transparent'
-          : 'border-[0.5px] border-border bg-background-subtle',
+        isInSpecialView ? 'bg-transparent' : 'border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
         '[&_.code-toolbar.show]:opacity-100 [&:hover_.code-toolbar]:opacity-100',
         isInSpecialView

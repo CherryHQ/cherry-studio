@@ -1,4 +1,4 @@
-import DOMPurify from 'dompurify'
+import DOMPurify, { type Config } from 'dompurify'
 
 import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 
@@ -11,23 +11,27 @@ import { makeSvgSizeAdaptive } from '@renderer/utils/image'
  * @param hostElement The container element that will host the Shadow DOM.
  * @param options.fit `width` (default) scales to the host's width; `contain` also fits its height and centres the
  *   SVG, never enlarging it past its intrinsic size.
+ * @param options.sanitize SVG sanitization policy when the renderer needs tighter restrictions.
  * @throws An error if the SVG content is invalid or cannot be parsed.
  */
 export function renderSvgInShadowHost(
   svgContent: string,
   hostElement: HTMLElement,
-  { fit = 'width' }: { fit?: 'width' | 'contain' } = {}
+  { fit = 'width', sanitize }: { fit?: 'width' | 'contain'; sanitize?: Config } = {}
 ): void {
   if (!hostElement) {
     throw new Error('Host element for SVG rendering is not available.')
   }
 
   // Sanitize the SVG content
-  const sanitizedContent = DOMPurify.sanitize(svgContent, {
-    ADD_TAGS: ['animate', 'foreignObject', 'use'],
-    ADD_ATTR: ['from', 'to'],
-    HTML_INTEGRATION_POINTS: { foreignobject: true }
-  })
+  const sanitizedContent = DOMPurify.sanitize(
+    svgContent,
+    sanitize ?? {
+      ADD_TAGS: ['animate', 'foreignObject', 'use'],
+      ADD_ATTR: ['from', 'to'],
+      HTML_INTEGRATION_POINTS: { foreignobject: true }
+    }
+  )
 
   const shadowRoot = hostElement.shadowRoot || hostElement.attachShadow({ mode: 'open' })
 

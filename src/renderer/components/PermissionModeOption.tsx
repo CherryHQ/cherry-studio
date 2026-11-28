@@ -145,6 +145,7 @@ export function FullAccessConfirmDialog({
   onConfirm,
   scopeName,
   scopeKind = 'agent',
+  localHost = false,
   t
 }: {
   open: boolean
@@ -152,6 +153,7 @@ export function FullAccessConfirmDialog({
   onConfirm: () => boolean | void
   scopeName?: string
   scopeKind?: FullAccessScopeKind
+  localHost?: boolean
   t: TFunction
 }) {
   const scopeLabelKey =
@@ -165,10 +167,14 @@ export function FullAccessConfirmDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={t('agent.settings.tooling.permissionMode.fullAccessConfirm.title', 'Enable Full Access?')}
-      description={t(
-        'agent.settings.tooling.permissionMode.fullAccessConfirm.description',
-        'This applies to every folder and resource in the selected scope, including folders connected later. Most tools will run without asking first.'
-      )}
+      description={
+        localHost
+          ? t('local_agents.host_permission.bypass_description')
+          : t(
+              'agent.settings.tooling.permissionMode.fullAccessConfirm.description',
+              'This applies to every folder and resource in the selected scope, including folders connected later. Most tools will run without asking first.'
+            )
+      }
       content={
         <div className="flex flex-col gap-2">
           {scopeName ? (
@@ -177,12 +183,14 @@ export function FullAccessConfirmDialog({
               <span className="font-medium text-foreground">{scopeName}</span>
             </p>
           ) : null}
-          <p className="text-muted-foreground text-sm">
-            {t(
-              'agent.settings.tooling.permissionMode.fullAccessConfirm.protections',
-              'Explicit safety blocks still apply, and you can switch back to another mode at any time.'
-            )}
-          </p>
+          {!localHost && (
+            <p className="text-muted-foreground text-sm">
+              {t(
+                'agent.settings.tooling.permissionMode.fullAccessConfirm.protections',
+                'Explicit safety blocks still apply, and you can switch back to another mode at any time.'
+              )}
+            </p>
+          )}
         </div>
       }
       confirmText={t('agent.settings.tooling.permissionMode.fullAccessConfirm.confirm', 'Enable Full Access')}
@@ -201,6 +209,9 @@ export function PermissionModeSelect({
   ariaLabel,
   scopeName,
   scopeKind = 'agent',
+  standalone = false,
+  compact = false,
+  triggerClassName,
   t
 }: {
   cards: PermissionModeCard[]
@@ -210,9 +221,26 @@ export function PermissionModeSelect({
   ariaLabel: string
   scopeName?: string
   scopeKind?: FullAccessScopeKind
+  /** Rendered outside a react-hook-form field, so the trigger skips the `FormControl` wiring. */
+  standalone?: boolean
+  /** Single-line options without descriptions, for a pill in a settings list. */
+  compact?: boolean
+  triggerClassName?: string
   t: TFunction
 }) {
   const selectedCard = cards.find((card) => card.mode === value)
+  const trigger = (
+    <SelectTrigger className={cn('h-9 w-full rounded-md', triggerClassName)} aria-label={ariaLabel}>
+      <SelectValue>
+        {selectedCard ? (
+          <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
+            <PermissionModeIcon mode={selectedCard.mode} size={16} />
+            <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
+          </span>
+        ) : null}
+      </SelectValue>
+    </SelectTrigger>
+  )
   const [fullAccessPending, setFullAccessPending] = useState(false)
 
   // Any newer mode (local or from another window) wins; confirming must never apply a stale dialog.
@@ -234,21 +262,16 @@ export function PermissionModeSelect({
           setFullAccessPending(false)
           onValueChange(next as PermissionMode)
         }}>
-        <FormControl>
-          <SelectTrigger className="h-9 w-full rounded-md" aria-label={ariaLabel}>
-            <SelectValue>
-              {selectedCard ? (
-                <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
-                  <PermissionModeIcon mode={selectedCard.mode} size={16} />
-                  <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
-                </span>
-              ) : null}
-            </SelectValue>
-          </SelectTrigger>
-        </FormControl>
-        <SelectContent portalContainer={portalContainer} className="min-w-[360px]">
+        {standalone ? trigger : <FormControl>{trigger}</FormControl>}
+        <SelectContent portalContainer={portalContainer} className={compact ? undefined : 'min-w-[360px]'}>
           {cards.map((card) => (
-            <PermissionModeSelectItem key={card.mode} card={card} portalContainer={portalContainer} t={t} />
+            <PermissionModeSelectItem
+              key={card.mode}
+              card={card}
+              compact={compact}
+              portalContainer={portalContainer}
+              t={t}
+            />
           ))}
         </SelectContent>
       </Select>

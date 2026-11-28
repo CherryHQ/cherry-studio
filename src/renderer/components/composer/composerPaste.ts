@@ -122,6 +122,7 @@ function resolvePrivateClipboardToken(
       kind: token.kind,
       label: token.label,
       ...(token.description && { description: token.description }),
+      ...(token.sourceMessageId && { sourceMessageId: token.sourceMessageId }),
       ...(token.promptText && { promptText: token.promptText })
     }
   }

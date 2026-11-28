@@ -44,6 +44,7 @@ Page-only UI should stay in the page directory. If a component is only a Home or
 
 `MessageContentProvider` owns the internal parts context. Pages and adapters should pass
 `state.partsByMessageId` into the message-list provider value; they should not wrap `PartsProvider` manually.
+Read one row with `messagePartsAt(rows, messageId)`. Home and Agent supply sparse live replies over the history index. Use `messagePartEntries(rows)` for operations that need the whole conversation. An addressed live row with zero parts clears the displayed body until history takes ownership.
 
 Directory names stay lowercase. React component files stay PascalCase.
 
@@ -64,6 +65,11 @@ type MessageListProviderValue = {
 - `state`: renderable data and UI configuration, such as messages, topic, loading state, list key, navigation mode, sizing.
 - `actions`: executable capabilities, such as loading older messages, selecting an active branch, deleting a message group, or regenerating a message.
 - `meta`: environment and non-command display metadata, such as assistant profile or export filename.
+
+Agent display segments carry a canonical source identity separately from their row IDs. The first
+content segment renders the Run header; the final content segment owns its actions and statistics.
+Timeline markers bypass the assistant frame and are not selectable messages. Toggling the identity
+slot keeps the body node and its focused or expanded tool descendants mounted.
 
 Shared UI components should treat missing actions as unavailable capabilities. Do not add `isAgent`, `isHome`, `mode`, or other page-mode booleans to shared components.
 

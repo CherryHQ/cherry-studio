@@ -73,10 +73,12 @@ export async function readPiApprovalFacts(
   const command = (name === 'bash' || name === 'powershell') && typeof input.command === 'string' ? input.command : ''
   const globalInstall = command ? (detectGlobalInstall(command) ?? undefined) : undefined
   const miseMutation = command ? (detectMiseMutation(command) ?? undefined) : undefined
-  const rewritten =
+  const rewrite =
     name === 'bash' && !disabled && !sqlite && !globalInstall && !miseMutation && command
       ? await rtkRewrite(command)
       : undefined
+  const rewritten = rewrite?.command
+  const rtkAsk = rewrite?.approvalRequired === true
   const commandPolicy = command && !disabled ? await checkPiCommand(ctx, name, mode, command, rewritten) : undefined
   const guard = ctx.builtinRole
     ? await evaluateToolGuards(BUILTIN_AGENT_TOOL_GUARD_RULES, {
@@ -103,8 +105,9 @@ export async function readPiApprovalFacts(
     approvalRequired:
       (skillAccess ? skillAccess.approval === 'prompt' : ctx.approvalRequiredTools.has(name)) ||
       policyAsk ||
+      rtkAsk ||
       guard?.effect === 'ask',
-    nonBypassable: ctx.nonBypassableApprovalTools.has(name),
+    nonBypassable: rtkAsk || ctx.nonBypassableApprovalTools.has(name),
     withinAllowedRoots:
       (category === 'read' || category === 'edit') &&
       (await isToolPathInsideAllowedRoots(

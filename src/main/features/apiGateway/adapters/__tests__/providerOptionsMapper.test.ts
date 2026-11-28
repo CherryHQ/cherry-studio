@@ -9,6 +9,7 @@ import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegi
 import { ENDPOINT_TYPE, type EndpointType, type Model, type RuntimeReasoning } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { OpenAiResponsesMessageConverter } from '../converters/OpenAiResponsesMessageConverter'
 import {
   mapAnthropicThinkingToProviderOptions,
   mapGeminiThinkingToProviderOptions,
@@ -90,6 +91,16 @@ const openAIModel = model('openai', 'gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, {
   selectableEfforts: ['none', 'low', 'medium', 'high'],
   controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }],
   thinkingTokenLimits: { min: 1000, max: 11_000 }
+})
+
+it('projects Responses reasoning.effort onto the routed model even when the compatibility field conflicts', () => {
+  const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+  const options = new OpenAiResponsesMessageConverter().extractProviderOptions(target, openAIModel, {
+    input: 'Hello',
+    reasoning: { effort: 'xhigh' },
+    reasoning_effort: 'low'
+  })
+  expect(options).toMatchObject({ openai: { reasoningEffort: 'high' } })
 })
 
 const registryReasoningSupportWithBudget: ProtoReasoningSupport = {

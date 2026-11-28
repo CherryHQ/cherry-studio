@@ -15,11 +15,11 @@ beforeEach(() => {
 })
 
 describe('TemporaryChatBackend.persistAssistant', () => {
-  it('passes only runtimeTiming to the data-layer owner', async () => {
+  it('passes only runtimeTiming to the data-layer owner', () => {
     const backend = new TemporaryChatBackend({ topicId: 'topic-1', messageId: 'msg-1', modelId: 'openai::gpt-4o' })
     const runtimeTiming = { startedAt: 100, completedAt: 600, spans: [] }
 
-    await backend.persistAssistant({
+    backend.persistAssistant({
       finalMessage: {
         id: 'final',
         role: 'assistant',

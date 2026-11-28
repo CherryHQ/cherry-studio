@@ -4,6 +4,11 @@ import type { BasicPreviewHandles, BasicPreviewProps } from '@renderer/component
 
 type SpecialViewProps = BasicPreviewProps & { ref?: RefObject<BasicPreviewHandles | null> }
 
+export interface SpecialViewDefinition {
+  component: ComponentType<SpecialViewProps>
+  supportsImageActions: boolean
+}
+
 /**
  * 特殊视图组件映射表
  */
@@ -36,7 +41,7 @@ export const SPECIAL_VIEW_COMPONENTS = {
     component: lazy<ComponentType<SpecialViewProps>>(() => import('@renderer/components/Preview/EChartsPreview')),
     supportsImageActions: true
   }
-} as const
+} satisfies Record<string, SpecialViewDefinition>
 
 export const SPECIAL_VIEWS = Object.keys(SPECIAL_VIEW_COMPONENTS)
 
