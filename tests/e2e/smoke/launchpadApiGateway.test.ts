@@ -190,16 +190,19 @@ test('Spanish gateway tile fits its label on one line', async ({ mainWindow: pag
   await page.reload()
   await waitForShell(page)
   await page.evaluate(() => window.api.ipcApi.request('navigation.open_route_in_main', { path: '/app/launchpad' }))
-  const tile = page.locator('button[data-dnd-row-control]').filter({ hasText: esLocale['launchpad.api_gateway'] })
+  const tiles = uiLocator(page, 'app.content').locator('button[data-dnd-row-control]')
+  const tile = tiles.getByText(esLocale['launchpad.api_gateway'], { exact: true })
   await expect(tile).toBeVisible()
-  const label = tile.getByText(esLocale['launchpad.api_gateway'], { exact: true })
-  await expect
-    .poll(() =>
-      label.evaluate((element) => {
-        const range = document.createRange()
-        range.selectNodeContents(element)
-        return range.getClientRects().length === 1 && element.scrollWidth <= element.clientWidth
-      })
-    )
-    .toBe(true)
+  const labels = tiles.locator(':scope > span:last-child:visible')
+  await expect.poll(() => labels.count()).toBeGreaterThan(1)
+  const wrappedLabels = await labels.evaluateAll((elements) =>
+    elements
+      .filter(
+        (element) =>
+          element.getBoundingClientRect().height > Number.parseFloat(getComputedStyle(element).lineHeight) + 0.5
+      )
+      .map((element) => element.textContent)
+  )
+  expect(wrappedLabels).toEqual([])
+  await expect.poll(() => tile.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
 })

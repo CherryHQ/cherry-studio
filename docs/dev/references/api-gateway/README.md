@@ -99,7 +99,7 @@ to enable it. It is disabled by default.
 
 1. Configure a working provider and model in **Settings → Model Provider** for
    model requests. Keep Cherry Studio running while the client uses the gateway.
-2. Open **Gateway** from the Launchpad apps grid, or open **Settings → Unified Gateway** (also linked from **Settings → Device Connections**). Right-click the Launchpad tile to pin it to the sidebar. While stopped, choose an available port
+2. Open **Unified Gateway** from the Launchpad apps grid, or open **Settings → Unified Gateway** (also linked from **Settings → Device Connections**). Right-click the Launchpad tile to pin it to the sidebar. While stopped, choose an available port
    between `1000` and `65535` if the default `23333` is already in use.
 3. Click **Start** and wait for **Running**.
 4. Under **Connect on this computer**, copy the Base URL (`/v1`) or the full
@@ -114,7 +114,7 @@ work without the key.
 
 ### Stop the gateway and automatic startup
 
-Open **Gateway** from the Launchpad or **Settings → Unified Gateway** and click **Stop**. This clears the saved
+Open **Unified Gateway** from the Launchpad or **Settings → Unified Gateway** and click **Stop**. This clears the saved
 startup setting and closes remote-device sessions. LAN API sharing remains configured for the next start.
 Gateway-dependent clients and Agent routes need the gateway again before they can
 be used. Ordinary chats can continue without it.
