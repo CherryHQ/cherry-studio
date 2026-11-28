@@ -132,7 +132,8 @@ export const defaultServiceInstances = {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))
   },
-  RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
+  RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) },
+  AnalyticsService: { trackProductEvent: vi.fn() }
 } as const
 
 /** Type for per-service overrides */

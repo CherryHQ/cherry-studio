@@ -6,6 +6,7 @@
  * - Listing with filters
  */
 
+import { application } from '@application'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -21,6 +22,7 @@ import {
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
 import type { HandlersFor } from '@shared/data/api/types'
+import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
@@ -42,7 +44,25 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateProviderSchema.parse(body)
-      return providerService.update(params.providerId, parsed)
+      // A user switching a provider on is when it becomes configured; seeding and sync never come through here.
+      const enabling = parsed.isEnabled === true && !providerService.getByProviderId(params.providerId).isEnabled
+      const report = (status: 'success' | 'error') =>
+        application.get('AnalyticsService').trackProductEvent({
+          event: 'feature_used',
+          feature: 'provider',
+          action: 'provider_configured',
+          status,
+          ...(isSystemProviderId(params.providerId) && { target: params.providerId })
+        })
+      let provider: ReturnType<typeof providerService.update>
+      try {
+        provider = providerService.update(params.providerId, parsed)
+      } catch (error) {
+        if (enabling) report('error')
+        throw error
+      }
+      if (enabling) report('success')
+      return provider
     },
 
     DELETE: async ({ params }) => {

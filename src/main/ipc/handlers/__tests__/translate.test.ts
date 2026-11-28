@@ -15,7 +15,7 @@ vi.mock('@main/services/translate/translateService', () => ({ translateService: 
 import { translateHandlers } from '../translate'
 
 const webContents = {}
-const windowManager = { getWindow: vi.fn(() => ({ webContents })) }
+const windowManager = { getWindow: vi.fn(() => ({ webContents })), getWindowType: vi.fn(() => 'selectionAction') }
 const pdfTranslationService = { cancel: cancelPdfMock, translate: translatePdfMock }
 const req = { streamId: 'translate:1', text: 'hi', targetLangCode: 'en' }
 
@@ -30,11 +30,11 @@ beforeEach(() => {
 })
 
 describe('translateHandlers', () => {
-  it('open resolves the caller WebContents and delegates to translateService', async () => {
+  it('open resolves the caller WebContents and window type and delegates to translateService', async () => {
     openMock.mockReturnValue({ streamId: 'translate:1' })
     expect(await translateHandlers['translate.open'](req, { senderId: 'w1' })).toEqual({ streamId: 'translate:1' })
 
-    expect(openMock).toHaveBeenCalledWith(webContents, req)
+    expect(openMock).toHaveBeenCalledWith(webContents, req, 'selectionAction')
   })
 
   it('open throws when the caller is not a WindowManager-tracked window', async () => {

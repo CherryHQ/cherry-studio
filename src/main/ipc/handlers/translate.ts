@@ -16,8 +16,8 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
 export const translateHandlers: IpcHandlersFor<typeof translateRequestSchemas> = {
   'translate.open': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
-    if (!wc) throw new Error('translate.open requires a managed window')
-    return translateService.open(wc, request)
+    if (!wc || senderId == null) throw new Error('translate.open requires a managed window')
+    return translateService.open(wc, request, application.get('WindowManager').getWindowType(senderId))
   },
   'translate.pdf.start': async (request, { senderId }) => {
     if (!senderId) throw new Error('translate.pdf.start requires a managed window')

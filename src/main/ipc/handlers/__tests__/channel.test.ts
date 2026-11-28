@@ -24,7 +24,7 @@ vi.mock('@main/ai/channels', () => ({
 
 import { channelHandlers } from '../channel'
 
-const channelManager = { getChannelLogs: vi.fn() }
+const channelManager = { getChannelLogs: vi.fn(), getAdapter: vi.fn(), reportNextConnection: vi.fn() }
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
@@ -59,6 +59,30 @@ describe('channelHandlers', () => {
 
     await expect(channelHandlers['channel.create'](input, ctx)).resolves.toBe(channel)
     expect(createChannelMock).toHaveBeenCalledWith(input)
+  })
+
+  it('asks for a connect report only when a user command sets a disconnected channel to connect', async () => {
+    const channel = (overrides: object) => ({
+      id: 'c1',
+      type: 'feishu',
+      isActive: true,
+      agentId: 'agent-1',
+      ...overrides
+    })
+    const input = { type: 'feishu', name: 'Bot', workspace: { type: 'system' }, config: {}, isActive: true } as never
+
+    createChannelMock.mockReturnValueOnce(channel({ agentId: null }))
+    await channelHandlers['channel.create'](input, ctx)
+    updateChannelMock.mockReturnValueOnce(channel({ isActive: false }))
+    await channelHandlers['channel.update']({ channelId: 'c1', updates: { isActive: false } }, ctx)
+    channelManager.getAdapter.mockReturnValueOnce({ connected: true })
+    updateChannelMock.mockReturnValueOnce(channel({}))
+    await channelHandlers['channel.update']({ channelId: 'c1', updates: { name: 'Renamed' } }, ctx)
+    expect(channelManager.reportNextConnection).not.toHaveBeenCalled()
+
+    updateChannelMock.mockReturnValueOnce(channel({}))
+    await channelHandlers['channel.update']({ channelId: 'c1', updates: { agentId: 'agent-1' } }, ctx)
+    expect(channelManager.reportNextConnection.mock.calls).toEqual([['c1', 'feishu']])
   })
 
   it('update exposes service validation as a channel-domain IPC error', async () => {

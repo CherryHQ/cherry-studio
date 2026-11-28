@@ -55,13 +55,14 @@ the persistent IPC registration.
 
 ## IPC contract
 
-The renderer sends exactly three fields:
+The renderer sends three fields, plus an optional analytics flag:
 
 ```ts
 ipcApi.request('translate.open', {
   streamId,
   text,
-  targetLangCode
+  targetLangCode,
+  fromMessage // optional
 })
 ```
 
@@ -69,6 +70,11 @@ ipcApi.request('translate.open', {
   namespace prevents collisions with real chat topic IDs when abort uses
   `ai.stream.abort({ topicId: streamId })`.
 - `targetLangCode` must be a concrete configured language, not `unknown`.
+- `fromMessage` is set only by Home message translation. Main reports a
+  translation's `trigger` from the sender's window type (main or detached tab
+  → `page`, quick assistant, selection action window), and this flag tells a
+  chat message translation (`other`) apart from the translate page that shares
+  its window. It never changes the translation itself.
 - The renderer subscribes to `ai.stream.chunk`, `ai.stream.done`, and
   `ai.stream.error` before it calls `translate.open`, because Main starts the
   stream synchronously.

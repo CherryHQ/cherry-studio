@@ -38,6 +38,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { t } from '@main/i18n'
+import { analyticsModelSource, trackMainProductEvent } from '@main/services/productAnalytics'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64, downloadPublicImageAsBase64 } from '@main/utils/downloadAsBase64'
 import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
@@ -67,6 +68,7 @@ import {
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
+import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
@@ -1119,9 +1121,31 @@ export class AiService extends BaseService {
    * delegates here (the registry is service state).
    */
   async runImageRequest(requestId: string, payload: AiImageRequest): Promise<AiImageResult> {
-    return this.runWithAbort(requestId, (signal) =>
-      this.generateImage({ ...payload, requestOptions: { ...payload.requestOptions, signal } })
-    )
+    // Paintings is this route's only caller; a user cancel is not an outcome.
+    let requestSignal: AbortSignal | undefined
+    const providerId = payload.uniqueModelId && parseUniqueModelId(payload.uniqueModelId).providerId
+    const report = (status: 'success' | 'error', count?: number) =>
+      trackMainProductEvent({
+        event: 'feature_used',
+        feature: 'paintings',
+        action: 'image_generated',
+        status,
+        ...(providerId && { modelSource: analyticsModelSource(providerId) }),
+        // Custom provider ids are user-chosen, so only system providers are named.
+        ...(providerId && isSystemProviderId(providerId) && { target: providerId }),
+        ...(count !== undefined && { count })
+      })
+    try {
+      const result = await this.runWithAbort(requestId, (signal) => {
+        requestSignal = signal
+        return this.generateImage({ ...payload, requestOptions: { ...payload.requestOptions, signal } })
+      })
+      report(result.files.length > 0 ? 'success' : 'error', result.files.length)
+      return result
+    } catch (error) {
+      if (!requestSignal?.aborted) report('error')
+      throw error
+    }
   }
 
   #applySeedream5xGate(params: ParamValues, model: Model, provider: Provider): ParamValues {
