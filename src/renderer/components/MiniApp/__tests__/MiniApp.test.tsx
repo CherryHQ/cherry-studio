@@ -5,6 +5,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 const calculatorApp: MiniAppType = {
@@ -182,6 +183,28 @@ describe('MiniApp launchpad pin menu', () => {
         })
       )
     )
+  })
+
+  // Another window can delete the row first; the factory's English text must not be the only copy, nor Details lost.
+  it.each([
+    ['pin', 'miniApp.add_to_launchpad', mocks.updateAppStatus],
+    ['hide', 'miniApp.sidebar.hide.title', mocks.hideMiniApp]
+  ])('names a stale app on a failed %s and keeps the cause in Details', async (_, action, mutation) => {
+    mutation.mockImplementationOnce(() => Promise.reject(DataApiErrorFactory.notFound('MiniApp', 'calculator')))
+
+    render(<TestMiniApp app={{ ...calculatorApp, status: 'enabled' }} variant="launchpad" />)
+    fireEvent.click(screen.getByRole('button', { name: action }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    const payload = vi.mocked(toast.error).mock.calls[0][0] as { title: string; data: Record<string, any> }
+    expect(payload.title).toBe('miniApp.error.not_found')
+    expect(payload.data.suppressDetail).toBeUndefined()
+    expect(payload.data.errorContext).toMatchObject({
+      message: "MiniApp with id 'calculator' not found",
+      operation: 'miniapp.update_status',
+      recordId: 'calculator',
+      source: 'miniapp'
+    })
   })
 
   it('adds a mini app to sidebar favorites', () => {

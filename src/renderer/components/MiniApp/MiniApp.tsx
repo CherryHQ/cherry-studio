@@ -133,11 +133,17 @@ const MiniApp: FC<Props> = ({
     } else {
       logger.error('mutation failed', err as Error)
     }
-    if (e.isClientError) {
+    // A stale tile (deleted in another window) is not a validation slip: name it and keep Details.
+    const stale = e.code === ErrorCode.NOT_FOUND
+    if (e.isClientError && !stale) {
       toast.error({ title: t(fallbackKey), description: e.message, data: { suppressDetail: true } })
       return
     }
-    toastAppError(t(fallbackKey), e, { source: 'miniapp', operation: 'miniapp.update_status', recordId: app.appId })
+    toastAppError(t(stale ? 'miniApp.error.not_found' : fallbackKey), e, {
+      source: 'miniapp',
+      operation: 'miniapp.update_status',
+      recordId: app.appId
+    })
   }
 
   const togglePinLabel = isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')
