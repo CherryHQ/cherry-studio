@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -1385,35 +1384,21 @@ export class BinaryManager extends BaseService {
    * tool's own runtime would. A recipe declaring none passes untouched, so this
    * costs nothing for the tools that install completely.
    *
+   * Filesystem-based on purpose: `createRequire(...).resolve` caches misses in
+   * the current process (observed on Node 24.22.2), so a Retry that reinstalls
+   * the same version into the same directory would still read the pre-repair
+   * miss and report failure until restart. Walking `node_modules` with
+   * `fs.existsSync` observes package-tree changes within the same app session.
+   *
    * The launcher path alone is not a reliable base on Windows: the default npm
    * global layout puts the launcher at the install prefix while the host can live
-   * under the top package's own `node_modules`. A `createRequire` from the
-   * launcher then misses the host and would report a truncated tree as healthy.
-   * When the fast path cannot see the host, fall back to the top package's own
-   * entry (`<install>/node_modules/<pkg>/package.json`) so a nested host still
+   * under the top package's own `node_modules`. The walk starts from the
+   * launcher and from the top package's own entry so a nested host still
    * resolves and a missing peer still fails closed (#19313).
    */
   private hasRequiredRuntimeDependencies(tool: string, entryPath: string, installPath?: string): boolean {
     const required = MISE_REQUIRED_PEERS.get(tool)
     if (!required) return true
-    try {
-      const hostEntry = createRequire(entryPath).resolve(required.host)
-      try {
-        createRequire(hostEntry).resolve(required.peer)
-        return true
-      } catch (error) {
-        logger.warn('Managed tool dependency tree is incomplete', {
-          tool,
-          ...required,
-          error: this.errorMessage(error)
-        })
-        return false
-      }
-    } catch {
-      // Fast path missed the host: either the recipe restructured (healthy) or
-      // the launcher sits outside the package tree (Windows npm prefix). Only the
-      // package-entry fallback can tell them apart.
-    }
     const topPackage = tool
       .split(':')
       .slice(1)
@@ -1423,6 +1408,66 @@ export class BinaryManager extends BaseService {
       // Non-scoped or unparseable spec: no package-entry fallback to try.
       return true
     }
+    const hostDir =
+      this.resolvePackageDirViaFilesystem(entryPath, required.host) ??
+      this.resolvePackageDirFromTop(entryPath, installPath, topPackage, required.host)
+    if (!hostDir) {
+      // An absent host means the recipe restructured its packages, which is not
+      // evidence that THIS install lost the peer — never fail a tool closed on it.
+      return true
+    }
+    const peerDir =
+      this.resolvePackageDirViaFilesystem(path.join(hostDir, 'package.json'), required.peer) ??
+      this.resolvePackageDirFromTop(entryPath, installPath, topPackage, required.peer, hostDir)
+    if (peerDir) return true
+    logger.warn('Managed tool dependency tree is incomplete', {
+      tool,
+      ...required,
+      hostDir
+    })
+    return false
+  }
+
+  /**
+   * Node-style `node_modules` walk without Node's resolution cache. Starts at
+   * `startFile`'s directory and checks `<dir>/node_modules/<packageName>/package.json`
+   * at each ancestor so a same-process reinstall is observed immediately.
+   */
+  private resolvePackageDirViaFilesystem(startFile: string, packageName: string): string | null {
+    let dir: string
+    try {
+      dir = path.dirname(startFile)
+    } catch {
+      return null
+    }
+    for (let depth = 0; depth < 12; depth++) {
+      const candidate = path.join(dir, 'node_modules', packageName)
+      try {
+        if (fs.existsSync(path.join(candidate, 'package.json'))) return candidate
+      } catch {
+        // Unreadable level: keep walking up rather than failing closed.
+      }
+      const parent = path.dirname(dir)
+      if (parent === dir) break
+      dir = parent
+    }
+    return null
+  }
+
+  /**
+   * Locate a package that may live under the top-level npm package rather than
+   * alongside the launcher (Windows npm prefix: launcher at the prefix, host
+   * nested under `<prefix>/node_modules/<top>/node_modules`). Checks the top
+   * package dir itself plus a walk from it so nested, sibling-hoisted, and
+   * prefix-hoisted layouts all resolve.
+   */
+  private resolvePackageDirFromTop(
+    entryPath: string,
+    installPath: string | undefined,
+    topPackage: string,
+    packageName: string,
+    excludeDir?: string
+  ): string | null {
     const candidateBases: string[] = []
     if (typeof installPath === 'string' && installPath) candidateBases.push(installPath)
     try {
@@ -1431,46 +1476,49 @@ export class BinaryManager extends BaseService {
     } catch {
       // entryPath without a dirname: fall back to installPath candidates only.
     }
+    // The walk from the launcher already covers hoisted layouts; this pass
+    // covers the nested-under-top layout the launcher walk cannot descend into.
     for (const base of candidateBases) {
-      for (const pkgDir of [
+      for (const topDir of [
         path.join(base, 'node_modules', topPackage),
         path.join(base, 'lib', 'node_modules', topPackage)
       ]) {
-        let pkgFile = path.join(pkgDir, 'package.json')
+        let isTop = false
         try {
-          if (!fs.existsSync(pkgDir) && !fs.existsSync(pkgFile)) continue
+          isTop = fs.existsSync(path.join(topDir, 'package.json'))
         } catch {
           continue
         }
-        // createRequire needs a file inside the package; package.json keeps the
-        // lookup anchored to the package dir even when its main entry moves.
+        if (!isTop) continue
+        // Nested directly under the top package first (exact Windows layout).
+        const nested = path.join(topDir, 'node_modules', packageName)
         try {
-          pkgFile = fs.existsSync(pkgFile) ? pkgFile : path.join(pkgDir, 'index.js')
+          if (fs.existsSync(path.join(nested, 'package.json')) && nested !== excludeDir) return nested
         } catch {
-          continue
+          // Fall through to the walk below.
         }
-        let hostEntry: string
-        try {
-          hostEntry = createRequire(pkgFile).resolve(required.host)
-        } catch {
-          continue
-        }
-        try {
-          createRequire(hostEntry).resolve(required.peer)
-          return true
-        } catch (error) {
-          logger.warn('Managed tool dependency tree is incomplete', {
-            tool,
-            ...required,
-            error: this.errorMessage(error)
-          })
-          return false
-        }
+        const walked = this.resolvePackageDirViaFilesystem(path.join(topDir, 'package.json'), packageName)
+        if (walked && walked !== excludeDir) return walked
       }
     }
-    // An absent host means the recipe restructured its packages, which is not
-    // evidence that THIS install lost the peer — never fail a tool closed on it.
-    return true
+    // Last resort: the top package itself may be resolvable from the launcher
+    // walk (e.g. `<prefix>/node_modules/<top>`), then the nested check above
+    // applies on the next call. Directly walking for the target from the top
+    // entry keeps that path single-hop.
+    const topDir =
+      this.resolvePackageDirViaFilesystem(entryPath, topPackage) ??
+      (typeof installPath === 'string' && installPath
+        ? this.resolvePackageDirViaFilesystem(path.join(installPath, 'package.json'), topPackage)
+        : null)
+    if (topDir && topDir !== excludeDir) {
+      const nested = path.join(topDir, 'node_modules', packageName)
+      try {
+        if (fs.existsSync(path.join(nested, 'package.json'))) return nested
+      } catch {
+        // Fall through to null below.
+      }
+    }
+    return null
   }
 
   /**
@@ -1493,6 +1541,18 @@ export class BinaryManager extends BaseService {
     } catch {
       return false
     }
+  }
+
+  /**
+   * Public peer verification for launchers (e.g. DeepSeek Harness) that only
+   * hold a snapshot. Snapshots collapse a missing shim and a verified peer
+   * loss to the same `broken` + `none` shape, so launch must not name the peer
+   * from the snapshot alone — it asks here whether the peer is actually gone.
+   */
+  public async isToolPeerMissing(name: string): Promise<boolean> {
+    const definition = this.resolveDefinition(name)
+    if (!definition) return false
+    return this.isPeerMissing(definition)
   }
 
   private async resolveMiseBinaryForTool(
@@ -1711,9 +1771,13 @@ export class BinaryManager extends BaseService {
     // the affected install first so the retry below performs a full reinstall
     // (#19313). Scoped to the broken version when known; `--all` is only the
     // fallback when the active version cannot be proven.
+    // `--no-prune` keeps `unuse` to the config file: without it pinned mise
+    // `2026.7.14` with `MISE_YES=1` also uninstalls every cached version, so a
+    // failed download would delete an unreferenced version the scoped uninstall
+    // below would have preserved.
     if (opts?.forceCleanReinstall) {
       try {
-        await this.runMise(['unuse', '-g', definition.tool], { timeoutMs: installTimeoutMs })
+        await this.runMise(['unuse', '-g', '--no-prune', definition.tool], { timeoutMs: installTimeoutMs })
       } catch (error) {
         logger.warn('Failed to unuse incomplete tool before reinstall', {
           name: definition.name,

@@ -450,7 +450,8 @@ describe('DeepSeekHarnessService', () => {
               availability: { source: 'mise', path: '/mock/mise/shims/dsh', version: '0.1.1-rc.2' },
               application: { status: 'broken', version: '0.1.1-rc.2' }
             }
-          }))
+          })),
+          isToolPeerMissing: vi.fn(async () => true)
         }
       }
       if (name === 'ApiGatewayService') {
@@ -585,7 +586,8 @@ describe('DeepSeekHarnessService', () => {
               availability: { source: 'none' },
               application: { status: 'broken', version: '0.1.1-rc.2' }
             }
-          }))
+          })),
+          isToolPeerMissing: vi.fn(async () => true)
         }
       }
       if (name === 'ApiGatewayService') {
@@ -609,6 +611,78 @@ describe('DeepSeekHarnessService', () => {
     }
     expect(mocks.spawn).not.toHaveBeenCalled()
     expect(mocks.writeConfig).not.toHaveBeenCalled()
+  })
+
+  it('reports a generic runnable error for a shim-only broken install without naming the peer (#19313)', async () => {
+    // An intact tree with a missing shim shares the same `broken` + `none`
+    // snapshot as a verified peer loss. Only a verified peer may name
+    // `dsh-scope`; otherwise keep the Retry guidance with a generic message.
+    mocks.appGet.mockImplementation((name: string) => {
+      if (name === 'BinaryManager') {
+        return {
+          getToolSnapshots: vi.fn(async () => ({
+            dsh: {
+              availability: { source: 'none' },
+              application: { status: 'broken', version: '0.1.1-rc.2' }
+            }
+          })),
+          isToolPeerMissing: vi.fn(async () => false)
+        }
+      }
+      if (name === 'ApiGatewayService') {
+        return {
+          start: mocks.gatewayStart,
+          ensureValidApiKey: mocks.gatewayEnsureKey,
+          getCurrentConfig: mocks.gatewayGetConfig
+        }
+      }
+      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
+      if (name === 'CacheService') return { setShared: mocks.setShared }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const result = await new DeepSeekHarnessService().start(startInput)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.message).toContain('Retry')
+      expect(result.message).not.toContain('dsh-scope')
+    }
+    expect(mocks.spawn).not.toHaveBeenCalled()
+    expect(mocks.writeConfig).not.toHaveBeenCalled()
+  })
+
+  it('reports a generic runnable error for a managed mise broken install when the peer is present (#19313)', async () => {
+    mocks.appGet.mockImplementation((name: string) => {
+      if (name === 'BinaryManager') {
+        return {
+          getToolSnapshots: vi.fn(async () => ({
+            dsh: {
+              availability: { source: 'mise', path: '/mock/mise/shims/dsh', version: '0.1.1-rc.2' },
+              application: { status: 'broken', version: '0.1.1-rc.2' }
+            }
+          })),
+          isToolPeerMissing: vi.fn(async () => false)
+        }
+      }
+      if (name === 'ApiGatewayService') {
+        return {
+          start: mocks.gatewayStart,
+          ensureValidApiKey: mocks.gatewayEnsureKey,
+          getCurrentConfig: mocks.gatewayGetConfig
+        }
+      }
+      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
+      if (name === 'CacheService') return { setShared: mocks.setShared }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const result = await new DeepSeekHarnessService().start(startInput)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.message).toContain('Retry')
+      expect(result.message).not.toContain('dsh-scope')
+    }
+    expect(mocks.spawn).not.toHaveBeenCalled()
   })
 
   it('rolls back configuration and redacts credentials when the child exits before readiness', async () => {

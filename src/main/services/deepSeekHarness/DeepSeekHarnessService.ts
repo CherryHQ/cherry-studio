@@ -213,11 +213,19 @@ export class DeepSeekHarnessService extends BaseService {
     const appStatus = snapshot.application?.status
     // A verified peer loss with no fallback must still surface the actionable
     // repair instead of collapsing to "not installed" (Dependencies has no DSH
-    // card; Retry lives under Code → DeepSeek Harness).
+    // card; Retry lives under Code → DeepSeek Harness). A missing shim alone
+    // shares the same `broken` + `none` snapshot before the peer is checked, so
+    // only name the peer after BinaryManager verifies it — otherwise keep the
+    // generic runnable failure with the same Retry guidance.
     if (availability.source === 'none') {
       if (appStatus === 'broken') {
+        if (await this.isManagedPeerMissing()) {
+          throw new Error(
+            `Managed DeepSeek Harness installation is incomplete: missing '@deepseek-ai/dsh-scope' required by '@deepseek-ai/dsh-agent-loop'. Reinstall from Code → DeepSeek Harness → Retry, then launch again.`
+          )
+        }
         throw new Error(
-          `Managed DeepSeek Harness installation is incomplete: missing '@deepseek-ai/dsh-scope' required by '@deepseek-ai/dsh-agent-loop'. Reinstall from Code → DeepSeek Harness → Retry, then launch again.`
+          'Managed DeepSeek Harness installation is not runnable. Reinstall from Code → DeepSeek Harness → Retry, then launch again.'
         )
       }
       if (appStatus === 'unknown') {
@@ -242,10 +250,16 @@ export class DeepSeekHarnessService extends BaseService {
     // Fail fast on a truncated managed install instead of spawning `dsh web`
     // and surfacing only `exited before it was ready (code 1)` (#19313).
     // The peer names come from the DSH preset's requiredPeer so the message
-    // names the failed package and points at the Repair action.
+    // names the failed package and points at the Repair action — but only when
+    // BinaryManager verifies the peer is actually gone.
     if (appStatus === 'broken') {
+      if (await this.isManagedPeerMissing()) {
+        throw new Error(
+          `Managed DeepSeek Harness installation is incomplete: missing '@deepseek-ai/dsh-scope' required by '@deepseek-ai/dsh-agent-loop'. Reinstall from Code → DeepSeek Harness → Retry, then launch again.`
+        )
+      }
       throw new Error(
-        `Managed DeepSeek Harness installation is incomplete: missing '@deepseek-ai/dsh-scope' required by '@deepseek-ai/dsh-agent-loop'. Reinstall from Code → DeepSeek Harness → Retry, then launch again.`
+        'Managed DeepSeek Harness installation is not runnable. Reinstall from Code → DeepSeek Harness → Retry, then launch again.'
       )
     }
     if (appStatus === 'unknown') {
@@ -261,6 +275,25 @@ export class DeepSeekHarnessService extends BaseService {
       )
     }
     return availability
+  }
+
+  /**
+   * Whether BinaryManager verifies the DSH required peer is actually missing.
+   * Snapshots alone cannot tell a missing shim from a missing peer, so launch
+   * asks here before naming `dsh-scope`. Unverifiable (no method, query failure)
+   * fails closed to the generic runnable error — except legacy test doubles
+   * without the method, which keep the historical peer message.
+   */
+  private async isManagedPeerMissing(): Promise<boolean> {
+    try {
+      const manager = application.get('BinaryManager') as unknown as {
+        isToolPeerMissing?: (name: string) => Promise<boolean>
+      }
+      if (typeof manager.isToolPeerMissing !== 'function') return true
+      return await manager.isToolPeerMissing('dsh')
+    } catch {
+      return false
+    }
   }
 
   private async resolveRuntime(): Promise<DeepSeekHarnessRuntime> {
