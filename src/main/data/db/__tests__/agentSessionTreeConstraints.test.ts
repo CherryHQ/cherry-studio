@@ -134,6 +134,7 @@ describe('Session tree populated branch upgrade', () => {
     }
     expect(dbh.sqlite.prepare("SELECT * FROM agent_session WHERE id = 'branched'").get()).toEqual({
       ...sessionBefore,
+      is_task_owned: 0,
       last_pos: 2
     })
     expect(dbh.db.select().from(sessions).where(eq(sessions.id, 'flat')).get()).toMatchObject({

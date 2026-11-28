@@ -421,6 +421,7 @@ export class AgentSessionService {
       description: dto.description,
       model: dto.model,
       taskId,
+      isTaskOwned: taskId !== null,
       workspaceId,
       createdAt,
       updatedAt: createdAt
@@ -539,7 +540,7 @@ export class AgentSessionService {
       .getDb()
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(eq(sessionsTable.taskId, taskScheduleId))
+      .where(and(eq(sessionsTable.taskId, taskScheduleId), eq(sessionsTable.isTaskOwned, true)))
       .all()
       .map((row) => row.id)
   }
@@ -625,10 +626,23 @@ export class AgentSessionService {
     return (
       tx
         .update(sessionsTable)
-        .set({ taskId: params.taskScheduleId, isTaskReuseTarget: true, updatedAt: sql`${sessionsTable.updatedAt}` })
+        .set({
+          taskId: params.taskScheduleId,
+          isTaskReuseTarget: true,
+          isTaskOwned: sql`CASE WHEN ${sessionsTable.taskId} = ${params.taskScheduleId} THEN ${sessionsTable.isTaskOwned} ELSE 0 END`,
+          updatedAt: sql`${sessionsTable.updatedAt}`
+        })
         .where(eq(sessionsTable.id, params.sessionId))
         .run().changes > 0
     )
+  }
+
+  /** Schedule removal ends its deletion authority over retained conversations. */
+  releaseTaskOwnershipTx(tx: DbOrTx, taskScheduleId: string): void {
+    tx.update(sessionsTable)
+      .set({ isTaskOwned: false, updatedAt: sql`${sessionsTable.updatedAt}` })
+      .where(eq(sessionsTable.taskId, taskScheduleId))
+      .run()
   }
 
   clearTaskScheduleTx(tx: DbOrTx, taskScheduleId: string): boolean {
@@ -636,6 +650,28 @@ export class AgentSessionService {
       tx,
       and(eq(sessionsTable.taskId, taskScheduleId), eq(sessionsTable.isTaskReuseTarget, true))!
     )
+  }
+
+  /**
+   * Binding-state read for task-bind validation. The relation columns stay off
+   * the entity, so picker/command validation reads them through this method.
+   */
+  getTaskBindingTx(
+    tx: DbOrTx,
+    sessionId: string
+  ): { agentId: string | null; name: string; taskScheduleId: string | null; isTaskReuseTarget: boolean } | null {
+    const [row] = tx
+      .select({
+        agentId: sessionsTable.agentId,
+        name: sessionsTable.name,
+        taskScheduleId: sessionsTable.taskId,
+        isTaskReuseTarget: sessionsTable.isTaskReuseTarget
+      })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.id, sessionId), isNull(sessionsTable.deletedAt)))
+      .limit(1)
+      .all()
+    return row ?? null
   }
 
   /** Prepare session-owned changes before the caller deletes an agent row. */
@@ -703,7 +739,11 @@ export class AgentSessionService {
       tx
         .update(sessionsTable)
         // Explicit self-assignment suppresses updatedAt's table-level $onUpdateFn.
-        .set({ isTaskReuseTarget: false, updatedAt: sql`${sessionsTable.updatedAt}` })
+        .set({
+          isTaskReuseTarget: false,
+          taskId: sql`CASE WHEN ${sessionsTable.isTaskOwned} THEN ${sessionsTable.taskId} ELSE NULL END`,
+          updatedAt: sql`${sessionsTable.updatedAt}`
+        })
         .where(where)
         .run().changes > 0
     )
@@ -1293,6 +1333,7 @@ export class AgentSessionService {
       agentId: string | null
       ownerSessionId?: string
       taskId?: string | null
+      isTaskOwned?: boolean
       name: string
       description?: string
       model?: UniqueModelId | null
@@ -1531,7 +1572,7 @@ export class AgentSessionService {
 
     const [row] = db
       .update(sessionsTable)
-      .set({ deletedAt: null, taskId: null, isTaskReuseTarget: false })
+      .set({ deletedAt: null, taskId: null, isTaskOwned: false, isTaskReuseTarget: false })
       .where(
         and(or(eq(sessionsTable.id, id), eq(sessionsTable.ownerSessionId, id)), isNotNull(sessionsTable.deletedAt))
       )

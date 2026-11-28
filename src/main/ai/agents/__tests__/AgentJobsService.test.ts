@@ -6,7 +6,6 @@
  * state-aware pause/resume no-ops, and trigger equality filtering.
  */
 
-import '@data/services/AgentSessionMessageService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
@@ -22,6 +21,7 @@ import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -753,11 +753,15 @@ describe('AgentJobsService', () => {
   describe('session reuse', () => {
     /** Simulate a fire having bound its sticky session, plus an unrelated metadata key. */
     function bindSession(taskId: string): string {
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: 'Scheduled task',
-        workspace: { type: 'system' }
-      })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled task',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        taskId
+      )
       dbh.db.transaction((tx) =>
         agentSessionService.bindTaskScheduleTx(tx, {
           sessionId: session.id,
@@ -869,11 +873,15 @@ describe('AgentJobsService', () => {
         metadata: { reuse: { enabled: true, revision: 0 }, unrelated: 'keep-me' }
       })
 
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: 'Scheduled task',
-        workspace: { type: 'system' }
-      })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled task',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        task.id
+      )
       notifyDataApiDataChangeMock.mockClear()
       runtime.isSessionBusyForArchive.mockReturnValue(false)
       runtime.closeSessionForArchive.mockResolvedValue(undefined)
@@ -907,7 +915,9 @@ describe('AgentJobsService', () => {
         })
       ).toBe(true)
       expect(jobScheduleService.getById(task.id)?.metadata).toEqual({
-        reuse: { enabled: true, revision: 0 },
+        // The successful bind records the auto-binding tombstone (with the
+        // session's last-known name) so a later loss reads as "binding lost".
+        reuse: { enabled: true, revision: 0, boundKind: 'auto', sessionName: 'Scheduled task' },
         unrelated: 'keep-me'
       })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
@@ -919,6 +929,219 @@ describe('AgentJobsService', () => {
       service.releaseTaskSessionReuse(binding, session.id)
       expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
       expect(agentSessionService.listTaskSessionIds(task.id)).toContain(session.id)
+    })
+
+    // ------------------------------------------------------------ picker binding
+
+    describe('picker binding', () => {
+      function createOrdinarySession(name: string, agentId: string = AGENT_ID): string {
+        return agentSessionService.create({ agentId, name, workspace: { type: 'system' } }).id
+      }
+
+      it('binds the picked session on create and records the explicit tombstone', () => {
+        const sessionId = createOrdinarySession('picked')
+
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+
+        expect(task.reuseSessionId).toBe(sessionId)
+        expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(sessionId)
+        expect(readReuse(task.id)).toEqual({
+          enabled: true,
+          revision: 0,
+          boundKind: 'explicit',
+          sessionName: 'picked'
+        })
+      })
+
+      it.each(['create', 'edit'] as const)('refreshes an observed ordinary list after picker %s', (action) => {
+        const sessionId = createOrdinarySession('picked')
+        const existing = action === 'edit' ? service.createTask(AGENT_ID, form) : null
+        let mountedItems = agentSessionService.listByCursor({ agentId: AGENT_ID, scope: 'ordinary' }).items
+        expect(mountedItems.some((item) => item.id === sessionId)).toBe(true)
+        const observe = notifyDataApiDataChangeMock.mockImplementation((effects) => {
+          if (
+            effects.some(
+              (effect: { endpoint: string; kind: string }) =>
+                effect.endpoint === '/agent-sessions' && effect.kind === 'membership'
+            )
+          ) {
+            mountedItems = agentSessionService.listByCursor({ agentId: AGENT_ID, scope: 'ordinary' }).items
+          }
+        })
+        try {
+          if (existing) service.updateTask(AGENT_ID, existing.id, { reuseSession: true, reuseSessionId: sessionId })
+          else service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+          expect(mountedItems.some((item) => item.id === sessionId)).toBe(false)
+        } finally {
+          observe.mockReset()
+        }
+      })
+
+      it('ignores the picker value when reuse is off', () => {
+        const sessionId = createOrdinarySession('ignored')
+
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: false, reuseSessionId: sessionId })
+
+        expect(task.reuseSession).toBe(false)
+        expect(task.reuseSessionId).toBeNull()
+        expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, sessionId)).get()).toMatchObject({
+          taskId: null,
+          isTaskReuseTarget: false
+        })
+      })
+
+      it('rejects a session bound to another task and names that task, writing nothing', () => {
+        const first = service.createTask(AGENT_ID, form)
+        const sessionId = createOrdinarySession('taken')
+        dbh.db.transaction((tx) =>
+          agentSessionService.bindTaskScheduleTx(tx, {
+            sessionId,
+            taskScheduleId: first.id,
+            expectedAgentId: AGENT_ID
+          })
+        )
+
+        expect(() =>
+          service.createTask(AGENT_ID, { ...form, name: 'second', reuseSession: true, reuseSessionId: sessionId })
+        ).toThrow(`Session is already bound to the task "${form.name}"`)
+        expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(1)
+      })
+
+      it('rejects a session owned by another agent', () => {
+        seedAgent(OTHER_AGENT_ID)
+        const foreignId = createOrdinarySession('foreign', OTHER_AGENT_ID)
+
+        expect(() => service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: foreignId })).toThrow(
+          'Session not found'
+        )
+      })
+
+      it('rebinds on update, releasing the old session and bumping the revision', () => {
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+        const firstId = createOrdinarySession('first')
+        const secondId = createOrdinarySession('second')
+
+        expect(service.updateTask(AGENT_ID, task.id, { reuseSessionId: firstId })?.reuseSessionId).toBe(firstId)
+        expect(readReuse(task.id)).toEqual({ enabled: true, revision: 1, boundKind: 'explicit', sessionName: 'first' })
+
+        expect(service.updateTask(AGENT_ID, task.id, { reuseSessionId: secondId })?.reuseSessionId).toBe(secondId)
+        expect(readReuse(task.id)).toEqual({
+          enabled: true,
+          revision: 2,
+          boundKind: 'explicit',
+          sessionName: 'second'
+        })
+        expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(secondId)
+      })
+
+      it('keeps the binding untouched when the same session is re-saved', () => {
+        const sessionId = createOrdinarySession('stable')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+        const before = readReuse(task.id)
+
+        const updated = service.updateTask(AGENT_ID, task.id, { reuseSessionId: sessionId })
+
+        expect(updated?.reuseSessionId).toBe(sessionId)
+        expect(readReuse(task.id)).toEqual(before)
+      })
+
+      it('returns to first-fire auto-binding when the picker is cleared', () => {
+        const sessionId = createOrdinarySession('cleared')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+
+        const updated = service.updateTask(AGENT_ID, task.id, { reuseSessionId: null })
+
+        expect(updated?.reuseSessionId).toBeNull()
+        expect(readReuse(task.id)).toEqual({ enabled: true, revision: 1 })
+      })
+
+      it('returns a cleared picked conversation outside task deletion ownership', async () => {
+        const sessionId = createOrdinarySession('borrowed')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+        service.updateTask(AGENT_ID, task.id, { reuseSessionId: null })
+
+        expect(agentSessionService.listTaskSessionIds(task.id)).not.toContain(sessionId)
+        expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toContain(
+          sessionId
+        )
+        await lifecycle.deleteTaskWithSessions(task.id)
+        expect(agentSessionService.getById(sessionId)?.id).toBe(sessionId)
+      })
+
+      it('preserves a selected pre-existing conversation and its history when the task is deleted', async () => {
+        const sessionId = createOrdinarySession('history')
+        const saved = agentSessionMessageService.saveMessage({
+          sessionId,
+          message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'keep my history' }] } }
+        })
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+
+        await lifecycle.deleteTaskWithSessions(task.id)
+        expect(agentSessionService.getById(sessionId)?.id).toBe(sessionId)
+        expect(agentSessionMessageService.getSessionMessage(sessionId, saved.id).data.parts).toEqual([
+          { type: 'text', text: 'keep my history' }
+        ])
+        expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toContain(
+          sessionId
+        )
+      })
+
+      it('keeps an explicit binding when only the future-run workspace changes', () => {
+        const sessionId = createOrdinarySession('stable workspace')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+        const updated = service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: 'ws-next' } })
+
+        expect(updated).toMatchObject({
+          reuseSessionId: sessionId,
+          workspace: { type: 'user', workspaceId: 'ws-next' }
+        })
+        expect(readReuse(task.id)).toMatchObject({ boundKind: 'explicit', revision: 0 })
+      })
+
+      it('recovers a lost binding with an explicit reset to first-fire automatic selection', () => {
+        const sessionId = createOrdinarySession('lost')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+        dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, [sessionId], { requireAll: true }))
+        expect(agentTaskService.getTask(AGENT_ID, task.id)?.reuseBindingLost).toBe(true)
+
+        const updated = service.updateTask(AGENT_ID, task.id, { reuseSessionId: null })
+        expect(updated).toMatchObject({ reuseSessionId: null, reuseBindingLost: false })
+        expect(readReuse(task.id)).toEqual({ enabled: true, revision: 1 })
+      })
+
+      it('never overflow-releases an explicit picker binding', () => {
+        const sessionId = createOrdinarySession('kept')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+
+        service.releaseTaskSessionReuse({ scheduleId: task.id, reuseRevision: 0 }, sessionId)
+
+        expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(sessionId)
+      })
+
+      it('flags a trashed bound session as a lost binding, naming the session, until rebound', () => {
+        const sessionId = createOrdinarySession('gone')
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true, reuseSessionId: sessionId })
+
+        dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, [sessionId], { requireAll: true }))
+
+        const lost = agentTaskService.getTask(AGENT_ID, task.id)
+        expect(lost).toMatchObject({
+          reuseSession: true,
+          reuseSessionId: null,
+          reuseBindingLost: true,
+          reuseBindingLostSessionName: 'gone'
+        })
+
+        const freshId = createOrdinarySession('fresh')
+        const rebound = service.updateTask(AGENT_ID, task.id, { reuseSessionId: freshId })
+        expect(rebound).toMatchObject({ reuseSessionId: freshId, reuseBindingLost: false })
+      })
+
+      it('does not flag never-bound reuse as lost', () => {
+        const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+
+        expect(task.reuseBindingLost).toBe(false)
+      })
     })
   })
 
@@ -1113,7 +1336,7 @@ describe('AgentJobsService', () => {
           'conversation',
           scheduleId
         )
-      const sticky = create('sticky')
+      const sticky = create('sticky', task.id)
       const fresh = create('fresh', task.id)
       const legacy = create('legacy', task.id)
       const ordinary = create('ordinary')
@@ -1812,11 +2035,15 @@ describe('AgentJobsService', () => {
 
     it('detaches a sticky task session trashed with its Agent', async () => {
       const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: 'Scheduled task',
-        workspace: { type: 'system' }
-      })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled task',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        task.id
+      )
       expect(
         service.bindTaskSessionReuse({
           scheduleId: task.id,
@@ -1905,11 +2132,15 @@ describe('AgentJobsService', () => {
       const enabledTask = service.createTask(AGENT_ID, { ...form, reuseSession: true })
       const pausedTask = service.createTask(AGENT_ID, { ...form, name: 'paused-task' })
       await service.pauseTask(AGENT_ID, pausedTask.id)
-      const session = agentSessionService.create({
-        agentId: AGENT_ID,
-        name: 'Scheduled task',
-        workspace: { type: 'system' }
-      })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled task',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        enabledTask.id
+      )
       dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
 
       expect(service.updateTask(AGENT_ID, enabledTask.id, { name: 'must-not-update' })).toBeNull()

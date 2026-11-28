@@ -80,41 +80,58 @@ function TaskRow({
           ? 'bg-resource-list-row-selected'
           : 'hover:bg-resource-list-row-hover has-[:focus-visible]:bg-resource-list-row-hover'
       )}>
-      <Button
-        variant="ghost"
-        className={cn(
-          'h-auto min-w-0 flex-1 justify-start rounded-lg bg-transparent px-2.5 py-1.5 text-left shadow-none hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
-          selected && 'text-resource-list-row-selected-foreground'
-        )}
-        aria-pressed={selected}
-        onClick={onSelect}>
-        <span className="flex w-full min-w-0 flex-col gap-0.5">
-          <span className={cn('truncate text-[13px] leading-5', selected ? 'font-medium' : 'font-normal')}>
-            {task.name}
-          </span>
-          <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-            <span className="min-w-0 truncate" title={agentName ?? task.agentId}>
-              {agentName ?? task.agentId}
-            </span>
-            <span aria-hidden="true" className="shrink-0">
-              ·
-            </span>
-            <span className="min-w-0 truncate" title={getTriggerSummary(task.trigger, t)}>
-              {getTriggerSummary(task.trigger, t)}
-            </span>
-          </span>
-          {task.status === 'missed' && (
-            <span className="truncate text-xs text-muted-foreground" title={t('scheduledTasks.missedTime')}>
-              {t('scheduledTasks.missedTime')}
-            </span>
+      <div className="min-w-0 flex-1">
+        <Button
+          variant="ghost"
+          className={cn(
+            'h-auto w-full min-w-0 justify-start rounded-lg bg-transparent px-2.5 py-1.5 text-left shadow-none hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
+            selected && 'text-resource-list-row-selected-foreground'
           )}
-        </span>
-      </Button>
+          aria-pressed={selected}
+          onClick={onSelect}>
+          <span className="flex w-full min-w-0 flex-col gap-0.5">
+            <span className={cn('truncate text-[13px] leading-5', selected ? 'font-medium' : 'font-normal')}>
+              {task.name}
+            </span>
+            <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+              <span className="min-w-0 truncate" title={agentName ?? task.agentId}>
+                {agentName ?? task.agentId}
+              </span>
+              <span aria-hidden="true" className="shrink-0">
+                ·
+              </span>
+              <span className="min-w-0 truncate" title={getTriggerSummary(task.trigger, t)}>
+                {getTriggerSummary(task.trigger, t)}
+              </span>
+            </span>
+            {task.status === 'missed' && (
+              <span className="truncate text-xs text-muted-foreground" title={t('scheduledTasks.missedTime')}>
+                {t('scheduledTasks.missedTime')}
+              </span>
+            )}
+          </span>
+        </Button>
+        {task.reuseBindingLost && (
+          <button
+            type="button"
+            className="block w-full truncate px-2.5 pb-1.5 text-left text-xs text-warning-subtle-foreground focus-visible:outline focus-visible:outline-ring"
+            title={
+              task.reuseBindingLostSessionName
+                ? t('agent.tasks.reuseSession.bindingLost', { name: task.reuseBindingLostSessionName })
+                : t('agent.tasks.reuseSession.bindingLostUnknown')
+            }
+            onClick={() => setEditOpen(true)}>
+            {task.reuseBindingLostSessionName
+              ? t('agent.tasks.reuseSession.bindingLost', { name: task.reuseBindingLostSessionName })
+              : t('agent.tasks.reuseSession.bindingLostUnknown')}
+          </button>
+        )}
+      </div>
       <DropdownMenu>
         <Tooltip title={t('common.more')}>
           <DropdownMenuTrigger asChild>
             <ResourceList.HeaderActionButton
-              className="bg-transparent opacity-0 shadow-none hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring data-[state=open]:bg-transparent data-[state=open]:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 no-hover:opacity-100"
+              className="bg-transparent opacity-0 shadow-none group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset data-[state=open]:bg-transparent data-[state=open]:opacity-100 no-hover:opacity-100"
               disabled={busy}
               aria-label={`${t('common.more')} ${task.name}`}>
               <MoreHorizontal className="size-4" />
@@ -211,7 +228,7 @@ export function ScheduledTaskGroup({
       <h2 className="flex h-9 items-center">
         <Button
           variant="ghost"
-          className="h-8 w-full justify-start gap-1.5 rounded-lg px-2.5 text-[13px] font-normal leading-5 text-muted-foreground hover:bg-resource-list-row-hover focus-visible:bg-resource-list-row-hover"
+          className="h-8 w-full justify-start gap-1.5 rounded-lg px-2.5 text-[13px] leading-5 font-normal text-muted-foreground hover:bg-resource-list-row-hover focus-visible:bg-resource-list-row-hover"
           aria-expanded={expanded}
           aria-controls={contentId}
           onClick={() => setExpanded((value) => !value)}>

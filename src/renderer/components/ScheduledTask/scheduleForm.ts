@@ -20,6 +20,7 @@ export type TaskDraftSnapshot = {
   channelIds: string[]
   workspaceId: string | null
   reuseSession: boolean
+  reuseSessionId: string | null
 }
 
 export const DEFAULT_SCHEDULE: ScheduleFormState = {
@@ -176,7 +177,8 @@ export function taskToDraftSnapshot(task: ScheduledTaskEntity): TaskDraftSnapsho
     },
     channelIds: task.channelIds ?? [],
     workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null,
-    reuseSession: task.reuseSession
+    reuseSession: task.reuseSession,
+    reuseSessionId: task.reuseSessionId ?? null
   }
 }
 

@@ -27,6 +27,7 @@ export const agentSessionTable = sqliteTable(
       .references(() => agentWorkspaceTable.id, { onDelete: 'cascade' }),
     // Task ownership survives reuse changes and execution-log collection.
     taskId: text().references(() => jobScheduleTable.id, { onDelete: 'set null' }),
+    isTaskOwned: integer({ mode: 'boolean' }).notNull().default(false),
     isTaskReuseTarget: integer({ mode: 'boolean' }).notNull().default(false),
     traceId: text(),
     activeNodeId: text(),
