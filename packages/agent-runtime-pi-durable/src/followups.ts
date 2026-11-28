@@ -98,6 +98,7 @@ export async function changeFollowups(
       const active = await tx.submissionByRequest(conversationId, change.activeInputId)
       if (active?.type !== 'input' || active.runId !== runId || active.status !== 'placed') return false
       item.mode = 'steer'
+      if (inbox.followUpsPaused && !inbox.items.some((item) => item.mode === 'followUp')) delete inbox.followUpsPaused
       item.entry.data = { ...(item.entry.data as JsonObject), steer: { runId, replyId: change.replyId } }
       await registerFollowupProjection(tx, { threadId: String(conversationId), inputId: change.inputId })
       return true

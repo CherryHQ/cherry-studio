@@ -26,7 +26,8 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({
   canSteer?: boolean
 }) {
   const { t } = useTranslation()
-  const queue = useSharedCacheValue(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId))
+  const snapshot = useSharedCacheValue(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId))
+  const queue = snapshot?.items
   const [edit, setEdit] = useState<{ item: AgentSessionFollowup; text: string }>()
   const [saving, setSaving] = useState(false)
   const dragOrder = useRef<string[]>(undefined)
@@ -55,6 +56,8 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({
     <>
       <QueuedFollowupsDock
         items={items}
+        paused={snapshot?.paused}
+        onTogglePause={snapshot?.paused ? () => void change({ type: 'resume' }) : undefined}
         onSteer={canSteer ? (inputId) => void change({ type: 'steer', inputId }) : undefined}
         onEdit={(id) => {
           const item = queue?.find((candidate) => candidate.id === id)

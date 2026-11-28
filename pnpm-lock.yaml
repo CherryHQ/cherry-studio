@@ -262,7 +262,7 @@ patchedDependencies:
   '@earendil-works/pi-agent-core@1.5.2': 239db571ff5557c242bdc05ff6bb28c666d4683f93037a710544657ff6442fad
   '@earendil-works/pi-ai@1.5.2': 35ba16328f70aa23f49182d9f0488486123b4e5837382dd037b1b3c45b2d4956
   '@earendil-works/pi-coding-agent@1.5.2': 2201605bb7138565a2e0e2ea04c27a226dc78aaf4a1fb23cbe6554804d5a58e4
-  '@earendil-works/pi-durable@1.5.2': 6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6
+  '@earendil-works/pi-durable@1.5.2': cb29a9bb91a0a2df11dccb46eea20457f74653627e375c2d780549d5e52331e0
   '@elysia/node@1.4.6': ceae4c188748b0ccfb825739bdbbe02486930f53b0fb1068e21de26527488ad2
   '@larksuiteoapi/node-sdk@1.73.0': dacfb70d41f69a0d7b682b9270395fb5782898872666519f2d5181bea275bfec
   '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
@@ -337,7 +337,7 @@ importers:
         version: 1.5.2(patch_hash=2201605bb7138565a2e0e2ea04c27a226dc78aaf4a1fb23cbe6554804d5a58e4)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)
       '@earendil-works/pi-durable':
         specifier: 1.5.2
-        version: 1.5.2(patch_hash=6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)
+        version: 1.5.2(patch_hash=cb29a9bb91a0a2df11dccb46eea20457f74653627e375c2d780549d5e52331e0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)
       '@firecrawl/anydoc':
         specifier: 0.2.5
         version: 0.2.5
@@ -2403,7 +2403,7 @@ importers:
         version: 1.5.2(patch_hash=35ba16328f70aa23f49182d9f0488486123b4e5837382dd037b1b3c45b2d4956)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)
       '@earendil-works/pi-durable':
         specifier: 1.5.2
-        version: 1.5.2(patch_hash=6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)
+        version: 1.5.2(patch_hash=cb29a9bb91a0a2df11dccb46eea20457f74653627e375c2d780549d5e52331e0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)
       '@earendil-works/pi-schema':
         specifier: 1.5.2
         version: 1.5.2
@@ -18742,7 +18742,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.5.2(patch_hash=6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)':
+  '@earendil-works/pi-durable@1.5.2(patch_hash=cb29a9bb91a0a2df11dccb46eea20457f74653627e375c2d780549d5e52331e0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)':
     dependencies:
       '@earendil-works/chord': 1.5.2(esbuild@0.25.12)(react@19.3.1)(ws@8.21.3)
       '@earendil-works/pi-ai': 1.5.2(patch_hash=35ba16328f70aa23f49182d9f0488486123b4e5837382dd037b1b3c45b2d4956)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)
@@ -18762,7 +18762,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.5.2(patch_hash=6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)':
+  '@earendil-works/pi-durable@1.5.2(patch_hash=cb29a9bb91a0a2df11dccb46eea20457f74653627e375c2d780549d5e52331e0)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)':
     dependencies:
       '@earendil-works/chord': 1.5.2(esbuild@0.25.12)(react@19.3.1)(ws@8.21.3)
       '@earendil-works/pi-ai': 1.5.2(patch_hash=35ba16328f70aa23f49182d9f0488486123b4e5837382dd037b1b3c45b2d4956)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)

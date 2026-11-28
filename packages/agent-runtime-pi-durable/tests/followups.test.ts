@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createModels, fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai'
-import { createRegistry, Harness, InboxDoc } from '@earendil-works/pi-durable'
+import { createRegistry, Harness, InboxDoc, pauseFollowUpsForStop } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { expect, it, onTestFinished } from 'vitest'
 
@@ -91,6 +91,60 @@ it('preserves queued IDs across edit, reorder and restart, and only withdraws wa
   await expect.poll(read).toEqual([])
   expect(await changeFollowups(resumed, conversation.id, { ...change, revision: 1 }, context)).toBe(false)
   expect(await changeFollowups(resumed, conversation.id, { type: 'withdraw', inputId: 'First' }, context)).toBe(false)
+})
+
+it('recovers a committed stop and its paused inbox without a second abort call', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'durable-stop-'))
+  onTestFinished(() => rm(directory, { recursive: true, force: true }))
+  const file = join(directory, 'session.sqlite')
+  const context = BACKGROUND_CONTEXT
+  const models = createModels()
+  const faux = fauxProvider()
+  models.setProvider(faux.provider)
+  const options = { models, registry: createRegistry() }
+  const harness = await Harness.open(await openNodeSqliteStorage(file), options, context)
+  onTestFinished(() => harness.close(context))
+  const conversation = await harness.createConversation(
+    { ownership: { kind: 'ownerless' }, agent: { model: { provider: 'faux', modelId: 'faux-1' } } },
+    context
+  )
+  let notifyStarted!: () => void
+  const started = new Promise<void>((resolve) => (notifyStarted = resolve))
+  faux.setResponses([
+    (_prompt, call) =>
+      new Promise((_, reject) => {
+        notifyStarted()
+        const signal = call!.signal!
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+  ])
+  const active = await conversation.submit({ type: 'input', content: 'Active' }, context)
+  await started
+  const queued = await conversation.submit({ type: 'input', content: 'Queued', whenBusy: 'followUp' }, context)
+  await harness.commit((tx) => pauseFollowUpsForStop(tx, conversation.id), context)
+  await harness.close(context)
+
+  const resumed = await Harness.open(await openNodeSqliteStorage(file), options, context)
+  onTestFinished(() => resumed.close(context))
+  const reopened = (await resumed.conversation(conversation.id, context))!
+  const prompts: unknown[] = []
+  faux.setResponses([
+    (prompt) => {
+      prompts.push(prompt.messages.findLast((message) => message.role === 'user')?.content)
+      return fauxAssistantMessage('Answer')
+    }
+  ])
+  await reopened.waitForIdle(context)
+  const submission = (id: typeof active.id) => resumed.commit((tx) => tx.submission(id), context)
+  expect(await submission(active.id)).toMatchObject({ status: 'unanswered', reason: 'aborted' })
+  expect(await submission(queued.id)).toMatchObject({ status: 'queued' })
+  expect(prompts).toEqual([])
+
+  expect(await reopened.resumeFollowUps(context)).toBe(true)
+  expect(await reopened.resumeFollowUps(context)).toBe(false)
+  await reopened.waitForIdle(context)
+  expect(await submission(queued.id)).toMatchObject({ status: 'done' })
+  expect(prompts).toEqual(['Queued'])
 })
 
 it.each([false, true])(

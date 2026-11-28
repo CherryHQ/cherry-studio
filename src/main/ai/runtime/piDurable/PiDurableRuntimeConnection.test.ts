@@ -280,7 +280,7 @@ describe('desktop Pi Durable connection', () => {
         }
       }
     })
-    const submit = vi.spyOn(handle.input.followUp!, 'submit')
+    const submit = vi.spyOn(handle.durable, 'submitTurn')
     const compact = vi.spyOn(handle.durable, 'compact')
     const sending = connection.send({ message: message('Pending task input') })
     try {
@@ -3597,24 +3597,34 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  // Stop withdraws input queued behind the stopped turn; it must not start a run of its own afterwards.
-  it('withdraws a queued follow-up on Stop', async () => {
+  it('keeps the queued submission waiting on Stop until the user resumes it', async () => {
     const held = answerByInput()
-    const { connection, events, nativeInputs } = await connect()
+    const { connection, events, nativeInputs, handle } = await connect()
     await connection.send({ message: message('first') })
     await held.reached
-    const second = message('second')
+    const second = messages.saveMessage({
+      sessionId: input.sessionId,
+      stageFollowup: true,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'second' }] } }
+    })
     await submitBusy(connection, 'followUp', second)
-    await expect
-      .poll(() => nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
-      .toBe(true)
-    await connection.interrupt()
-    await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await expect.poll(handle.durable.followups).toMatchObject([{ inputId: second.id }])
+    const waiting = handle.durable.followups()
 
-    expect(nativeInputs.findLast((state) => state.inputId === second.id)).toMatchObject({ outcome: 'aborted' })
-    expect(text(events)).not.toContain('second answer')
+    await connection.interrupt()
+    expect(handle.durable.followupsPaused()).toBe(true)
+    await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+    expect(handle.durable.followups()).toEqual(waiting)
+    expect(nativeInputs.findLast((state) => state.inputId === second.id)?.outcome).toBeUndefined()
     expect(events).not.toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
+
+    await expect(connection.changeFollowups({ type: 'resume' })).resolves.toBe(true)
+    await expect.poll(() => nativeInputs.findLast((state) => state.inputId === second.id)?.outcome).toBe('completed')
+    expect(text(events)).toContain('second answer')
+    expect(events.filter((event) => event.type === 'run-started').flatMap((event) => event.inputIds)).toEqual([
+      second.id
+    ])
+    expect(handle.durable.followups()).toEqual([])
   })
 
   it.each(['legacy', 'registered'])('recovers a withdrawn %s follow-up after a native-only commit', async (kind) => {
@@ -3831,7 +3841,7 @@ describe('desktop Pi Durable connection', () => {
     async (status) => {
       const { connection, handle } = await connect()
       const user = message('not accepted')
-      vi.spyOn(handle.input.followUp!, 'submit').mockResolvedValue({
+      vi.spyOn(handle.durable, 'submitTurn').mockResolvedValue({
         status,
         inputId: runtimeId(user.id),
         error: { operation: 'submit', code: 'fixture', message: status }

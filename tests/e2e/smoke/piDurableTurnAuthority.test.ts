@@ -201,6 +201,8 @@ async function rows(page: Page, sessionId: string) {
   return (result.data as { items: unknown[] }).items.toReversed().map((item) => {
     const row = AgentSessionMessageEntitySchema.parse(item)
     return {
+      id: row.id,
+      replyId: row.replyId,
       role: row.role,
       status: row.status,
       text: JSON.stringify(row.data.parts ?? []),
@@ -475,6 +477,95 @@ test.describe('Pi Durable turn authority in Electron', () => {
     } finally {
       route.close()
       await server.close()
+    }
+  })
+
+  test('keeps stopped follow-ups queued across restart and resumes them once in order', async ({}, testInfo) => {
+    test.setTimeout(180_000)
+    const server = await startMockChatServer()
+    const route = routeRequests(server)
+    let running: ElectronApplication | undefined
+    let failed = false
+    try {
+      const first = await launch()
+      running = first.app
+      const session = await createSession(first.page, server)
+      const chat = await openSession(first.page, session)
+      await chat.send('STOP_ACTIVE')
+      const active = await route.next('STOP_ACTIVE')
+      active.sendText('STOP_PARTIAL ')
+      await expect(chat.message('STOP_PARTIAL')).toBeVisible()
+      await chat.send('PAUSED_ONE')
+      await chat.send('PAUSED_TWO')
+      await expect(chat.view.getByRole('button', { name: 'Queued (2)', exact: true })).toBeVisible()
+      await chat.composer.locator('[data-ui~="chat.composer.action.pause"]').click()
+      await active.closed
+      await expect(chat.view.getByRole('button', { name: 'Resume auto-send' })).toBeVisible()
+      await expect(chat.message('PAUSED_ONE')).toHaveCount(0)
+      await expect(chat.message('PAUSED_TWO')).toHaveCount(0)
+      await chat.send('NEW_WHILE_PAUSED')
+      const manual = await route.next('NEW_WHILE_PAUSED')
+      manual.complete('MANUAL_REPLY')
+      await expect(chat.message('MANUAL_REPLY')).toBeVisible()
+      await expect(chat.view.getByRole('button', { name: 'Resume auto-send' })).toBeVisible()
+      await expect(chat.message('PAUSED_ONE')).toHaveCount(0)
+      await expect(chat.message('PAUSED_TWO')).toHaveCount(0)
+      expect(route.unclaimed()).toEqual([])
+      await closeElectronApp(first.app)
+      running = undefined
+
+      const second = await launch()
+      running = second.app
+      const reopened = await openSession(second.page, session)
+      const resume = reopened.view.getByRole('button', { name: 'Resume auto-send' })
+      await expect(resume).toBeVisible()
+      await reopened.view.getByRole('button', { name: 'Queued (2)', exact: true }).click()
+      await resume.hover()
+      await capture(second.page, testInfo, 'stopped-follow-ups')
+      await resume.click()
+
+      const one = await route.next('PAUSED_ONE')
+      one.complete('RESUMED_ONE')
+      const two = await route.next('PAUSED_TWO')
+      two.complete('RESUMED_TWO')
+      await expect(reopened.message('RESUMED_TWO')).toBeVisible()
+      await expect(reopened.message('PAUSED_ONE')).toHaveCount(1)
+      await expect(reopened.message('PAUSED_TWO')).toHaveCount(1)
+      await expect(reopened.view.getByRole('button', { name: 'Queued (2)', exact: true })).toBeHidden()
+      await expect
+        .poll(async () => {
+          const messages = await rows(second.page, session.sessionId)
+          return {
+            count: messages.length,
+            replies: ['STOP_ACTIVE', 'NEW_WHILE_PAUSED', 'PAUSED_ONE', 'PAUSED_TWO'].map((text) => {
+              const user = messages.find((message) => message.role === 'user' && message.text.includes(text))
+              const reply = messages.find((message) => message.id === user?.replyId)
+              return reply && { status: reply.status, text: reply.text }
+            })
+          }
+        })
+        .toMatchObject({
+          count: 8,
+          replies: [
+            { status: 'paused', text: has('STOP_PARTIAL') },
+            { status: 'success', text: has('MANUAL_REPLY') },
+            { status: 'success', text: has('RESUMED_ONE') },
+            { status: 'success', text: has('RESUMED_TWO') }
+          ]
+        })
+      await expect(reopened.composer.locator('[data-ui~="chat.composer.action.pause"]')).toBeHidden()
+      await expectNoErrorCard(second.page, session.sessionId)
+      expect(route.unclaimed()).toEqual([])
+    } catch (error) {
+      failed = true
+      throw error
+    } finally {
+      try {
+        if (running) await closeElectronApp(running).catch((error) => (failed ? undefined : Promise.reject(error)))
+      } finally {
+        route.close()
+        await server.close()
+      }
     }
   })
 
