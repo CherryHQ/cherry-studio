@@ -1,5 +1,5 @@
 import { ArrowUpRight, ChevronDown, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react'
-import { type ComponentType, useCallback, useState } from 'react'
+import { type ComponentType, type ReactNode, useCallback, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
@@ -57,6 +57,8 @@ export type PermissionRequestComposerProps = {
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
   agentName?: string
+  disableApproval?: boolean
+  approvalDetails?: ReactNode
   requiresAgentConfigPreview?: boolean
   onOpenSource?: (source: NonNullable<PermissionRequestComposerRequest['source']>) => void
 }
@@ -271,6 +273,8 @@ export default function PermissionRequestComposer({
   onRespond,
   className,
   agentName,
+  disableApproval = false,
+  approvalDetails,
   requiresAgentConfigPreview = false,
   onOpenSource
 }: PermissionRequestComposerProps) {
@@ -288,7 +292,8 @@ export default function PermissionRequestComposer({
     configKind ? ['ai.agent.preview_config_change', request.approvalId] : null,
     ([, approvalId]) => ipcApi.request('ai.agent.preview_config_change', { approvalId })
   )
-  const cannotApprove = isSubmitting || (requiresAgentConfigPreview && !!configKind && !configPreview?.ok)
+  const cannotApprove =
+    isSubmitting || disableApproval || (requiresAgentConfigPreview && !!configKind && !configPreview?.ok)
   // The preview already shows the description, so an Agent config call needs no subtitle.
   const subtitle = configKind ? null : getPermissionRequestSubtitle(request)
 
@@ -439,6 +444,7 @@ export default function PermissionRequestComposer({
         ) : (
           <PermissionRiskSummary toolName={request.toolResponse.tool.name} args={request.toolResponse.arguments} />
         )}
+        {approvalDetails}
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview
             toolResponse={request.toolResponse}

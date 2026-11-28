@@ -2,6 +2,7 @@ import type { Client } from '@modelcontextprotocol/client'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { t } from '@main/i18n'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 const { getImageGenerationSupport, getModelByKey, loggerWarn } = vi.hoisted(() => ({
@@ -25,6 +26,17 @@ const listRootItems = vi.fn()
 const getPreference = vi.fn()
 const generateImage = vi.fn()
 const fileRead = vi.fn()
+const isToolEnabled = vi.fn()
+const requireToolTarget = vi.fn()
+const replaceWithBackup = vi.fn()
+const restoreBackup = vi.fn()
+
+vi.mock('@main/services/AgentAvatarService', () => ({
+  agentAvatarService: { isToolEnabled, requireToolTarget, replaceWithBackup, restoreBackup }
+}))
+
+vi.mock('@data/services/AgentService', () => ({ agentService: {} }))
+
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: getModelByKey }
 }))
@@ -59,7 +71,7 @@ vi.mock('@application', () => ({
       }
       if (name === 'PreferenceService') return { get: getPreference }
       if (name === 'AiService') return { generateImage }
-      if (name === 'FileManager') return { read: fileRead }
+      if (name === 'FileManager') return { read: fileRead, retainTemporaryEntry: () => ({ dispose() {} }) }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -132,6 +144,10 @@ describe('cherry-tools builtin tools', () => {
     getPreference.mockReset()
     generateImage.mockReset()
     fileRead.mockReset()
+    isToolEnabled.mockReset().mockReturnValue(true)
+    requireToolTarget.mockReset()
+    replaceWithBackup.mockReset()
+    restoreBackup.mockReset()
     getImageGenerationSupport.mockReset()
     getModelByKey.mockReset()
     getModelByKey.mockReturnValue({})
@@ -141,6 +157,72 @@ describe('cherry-tools builtin tools', () => {
 
   afterEach(async () => {
     await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+
+  it('generates with the configured model and applies the image to the explicit Agent', async () => {
+    getPreference.mockImplementation((key) => (key === 'feature.paintings.default_model_id' ? 'provider::model' : null))
+    generateImage.mockResolvedValue({ files: [{ id: 'generated-image', name: 'avatar.webp' }] })
+    const bytes = new Uint8Array([1, 2, 3])
+    fileRead.mockResolvedValue({ content: bytes, mime: 'image/webp' })
+    replaceWithBackup.mockImplementation(async (caller: string, id: string, image: Uint8Array) => {
+      if (caller !== agentContext.agentId || id !== 'other-agent' || image !== bytes) {
+        throw new Error('Wrong avatar caller, target or image')
+      }
+      return 'Other Agent'
+    })
+
+    const result = await callCherryTool('agent_avatar', {
+      action: 'generate',
+      target_agent_id: 'other-agent',
+      prompt: 'A watercolor fox'
+    })
+    expect(textOf(result)).toBe(t('agent.avatar_tool.applied', { name: 'Other Agent', id: 'other-agent' }))
+  })
+
+  it('restores the current Agent without a painting model', async () => {
+    restoreBackup.mockImplementation(async (caller: string, id: string) => {
+      if (caller !== agentContext.agentId || id !== agentContext.agentId)
+        throw new Error('Wrong avatar caller or target')
+      return 'Current Agent'
+    })
+
+    const result = await callCherryTool('agent_avatar', { action: 'restore' })
+    expect(textOf(result)).toBe(t('agent.avatar_tool.restored', { name: 'Current Agent', id: 'agent_1' }))
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('blocks generation and restore on a connected client after the caller disables the tool', async () => {
+    getPreference.mockImplementation((key) => (key === 'feature.paintings.default_model_id' ? 'provider::model' : null))
+    generateImage.mockResolvedValue({ files: [{ id: 'generated-image', name: 'avatar.webp' }] })
+    fileRead.mockResolvedValue({ content: new Uint8Array([1, 2, 3]), mime: 'image/webp' })
+    replaceWithBackup.mockResolvedValue('Other Agent')
+    restoreBackup.mockResolvedValue('Other Agent')
+    const client = await connectCherryTools()
+    expect((await client.listTools()).tools.map(({ name }) => name)).toContain('agent_avatar')
+
+    isToolEnabled.mockImplementation((id) => id !== agentContext.agentId)
+    const generated = (await client.callTool({
+      name: 'agent_avatar',
+      arguments: { action: 'generate', target_agent_id: 'other-agent', prompt: 'A watercolor fox' }
+    })) as Result
+    const restored = (await client.callTool({
+      name: 'agent_avatar',
+      arguments: { action: 'restore', target_agent_id: 'other-agent' }
+    })) as Result
+
+    expect(generated.isError).toBe(true)
+    expect(restored.isError).toBe(true)
+    expect(generateImage).not.toHaveBeenCalled()
+    expect(replaceWithBackup).not.toHaveBeenCalled()
+    expect(restoreBackup).not.toHaveBeenCalled()
+
+    isToolEnabled.mockReturnValue(true)
+    const enabledResult = (await client.callTool({
+      name: 'agent_avatar',
+      arguments: { action: 'restore', target_agent_id: 'other-agent' }
+    })) as Result
+    expect(enabledResult.isError).toBeFalsy()
+    expect(restoreBackup).toHaveBeenCalledExactlyOnceWith(agentContext.agentId, 'other-agent', expect.any(AbortSignal))
   })
 
   it('exposes every kb_* tool for unrestricted built-in Assistant access', async () => {

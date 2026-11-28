@@ -9,10 +9,11 @@
  * DataApi and the file sweep need one.
  */
 
-import { asc, count, eq, inArray } from 'drizzle-orm'
+import { asc, count, eq, inArray, type SQL } from 'drizzle-orm'
 
 import { application } from '@application'
 import {
+  agentAvatarBackupTable,
   agentAvatarFileRefTable,
   assistantAvatarFileRefTable,
   agentSessionMessageFileRefTable,
@@ -32,6 +33,7 @@ import {
 import type { DbOrTx } from '@data/db/types'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import {
+  agentAvatarBackupRef,
   agentAvatarRef,
   assistantAvatarRef,
   agentSessionMessageSourceType,
@@ -99,6 +101,7 @@ function singleFileRowToFileRef(
   row: ProviderLogoFileRefRow | MiniAppLogoFileRefRow | MiniAppFileRefRow,
   sourceType:
     | typeof agentAvatarRef.sourceType
+    | typeof agentAvatarBackupRef.sourceType
     | typeof assistantAvatarRef.sourceType
     | typeof providerLogoRef.sourceType
     | typeof miniAppLogoRef.sourceType
@@ -122,6 +125,19 @@ class FileRefServiceImpl implements FileRefService {
 
   private getDb() {
     return this.getDbService().getDb()
+  }
+
+  private readAgentAvatarBackupRefs(condition: SQL): FileRef[] {
+    return this.getDb()
+      .select()
+      .from(agentAvatarBackupTable)
+      .where(condition)
+      .all()
+      .flatMap((row) =>
+        row.fileEntryId === null
+          ? []
+          : [singleFileRowToFileRef({ ...row, fileEntryId: row.fileEntryId }, agentAvatarBackupRef.sourceType)]
+      )
   }
 
   findByEntryId(fileEntryId: FileEntryId): FileRef[] {
@@ -162,6 +178,8 @@ class FileRefServiceImpl implements FileRefService {
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, agentAvatarRef.sourceType))
       },
+      [agentAvatarBackupRef.sourceType]: () =>
+        this.readAgentAvatarBackupRefs(eq(agentAvatarBackupTable.fileEntryId, fileEntryId)),
       [assistantAvatarRef.sourceType]: () => {
         const rows = this.getDb()
           .select()
@@ -261,6 +279,8 @@ class FileRefServiceImpl implements FileRefService {
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, agentAvatarRef.sourceType))
       }
+      case agentAvatarBackupRef.sourceType:
+        return this.readAgentAvatarBackupRefs(eq(agentAvatarBackupTable.sourceId, source.sourceId))
       case assistantAvatarRef.sourceType: {
         const rows = this.getDb()
           .select()
@@ -357,6 +377,14 @@ class FileRefServiceImpl implements FileRefService {
             .where(inArray(agentAvatarFileRefTable.fileEntryId, chunk))
             .groupBy(agentAvatarFileRefTable.fileEntryId)
             .all(),
+        [agentAvatarBackupRef.sourceType]: () =>
+          this.getDb()
+            .select({ entryId: agentAvatarBackupTable.fileEntryId, refCount: count() })
+            .from(agentAvatarBackupTable)
+            .where(inArray(agentAvatarBackupTable.fileEntryId, chunk))
+            .groupBy(agentAvatarBackupTable.fileEntryId)
+            .all()
+            .flatMap(({ entryId, refCount }) => (entryId === null ? [] : [{ entryId, refCount }])),
         [assistantAvatarRef.sourceType]: () =>
           this.getDb()
             .select({ entryId: assistantAvatarFileRefTable.fileEntryId, refCount: count() })

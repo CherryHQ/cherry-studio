@@ -4,6 +4,7 @@ import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { getAgentAvatar } from '@renderer/utils/agent'
 import type { InputFor } from '@shared/ipc/types'
 
 import { AvatarPicker } from './AvatarPicker'
@@ -65,7 +66,7 @@ export function AgentAvatarPicker({
       if (!keepOpen) setOpen(false)
       if (onChanged) {
         const data = await dataApiService.get(`/agents/${id}`)
-        if (session.active) onChanged({ avatarSrc: data.avatarSrc, emoji: data.configuration?.avatar ?? '🤖' })
+        if (session.active) onChanged({ avatarSrc: data.avatarSrc, emoji: data.configuration?.avatar ?? '' })
       }
     } catch (error: any) {
       if (session.active) toast.error(error.message)
@@ -77,7 +78,7 @@ export function AgentAvatarPicker({
 
   return (
     <AvatarPicker
-      emoji={emoji}
+      emoji={getAgentAvatar(emoji)}
       imageSrc={avatarSrc}
       open={open}
       onOpenChange={setOpen}

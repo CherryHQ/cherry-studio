@@ -70,6 +70,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
     sessionId,
     modelId: model?.id,
     agentType: agent?.type,
+    agentId: session?.agentId ?? undefined,
     sessionMessagesEnabled: Boolean(session),
     sessionHistoryFetchOnMount: true,
     reservedMessages: NO_RESERVED_MESSAGES
@@ -181,7 +182,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
           )}
         </div>
         {missingModel && agent && (
-          <div className="px-3 pb-2 text-warning text-xs">
+          <div className="px-3 pb-2 text-xs text-warning">
             {t('selection.agent.no_model_notice', { name: agent.name })}
           </div>
         )}

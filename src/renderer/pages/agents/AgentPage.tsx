@@ -39,9 +39,9 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
+import { getAgentTabIcon } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { isEmoji } from '@renderer/utils/naming'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
@@ -407,9 +407,6 @@ const AgentPage = () => {
     visibleConversationId: visibleSession?.id
   })
   const visibleAgent = conversationBootstrap.resources.agent
-  // An agent avatar is an emoji glyph or an image URL; the tab renders each through its own slot.
-  const agentAvatar = visibleAgent?.avatarSrc || visibleAgent?.configuration?.avatar || undefined
-  const agentAvatarIsEmoji = !!agentAvatar && isEmoji(agentAvatar)
   // Label this tab with its agent emoji + session name so multiple Work tabs are distinguishable.
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
 
@@ -1155,8 +1152,7 @@ const AgentPage = () => {
     <>
       <AgentTabRuntime
         title={visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents')}
-        emoji={agentAvatarIsEmoji ? agentAvatar : undefined}
-        icon={agentAvatarIsEmoji ? undefined : agentAvatar}
+        icon={getAgentTabIcon(visibleAgent)}
         preserveVisuals={preserveTabVisuals}
         activeSessionId={activeSession?.id}
         activeSessionSource={activeSessionSource}

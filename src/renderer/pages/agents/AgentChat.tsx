@@ -293,6 +293,7 @@ const AgentChat = ({
     sessionId: sessionSnapshot?.id ?? '',
     modelId: activeModel?.id,
     agentType: activeAgent?.type,
+    agentId: sessionSnapshot?.agentId ?? undefined,
     agentName: activeAgent?.name,
     permissionRequestComponent: AgentPermissionRequestComposer,
     sessionMessagesEnabled,

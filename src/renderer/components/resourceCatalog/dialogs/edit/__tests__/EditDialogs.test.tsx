@@ -2120,6 +2120,41 @@ describe('edit dialogs', () => {
     )
   })
 
+  it.each(['pi', 'pi-durable'] as const)('persists the avatar tool switch for a %s Agent', async (type) => {
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, type }} onOpenChange={vi.fn()} initialTab="tools.builtin" />)
+
+    const toggle = screen.getByRole('switch', { name: 'Change Agent Avatar' })
+    expect(toggle).toBeChecked()
+    fireEvent.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ disabledTools: ['mcp__cherry_tools__agent_avatar'] })
+      })
+    )
+  })
+
+  it('enables an avatar tool disabled under alternate IDs without changing other restrictions', async () => {
+    render(
+      <AgentEditDialog
+        open
+        resource={{
+          ...PI_AGENT,
+          disabledTools: ['read', 'mcp__cherry-tools__agent_avatar', 'mcp__cherryTools__agentAvatar']
+        }}
+        onOpenChange={vi.fn()}
+        initialTab="tools.builtin"
+      />
+    )
+
+    const toggle = screen.getByRole('switch', { name: 'Change Agent Avatar' })
+    expect(toggle).not.toBeChecked()
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    fireEvent.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['read'] }) })
+    )
+  })
+
   it('keeps old MCP restrictions until the user explicitly removes them, preserving file restrictions', async () => {
     const user = userEvent.setup()
     render(
@@ -2715,6 +2750,23 @@ describe('edit dialogs', () => {
 
     expect(screen.getByRole('button', { name: 'Graduation cap' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Image Upload' })).toBeVisible()
+  })
+
+  it('reflects a committed avatar change without saving a default emoji on close', async () => {
+    const onOpenChange = vi.fn()
+    const resource = { ...AGENT, configuration: { ...AGENT.configuration, avatar: undefined } }
+    const { rerender } = render(<AgentEditDialog open resource={resource} onOpenChange={onOpenChange} />)
+    rerender(
+      <AgentEditDialog
+        open
+        resource={{ ...resource, avatarSrc: 'file:///avatars/generated.webp' }}
+        onOpenChange={onOpenChange}
+      />
+    )
+    expect(screen.getByRole('img', { name: 'Pick avatar' })).toHaveAttribute('src', 'file:///avatars/generated.webp')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(updateAgentMock).not.toHaveBeenCalled()
   })
 
   it('keeps popover content inside the dialog container', async () => {

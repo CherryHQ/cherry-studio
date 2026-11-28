@@ -1,3 +1,4 @@
+import { CLAUDE_AGENT_AVATAR_TOOL_ID, isAgentAvatarToolId, PI_AGENT_AVATAR_TOOL_ID } from '@shared/ai/agentAvatarTool'
 import {
   clampHeartbeatIntervalMinutes,
   isHeartbeatEnabled,
@@ -113,6 +114,8 @@ function envVarsFromText(text: string): Record<string, string> {
 
 export function buildInitialAgentFormState(agent?: AgentEntity | null, skillIds: string[] = []): AgentFormState {
   const cfg: AgentConfiguration = agent?.configuration ?? {}
+  const isPiRuntime = agent?.type === 'pi' || agent?.type === 'pi-durable'
+  const avatarToolId = isPiRuntime ? PI_AGENT_AVATAR_TOOL_ID : CLAUDE_AGENT_AVATAR_TOOL_ID
   return {
     name: agent?.name ?? '',
     description: agent?.description ?? '',
@@ -123,9 +126,14 @@ export function buildInitialAgentFormState(agent?: AgentEntity | null, skillIds:
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
-    disabledTools: (agent?.disabledTools ?? []).map((name) =>
-      agent?.type === 'pi' || agent?.type === 'pi-durable' ? normalizePiDisabledToolId(name) : name
-    ),
+    disabledTools: [
+      ...new Set(
+        (agent?.disabledTools ?? []).map((name) => {
+          if (isAgentAvatarToolId(name)) return avatarToolId
+          return isPiRuntime ? normalizePiDisabledToolId(name) : name
+        })
+      )
+    ],
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),

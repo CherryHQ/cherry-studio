@@ -2,6 +2,7 @@ import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import {
+  agentAvatarBackupRef,
   agentAvatarRef,
   assistantAvatarRef,
   agentSessionMessageRoles,
@@ -265,6 +266,20 @@ export const agentAvatarFileRefTable = sqliteTable(
   (t) => [index('agafr_entry_id_idx').on(t.fileEntryId), uniqueIndex('agafr_source_id_idx').on(t.sourceId)]
 )
 
+export const agentAvatarBackupTable = sqliteTable(
+  'agent_avatar_backup',
+  {
+    id: uuidPrimaryKey(),
+    // A row with no image restores the emoji or default already held by the Agent.
+    fileEntryId: text().references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => agentTable.id, { onDelete: 'cascade' }),
+    ...createUpdateTimestamps
+  },
+  (t) => [index('agab_entry_id_idx').on(t.fileEntryId), uniqueIndex('agab_source_id_idx').on(t.sourceId)]
+)
+
 /** The roleless single-file slot source types. */
 export type SingleFileRefSourceType =
   | typeof agentAvatarRef.sourceType
@@ -330,6 +345,7 @@ export const persistentFileRefTablesBySourceType = {
   [paintingSourceType]: paintingFileRefTable,
   [jobSourceType]: jobFileRefTable,
   [translateHistorySourceType]: translateHistoryFileRefTable,
+  [agentAvatarBackupRef.sourceType]: agentAvatarBackupTable,
   ...singleFileRefTablesBySourceType,
   [miniAppFileRef.sourceType]: miniAppFileRefTable
 } as const satisfies Record<
@@ -339,6 +355,7 @@ export const persistentFileRefTablesBySourceType = {
   | typeof paintingFileRefTable
   | typeof jobFileRefTable
   | typeof translateHistoryFileRefTable
+  | typeof agentAvatarBackupTable
   | typeof agentAvatarFileRefTable
   | typeof assistantAvatarFileRefTable
   | typeof providerLogoFileRefTable

@@ -179,21 +179,25 @@ describe('useAgentTabIconChangeSync', () => {
     expect(screen.getByLabelText('Active tab')).toHaveTextContent('home')
   })
 
-  it('replaces emoji with image avatars and removes the icon when the avatar is cleared', async () => {
-    let avatar: string | undefined = 'https://example.com/avatar.png'
+  it('refreshes managed avatar images on a dormant tab through replacement, restoration, and removal', async () => {
+    let avatar: string | undefined = '🐶'
+    let avatarSrc: string | undefined = 'file:///generated.webp'
     vi.mocked(dataApiService.get).mockImplementation(
       async (path) =>
-        (path.startsWith('/agent-sessions/') ? { agentId: 'agent' } : { configuration: { avatar } }) as never
+        (path.startsWith('/agent-sessions/') ? { agentId: 'agent' } : { avatarSrc, configuration: { avatar } }) as never
     )
     mount([work('a')])
     await changed()
-    expect(screen.getByLabelText('a')).toHaveTextContent('Title a|https://example.com/avatar.png|dormant')
-    avatar = ''
+    expect(screen.getByLabelText('a')).toHaveTextContent('Title a|file:///generated.webp|dormant')
+    avatarSrc = 'file:///previous.webp'
     await changed()
-    expect(screen.getByLabelText('a')).toHaveTextContent('Title a|default|dormant')
-    avatar = '🐶'
+    expect(screen.getByLabelText('a')).toHaveTextContent('Title a|file:///previous.webp|dormant')
+    avatarSrc = undefined
     await changed()
     expect(screen.getByLabelText('a')).toHaveTextContent('Title a|emoji:🐶|dormant')
+    avatar = 'https://example.com/legacy-avatar.png'
+    await changed()
+    expect(screen.getByLabelText('a')).toHaveTextContent('Title a|https://example.com/legacy-avatar.png|dormant')
     avatar = undefined
     await changed()
     expect(screen.getByLabelText('a')).toHaveTextContent('Title a|default|dormant')

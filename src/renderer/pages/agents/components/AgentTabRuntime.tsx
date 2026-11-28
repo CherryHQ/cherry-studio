@@ -7,8 +7,7 @@ import { useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
 
 type Props = {
   title: string
-  emoji?: string | null
-  /** Image avatar URL; takes precedence over `emoji`. */
+  /** Tab icon descriptor for the Agent's avatar. */
   icon?: string
   preserveVisuals: boolean
   activeSessionId?: string | null
@@ -18,7 +17,6 @@ type Props = {
 
 export function AgentTabRuntime({
   title,
-  emoji,
   icon,
   preserveVisuals,
   activeSessionId,
@@ -29,7 +27,6 @@ export function AgentTabRuntime({
 
   useTabSelfVisuals({
     title,
-    emoji,
     icon,
     routePrefix: '/app/agents',
     preserveVisuals

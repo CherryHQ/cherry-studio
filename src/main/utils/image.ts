@@ -28,6 +28,12 @@ export async function transcodeToEntityWebp(bytes: Uint8Array): Promise<Buffer> 
     .toBuffer()
 }
 
+export async function assertEntityImageDecodable(bytes: Uint8Array): Promise<void> {
+  const sharp = (await import('sharp')).default
+  // Pixel statistics force a full decode without producing an encoded image.
+  await sharp(bytes, { limitInputPixels: MAX_ENTITY_INPUT_PIXELS, failOn: 'truncated' }).stats()
+}
+
 /**
  * Re-encode image bytes to PNG, passing them through untouched when they already are one — for
  * consumers that only decode PNG. Throws on input sharp cannot decode (BMP, or non-image bytes).

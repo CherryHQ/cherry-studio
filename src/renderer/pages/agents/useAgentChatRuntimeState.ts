@@ -1,5 +1,14 @@
 import { isToolUIPart } from 'ai'
-import { type ComponentType, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentType,
+  createElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ToastConfig } from '@cherrystudio/ui'
@@ -61,6 +70,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
+import { AgentAvatarPermissionRequest } from './components/AgentAvatarPermissionRequest'
 import { agentSessionForkReasonLabel } from './messages/agentSessionFork'
 
 const logger = loggerService.withContext('useAgentChatRuntimeState')
@@ -191,6 +201,7 @@ interface UseAgentChatRuntimeStateParams {
   sessionId: string
   modelId?: UniqueModelId
   agentType?: AgentType
+  agentId?: string
   agentName?: string
   permissionRequestComponent?: ComponentType<PermissionRequestComposerProps>
   sessionMessagesEnabled: boolean
@@ -202,6 +213,7 @@ export function useAgentChatRuntimeState({
   sessionId,
   modelId,
   agentType,
+  agentId,
   agentName,
   permissionRequestComponent,
   sessionMessagesEnabled,
@@ -511,6 +523,11 @@ export function useAgentChatRuntimeState({
     },
     [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, streamTopicId]
   )
+  const agentPermissionRequest = useMemo(
+    () => (props: PermissionRequestComposerProps) =>
+      createElement(AgentAvatarPermissionRequest, { ...props, agentId, component: permissionRequestComponent }),
+    [agentId, permissionRequestComponent]
+  )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     topicId: streamTopicId,
     partsByMessageId,
@@ -518,7 +535,7 @@ export function useAgentChatRuntimeState({
     streamingLayers,
     onRespond: respondToolApproval,
     agentName,
-    permissionRequestComponent
+    permissionRequestComponent: agentPermissionRequest
   })
 
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true

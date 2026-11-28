@@ -1,5 +1,8 @@
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { t } from '@main/i18n'
+import { assertEntityImageDecodable } from '@main/utils/image'
 import type { InputFor } from '@shared/ipc/types'
 import { Mutex } from '@shared/utils/async'
 
@@ -7,6 +10,60 @@ import { withCreatedImageEntry } from './entityImageBinding'
 
 class AgentAvatarService {
   private readonly mutex = new Mutex()
+
+  isToolEnabled(agentId: string): boolean {
+    return agentService.isAvatarToolEnabledTx(application.get('DbService').getDb(), agentId)
+  }
+
+  private requireEnabledCallerTx(tx: DbOrTx, callerId: string): void {
+    if (!agentService.isAvatarToolEnabledTx(tx, callerId)) throw new Error(t('agent.avatar_tool.unavailable'))
+  }
+
+  requireToolTarget(agentId: string): void {
+    agentService.requireAvatarToolTargetTx(application.get('DbService').getDb(), agentId)
+  }
+
+  replaceWithBackup(callerId: string, agentId: string, image: Uint8Array, signal: AbortSignal): Promise<string> {
+    return this.mutex.runExclusive(async () => {
+      const dbService = application.get('DbService')
+      signal.throwIfAborted()
+      const name = await withCreatedImageEntry(image, 'delete_when_unreferenced', (fileId) => {
+        signal.throwIfAborted()
+        return dbService.withWriteTx((tx) => {
+          this.requireEnabledCallerTx(tx, callerId)
+          return agentService.replaceAvatarWithBackupTx(tx, agentId, fileId)
+        })
+      })
+      agentService.notifyReadModelChange([agentId], 'projection')
+      return name
+    })
+  }
+
+  restoreBackup(callerId: string, agentId: string, signal: AbortSignal): Promise<string> {
+    return this.mutex.runExclusive(async () => {
+      const dbService = application.get('DbService')
+      const db = dbService.getDb()
+      signal.throwIfAborted()
+      agentService.requireAvatarToolTargetTx(db, agentId)
+      const backup = agentService.getAvatarBackupTx(db, agentId)
+      if (!backup) throw new Error(t('agent.avatar_tool.no_backup'))
+      if (backup.fileEntryId) {
+        try {
+          const { content } = await application.get('FileManager').read(backup.fileEntryId, { encoding: 'binary' })
+          await assertEntityImageDecodable(content)
+        } catch (error) {
+          throw new Error(t('agent.avatar_tool.unreadable_backup'), { cause: error })
+        }
+      }
+      signal.throwIfAborted()
+      const name = dbService.withWriteTx((tx) => {
+        this.requireEnabledCallerTx(tx, callerId)
+        return agentService.restoreAvatarBackupTx(tx, agentId, backup.id)
+      })
+      agentService.notifyReadModelChange([agentId], 'projection')
+      return name
+    })
+  }
 
   apply({ agentId, avatar }: InputFor<'agent.set_avatar'>): Promise<void> {
     return this.mutex.runExclusive(async () => {
