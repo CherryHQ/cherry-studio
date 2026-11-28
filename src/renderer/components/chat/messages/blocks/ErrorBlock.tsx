@@ -178,11 +178,18 @@ const MessageErrorInfo: React.FC<{
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
-      if (!modelId && failedProviderId) return t('error.diagnosis.provider_unavailable', { provider: failedProviderId })
-      if (!modelId) return t('code.select_provider_model')
-      return t('error.diagnosis.model_unavailable', {
-        model: failedProviderId ? `${failedProviderId}/${modelId}` : modelId
-      })
+      if (modelId) {
+        return t('error.diagnosis.model_unavailable', {
+          model: failedProviderId ? `${failedProviderId}/${modelId}` : modelId
+        })
+      }
+      if (failedProviderId) {
+        const labelKey = getProviderLabelKey(failedProviderId, '')
+        return t('error.diagnosis.provider_unavailable', {
+          provider: labelKey ? t(labelKey) : failedProviderId
+        })
+      }
+      return t('code.select_provider_model')
     }
     if (isUnattributedClaudeCodeExit(error)) return getClaudeCodeExitMessage(error, t)
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)

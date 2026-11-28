@@ -1,13 +1,16 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { APICallError } from 'ai'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import type * as labelModule from '@renderer/i18n/label'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import type { SerializedError } from '@renderer/types/error'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { createLocalError } from '@shared/utils/localError'
 
@@ -54,10 +57,14 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/i18n/label', () => ({
-  getHttpMessageLabelKey: (status: string) => `HTTP ${status}`,
-  getProviderLabelKey: (providerId: string) => providerId
-}))
+vi.mock('@renderer/i18n/label', async (importOriginal) => {
+  const actual = await importOriginal<typeof labelModule>()
+  return {
+    getHttpMessageLabelKey: (status: string) => `HTTP ${status}`,
+    getProviderLabelKey: (providerId: string, fallback?: string) =>
+      fallback !== undefined ? actual.getProviderLabelKey(providerId, fallback) : providerId
+  }
+})
 
 vi.mock('react-i18next', () => ({
   Trans: ({
@@ -1121,4 +1128,189 @@ required service tier.`
     fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
+
+  // #25414: Work conversations referencing a deleted/unavailable provider throw
+  // DataApiErrorFactory.notFound('Provider', id) and must explain the missing provider
+  // with provider-settings recovery instead of showing a stream/network interruption.
+  it('names the missing custom provider and offers settings recovery instead of a stream interruption', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('error.diagnosis.provider_unavailable', enUS['error.diagnosis.provider_unavailable'])
+    mocks.translations.set('error.diagnosis.stream', enUS['error.diagnosis.stream'])
+
+    const workMessage: MessageListItem = {
+      id: 'message-work-1',
+      role: 'assistant',
+      topicId: 'agent-topic-1',
+      parentId: 'user-1',
+      createdAt: '',
+      status: 'error',
+      modelId: 'deleted-provider::gpt-4o'
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-work-1-part-0"
+        error={{
+          name: 'DataApiError',
+          message: "Provider with id 'deleted-provider' not found",
+          stack: null,
+          streamStage: 'response-stream'
+        }}
+        message={workMessage}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Provider deleted-provider no longer exists in this app. Choose a model from another provider in this conversation.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.stream'])).not.toBeInTheDocument()
+    expect(screen.queryByText("Provider with id 'deleted-provider' not found")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider')
+  })
+
+  it('still identifies the missing provider and navigates to provider settings when message lacks a model', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('error.diagnosis.provider_unavailable', enUS['error.diagnosis.provider_unavailable'])
+    mocks.translations.set('error.diagnosis.stream', enUS['error.diagnosis.stream'])
+
+    const modellessMessage: MessageListItem = {
+      id: 'message-work-2',
+      role: 'assistant',
+      topicId: 'agent-topic-1',
+      parentId: 'user-1',
+      createdAt: '',
+      status: 'error'
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-work-2-part-0"
+        error={{
+          name: 'DataApiError',
+          message: "Provider with id 'missing-provider' not found",
+          stack: null,
+          streamStage: 'response-stream'
+        }}
+        message={modellessMessage}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Provider missing-provider no longer exists in this app. Choose a model from another provider in this conversation.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.stream'])).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider')
+  })
+
+  it('translates registered missing providers and interpolates unknown IDs like common.close literally', () => {
+    mocks.translations.set('error.diagnosis.provider_unavailable', enUS['error.diagnosis.provider_unavailable'])
+    mocks.translations.set('provider.openai', enUS['provider.openai'])
+    mocks.translations.set('common.close', enUS['common.close'])
+
+    const { rerender } = render(
+      <ErrorBlock
+        partId="message-work-label-1"
+        error={JSON.parse(
+          JSON.stringify({
+            ...serializeError(DataApiErrorFactory.notFound('Provider', 'common.close')),
+            streamStage: 'response-stream'
+          })
+        )}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Provider common.close no longer exists in this app. Choose a model from another provider in this conversation.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Provider Close no longer exists/)).not.toBeInTheDocument()
+
+    rerender(
+      <ErrorBlock
+        partId="message-work-label-2"
+        error={JSON.parse(
+          JSON.stringify({
+            ...serializeError(DataApiErrorFactory.notFound('Provider', 'openai')),
+            streamStage: 'response-stream'
+          })
+        )}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Provider OpenAI no longer exists in this app. Choose a model from another provider in this conversation.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it("delivers apostrophe provider IDs (team's-relay) through the serialized Work error path", async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('error.diagnosis.provider_unavailable', enUS['error.diagnosis.provider_unavailable'])
+    mocks.translations.set('error.diagnosis.stream', enUS['error.diagnosis.stream'])
+
+    const serializedWorkError = JSON.parse(
+      JSON.stringify({
+        ...serializeError(DataApiErrorFactory.notFound('Provider', "team's-relay")),
+        streamStage: 'response-stream'
+      })
+    ) as SerializedError
+
+    render(
+      <ErrorBlock
+        partId="message-work-apostrophe"
+        error={serializedWorkError}
+        message={{ ...message, topicId: 'agent-topic-1', modelId: "team's-relay::gpt-4o" }}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        "Provider team's-relay no longer exists in this app. Choose a model from another provider in this conversation."
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.stream'])).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider')
+  })
+
+  it.each([
+    [402, 'error.diagnosis.quota'],
+    [429, 'error.diagnosis.rate_limit']
+  ] as const)(
+    'preserves %i (%s) diagnosis in serialized upstream responses mimicking missing-provider text',
+    (statusCode, expectedHeadlineKey) => {
+      const apiError = new APICallError({
+        message: "Provider with id 'custom-1' not found",
+        url: 'https://gateway.example.com/v1/chat/completions',
+        requestBodyValues: {},
+        statusCode,
+        responseBody: JSON.stringify({ error: { message: "Provider with id 'custom-1' not found" } })
+      })
+      const serialized = JSON.parse(JSON.stringify(serializeError(apiError))) as SerializedError
+
+      render(<ErrorBlock partId={`message-upstream-${statusCode}`} error={serialized} message={message} />)
+
+      expect(screen.getByText(expectedHeadlineKey)).toBeInTheDocument()
+      expect(screen.queryByText('error.diagnosis.provider_unavailable')).not.toBeInTheDocument()
+    }
+  )
 })

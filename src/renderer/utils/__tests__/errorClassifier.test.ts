@@ -1,7 +1,10 @@
+import { APICallError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '@renderer/types/error'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
+import { serializeError } from '../../../main/ai/utils/serializeError'
 import { classifyError, getLocalModelResolutionFailure, isUnattributedClaudeCodeExit } from '../errorClassifier'
 import { serializeToastError } from '../errorToast'
 
@@ -609,6 +612,61 @@ required service tier.`
     expect(result.navTarget).toBe('/settings/provider')
   })
 
+  // #25414: ProviderService.assertProviderAvailable throws DataApiErrorFactory.notFound('Provider', id).
+  // Even when a Work conversation stream attaches streamStage: 'response-stream', it must classify as
+  // model and route to provider settings instead of falling back to the stream/network interruption banner.
+  it('classifies a missing provider error as model even when marked as response-stream', () => {
+    const result = classifyError(
+      makeError({
+        name: 'DataApiError',
+        message: "Provider with id 'deleted-provider' not found",
+        streamStage: 'response-stream'
+      })
+    )
+
+    expect(result).toEqual({
+      category: 'model',
+      i18nKey: 'error.diagnosis.model',
+      navTarget: '/settings/provider'
+    })
+  })
+
+  it('preserves apostrophe-containing provider IDs through the serialized Work error path', () => {
+    const serialized = JSON.parse(
+      JSON.stringify({
+        ...serializeError(DataApiErrorFactory.notFound('Provider', "team's-relay")),
+        streamStage: 'response-stream'
+      })
+    ) as SerializedError
+
+    expect(getLocalModelResolutionFailure(serialized)).toEqual({ providerId: "team's-relay" })
+    expect(classifyError(serialized, "team's-relay")).toEqual({
+      category: 'model',
+      i18nKey: 'error.diagnosis.model',
+      navTarget: '/settings/provider'
+    })
+  })
+
+  it.each([
+    [402, 'quota'],
+    [429, 'rate_limit']
+  ] as const)(
+    'preserves HTTP %i diagnosis across serialization when gateway text mimics missing provider',
+    (statusCode, expectedCategory) => {
+      const apiError = new APICallError({
+        message: "Provider with id 'custom-1' not found",
+        url: 'https://gateway.example.com/v1/chat/completions',
+        requestBodyValues: {},
+        statusCode,
+        responseBody: JSON.stringify({ error: { message: "Provider with id 'custom-1' not found" } })
+      })
+      const serialized = JSON.parse(JSON.stringify(serializeError(apiError))) as SerializedError
+
+      expect(getLocalModelResolutionFailure(serialized)).toBeNull()
+      expect(classifyError(serialized).category).toBe(expectedCategory)
+    }
+  )
+
   // Rate limit
   it('classifies 429 as rate_limit', () => {
     const result = classifyError(makeError({ statusCode: 429 }))
@@ -962,6 +1020,7 @@ describe('getLocalModelResolutionFailure', () => {
     ["Model with id 'openai/gpt-test' not found", { modelId: 'openai/gpt-test' }],
     ["Provider with id 'team's-relay' not found", { providerId: "team's-relay" }],
     ["Provider with id 'team\nrelay' not found", { providerId: 'team\nrelay' }],
+    ["Provider with id 'custom-provider-1' not found", { providerId: 'custom-provider-1' }],
     ['Cannot resolve modelId: not-a-real-model', { modelId: 'not-a-real-model' }],
     ['Cannot resolve modelId="gpt-test" providerId="openai"', { providerId: 'openai', modelId: 'gpt-test' }],
     ['Cannot resolve modelId [gpt-test,other-model]', { modelId: 'gpt-test' }]
@@ -971,6 +1030,7 @@ describe('getLocalModelResolutionFailure', () => {
 
   it('does not mistake a provider response for a local resolution failure', () => {
     expect(getLocalModelResolutionFailure(makeError({ message: 'Model not found', status: 404 }))).toBeNull()
+    expect(getLocalModelResolutionFailure(makeError({ message: 'Provider not found', status: 404 }))).toBeNull()
   })
 })
 
