@@ -90,7 +90,7 @@ import {
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
-import { toClaudeCodeSandboxSettings } from './sandboxSettings'
+import { checkClaudeCodeSandboxAvailability, toClaudeCodeSandboxSettings } from './sandboxSettings'
 import { buildPluginDirectoryIndex } from './skillDependencies'
 import { decisionToPermissionResult } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
@@ -203,7 +203,6 @@ export async function buildClaudeCodeSessionSettings(
   await prepareClaudeCodeWorkspaceDirectory(session)
   // Sealed agents exclude filesystem settings and native workspace instructions.
   const settingSources = capabilities.environment === 'sealed' ? [] : getSettingSources(provider)
-  const sandboxPolicy = resolveSandboxPolicy(capabilities.sandbox, application.getPath('sys.home'))
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
   const effectiveModelId = options?.effectiveModelId ?? session.model ?? agent.model ?? undefined
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
@@ -211,6 +210,20 @@ export async function buildClaudeCodeSessionSettings(
     buildEnvironment(provider, agent),
     discoverPlugins(cwd, agent.id)
   ])
+  const sandboxAvailability = capabilities.sandbox
+    ? await checkClaudeCodeSandboxAvailability(resolveClaudeExecutablePath(), env)
+    : undefined
+  if (sandboxAvailability?.available === false) {
+    logger.info('Shell sandbox unavailable; keeping per-call shell approval', {
+      sessionId: session.id,
+      reason: sandboxAvailability.reason
+    })
+  }
+  const sandboxPolicy = resolveSandboxPolicy(
+    capabilities.sandbox,
+    application.getPath('sys.home'),
+    sandboxAvailability?.available === true
+  )
   const mcpWarm = await mcpWarmPromise
   const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
   const localPlugin = (pluginPath: string) => ({ type: 'local' as const, path: pluginPath, skipMcpDiscovery: true })

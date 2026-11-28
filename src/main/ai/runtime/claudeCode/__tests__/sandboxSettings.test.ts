@@ -1,38 +1,134 @@
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 import { resolveSandboxPolicy, type SandboxOverlay } from '@main/ai/toolApproval/sandboxPolicy'
 
-import { assertSandboxSettingsUnchanged, sandboxEscapeGuidance, toClaudeCodeSandboxSettings } from '../sandboxSettings'
+import {
+  assertSandboxSettingsUnchanged,
+  checkClaudeCodeSandboxAvailability,
+  sandboxEscapeGuidance,
+  toClaudeCodeSandboxSettings
+} from '../sandboxSettings'
 
-const mocks = vi.hoisted(() => ({ isMac: true }))
+const mocks = vi.hoisted(() => ({ isWin: false }))
 
 vi.mock('@main/core/platform', () => ({
-  get isMac() {
-    return mocks.isMac
+  get isWin() {
+    return mocks.isWin
   }
 }))
 
 const home = '/Users/probe'
 
 beforeEach(() => {
-  mocks.isMac = true
+  mocks.isWin = false
 })
 
 function settingsFor(overlay: SandboxOverlay) {
-  const policy = resolveSandboxPolicy(overlay, home)
-  if (!policy) throw new Error('expected a sandbox policy on darwin')
+  const policy = resolveSandboxPolicy(overlay, home, true)
+  if (!policy) throw new Error('expected a sandbox policy when the sandbox is available')
   return toClaudeCodeSandboxSettings(policy)
 }
 
 describe('resolveSandboxPolicy', () => {
   it('gives no sandbox to an Agent without an overlay', () => {
-    expect(resolveSandboxPolicy(undefined, home)).toBeUndefined()
+    expect(resolveSandboxPolicy(undefined, home, true)).toBeUndefined()
   })
 
-  it('gives no sandbox outside macOS', () => {
-    mocks.isMac = false
-    expect(resolveSandboxPolicy({}, home)).toBeUndefined()
+  it('gives no sandbox when the runtime reports none on this machine (AC6)', () => {
+    expect(resolveSandboxPolicy({}, home, false)).toBeUndefined()
+  })
+})
+
+describe('checkClaudeCodeSandboxAvailability', () => {
+  let root: string
+  let cli: string
+  let record: string
+  const status = (fields: Record<string, unknown> = {}) =>
+    JSON.stringify({ statusVersion: 3, supported: true, enabled: true, unavailableReason: null, ...fields })
+
+  beforeAll(async () => {
+    root = await mkdtemp(path.join(tmpdir(), 'cherry-sandbox-status-'))
+    await mkdir(path.join(root, 'status'))
+    cli = path.join(root, 'claude')
+    record = path.join(root, 'record.json')
+    await writeFile(
+      cli,
+      [
+        '#!/usr/bin/env node',
+        "const fs = require('fs'), path = require('path')",
+        'const dir = process.env.CLAUDE_CONFIG_DIR',
+        "fs.writeFileSync(process.env.FAKE_RECORD, JSON.stringify({ args: process.argv.slice(2), dir, settings: fs.readFileSync(path.join(dir, 'settings.json'), 'utf8') }))",
+        "if (process.env.FAKE_MODE === 'exit') process.exit(1)",
+        "if (process.env.FAKE_MODE === 'hang') setTimeout(() => {}, 60_000)",
+        "else process.stdout.write(process.env.FAKE_OUTPUT + '\\n')"
+      ].join('\n')
+    )
+    await chmod(cli, 0o755)
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) =>
+      key === 'feature.agents.claude.sandbox_status.temp' ? path.join(root, 'status', filename ?? '') : `/mock/${key}`
+    )
+  })
+
+  beforeEach(async () => {
+    await rm(record, { force: true })
+  })
+
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  const run = (env: Record<string, string>) =>
+    checkClaudeCodeSandboxAvailability(cli, { PATH: process.env.PATH, FAKE_RECORD: record, ...env })
+
+  it('reports the sandbox available only from a throwaway config directory that enables it (AC7)', async () => {
+    const userConfig = path.join(root, 'user-config')
+
+    await expect(run({ FAKE_OUTPUT: status(), CLAUDE_CONFIG_DIR: userConfig })).resolves.toEqual({ available: true })
+
+    const seen = JSON.parse(await readFile(record, 'utf8'))
+    expect(seen.args).toEqual(['sandbox', 'status'])
+    expect(seen.dir).not.toBe(userConfig)
+    expect(path.dirname(seen.dir)).toBe(path.join(root, 'status'))
+    expect(JSON.parse(seen.settings)).toEqual({ sandbox: { enabled: true } })
+    await expect(readFile(path.join(seen.dir, 'settings.json'))).rejects.toThrow()
+  })
+
+  it.each([
+    [
+      'a missing dependency',
+      { FAKE_OUTPUT: status({ unavailableReason: 'bubblewrap is not installed' }) },
+      'bubblewrap'
+    ],
+    ['another status version', { FAKE_OUTPUT: status({ statusVersion: 4 }) }, 'version 4'],
+    ['an unsupported platform', { FAKE_OUTPUT: status({ supported: false }) }, 'does not support'],
+    ['a disabled sandbox', { FAKE_OUTPUT: status({ enabled: false }) }, 'did not enable'],
+    ['output that is not JSON', { FAKE_OUTPUT: 'sandbox: ok' }, 'did not print JSON'],
+    ['a failing command', { FAKE_MODE: 'exit' }, 'failed']
+  ])('reports the sandbox unavailable for %s (AC2)', async (_label, env, reason) => {
+    const result = await run(env)
+
+    expect(result.available).toBe(false)
+    expect(result.available === false && result.reason).toContain(reason)
+  })
+
+  it('gives up after five seconds (AC2)', { timeout: 15_000 }, async () => {
+    const started = Date.now()
+
+    await expect(run({ FAKE_MODE: 'hang' })).resolves.toMatchObject({ available: false })
+    expect(Date.now() - started).toBeLessThan(10_000)
+  })
+
+  it('never asks the CLI on native Windows (AC5)', async () => {
+    mocks.isWin = true
+
+    await expect(run({ FAKE_OUTPUT: status() })).resolves.toMatchObject({ available: false })
+    await expect(readFile(record)).rejects.toThrow()
   })
 })
 
