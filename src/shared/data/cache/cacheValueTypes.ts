@@ -181,6 +181,8 @@ export interface CacheChatComposerDraft extends CacheComposerDraftBase {
 
 /** Unsubmitted message-edit composer state. Memory-only because attachments can contain Blobs. */
 export interface CacheMessageEditDraft extends CacheComposerDraftBase {
+  /** Original message part index paired with the file token created for that part. */
+  originalFileTokens?: Array<{ tokenId: string; partIndex: number }>
   reasoningText?: string
 }
 

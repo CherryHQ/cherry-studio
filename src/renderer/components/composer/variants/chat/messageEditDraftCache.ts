@@ -22,6 +22,18 @@ export function readMessageEditDraftCache(messageId: string): MessageEditDraftCa
     knowledgeBaseIds: Array.isArray(cached.knowledgeBaseIds)
       ? cached.knowledgeBaseIds.filter((id): id is string => typeof id === 'string')
       : [],
+    ...(Array.isArray(cached.originalFileTokens)
+      ? {
+          originalFileTokens: cached.originalFileTokens.filter(
+            (entry): entry is { tokenId: string; partIndex: number } =>
+              isRecord(entry) &&
+              typeof entry.tokenId === 'string' &&
+              typeof entry.partIndex === 'number' &&
+              Number.isInteger(entry.partIndex) &&
+              entry.partIndex >= 0
+          )
+        }
+      : {}),
     ...(typeof cached.reasoningText === 'string' ? { reasoningText: cached.reasoningText } : {})
   }
 }
@@ -34,6 +46,7 @@ export function writeMessageEditDraftCache(messageId: string, draft: MessageEdit
       tokens: [...draft.tokens],
       files: [...draft.files],
       knowledgeBaseIds: [...draft.knowledgeBaseIds],
+      originalFileTokens: draft.originalFileTokens?.map((entry) => ({ ...entry })),
       ...(draft.reasoningText !== undefined ? { reasoningText: draft.reasoningText } : {})
     },
     MESSAGE_EDIT_DRAFT_CACHE_TTL

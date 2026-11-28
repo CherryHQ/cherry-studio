@@ -22,6 +22,7 @@ export interface EditableMessageDraft {
   text: string
   draftTokens: ComposerSerializedToken[]
   files: ComposerAttachment[]
+  originalFileTokens: Array<{ tokenId: string; partIndex: number }>
 }
 
 const ANCHOR_ID_PREFIX = 'message-part'
@@ -283,6 +284,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
   const fileTokens = draftTokens.filter((token) => token.kind === 'file')
   const usedFileTokenIds = new Set<string>()
   const attachmentByMatchedTokenId = new Map<string, ComposerAttachment>()
+  const originalFileTokens: EditableMessageDraft['originalFileTokens'] = []
   const files = parts.flatMap((part, index) => {
     if (part.type !== 'file') return []
     const path = part.url
@@ -293,8 +295,10 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
       getComposerFileTokenSourceId({ fileTokenSourceId: cherry?.fileTokenSourceId }) ??
       createComposerFileTokenSourceId()
     const file = createEditableAttachment(part, index, fileTokenSourceId, readFileTokenPayload(token?.payload))
-    if (token && file) attachmentByMatchedTokenId.set(token.id, file)
-    return file ? [file] : []
+    if (!file) return []
+    if (token) attachmentByMatchedTokenId.set(token.id, file)
+    originalFileTokens.push({ tokenId: chatComposerTokenId.file(file), partIndex: index })
+    return [file]
   })
   // Live composer file tokens carry the attachment as their payload; the stored snapshot only
   // carries the serialized display fields. Restore the attachment so the token renders the same.
@@ -307,7 +311,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
     return { ...token, id: composerFileTokenIdFromSourceId(file.fileTokenSourceId), payload: file }
   })
 
-  return { text, draftTokens: [...normalizedDraftTokens, ...anchors], files }
+  return { text, draftTokens: [...normalizedDraftTokens, ...anchors], files, originalFileTokens }
 }
 
 export function getEditableKnowledgeBases(
