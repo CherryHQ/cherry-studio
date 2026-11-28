@@ -2594,6 +2594,7 @@ export class AgentSessionMessageService {
     const existing = tx
       .select({
         role: sessionMessagesTable.role,
+        status: sessionMessagesTable.status,
         parentId: sessionMessagesTable.parentId,
         inputContextId: sessionMessagesTable.inputContextId,
         deliveryStatus: sessionMessagesTable.deliveryStatus,
@@ -2620,7 +2621,8 @@ export class AgentSessionMessageService {
       )
       .limit(1)
       .get()
-    if (existing?.inputContextId || existing?.nativeSessionId || ownsPendingReply) {
+    const isUnsentUserMessage = existing?.role === 'user' && existing.status === 'paused'
+    if ((existing?.inputContextId && !isUnsentUserMessage) || existing?.nativeSessionId || ownsPendingReply) {
       throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native input binding')
     }
     this.invalidateForkPrefixTx(tx, sessionId, messageId)

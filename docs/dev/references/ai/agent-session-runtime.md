@@ -588,7 +588,8 @@ make historical results mutable or missing and require a second cross-Session hy
 
 These product storage operations do not grant UI permissions: in Agent/Work, assistant replies
 offer no Delete action. User-message deletion retains its existing guards, including the native
-input binding lock. Deleting a product record does not rewind native history.
+input binding lock. A Pi Durable follow-up withdrawn before placement can be deleted once the
+transcript shows it as unsent. Deleting a product record does not rewind native history.
 
 Only safe deliverables are copied: terminal text and managed file references. Reasoning, tool
 calls/results, approval state, hidden prompts, and unmanaged local paths are not result content.

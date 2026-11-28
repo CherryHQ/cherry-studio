@@ -1047,8 +1047,7 @@ it('saves a truncated answer as an output-limit error after its follow-up was pl
   ])
 })
 
-// AC4 Stop: Durable withdraws input still queued; the transcript must not show it as sent.
-it('marks a queued Durable input that Stop withdrew as not sent', async () => {
+it('deletes a queued Durable input after Stop withdraws it', async () => {
   MockApplicationUtils.setService('AiStreamManager', {
     drainRuntimeReply: async () => {},
     pauseRuntimeTurn: () => false
@@ -1058,6 +1057,13 @@ it('marks a queued Durable input that Stop withdrew as not sent', async () => {
   await f.project([text('answer', 'Partial answer')])
   const queued = savedUser(f.reply.id, 'Queued question')
   f.service.enqueueUserMessage('root', queued, { followUp: true })
+  application.get('DbService').withWriteTx((tx) => {
+    messages.bindInputContextTx(tx, 'root', queued.id, f.context.id)
+    messages.bindNativeInputTx(tx, 'root', queued.id, f.context.id, 'native-queued-input')
+  })
+  expect(() => messages.deleteSessionMessage('root', queued.id)).toThrow(
+    expect.objectContaining({ code: 'RESOURCE_LOCKED' })
+  )
   f.handle.abortController.abort('user-requested')
   const paused: StreamPausedResult = { status: 'paused', isTopicDone: true, finalMessage: (await f.done).finalMessage }
   await f.handle.listeners[0].onPaused(paused)
@@ -1079,6 +1085,8 @@ it('marks a queued Durable input that Stop withdrew as not sent', async () => {
   await stopped
 
   expect(messages.getSessionMessage('root', queued.id).status).toBe('paused')
+  messages.deleteSessionMessage('root', queued.id)
+  expect(() => messages.getSessionMessage('root', queued.id)).toThrow(expect.objectContaining({ code: 'NOT_FOUND' }))
   expect(messages.getSessionMessage('root', f.reply.id).status).toBe('paused')
 })
 
