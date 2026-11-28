@@ -12,6 +12,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileHandle } from '@shared/data/types/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
@@ -45,24 +46,35 @@ const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
  * chat path doesn't re-OCR the same image every turn (mirrors
  * {@link extractDocumentText}). Path handles have no version → no cache.
  */
-export async function ocrImageToText(file: FileHandle, signal?: AbortSignal): Promise<string> {
+export async function ocrImageToText(
+  file: FileHandle,
+  signal?: AbortSignal,
+  resolvedConfig?: FileProcessorMerged
+): Promise<string> {
   const cache = application.get('CacheService')
+  const config = resolvedConfig ?? resolveProcessorConfigByFeature('image_to_text')
   let cacheKey: string | null = null
   if (file.kind === 'entry') {
     const version = await application.get('FileManager').getVersion(file.entryId)
-    cacheKey = `ocr-extraction:${file.entryId}:${version.mtime}:${version.size}`
+    const capability = config.capabilities.find((item) => item.feature === 'image_to_text')
+    const configIdentity = JSON.stringify({
+      processorId: config.id,
+      modelId: capability?.modelId ?? '',
+      apiHost: capability?.apiHost ?? '',
+      options: config.options ?? {}
+    })
+    cacheKey = `ocr-extraction:${file.entryId}:${version.mtime}:${version.size}:${configIdentity}`
     const cached = cache.get<string>(cacheKey)
     if (cached !== undefined) return cached
   }
 
-  const text = await runOcr(file, signal)
+  const text = await runOcr(file, config, signal)
   if (cacheKey) cache.set(cacheKey, text, CACHE_TTL_MS)
   return text
 }
 
-async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
+async function runOcr(file: FileHandle, config: FileProcessorMerged, signal?: AbortSignal): Promise<string> {
   const feature = 'image_to_text' as const
-  const config = resolveProcessorConfigByFeature(feature)
   const handler = getCapabilityHandler(config.id, feature)
   const fileInfo = await resolveFileProcessingFileInfo(file)
   assertFileTypeSupported(fileInfo, feature, config)
