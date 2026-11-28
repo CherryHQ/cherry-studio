@@ -36,7 +36,9 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
 
 describe('refineLocalEmbeddingChunks', () => {
   it('counts tokens via the inference worker (never imports @huggingface/transformers on the main process) and enforces the effective token cap', async () => {
-    mocks.countTokensMock.mockImplementation((texts: string[]) => Promise.resolve(texts.map((text) => text.length)))
+    mocks.countTokensMock.mockImplementation((_bundleId: string, texts: string[]) =>
+      Promise.resolve(texts.map((text) => text.length))
+    )
     mocks.appGetMock.mockImplementation((name: string) => {
       if (name === 'EmbeddingInferenceService') {
         return { countTokens: mocks.countTokensMock }
@@ -49,7 +51,7 @@ describe('refineLocalEmbeddingChunks', () => {
       chunks: [{ unitIndex: 0, charStart: 0, charEnd: 10, text: 'abcdefghij' }]
     })
 
-    expect(mocks.countTokensMock).toHaveBeenCalledWith(expect.any(Array), undefined)
+    expect(mocks.countTokensMock).toHaveBeenCalledWith('qwen3-embedding-0.6b', expect.any(Array), undefined)
     expect(refined.chunks.length).toBeGreaterThan(1)
     for (const chunk of refined.chunks) {
       expect(chunk.text.length).toBeLessThanOrEqual(4)
@@ -58,7 +60,9 @@ describe('refineLocalEmbeddingChunks', () => {
   })
 
   it('threads the caller-provided AbortSignal through to the worker call', async () => {
-    mocks.countTokensMock.mockImplementation((texts: string[]) => Promise.resolve(texts.map((text) => text.length)))
+    mocks.countTokensMock.mockImplementation((_bundleId: string, texts: string[]) =>
+      Promise.resolve(texts.map((text) => text.length))
+    )
     mocks.appGetMock.mockImplementation((name: string) => {
       if (name === 'EmbeddingInferenceService') {
         return { countTokens: mocks.countTokensMock }
@@ -73,6 +77,6 @@ describe('refineLocalEmbeddingChunks', () => {
       controller.signal
     )
 
-    expect(mocks.countTokensMock).toHaveBeenCalledWith(expect.any(Array), controller.signal)
+    expect(mocks.countTokensMock).toHaveBeenCalledWith('qwen3-embedding-0.6b', expect.any(Array), controller.signal)
   })
 })

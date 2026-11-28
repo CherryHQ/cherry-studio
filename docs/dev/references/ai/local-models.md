@@ -343,7 +343,9 @@ or handler, but does require the catalog, shared vocabulary and presentation des
 1. Add a `ModelBundle` to `catalog/catalog.ts` — every file with a real `sha256`
    (see [Obtaining a checksum](#obtaining-a-checksum)) and a `minBytes` floor.
 2. Add its install directory to the path registry as a `feature.*` key
-   (see [paths/README](../../../../src/main/core/paths/README.md)).
+   (see [paths/README](../../../../src/main/core/paths/README.md)). Give every bundle
+   its own key: removal deletes the bundle's root directory, so two bundles sharing one
+   root would wipe each other's files.
 3. If it needs a native runtime that is not already a `SharedArtifact`, add one and list
    every platform it ships binaries for — omissions are what make a platform unsupported.
 4. Add its id — and, for a new capability, that capability and its bundle mapping — to

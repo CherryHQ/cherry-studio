@@ -5054,6 +5054,8 @@
   "settings.dependencies.localModels.download": "다운로드",
   "settings.dependencies.localModels.embedding.name": "로컬 임베딩",
   "settings.dependencies.localModels.embedding.subtitle": "Qwen3 Embedding 0.6B · 약 614 MB",
+  "settings.dependencies.localModels.harrier.name": "Harrier 270M",
+  "settings.dependencies.localModels.harrier.subtitle": "Harrier 270M · 약 370 MB",
   "settings.dependencies.localModels.notice.downloadFailed": "다운로드에 실패했습니다. 연결을 확인하고 다시 시도하세요.",
   "settings.dependencies.localModels.notice.inUse": "지식 베이스에서 아직 사용하고 있어 가중치를 유지했습니다.",
   "settings.dependencies.localModels.notice.incompleteCache": "모델 파일이 불완전합니다. 다운로드를 다시 시도하여 복구하세요.",

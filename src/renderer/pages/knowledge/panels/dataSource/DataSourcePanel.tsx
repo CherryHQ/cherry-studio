@@ -10,8 +10,8 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/schemas/knowledges'
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
+import { localEmbeddingBundleIdForUniqueModelId } from '@shared/data/presets/localEmbedding'
+import type { LocalModelBundleId, LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -454,19 +454,25 @@ const DataSourcePanelContent = ({
   )
 }
 
-const LocalEmbeddingDataSourcePanel = (props: DataSourcePanelProps) => {
-  const { status, percent } = useLocalModel(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding)
+const LocalEmbeddingDataSourcePanel = (props: DataSourcePanelProps & { bundleId: LocalModelBundleId }) => {
+  const { bundleId, ...contentProps } = props
+  const { status, percent } = useLocalModel(bundleId)
 
   return (
-    <DataSourcePanelContent {...props} localEmbeddingState={status === 'ready' ? undefined : { status, percent }} />
+    <DataSourcePanelContent
+      {...contentProps}
+      localEmbeddingState={status === 'ready' ? undefined : { status, percent }}
+    />
   )
 }
 
-const DataSourcePanel = (props: DataSourcePanelProps) =>
-  props.embeddingModelId === LOCAL_EMBEDDING_UNIQUE_MODEL_ID ? (
-    <LocalEmbeddingDataSourcePanel {...props} />
-  ) : (
-    <DataSourcePanelContent {...props} />
-  )
+const DataSourcePanel = (props: DataSourcePanelProps) => {
+  const bundleId =
+    props.embeddingModelId != null ? localEmbeddingBundleIdForUniqueModelId(props.embeddingModelId) : undefined
+  if (bundleId) {
+    return <LocalEmbeddingDataSourcePanel {...props} bundleId={bundleId} />
+  }
+  return <DataSourcePanelContent {...props} />
+}
 
 export default DataSourcePanel

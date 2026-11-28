@@ -295,6 +295,85 @@ export const LOCAL_MODEL_BUNDLES = {
   },
   /** Text embedding for the knowledge base. The four files are what transformers.js
    * needs to load the q8 weights offline; the repo's other quantizations are not fetched. */
+  'harrier-oss-v1-270m': {
+    id: 'harrier-oss-v1-270m',
+    capability: 'embedding',
+    installDirKey: 'feature.embedding.harrier',
+    // transformers.js loads a model from the directory holding its config.json, and
+    // names that directory after the repo — mirroring the qwen3-embedding layout.
+    installSubdir: 'onnx-community/harrier-oss-v1-270m-ONNX',
+    requires: ['onnxruntime-node'],
+    runtime: { dtype: 'q8' },
+    provenance: {
+      license: {
+        spdx: 'MIT',
+        url: 'https://huggingface.co/microsoft/harrier-oss-v1-270m'
+      },
+      upstream: {
+        url: 'https://huggingface.co/microsoft/harrier-oss-v1-270m',
+        revision: 'main'
+      },
+      conversion: {
+        url: 'https://huggingface.co/onnx-community/harrier-oss-v1-270m-ONNX',
+        revision: 'main',
+        license: {
+          spdx: 'MIT',
+          url: 'https://huggingface.co/microsoft/harrier-oss-v1-270m'
+        }
+      }
+    },
+    files: [
+      {
+        key: 'config',
+        relPath: 'config.json',
+        repo: 'onnx-community/harrier-oss-v1-270m-ONNX',
+        remoteFile: 'config.json',
+        sha256: '5366f9919a82aaeceb6707bf218c5769f414d60f5dbaf781fa07e5465487fd7c',
+        minBytes: 500,
+        weight: 1
+      },
+      {
+        key: 'tokenizerConfig',
+        relPath: 'tokenizer_config.json',
+        repo: 'onnx-community/harrier-oss-v1-270m-ONNX',
+        remoteFile: 'tokenizer_config.json',
+        sha256: '135405f3479eaebc473e2e78593f2195c7598948a215ee748758def426b30f59',
+        minBytes: 500,
+        weight: 1
+      },
+      {
+        key: 'tokenizer',
+        relPath: 'tokenizer.json',
+        repo: 'onnx-community/harrier-oss-v1-270m-ONNX',
+        remoteFile: 'tokenizer.json',
+        sha256: 'ec95be298bea26f90370854faa650744c9fb0a04ca5e5ff95dd3913393ac5e45',
+        minBytes: 10_000_000,
+        weight: 20
+      },
+      {
+        key: 'weights',
+        // Nested under `onnx/` because transformers.js resolves a model's weights
+        // relative to the directory holding config.json.
+        relPath: 'onnx/model_quantized.onnx',
+        repo: 'onnx-community/harrier-oss-v1-270m-ONNX',
+        remoteFile: 'onnx/model_quantized.onnx',
+        sha256: '44fe93efec64ac3446703403634fd8410c7dabf3814bf00dc0825f1e2dde75c0',
+        minBytes: 100_000,
+        weight: 1
+      },
+      {
+        key: 'weightsData',
+        // External-data sidecar of the quantized weights (`use_external_data_format`);
+        // onnxruntime loads it from beside `model_quantized.onnx`, so both must ship.
+        relPath: 'onnx/model_quantized.onnx_data',
+        repo: 'onnx-community/harrier-oss-v1-270m-ONNX',
+        remoteFile: 'onnx/model_quantized.onnx_data',
+        sha256: 'a81e3db98eaedd77deafe07d7c3c03b254b7e012790a7a1774295aff03d4fbdf',
+        minBytes: 200_000_000,
+        weight: 343
+      }
+    ]
+  },
   'qwen3-embedding-0.6b': {
     id: 'qwen3-embedding-0.6b',
     capability: 'embedding',

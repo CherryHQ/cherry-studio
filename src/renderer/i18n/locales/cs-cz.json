@@ -5058,6 +5058,8 @@
   "settings.dependencies.localModels.download": "Stáhnout",
   "settings.dependencies.localModels.embedding.name": "Lokální vkládání",
   "settings.dependencies.localModels.embedding.subtitle": "Qwen3 Embedding 0.6B · ~614 MB",
+  "settings.dependencies.localModels.harrier.name": "Harrier 270M",
+  "settings.dependencies.localModels.harrier.subtitle": "Harrier 270M · ~370 MB",
   "settings.dependencies.localModels.notice.downloadFailed": "Stahování se nezdařilo. Zkontrolujte připojení a zkuste to znovu.",
   "settings.dependencies.localModels.notice.inUse": "Model stále používá znalostní báze; váhy byly ponechány.",
   "settings.dependencies.localModels.notice.incompleteCache": "Soubory modelu jsou neúplné. Opravte je opětovným stažením.",

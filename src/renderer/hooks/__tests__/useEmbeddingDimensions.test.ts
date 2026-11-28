@@ -31,6 +31,22 @@ describe('useEmbeddingDimensions', () => {
     expect(result.current.isFetchingDimensions).toBe(false)
   })
 
+  it('returns builtin local embedding dimensions without probing the model', async () => {
+    const { result } = renderHook(() => useEmbeddingDimensions())
+
+    let qwen = 0
+    let harrier = 0
+    await act(async () => {
+      qwen = await result.current.fetchDimensions('local-embedding::qwen3-embedding-0.6b')
+      harrier = await result.current.fetchDimensions('local-embedding::harrier-oss-v1-270m')
+    })
+
+    expect(qwen).toBe(1024)
+    expect(harrier).toBe(640)
+    expect(mockEmbedMany).not.toHaveBeenCalled()
+    expect(result.current.isFetchingDimensions).toBe(false)
+  })
+
   it('toggles loading while the request is pending', async () => {
     let resolveRequest: (value: { embeddings: number[][] }) => void = () => {}
     mockEmbedMany.mockReturnValueOnce(
