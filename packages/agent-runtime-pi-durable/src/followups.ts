@@ -1,9 +1,7 @@
 import type { Context } from '@earendil-works/chord/context'
 import {
-  InboxDoc,
   LiveDoc,
-  type ConversationId,
-  type Harness,
+  type Conversation,
   type InboxItem,
   type InboxState,
   type JsonObject,
@@ -17,12 +15,18 @@ export interface DurableFollowup {
   inputId: string
   submissionId: InboxItem['id']
   revision: number
+  parts?: string
   textPart?: string
   steering?: true
+  editing?: true
 }
 
+type EditHold = { token: string; owner: string }
+
 export type DurableFollowupChange =
-  | { type: 'edit'; inputId: string; revision: number; content: string; textPart: string }
+  | { type: 'begin-edit'; inputId: string; revision: number; hold: EditHold; isOwnerLive: (owner: string) => boolean }
+  | { type: 'cancel-edit'; inputId: string; hold: EditHold }
+  | { type: 'edit'; inputId: string; revision: number; hold: EditHold; content: string; parts: string }
   | { type: 'reorder'; before: string[]; after: string[] }
   | { type: 'withdraw'; inputId: string }
   | { type: 'steer'; inputId: string; activeInputId: string; replyId: string }
@@ -42,18 +46,15 @@ export function followupSteerPlacement(data: unknown, runId?: TaskId): { replyId
   return steer.runId === runId ? { replyId: steer.replyId } : {}
 }
 
-export function followupEdit(data: unknown): Pick<DurableFollowup, 'revision' | 'textPart'> {
+export type DurableFollowupEdit = Pick<DurableFollowup, 'revision' | 'parts' | 'textPart'>
+
+export function followupEdit(data: unknown): DurableFollowupEdit {
   if (data && typeof data === 'object' && 'queueEdit' in data) {
     const edit = data.queueEdit
-    if (
-      edit &&
-      typeof edit === 'object' &&
-      'revision' in edit &&
-      'textPart' in edit &&
-      typeof edit.revision === 'number' &&
-      typeof edit.textPart === 'string'
-    ) {
-      return { revision: edit.revision, textPart: edit.textPart }
+    if (edit && typeof edit === 'object' && 'revision' in edit && typeof edit.revision === 'number') {
+      if ('parts' in edit && typeof edit.parts === 'string') return { revision: edit.revision, parts: edit.parts }
+      if ('textPart' in edit && typeof edit.textPart === 'string')
+        return { revision: edit.revision, textPart: edit.textPart }
     }
   }
   return { revision: 0 }
@@ -71,18 +72,25 @@ export function readFollowups(inbox: InboxState | undefined): DurableFollowup[] 
     const inputId = productInputId(item.entry.data)
     const steering = item.mode === 'steer' && followupSteerPlacement(item.entry.data) ? true : undefined
     if (!inputId || (item.mode === 'steer' && !steering)) return []
-    return [{ inputId, submissionId: item.id, ...followupEdit(item.entry.data), ...(steering && { steering }) }]
+    return [
+      {
+        inputId,
+        submissionId: item.id,
+        ...followupEdit(item.entry.data),
+        ...(steering && { steering }),
+        ...(item.editHold && { editing: true as const })
+      }
+    ]
   })
 }
 
 export async function changeFollowups(
-  harness: Pick<Harness, 'commit'>,
-  conversationId: ConversationId,
+  conversation: Pick<Conversation, 'id' | 'changeFollowUps'>,
   change: DurableFollowupChange,
   context: Context
 ): Promise<boolean> {
-  return harness.commit(async (tx) => {
-    const inbox = await tx.doc(InboxDoc, conversationId)
+  const conversationId = conversation.id
+  return conversation.changeFollowUps(async (tx, inbox) => {
     if (change.type === 'withdraw') {
       const index = inbox.items.findIndex((item) => followupId(item) === change.inputId)
       if (index < 0) return false
@@ -95,28 +103,45 @@ export async function changeFollowups(
     if (change.type === 'steer') {
       const { run } = await tx.doc(LiveDoc, conversationId)
       const item = inbox.items.find((item) => followupId(item) === change.inputId)
-      if (!run || run.afterRun || item?.mode !== 'followUp' || !item.entry) return false
+      if (!run || run.afterRun || item?.mode !== 'followUp' || !item.entry || item.editHold) return false
       const runId = run.id ?? run.taskId
       const active = await tx.submissionByRequest(conversationId, change.activeInputId)
       if (active?.type !== 'input' || active.runId !== runId || active.status !== 'placed') return false
       item.mode = 'steer'
       if (inbox.followUpsPaused && !inbox.items.some((item) => item.mode === 'followUp')) delete inbox.followUpsPaused
-      item.entry.data = { ...(item.entry.data as JsonObject), steer: { runId, replyId: change.replyId } }
+      item.entry = {
+        ...item.entry,
+        data: { ...(item.entry.data as JsonObject), steer: { runId, replyId: change.replyId } }
+      }
       await registerFollowupProjection(tx, { threadId: String(conversationId), inputId: change.inputId })
       return true
     }
-    if (change.type === 'edit') {
+    if (change.type === 'begin-edit' || change.type === 'cancel-edit' || change.type === 'edit') {
       const item = inbox.items.find((item) => followupId(item) === change.inputId)
-      if (item?.mode !== 'followUp' || !item.entry || followupEdit(item.entry.data).revision !== change.revision)
-        return false
+      if (item?.mode !== 'followUp' || !item.entry) return false
+      if (change.type === 'begin-edit') {
+        if (followupEdit(item.entry.data).revision !== change.revision || !change.isOwnerLive(change.hold.owner))
+          return false
+        if (item.editHold && item.editHold.owner !== change.hold.owner && change.isOwnerLive(item.editHold.owner))
+          return false
+        item.editHold = change.hold
+        return true
+      }
+      if (item.editHold?.token !== change.hold.token || item.editHold.owner !== change.hold.owner) return false
+      if (change.type === 'cancel-edit') {
+        delete item.editHold
+        return true
+      }
+      if (followupEdit(item.entry.data).revision !== change.revision) return false
       item.content = change.content
       item.entry = {
         ...item.entry,
         data: {
           ...(item.entry.data as JsonObject),
-          queueEdit: { revision: change.revision + 1, textPart: change.textPart }
+          queueEdit: { revision: change.revision + 1, parts: change.parts }
         }
       }
+      delete item.editHold
       return true
     }
 

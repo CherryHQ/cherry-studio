@@ -70,7 +70,8 @@ import {
   followupSteerPlacement,
   readFollowups,
   type DurableFollowup,
-  type DurableFollowupChange
+  type DurableFollowupChange,
+  type DurableFollowupEdit
 } from './followups'
 import { productInputId, readDurableInput, submissionState } from './inputLookup'
 import { previewContentIndices, previewTextAppends } from './previewTextAppends'
@@ -94,7 +95,7 @@ export interface PiDurableRuntimeOptions {
   /** Synchronous placement notification before the scheduler can issue the next model request. */
   readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId, promotion?: { replyId?: string }) => void
   readonly onFollowupsChanged?: (thread: ThreadId, queue: readonly DurableFollowup[], paused: boolean) => void
-  readonly onFollowupEdit?: (thread: ThreadId, inputId: InputId, textPart: string) => void
+  readonly onFollowupEdit?: (thread: ThreadId, inputId: InputId, edit: DurableFollowupEdit) => void
   readonly onError?: (error: unknown) => void
 }
 export interface PiDurableRuntimeBehavior {
@@ -554,10 +555,10 @@ export async function createPiDurableRuntime(
             function restoreEdit(source: { kind: string; data?: unknown } | undefined) {
               if (!options.onFollowupEdit || source?.kind !== 'cherry.user-input') return
               const id = productInputId(source.data)
-              const { textPart } = followupEdit(source.data)
-              if (!id || textPart === undefined) return
+              const edit = followupEdit(source.data)
+              if (!id || edit.revision === 0) return
               try {
-                options.onFollowupEdit(refFor(conversation.id).id, id, textPart)
+                options.onFollowupEdit(refFor(conversation.id).id, id, edit)
               } catch (cause) {
                 report(cause)
               }
@@ -992,9 +993,7 @@ export async function createPiDurableRuntime(
         resumeFollowups: () =>
           unavailable() ? Promise.resolve(false) : track(entry.conversation.resumeFollowUps(context)),
         changeFollowups: (change) =>
-          unavailable()
-            ? Promise.resolve(false)
-            : track(changeFollowups(native, entry.conversation.id, change, context)),
+          unavailable() ? Promise.resolve(false) : track(changeFollowups(entry.conversation, change, context)),
         observe: (sink, knownSources) => observeCaptured(() => entry.projection.observe(sink, knownSources)),
         relation: () =>
           track(
