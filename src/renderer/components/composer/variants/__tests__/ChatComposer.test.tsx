@@ -712,6 +712,16 @@ const originalFetch = globalThis.fetch
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: (_key: string, action: () => void) => {
+          action()
+          return Promise.resolve()
+        }
+      }
+    })
+
     mocks.quotaExhaustion = null
     mocks.exhaustedTargets.clear()
     mocks.availabilityRevision = 1
