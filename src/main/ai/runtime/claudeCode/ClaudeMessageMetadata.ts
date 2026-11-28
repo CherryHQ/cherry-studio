@@ -330,8 +330,11 @@ export class ClaudeMessageMetadata {
 
   private buildToolOutput(output: unknown, state: ToolMetadata): unknown {
     if (state.toolType !== 'mcp') return normalizeClaudeToolResult(output)
+    const structuredContent = isRecord(output) ? output.structuredContent : undefined
+    const content = isRecord(structuredContent) && isRecord(output) ? output.content : output
     return {
-      content: hasMcpNonTextContent(output) ? normalizeMcpToolContent(output) : normalizeClaudeToolResult(output),
+      content: hasMcpNonTextContent(content) ? normalizeMcpToolContent(content) : normalizeClaudeToolResult(content),
+      ...(isRecord(structuredContent) ? { structuredContent: normalizeClaudeToolResult(structuredContent) } : {}),
       metadata: {
         type: 'mcp',
         name: state.displayName ?? state.name,
