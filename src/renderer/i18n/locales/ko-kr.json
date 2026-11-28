@@ -876,6 +876,8 @@
   "chat.input.knowledge_base": "지식 베이스",
   "chat.input.knowledge_base_disabled_by_files": "지식 베이스를 사용하려면 첨부 파일을 제거하세요",
   "chat.input.knowledge_base_manage": "지식 베이스 관리",
+  "chat.input.knowledge_base_retrieval_label": "검색",
+  "chat.input.knowledge_base_retrieve": "지식 베이스에서 검색",
   "chat.input.knowledge_base_unavailable": "도구를 지원하는 모델을 선택하세요",
   "chat.input.locate_editing_message": "원본 메시지로 이동",
   "chat.input.mcp_prompts.description": "MCP 서버에서 제공하는 프롬프트 삽입",

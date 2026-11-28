@@ -876,6 +876,8 @@
   "chat.input.knowledge_base": "Znalostní báze",
   "chat.input.knowledge_base_disabled_by_files": "Znalostní bázi lze použít po odebrání příloh",
   "chat.input.knowledge_base_manage": "Spravovat znalostní bázi",
+  "chat.input.knowledge_base_retrieval_label": "Vyhledávání",
+  "chat.input.knowledge_base_retrieve": "Vyhledat ve znalostní bázi",
   "chat.input.knowledge_base_unavailable": "Vyberte model podporující volání nástrojů",
   "chat.input.locate_editing_message": "Najít původní zprávu",
   "chat.input.mcp_prompts.description": "Vložit prompt zveřejněný serverem MCP",

@@ -890,6 +890,8 @@
   "chat.input.knowledge_base": "Baza wiedzy",
   "chat.input.knowledge_base_disabled_by_files": "Usuń załączone pliki, aby użyć bazy wiedzy",
   "chat.input.knowledge_base_manage": "Zarządzaj bazą wiedzy",
+  "chat.input.knowledge_base_retrieval_label": "Wyszukiwanie",
+  "chat.input.knowledge_base_retrieve": "Wyszukaj w bazie wiedzy",
   "chat.input.knowledge_base_unavailable": "Wybierz model obsługujący narzędzia",
   "chat.input.locate_editing_message": "Zlokalizuj oryginalną wiadomość",
   "chat.input.mcp_prompts.description": "Wstaw prompt udostępniony przez serwer MCP",
