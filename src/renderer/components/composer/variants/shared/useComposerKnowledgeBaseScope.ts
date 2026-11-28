@@ -22,6 +22,8 @@ interface UseComposerKnowledgeBaseScopeParams {
   allKnowledgeBases: KnowledgeBase[]
   isKnowledgeBasesLoading: boolean
   scopeKey: string
+  /** Optional topic/draft scope key when the caller keeps one hook instance across draft switches. */
+  draftScopeKey?: string
   selectedKnowledgeBases: KnowledgeBase[]
   setSelectedKnowledgeBases: Dispatch<SetStateAction<KnowledgeBase[]>>
   /** Ids saved in the draft cache, restored once the knowledge bases have loaded. */
@@ -58,17 +60,33 @@ export function useComposerKnowledgeBaseScope({
   allKnowledgeBases,
   isKnowledgeBasesLoading,
   scopeKey,
+  draftScopeKey,
   selectedKnowledgeBases,
   setSelectedKnowledgeBases,
   initialKnowledgeBaseIds,
   remountsOnScopeChange
 }: UseComposerKnowledgeBaseScopeParams): UseComposerKnowledgeBaseScopeResult {
+  const effectiveDraftScopeKey = draftScopeKey ?? scopeKey
   const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(remountsOnScopeChange ? scopeKey : null)
+  const lastDraftScopeKeyRef = useRef(effectiveDraftScopeKey)
   const knowledgeBaseIdsRef = useRef([...initialKnowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
     initialKnowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
   )
-  const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(initialKnowledgeBaseIds.length === 0)
+  const [hydrationState, setHydrationState] = useState(() => ({
+    draftScopeKey: effectiveDraftScopeKey,
+    hydrated: initialKnowledgeBaseIds.length === 0
+  }))
+  if (hydrationState.draftScopeKey !== effectiveDraftScopeKey) {
+    setHydrationState({
+      draftScopeKey: effectiveDraftScopeKey,
+      hydrated: initialKnowledgeBaseIds.length === 0
+    })
+  }
+  const isKnowledgeBaseDraftHydrated =
+    hydrationState.draftScopeKey === effectiveDraftScopeKey
+      ? hydrationState.hydrated
+      : initialKnowledgeBaseIds.length === 0
 
   const configuredKnowledgeBaseIdsKey = (configuredKnowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
   const configuredKnowledgeBaseIdSet = useMemo(
@@ -155,6 +173,13 @@ export function useComposerKnowledgeBaseScope({
   }, [selectableKnowledgeBases, selectedKnowledgeBasesInScope])
 
   useEffect(() => {
+    if (lastDraftScopeKeyRef.current === effectiveDraftScopeKey) return
+    lastDraftScopeKeyRef.current = effectiveDraftScopeKey
+    knowledgeBaseIdsRef.current = [...initialKnowledgeBaseIds]
+    observedKnowledgeBaseSelectionKeyRef.current = initialKnowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
+  }, [effectiveDraftScopeKey, initialKnowledgeBaseIds])
+
+  useEffect(() => {
     const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== scopeKey
     selectedKnowledgeBasesScopeKeyRef.current = scopeKey
     setSelectedKnowledgeBases((prev) => {
@@ -171,8 +196,9 @@ export function useComposerKnowledgeBaseScope({
     const restoredIds = selectableKnowledgeBases.filter((base) => wantedIds.has(base.id)).map((base) => base.id)
     observedKnowledgeBaseSelectionKeyRef.current = JSON.stringify(restoredIds)
     restoreKnowledgeBaseSelection(initialKnowledgeBaseIds)
-    setIsKnowledgeBaseDraftHydrated(true)
+    setHydrationState({ draftScopeKey: effectiveDraftScopeKey, hydrated: true })
   }, [
+    effectiveDraftScopeKey,
     initialKnowledgeBaseIds,
     isKnowledgeBaseDraftHydrated,
     isKnowledgeBasesLoading,

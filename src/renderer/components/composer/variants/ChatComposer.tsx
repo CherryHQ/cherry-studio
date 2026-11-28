@@ -316,7 +316,6 @@ const ChatComposerRoot = ({
   return (
     <MessageEditingProvider>
       <ComposerToolRuntimeProvider
-        key={draftCacheScopeKey}
         initialState={initialState}
         actions={{
           addNewTopic: () => actionsRef.current.addNewTopic(),
@@ -718,6 +717,7 @@ const ChatComposerInner = ({
     allKnowledgeBases,
     isKnowledgeBasesLoading,
     scopeKey: selectedKnowledgeBasesScopeKey,
+    draftScopeKey: draftCacheScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
     initialKnowledgeBaseIds: initialDraft.knowledgeBaseIds
@@ -949,8 +949,10 @@ const ChatComposerInner = ({
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
   // persistable change is observed through text, files, knowledge bases, model selection, or the editor token revision.
   // The revision covers token-only edits whose serialized text stays unchanged.
+  const activeDraftScopeKeyRef = useRef(draftCacheScopeKey)
   const persistedOnceRef = useRef(false)
   useEffect(() => {
+    if (activeDraftScopeKeyRef.current !== draftCacheScopeKey) return
     if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated || !isMentionedModelDraftHydrated) return
     if (!persistedOnceRef.current) {
       persistedOnceRef.current = true
@@ -986,12 +988,12 @@ const ChatComposerInner = ({
     text
   ])
 
-  const persistFinalDraft = useEffectEvent(() => {
+  const persistFinalDraft = useEffectEvent((targetScopeKey: string) => {
     if (isInputHistoryActive) return
     const savedDraft = savedDraftBeforeEditingRef.current
     if (editingMessage && !savedDraft) return
     const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
-    writeChatDraftCache(draftCacheScopeKey, {
+    writeChatDraftCache(targetScopeKey, {
       text: draft.text,
       tokens: draft.tokens,
       files: savedDraft?.files ?? filesRef.current,
@@ -1002,7 +1004,58 @@ const ChatComposerInner = ({
         savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })
-  useEffect(() => () => persistFinalDraft(), [draftCacheScopeKey])
+  useEffect(() => () => persistFinalDraft(activeDraftScopeKeyRef.current), [])
+
+  const applyDraftScopeSwitch = useEffectEvent((nextScopeKey: string) => {
+    const prevScopeKey = activeDraftScopeKeyRef.current
+    if (prevScopeKey === nextScopeKey) return
+
+    persistFinalDraft(prevScopeKey)
+    activeDraftScopeKeyRef.current = nextScopeKey
+    persistedOnceRef.current = false
+
+    releaseFollowupEditRef.current()
+    resetHistoryIndex()
+    inputHistoryToolsRef.current = null
+    skipDraftCacheWriteForHistoryPreviewRef.current = false
+    savedDraftBeforeEditingRef.current = null
+    editSaveInFlightSessionIdRef.current = null
+    editingOriginalFilePartsByTokenIdRef.current = new Map()
+    restoredEditingSessionIdRef.current = null
+    setSavingEditingSessionId(null)
+    setIsStartingNewContext(false)
+    setIsSending(false)
+    setIsExpanded(false)
+    setFastMode(false)
+
+    const nextDraft = readChatDraftCache(nextScopeKey)
+    mentionedModelDraftRef.current = {
+      mentionedModelIds: [...nextDraft.mentionedModelIds],
+      modelMultiSelectMode: nextDraft.modelMultiSelectMode
+    }
+    const nextShouldHydrate =
+      Boolean(useMentionedModelSelector) && (nextDraft.mentionedModelIds.length > 0 || nextDraft.modelMultiSelectMode)
+    setIsMentionedModelDraftHydrated(!nextShouldHydrate)
+
+    setFiles(nextDraft.files)
+    const currentDraft = surfaceGetDraftRef.current()
+    const canSkipEditorReset =
+      currentDraft.text === '' &&
+      currentDraft.tokens.length === 0 &&
+      nextDraft.text === '' &&
+      nextDraft.tokens.length === 0
+    if (!canSkipEditorReset) {
+      actionsRef.current.replaceDraft({ text: nextDraft.text, tokens: nextDraft.tokens }, { emitUpdate: false })
+    }
+    setText(nextDraft.text)
+    setDraftTokens(nextDraft.tokens.length ? [...nextDraft.tokens] : undefined)
+    setDraftTokenRevision(0)
+  })
+
+  useLayoutEffect(() => {
+    if (activeDraftScopeKeyRef.current === draftCacheScopeKey) return
+    applyDraftScopeSwitch(draftCacheScopeKey)
+  }, [draftCacheScopeKey])
 
   const restoreSavedDraft = useCallback(() => {
     const savedDraft = savedDraftBeforeEditingRef.current

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -27,10 +27,17 @@ interface MessageEditingContextType {
 
 const MessageEditingContext = createContext<MessageEditingContextType | null>(null)
 
-export function MessageEditingProvider({ children }: { children: ReactNode }) {
+export function MessageEditingProvider({ children, scopeKey }: { children: ReactNode; scopeKey?: string }) {
   const parent = use(MessageEditingContext)
   const [editingMessage, setEditingMessage] = useState<EditingMessageSnapshot | null>(null)
   const editingSessionIdRef = useRef(0)
+  const previousScopeKeyRef = useRef(scopeKey)
+
+  useEffect(() => {
+    if (previousScopeKeyRef.current === scopeKey) return
+    previousScopeKeyRef.current = scopeKey
+    setEditingMessage(null)
+  }, [scopeKey])
 
   const startEditing = useCallback(
     (message: MessageListItem, parts: CherryMessagePart[], options?: { lockedMentionedModels?: Model[] }) => {

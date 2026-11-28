@@ -2990,16 +2990,19 @@ describe('ChatComposer', () => {
     }))
     const topicTwo = { ...topic, id: 'topic-2' }
     const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    const composerControlsNode = screen.getByTestId('composer-below-controls')
 
     act(() => mocks.surfaceProps?.onTextChange('topic one draft'))
     await waitFor(() => expect(drafts.get('chat.composer_draft.topic-1')).toMatchObject({ text: 'topic one draft' }))
 
     view.rerender(<ChatComposer topic={topicTwo} onSend={vi.fn()} />)
+    expect(screen.getByTestId('composer-below-controls')).toBe(composerControlsNode)
     expect(mocks.surfaceProps?.text).toBe('')
     act(() => mocks.surfaceProps?.onTextChange('topic two draft'))
     await waitFor(() => expect(drafts.get('chat.composer_draft.topic-2')).toMatchObject({ text: 'topic two draft' }))
 
     view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    expect(screen.getByTestId('composer-below-controls')).toBe(composerControlsNode)
     expect(mocks.surfaceProps?.text).toBe('topic one draft')
   })
 

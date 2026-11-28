@@ -424,19 +424,27 @@ const CodeViewer = ({
   const listRef = useRef<HTMLDivElement>(null)
   const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
+  const hasMeasuredScrollMarginRef = useRef(false)
   useLayoutEffect(() => {
     if (!expanded) {
+      hasMeasuredScrollMarginRef.current = false
       setScrollMargin(0)
       return
     }
-    let parent = scrollerRef.current?.parentElement ?? null
-    while (parent && !/(auto|scroll|overlay)/.test(getComputedStyle(parent).overflowY)) parent = parent.parentElement
-    if (parent === document.body || parent === document.documentElement) parent = null
+    let parent: HTMLElement | null =
+      scrollerRef.current?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]') ?? null
+    if (!parent) {
+      parent = scrollerRef.current?.parentElement ?? null
+      while (parent && !/(auto|scroll|overlay)/.test(getComputedStyle(parent).overflowY)) parent = parent.parentElement
+      if (parent === document.body || parent === document.documentElement) parent = null
+    }
     setScrollParent(parent)
     let previousMargin: number | undefined
+    let marginRafId = 0
     const updateMargin = () => {
       const list = listRef.current
       if (!list) return
+      hasMeasuredScrollMarginRef.current = true
       const nextMargin =
         list.getBoundingClientRect().top -
         (parent?.getBoundingClientRect().top ?? 0) +
@@ -446,11 +454,22 @@ const CodeViewer = ({
       previousMargin = nextMargin
       setScrollMargin(nextMargin)
     }
-    updateMargin()
-    const resizeObserver = new ResizeObserver(updateMargin)
+    const scheduleUpdateMargin = () => {
+      if (marginRafId !== 0) return
+      marginRafId = requestAnimationFrame(() => {
+        marginRafId = 0
+        updateMargin()
+      })
+    }
+    if (hasMeasuredScrollMarginRef.current) {
+      scheduleUpdateMargin()
+    } else {
+      updateMargin()
+    }
+    const resizeObserver = new ResizeObserver(scheduleUpdateMargin)
     const mutationObserver = new MutationObserver((records) => {
       if (records.some((record) => record.type === 'childList')) observeLayout()
-      updateMargin()
+      scheduleUpdateMargin()
     })
     const observeLayout = () => {
       resizeObserver.disconnect()
@@ -471,6 +490,10 @@ const CodeViewer = ({
     const target = parent ?? window
     target.addEventListener('scroll', handleScroll, { passive: true })
     return () => {
+      if (marginRafId !== 0) {
+        cancelAnimationFrame(marginRafId)
+        marginRafId = 0
+      }
       resizeObserver.disconnect()
       mutationObserver.disconnect()
       target.removeEventListener('scroll', handleScroll)
@@ -598,7 +621,13 @@ const CodeViewer = ({
 
   useLayoutEffect(() => {
     const signature = `${wrapped}:${lineNumbers}:${gutterDigits}:${fontSize}:${Boolean(json)}`
-    if (previousWrapLayoutSignatureRef.current === signature) return
+    if (previousWrapLayoutSignatureRef.current === null) {
+      previousWrapLayoutSignatureRef.current = signature
+      // Unwrapped rows share fixed rowHeight; skip synchronous initial remeasurement until wrap/layout changes.
+      if (!wrapped) return
+    } else if (previousWrapLayoutSignatureRef.current === signature) {
+      return
+    }
     previousWrapLayoutSignatureRef.current = signature
     remeasureRows()
   }, [expanded, fontSize, gutterDigits, json, lineNumbers, remeasureRows, wrapped])

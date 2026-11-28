@@ -243,10 +243,12 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       focus: focusTextarea,
       onTextChange: updateText,
       appendText: () => false,
-      replaceDraft: (draft) => {
+      replaceDraft: (draft, options) => {
         selectionRef.current = { start: draft.text.length, end: draft.text.length }
-        props.onTextChange(draft.text)
-        updateTokens(draft.tokens)
+        if (options?.emitUpdate !== false) {
+          props.onTextChange(draft.text)
+          updateTokens(draft.tokens)
+        }
         return true
       },
       toggleExpanded: (expanded) => props.onExpandedChange(expanded ?? !props.isExpanded),

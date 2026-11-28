@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-27-ui-responsiveness-stack.md
+2026-11-27-ui-responsiveness-stack.md: 560e7c89703dda63b471d0975fb78714b621317d
+2026-11-27-ui-responsiveness-stack.zh.md: d0b60ce9b2794260f10f576cc95b9093a39f5df6
