@@ -415,7 +415,9 @@ beforeEach(() => {
     async (_key: string, task: () => Promise<unknown>) => await task()
   )
   knowledgeBaseGetByIdMock.mockReturnValue(createBase())
-  knowledgeItemGetByIdMock.mockReturnValue(createNoteItem())
+  // Answer with a row keyed by the requested id: reacquire writes re-read the row at write
+  // time to bind their destination, so the default must track the caller's id.
+  knowledgeItemGetByIdMock.mockImplementation((id: string) => createFileItem(id))
   knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
   knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
   knowledgeItemSetSubtreeStatusMock.mockReturnValue([])

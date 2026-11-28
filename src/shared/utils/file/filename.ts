@@ -234,3 +234,34 @@ export function sanitizeFilename(fileName: string, replacement = '_'): string {
 
   return sanitized
 }
+
+export type KnowledgeFileRenameError = 'empty' | 'too_long' | 'invalid' | 'extension_changed'
+
+/**
+ * Validate a user-typed replacement for a stored file's name. Checked against the strictest
+ * (Windows) rules on every platform so a knowledge base stays portable, and the extension must be
+ * kept so a rename can never change the file's type. Returns the trimmed name on success.
+ */
+export function validateRenamedFileName(
+  currentName: string,
+  nextName: string
+): { valid: true; name: string } | { valid: false; reason: KnowledgeFileRenameError } {
+  const name = nextName.trim()
+  if (!name) {
+    return { valid: false, reason: 'empty' }
+  }
+  if (name.length > FILE_NAME_MAX_LENGTH) {
+    return { valid: false, reason: 'too_long' }
+  }
+  if (!isValidWindowsFileName(name) || name === '.' || name === '..') {
+    return { valid: false, reason: 'invalid' }
+  }
+  const extOf = (value: string) => {
+    const index = value.lastIndexOf('.')
+    return index > 0 ? value.slice(index).toLowerCase() : ''
+  }
+  if (extOf(name) !== extOf(currentName)) {
+    return { valid: false, reason: 'extension_changed' }
+  }
+  return { valid: true, name }
+}

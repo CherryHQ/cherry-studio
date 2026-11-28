@@ -64,6 +64,11 @@ export const knowledgeRequestSchemas = {
   }),
   'knowledge.delete_items': defineRoute({ input: itemIdsInputSchema, output: z.void() }),
   'knowledge.reindex_items': defineRoute({ input: itemIdsInputSchema, output: z.void() }),
+  // Renames a file item's stored name (extension must be kept) without re-reading or re-embedding it.
+  'knowledge.rename_item': defineRoute({
+    input: z.strictObject({ baseId: baseIdSchema, itemId: z.string().trim().min(1), name: z.string() }),
+    output: z.void()
+  }),
   // First-time embedding setup on a BM25-only base that already has items: sets the
   // model/dimensions in place and backfills embeddings, instead of restoring into a
   // new base. Switching an already-configured model still goes through restore_base.

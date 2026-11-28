@@ -675,6 +675,17 @@ describe('KnowledgeIndexStore', () => {
       expect(store.getMaterialByRelativePath('docs/missing.md')).toBeNull()
     })
 
+    it('renames a material in place, keeping its indexed content', () => {
+      store.rebuildMaterial('m1', buildInput('hello world', [[0, 11]], 'docs/intro.md'))
+
+      store.renameMaterial('m1', 'docs/welcome.md')
+
+      expect(store.getMaterialByRelativePath('docs/intro.md')).toBeNull()
+      const ref = store.getMaterialByRelativePath('docs/welcome.md')
+      expect(ref?.materialId).toBe('m1')
+      expect(store.readMaterialContent('m1')).toBe('hello world')
+    })
+
     it('reads back the full content text a material was indexed from', async () => {
       const text = 'the quick brown fox jumps over the lazy dog'
       store.rebuildMaterial(

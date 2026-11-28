@@ -771,7 +771,7 @@ export class KnowledgeItemService {
   private patchItemData(
     id: string,
     allowedTypes: KnowledgeItemType[],
-    patch: { indexedRelativePath: string | null } | { relativePath: string },
+    patch: { indexedRelativePath: string | null } | { relativePath: string; indexedRelativePath?: string },
     label: string
   ): KnowledgeItem {
     const dbService = application.get('DbService')
@@ -823,6 +823,11 @@ export class KnowledgeItemService {
 
   updateIndexedRelativePath(id: string, indexedRelativePath: string): KnowledgeItem {
     return this.patchItemData(id, ['file'], { indexedRelativePath }, 'indexed relative path')
+  }
+
+  /** Re-point a file item at renamed `raw/` paths; `data.source` is left untouched. */
+  updateFileRelativePaths(id: string, paths: { relativePath: string; indexedRelativePath?: string }): KnowledgeItem {
+    return this.patchItemData(id, ['file'], paths, 'relative paths')
   }
 
   /**

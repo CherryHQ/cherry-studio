@@ -17,6 +17,7 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
+import RenameKnowledgeItemDialog from '../../components/RenameKnowledgeItemDialog'
 import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource'
 import type { KnowledgeFilePreviewTarget } from '../../types'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
@@ -53,6 +54,7 @@ export interface DataSourcePanelProps {
   onDeleteItems: (itemIds: string[]) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
   onReindexItems: (itemIds: string[]) => void | Promise<unknown>
+  onRename?: (item: KnowledgeItem, name: string) => Promise<unknown>
 }
 
 type LocalEmbeddingStatus = Exclude<LocalModelStatus, 'ready'>
@@ -173,6 +175,7 @@ const DataSourcePanelContent = ({
   onDeleteItems,
   onReindex,
   onReindexItems,
+  onRename,
   localEmbeddingState
 }: DataSourcePanelContentProps) => {
   const { t } = useTranslation()
@@ -182,6 +185,7 @@ const DataSourcePanelContent = ({
   )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
+  const [pendingRenameItem, setPendingRenameItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
 
   useEffect(() => {
@@ -422,10 +426,27 @@ const DataSourcePanelContent = ({
             onDelete={setPendingDeleteItem}
             onPreviewSource={previewSource}
             onReindex={onReindex}
+            onRename={onRename ? setPendingRenameItem : undefined}
             onViewChunks={handleItemClick}
           />
         )}
       </div>
+      {onRename ? (
+        <RenameKnowledgeItemDialog
+          open={Boolean(pendingRenameItem)}
+          initialName={pendingRenameItem ? getItemTitle(pendingRenameItem) : ''}
+          onSubmit={async (name) => {
+            if (pendingRenameItem) {
+              await onRename(pendingRenameItem, name)
+            }
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPendingRenameItem(null)
+            }
+          }}
+        />
+      ) : null}
       <ConfirmDialog
         open={Boolean(pendingDeleteItem)}
         onOpenChange={(open) => {

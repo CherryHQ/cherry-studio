@@ -4,7 +4,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, PageSidePanel } from '@cherrystudio/ui'
 import { FilePreview } from '@renderer/components/FilePreview'
-import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
+import {
+  useDeleteKnowledgeItem,
+  useKnowledgeItems,
+  useReindexKnowledgeItem,
+  useRenameKnowledgeItem
+} from '@renderer/hooks/useKnowledgeItems'
 import type { KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 
@@ -89,6 +94,7 @@ const KnowledgePageDetailSection = () => {
   } = useKnowledgeItems(selectedBaseId, currentDirectory?.id ?? null, itemSort)
   const { deleteItem, deleteItems } = useDeleteKnowledgeItem(selectedBaseId)
   const { reindexItem, reindexItems } = useReindexKnowledgeItem(selectedBaseId)
+  const { renameItem } = useRenameKnowledgeItem(selectedBaseId)
 
   if (!selectedBase) {
     return null
@@ -159,6 +165,7 @@ const KnowledgePageDetailSection = () => {
             onDeleteItems={deleteItems}
             onReindex={reindexItem}
             onReindexItems={reindexItems}
+            onRename={renameItem}
           />
         )}
       </div>
