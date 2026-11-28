@@ -1675,6 +1675,7 @@
   "error.diagnosis.payload": "Contenido de la solicitud demasiado grande, por favor reduce el tamaño del archivo o del texto",
   "error.diagnosis.permission": "El proveedor rechazó esta solicitud. Revisa los detalles del error, tu plan de cuenta, los permisos de la clave API o el acceso a este recurso.",
   "error.diagnosis.prefill_memory": "No hay memoria suficiente para procesar esta solicitud. Acorta la conversación o usa un modelo más pequeño.",
+  "error.diagnosis.provider_unavailable": "El proveedor {{provider}} ya no existe en esta aplicación. Elige un modelo de otro proveedor para esta conversación.",
   "error.diagnosis.proxy": "Error de proxy o de certificado SSL, verifique la configuración del proxy y de la red",
   "error.diagnosis.quota": "Cuota de la cuenta agotada, recarga o cambia de proveedor",
   "error.diagnosis.rate_limit": "Demasiadas solicitudes en poco tiempo. Espere un momento y vuelva a intentarlo, o cambie a un modelo con un límite de velocidad mayor",
