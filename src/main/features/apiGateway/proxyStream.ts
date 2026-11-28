@@ -19,10 +19,18 @@ const logger = loggerService.withContext('ProxyStreamService')
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
 export async function processMessage(config: MessageConfig, release?: () => void): Promise<Response> {
+  let released = false
+  const releaseOnce = release
+    ? () => {
+        if (released) return
+        released = true
+        release()
+      }
+    : undefined
   try {
-    return await startMessage(config, release)
+    return await startMessage(config, releaseOnce)
   } catch (error) {
-    release?.()
+    releaseOnce?.()
     throw error
   }
 }
@@ -92,12 +100,6 @@ async function startMessage(config: MessageConfig, release?: () => void): Promis
             // already closed
           }
         }
-        const complete = () => {
-          commit()
-          safeClose()
-          logger.info('Message completed', { ...logContext, streaming: true })
-          onComplete?.()
-        }
         const write = (data: string) => {
           if (closed) return
           const frame = encoder.encode(data)
@@ -118,7 +120,7 @@ async function startMessage(config: MessageConfig, release?: () => void): Promis
         }
 
         let callbackError: SerializedError | undefined
-        const sseListener = new SseListener(write, complete, () => !closed, {
+        const sseListener = new SseListener(write, safeClose, () => !closed, {
           id: `gateway:${streamId}`,
           // Keep commit-before-transform for existing startup chunks such as finish(error).
           formatChunk: (chunk) => {
@@ -140,7 +142,9 @@ async function startMessage(config: MessageConfig, release?: () => void): Promis
               ...logContext,
               streamId
             })
-            return buildStreamErrorFrame(outputFormat, streamInterruptedError())
+            const interrupted = streamInterruptedError()
+            onError?.(interrupted)
+            return buildStreamErrorFrame(outputFormat, interrupted)
           },
           formatError: (error) => {
             onError?.(callbackError ?? error)
@@ -164,28 +168,50 @@ async function startMessage(config: MessageConfig, release?: () => void): Promis
               }
             }
           },
-          onDone: (result) => sseListener.onDone(result),
+          onDone: (result) => {
+            if (closed) return
+            commit()
+            sseListener.onDone(result)
+            logger.info('Message completed', { ...logContext, streaming: true })
+            onComplete?.()
+          },
           onPaused: (result) => {
+            if (closed) return
             if (startupState === 'pending') {
-              fail(streamInterruptedError())
-              complete()
+              const interrupted = streamInterruptedError()
+              fail(interrupted)
+              try {
+                onError?.(interrupted)
+              } finally {
+                safeClose()
+              }
               return
             }
-            return sseListener.onPaused(result)
+            try {
+              sseListener.onPaused(result)
+            } finally {
+              safeClose()
+            }
           },
           onError: (result, originalError) => {
+            if (closed) return
             logger.warn('Gateway stream failed', { ...logContext, streamId, error: result.error })
             const upstream = internal ? internalGatewayError(originalError, result.error) : result.error
             if (startupState !== 'pending') {
               callbackError = result.error
-              return sseListener.onError({ ...result, error: upstream })
+              try {
+                sseListener.onError({ ...result, error: upstream })
+              } finally {
+                safeClose()
+              }
+              return
             }
 
             fail(upstream)
             try {
               onError?.(result.error)
             } finally {
-              complete()
+              safeClose()
             }
           },
           isAlive: () => sseListener.isAlive()
@@ -295,8 +321,10 @@ async function startMessage(config: MessageConfig, release?: () => void): Promis
     // Flush the adapter's finalize step, then emit the accumulated response.
     adapter.finalizeEvents()
 
-    logger.info('Message completed', { ...logContext, streaming: false })
-    onComplete?.()
+    if (!aborted) {
+      logger.info('Message completed', { ...logContext, streaming: false })
+      onComplete?.()
+    }
 
     return new Response(JSON.stringify(adapter.buildNonStreamingResponse()), {
       headers: { 'Content-Type': 'application/json' }

@@ -1639,3 +1639,163 @@ describe('processMessage (tool-input-error & file startup commitment)', () => {
     }
   })
 })
+
+describe('processMessage (release and terminal callback invariants)', () => {
+  it.each(['pre-commit-error', 'pre-commit-pause', 'pre-commit-adapter-error', 'non-streaming-error'] as const)(
+    'invokes release exactly once without inflating semaphore capacity (%s)',
+    async (scenario) => {
+      const budget = new Semaphore(1)
+      const [, semaphoreRelease] = await budget.acquire()
+      const release = vi.fn(() => semaphoreRelease())
+      const streaming = scenario !== 'non-streaming-error'
+
+      const pending = processMessage(
+        {
+          params: { model: 'openai:gpt-4', stream: streaming, messages: [] },
+          inputFormat: 'openai',
+          outputFormat: 'openai'
+        },
+        release
+      )
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      if (scenario === 'pre-commit-error' || scenario === 'non-streaming-error') {
+        void listener.onError({
+          status: 'error',
+          error: { name: 'AI_APICallError', message: 'boom', stack: null, statusCode: 500 }
+        } as any)
+      } else if (scenario === 'pre-commit-pause') {
+        await listener.onPaused({ status: 'paused' } as any)
+      } else {
+        listener.onChunk({
+          type: 'tool-input-error',
+          toolCallId: 'bad',
+          toolName: 'read',
+          input: null,
+          errorText: 'Invalid tool arguments'
+        })
+      }
+
+      await expect(pending).rejects.toBeDefined()
+      expect(release).toHaveBeenCalledTimes(1)
+      expect(budget.getValue()).toBe(1)
+    }
+  )
+
+  it.each(['before-commit', 'after-commit'] as const)(
+    'invokes onError and never onComplete on streaming failure (%s)',
+    async (stage) => {
+      const onError = vi.fn()
+      const onComplete = vi.fn()
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        onError,
+        onComplete
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+      const error = { name: 'AI_APICallError', message: 'Upstream failed', stack: null, statusCode: 502 }
+
+      if (stage === 'after-commit') {
+        commit(listener)
+        const res = await pending
+        await listener.onError({ status: 'error', error } as any)
+        const body = await readAll(res.body)
+        expect(body).toContain('"error"')
+      } else {
+        await listener.onError({ status: 'error', error } as any)
+        await expect(pending).rejects.toBe(error)
+      }
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onComplete).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['before-commit', 'after-commit'] as const)(
+    'invokes onError and never onComplete on streaming idle-timeout pause (%s)',
+    async (stage) => {
+      const onError = vi.fn()
+      const onComplete = vi.fn()
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        onError,
+        onComplete
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      if (stage === 'after-commit') {
+        commit(listener)
+        const res = await pending
+        await listener.onPaused({ status: 'paused' } as any)
+        const body = await readAll(res.body)
+        expect(body).toContain('"error"')
+      } else {
+        await listener.onPaused({ status: 'paused' } as any)
+        await expect(pending).rejects.toMatchObject({ status: 504 })
+      }
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ status: 504 }))
+      expect(onComplete).not.toHaveBeenCalled()
+    }
+  )
+
+  it('invokes onComplete once on clean streaming completion even without prior semantic chunks', async () => {
+    const onError = vi.fn()
+    const onComplete = vi.fn()
+    const release = vi.fn()
+    const pending = processMessage(
+      {
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        onError,
+        onComplete
+      },
+      release
+    )
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const listener = captured.listener!
+
+    listener.onChunk({ type: 'start' } as any)
+    await listener.onDone({} as any)
+
+    const res = await pending
+    const body = await readAll(res.body)
+    expect(body).toContain('[DONE]')
+    expect(onComplete).toHaveBeenCalledTimes(1)
+    expect(onError).not.toHaveBeenCalled()
+    expect(release).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not invoke onComplete when a non-streaming request is aborted by client disconnect', async () => {
+    const controller = new AbortController()
+    const onComplete = vi.fn()
+    const release = vi.fn()
+    const pending = processMessage(
+      {
+        params: { model: 'openai:gpt-4', messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        signal: controller.signal,
+        onComplete
+      },
+      release
+    )
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    controller.abort()
+    await captured.listener!.onPaused({ status: 'paused' } as any)
+
+    await pending
+    expect(onComplete).not.toHaveBeenCalled()
+    expect(release).toHaveBeenCalledTimes(1)
+  })
+})
