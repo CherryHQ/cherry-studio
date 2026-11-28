@@ -77,6 +77,17 @@ describe('AgentSessionService', () => {
     })
   }
 
+  it('updates generated titles while preserving manual names and ignoring empty titles', async () => {
+    const session = await createSession('initial')
+    expect(agentSessionService.updateGeneratedName(session.id, 'Native title')).toBe(true)
+    expect(agentSessionService.getById(session.id)).toMatchObject({ name: 'Native title', isNameManuallyEdited: false })
+    expect(agentSessionService.updateGeneratedName(session.id, '  ')).toBe(false)
+    expect(agentSessionService.updateGeneratedName(session.id, 'Native title')).toBe(false)
+    agentSessionService.update(session.id, { name: 'My title' })
+    expect(agentSessionService.updateGeneratedName(session.id, 'Agent replacement')).toBe(false)
+    expect(agentSessionService.getById(session.id)).toMatchObject({ name: 'My title', isNameManuallyEdited: true })
+  })
+
   async function insertSessionMessage(sessionId: string, id: string) {
     insertAgentSessionMessages(dbh.db, {
       parentId: seedSessionRoot(dbh.db, sessionId),
@@ -107,6 +118,21 @@ describe('AgentSessionService', () => {
       )
     })
   }
+
+  it('identifies task sessions that can be reclaimed without losing the next scheduled run', async () => {
+    const task = createTaskSchedule()
+    const ordinary = await createSession('ordinary')
+    const disposable = agentSessionService.create(
+      { agentId: 'agent-session-test', name: 'one-off', workspace: { type: 'system' } },
+      'conversation',
+      task.id
+    )
+    expect(agentSessionService.isOneOffTaskSession(ordinary.id)).toBe(false)
+    expect(agentSessionService.isOneOffTaskSession(disposable.id)).toBe(true)
+
+    bindTaskSession(disposable.id, task.id)
+    expect(agentSessionService.isOneOffTaskSession(disposable.id)).toBe(false)
+  })
 
   it('keeps task sessions out of conversations after job retention cleanup', async () => {
     const task = createTaskSchedule()
@@ -910,11 +936,12 @@ describe('AgentSessionService', () => {
       description: 'Updated description',
       isNameManuallyEdited: true
     })
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
       { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/ai-usage-records/local', kind: 'projection' }
     ])
 
     expect(updated).toMatchObject({

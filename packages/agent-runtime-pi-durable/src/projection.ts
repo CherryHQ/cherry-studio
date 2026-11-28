@@ -10,6 +10,7 @@ import {
   messageObservation,
   textEdits,
   type RuntimePartEdit,
+  type Activity,
   runtimeId,
   ThreadFeed,
   type InputId,
@@ -25,18 +26,21 @@ import {
 import { ContentProjection, entryMessageId, messagePart, previewToolOutput } from './content'
 import type { PreviewTextAppend } from './previewTextAppends'
 
+type AnswerPosition = { readonly inputId: InputId; readonly entryId: string }
+
 export interface DurableObservation {
   readonly events: ProjectionEvents
   readonly aliases: Readonly<Record<string, string>>
   readonly live: readonly string[]
+  readonly answers?: readonly AnswerPosition[]
   readonly resumedInput?: InputId
   readonly completion?: { readonly inputs: readonly InputState[]; readonly entryId?: string }
   readonly backgroundResults: OperationResult<SubagentResults>
 }
 
 type InputPublication =
-  | { type: 'snapshot'; inputs: readonly InputState[] }
-  | { type: 'commit'; changes: readonly InputState[]; revision: number }
+  | { type: 'snapshot'; inputs: readonly InputState[]; answers?: readonly AnswerPosition[] }
+  | { type: 'commit'; changes: readonly InputState[]; revision: number; answers?: readonly AnswerPosition[] }
 
 /** One normalized source shared by every access to a native conversation. */
 export class DurableProjection {
@@ -52,6 +56,8 @@ export class DurableProjection {
   private readonly admitting = new Set<InputId>()
   private readonly cycle = new Set<string>()
   private completion?: DurableObservation['completion']
+  private readonly answers = new Map<InputId, string>()
+  private answerChanges?: readonly AnswerPosition[]
   private history: readonly HistoryEntry[] = []
   private committed?: { readonly entries: readonly EntryRecord[]; readonly content: ContentProjection }
   private backgroundResults: DurableObservation['backgroundResults'] = immutable({
@@ -79,9 +85,13 @@ export class DurableProjection {
     this.feed.close(reason)
     this.committed = undefined
     this.history = []
+    this.answers.clear()
   }
 
-  observe(sink: (batch: DurableObservation) => void | Promise<void>): Observation {
+  observe(
+    sink: (batch: DurableObservation) => void | Promise<void>,
+    knownSources: readonly string[] = []
+  ): Observation {
     const active = this.preview?.id
     const snapshot = this.feed.snapshot
     const pending = snapshot.inputs.findLast((input) => !input.outcome && input.facts.includes('placed'))
@@ -96,6 +106,8 @@ export class DurableProjection {
         .filter((message, index) => message.id === active || (index > boundary && message.role === 'assistant'))
         .map((message) => message.id)
     )
+    const recoveredAliases =
+      pending && knownSources.length ? this.recoverInterruptedPreviews(knownSources, baseline) : {}
     const historical = new Set(
       snapshot.messages.filter((message) => !baseline.has(message.id)).map((message) => message.id)
     )
@@ -103,7 +115,7 @@ export class DurableProjection {
       const replaced = event.type === 'message.reconcile' ? this.aliases[event.message.id] : undefined
       const aliases =
         event.type === 'snapshot'
-          ? this.aliases
+          ? { ...recoveredAliases, ...this.aliases }
           : event.type === 'message.reconcile' && replaced
             ? { [event.message.id]: replaced }
             : {}
@@ -117,17 +129,55 @@ export class DurableProjection {
               ? [event.ref.id]
               : []
       const completion = delivery === 'baseline' ? undefined : this.completion
+      const answers =
+        delivery === 'baseline'
+          ? [...this.answers].map(([inputId, entryId]) => ({ inputId, entryId }))
+          : this.answerChanges
       return {
         value: {
           aliases,
           ...(delivery === 'baseline' && pending?.inputId && { resumedInput: pending.inputId }),
           live: ids.filter((id) => (delivery === 'baseline' ? baseline.has(id) : !historical.has(id))),
           completion,
+          ...(answers?.length && { answers }),
           backgroundResults: this.backgroundResults
         },
-        retain: Boolean(completion)
+        retain: Boolean(completion || answers?.length)
       }
     })
+  }
+
+  private recoverInterruptedPreviews(knownSources: readonly string[], baseline: ReadonlySet<string>) {
+    const previews = new Map<number, { id: string; attempt: number }>()
+    const known = new Set(knownSources)
+    for (const id of knownSources) {
+      const match = /^live:[^:]+:(\d+):(\d+):\d+$/.exec(id)
+      if (match) previews.set(Number(match[1]), { id, attempt: Number(match[2]) })
+    }
+    const aliases: Record<string, string> = {}
+    const active = this.preview
+    const saved = active && previews.get(active.task)
+    if (active && saved?.attempt === active.attempt) {
+      if (!known.has(active.id)) aliases[active.id] = saved.id
+      previews.delete(active.task)
+    }
+    // A generation may already have committed its interrupted output before the initial observation.
+    const entries = this.committed?.entries ?? []
+    for (let index = entries.length - 1; index >= 0 && previews.size; index--) {
+      const entry = entries[index]
+      if (entry.byTaskId === undefined) continue
+      const preview = previews.get(entry.byTaskId)
+      if (!preview) continue
+      const position = entry.model?.findIndex(
+        (message) => message.role === 'assistant' && message.stopReason === 'aborted'
+      )
+      if (position === undefined || position < 0) continue
+      const committed = entryMessageId(entry, position)
+      if (!baseline.has(committed)) continue
+      if (!known.has(committed) && !this.aliases[committed]) aliases[committed] = preview.id
+      previews.delete(entry.byTaskId)
+    }
+    return aliases
   }
 
   input(input: InputState): void {
@@ -202,16 +252,19 @@ export class DurableProjection {
   private publish(
     events: readonly ObservationPayload[],
     completion: DurableObservation['completion'],
-    carrier = events.length - 1
+    carrier = events.length - 1,
+    answers?: readonly AnswerPosition[]
   ): void {
     try {
       events.forEach((event, index) => {
         this.completion = index === carrier ? completion : undefined
+        this.answerChanges = index === carrier ? answers : undefined
         if (isLivePartInput(event)) this.feed.publishPart(event)
         else this.feed.publish(event)
       })
     } finally {
       this.completion = undefined
+      this.answerChanges = undefined
     }
   }
 
@@ -298,6 +351,8 @@ export class DurableProjection {
     const revision = publication?.type === 'commit' ? publication.revision : undefined
     this.revision = revision
     this.history = history
+    const answers = (publication?.answers ?? []).filter((answer) => this.answers.get(answer.inputId) !== answer.entryId)
+    for (const answer of answers) this.answers.set(answer.inputId, answer.entryId)
     const previousState = this.feed.state
     const { inputs, events: inputEvents } =
       publication?.type === 'snapshot'
@@ -350,7 +405,14 @@ export class DurableProjection {
     }
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.preview = preview
-    const activity = { state: live?.run ? ('active' as const) : ('idle' as const) }
+    const retry = generation?.retry
+    const activity: Activity = {
+      state: live?.run ? 'active' : 'idle',
+      ...(retry?.model !== undefined &&
+        retry.nextAttempt !== undefined && {
+          modelRetry: { modelId: retry.model, attempt: retry.nextAttempt, reason: retry.error }
+        })
+    }
     // A run start sends a snapshot so observers see its inputs and activity in one frame; so do the first
     // publication and a reset. Other updates carry only changes.
     const messages =
@@ -366,12 +428,13 @@ export class DurableProjection {
     ]
     if (
       messages &&
-      (previousState.activity.state !== activity.state ||
-        (!events.length && (completion || !isDeepStrictEqual(previousResults, this.backgroundResults))))
+      (!isDeepStrictEqual(previousState.activity, activity) ||
+        (!events.length &&
+          (completion || answers.length || !isDeepStrictEqual(previousResults, this.backgroundResults))))
     )
       events.push({ type: 'activity.changed', activity })
     // Completion rides the first frame after which an observer holds the whole update.
-    this.publish(events, completion, messages ? events.length - 1 : 0)
+    this.publish(events, completion, messages ? events.length - 1 : 0, answers)
   }
 
   /** Native views append the same entry records; project only appended entries and share the rest. */

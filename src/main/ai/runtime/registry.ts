@@ -29,5 +29,7 @@ export function forkCheckpointReader(type: string) {
   const driver = runtimeDriverRegistry.getAgentSessionDriver(type)
   return driver?.fork && driver.isForkCheckpoint
     ? { type, isForkCheckpoint: driver.isForkCheckpoint.bind(driver) }
-    : undefined
+    : driver
+      ? { type, isForkCheckpoint: undefined }
+      : undefined
 }

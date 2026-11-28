@@ -45,6 +45,7 @@
 | [Execution Overlay](./references/ai/execution-overlay.md) | Shared root and child message projections, bounded attachment recovery, and root overlay handoff |
 | [Image-Generation Parameterized Architecture](./references/ai/image-generation-parameters.md) | Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile |
 | [IPC Transport](./references/ai/ipc-transport.md) | Desktop AI commands and shared root/child message projection subscriptions over IpcApi |
+| [Local Agent Runtime](./references/ai/local-agent-runtime.md) | Local CLI agent configuration, native model ownership, protocol drivers, installation reuse, and compatibility verification |
 | [Local Models](./references/ai/local-models.md) | Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models |
 | [MCP Skills Client](./references/ai/mcp-skills-client.md) | On-demand MCP Skills discovery, verified file reads, and ordinary tool approval in Agent sessions |
 | [Model Retry & Fallback](./references/ai/model-retry.md) | User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences |
@@ -65,7 +66,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [API Gateway Reference](./references/api-gateway/README.md) | API gateway purpose, start and stop controls, automatic startup, and HTTP protocol reference |
+| [Unified Gateway Reference](./references/api-gateway/README.md) | Unified Gateway purpose, start and stop controls, automatic startup, and HTTP protocol reference |
 | [Remote Agent Access (Design)](./references/api-gateway/remote-agent-access.md) | JSON-RPC remote access architecture, device-level authorization, shared protocol package, and staged desktop/mobile implementation plan |
 | [Remote Connectivity Design](./references/api-gateway/remote-connectivity.md) | Identity-based remote connectivity design and first implementation boundaries for DNS-SD discovery, configured endpoints and serial reconnect |
 

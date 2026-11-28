@@ -127,7 +127,7 @@ The builder table (`config.ts`, first match wins):
 | Match | Builder | Notes |
 |---|---|---|
 | `id === copilot` | `buildCopilotConfig` | async — fetches a Copilot token |
-| `id === 'cherryai'` | `buildCherryAIConfig` | HMAC-signs requests; refuses them before sending unless signed in to Cherry AI |
+| `id === 'cherryai'` | `buildCherryAIConfig` | HMAC-signs requests; refuses them before sending unless signed in to Cherry AI or the request is a `utilityTask` (a helper call such as naming or translation, not a conversation turn) |
 | `isOllamaProvider` | `buildOllamaConfig` | |
 | `isAzureOpenAIProvider` | `buildAzureConfig` | returns `azure` / `azure-responses` / `azure-anthropic` (Claude on Azure) |
 | `id === 'bedrock'` | `buildBedrockConfig` | |

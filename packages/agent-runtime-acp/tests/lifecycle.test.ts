@@ -111,8 +111,7 @@ it('advertises only host callbacks and rejects callbacks for another session', a
   expect(
     await handle.acp.submit({
       inputId: runtimeId<'input'>('image'),
-      content: [{ type: 'image', data: 'AA==', mimeType: 'image/png' }],
-      whenBusy: 'reject'
+      content: [{ type: 'image', data: 'AA==', mimeType: 'image/png' }]
     })
   ).toMatchObject({ status: 'unsupported' })
   expect(
@@ -133,12 +132,12 @@ it('keeps the prompt busy after a cancellation deadline until its native respons
   })
   cleanups.push(f.cleanup)
   const handle = confirmed(await f.runtime.create(configuration))
-  await handle.input!.submit(input())
+  await handle.input.submit(input())
   vi.useFakeTimers()
   const result = handle.interrupt!()
   await vi.advanceTimersByTimeAsync(10_001)
   expect(await result).toMatchObject({ status: 'unknown' })
-  expect(await handle.input!.submit(input('next'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+  expect(await handle.input.submit(input('next'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
   vi.useRealTimers()
   end.resolve()
   expect(await handle.interrupt!()).toMatchObject({ status: 'confirmed' })
@@ -326,5 +325,5 @@ it('ends only the observer that exceeds the native backlog limit', async () => {
   await slowObserver.drain()
   await fastObserver.drain()
   expect(slow.at(-1)).toEqual({ type: 'closed', reason: 'source-lost' })
-  expect(await handle.input!.submit(input('still-live'))).toMatchObject({ status: 'acknowledged' })
+  expect(await handle.input.submit(input('still-live'))).toMatchObject({ status: 'acknowledged' })
 })

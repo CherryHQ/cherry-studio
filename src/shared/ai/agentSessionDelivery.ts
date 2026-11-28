@@ -30,6 +30,7 @@ export type AgentSessionDeliveryOutcome = z.infer<typeof AgentSessionDeliveryOut
 /** Main-authored immutable routing plus current single-row lifecycle details. */
 export const AgentSessionDeliveryEnvelopeSchema = z.strictObject({
   version: z.literal(1),
+  delegation: z.literal(true).optional(),
   sender: AgentSessionDeliveryIdentitySchema,
   receiver: AgentSessionDeliveryIdentitySchema,
   senderSnapshot: AgentSessionDeliverySnapshotSchema.optional(),
@@ -50,11 +51,24 @@ export const AgentSessionDeliverySchema = AgentSessionDeliveryEnvelopeSchema.ext
 })
 export type AgentSessionDelivery = z.infer<typeof AgentSessionDeliverySchema>
 
+export interface AgentDelegationSnapshot {
+  requestId: string
+  originSessionId: string
+  targetSessionId: string
+  agentName: string
+  workspacePath: string
+  delivery: AgentSessionDelivery
+  terminal: boolean
+  approvals: Array<{ approvalId: string; toolCallId: string; toolName: string; input: Record<string, unknown> }>
+}
+
 export const SESSION_LIST_TOOL_NAME = 'session_list'
 export const SESSION_SEARCH_TOOL_NAME = 'session_search'
 export const SESSION_READ_TOOL_NAME = 'session_read'
 export const SESSION_RENAME_TOOL_NAME = 'session_rename'
 export const SESSION_CREATE_TOOL_NAME = 'session_create'
+export const AGENT_DELEGATE_TOOL_NAME = 'agent_delegate'
+export const DELEGATION_CANCEL_TOOL_NAME = 'delegation_cancel'
 export const SESSION_DELIVERIES_TOOL_NAME = 'session_deliveries'
 export const SESSION_SEND_TOOL_NAME = 'session_send'
 

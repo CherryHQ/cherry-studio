@@ -78,7 +78,7 @@ const tabsTriggerVariants = cva(
   [
     'inline-flex items-center justify-center text-sm font-medium whitespace-nowrap',
     'disabled:pointer-events-none disabled:opacity-50',
-    'transition-all outline-none',
+    'transition-all',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4'
   ],
   {
@@ -88,7 +88,7 @@ const tabsTriggerVariants = cva(
           'h-[calc(100%-1px)] flex-1 gap-1.5 rounded-md px-2 py-1',
           'border border-transparent text-foreground',
           'dark:text-muted-foreground',
-          'focus-visible:border-primary focus-visible:bg-accent',
+          'focus-visible:border-ring focus-visible:bg-accent',
           'data-[state=active]:bg-background data-[state=active]:shadow-sm',
           'dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 dark:data-[state=active]:text-foreground'
         ],

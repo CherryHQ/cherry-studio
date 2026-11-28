@@ -1,12 +1,13 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { OAuthAuthenticationRequiredError } from '@main/services/oauth/errors'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel, isPublicGatewayRoutableModel, stripClaudeContextMarker } from '@shared/utils/model'
-import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
+import { isAgentOnlyProvider, isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ApiGatewayModels')
 
@@ -113,7 +114,16 @@ export async function resolveGatewayModelAddress(
   } catch {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
-  if (!provider.isEnabled || isExternalCliProvider(provider)) {
+  if (isExternalCliProvider(provider)) {
+    throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
+  }
+  if (isLoginBasedProvider(provider) && provider.authMethods?.includes('oauth')) {
+    const authConfig = providerService.getAuthConfig(providerId)
+    if (authConfig?.type !== 'oauth' || !authConfig.accessToken) {
+      throw new OAuthAuthenticationRequiredError(providerId)
+    }
+  }
+  if (!provider.isEnabled) {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 
@@ -138,18 +148,13 @@ export async function resolveGatewayModelAddress(
   return { providerId, apiModelId: match.id, uniqueModelId: match.candidate.id, provider, model: match.candidate }
 }
 
-/**
- * Build the OpenAI `/v1/models` listing: enabled models across enabled providers,
- * deduplicated by gateway id and optionally paginated. Never throws — returns an empty
- * list on failure so the route stays resilient.
- */
-export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsResponse> {
+export async function getGatewayModelCatalog(): Promise<{ apiModel: ApiModel; name: string }[]> {
   try {
     const providers = getAvailableProviders()
     const models = await listAllAvailableModels(providers)
 
     // Deduplicate by the gateway-addressable id ("providerId:apiModelId").
-    const uniqueModels = new Map<string, ApiModel>()
+    const uniqueModels = new Map<string, { apiModel: ApiModel; name: string }>()
     for (const model of models) {
       const provider = providers.find((p) => p.id === model.providerId)
       // External-CLI providers carry no app-side credentials and cannot be proxied.
@@ -164,23 +169,21 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
 
       const apiModel = transformModelToOpenAi(model, provider)
       if (!uniqueModels.has(apiModel.id)) {
-        uniqueModels.set(apiModel.id, apiModel)
+        uniqueModels.set(apiModel.id, { apiModel, name: model.name })
       }
     }
 
-    let modelData = Array.from(uniqueModels.values())
-    const offset = filter.offset ?? 0
-    const limit = filter.limit
-    if (limit !== undefined) {
-      modelData = modelData.slice(offset, offset + limit)
-    } else if (offset > 0) {
-      modelData = modelData.slice(offset)
-    }
-
-    logger.info('Models retrieved', { returned: modelData.length, discovered: models.length })
-    return { object: 'list', data: modelData }
+    return Array.from(uniqueModels.values())
   } catch (error) {
     logger.error('Error getting models', error as Error)
-    return { object: 'list', data: [] }
+    return []
   }
+}
+
+/** Build the optionally paginated OpenAI `/v1/models` listing. */
+export async function getModels({ offset = 0, limit }: ModelsFilter = {}): Promise<ApiModelsResponse> {
+  const catalog = await getGatewayModelCatalog()
+  const page = limit === undefined ? catalog.slice(Math.max(offset, 0)) : catalog.slice(offset, offset + limit)
+  logger.info('Models retrieved', { returned: page.length, available: catalog.length })
+  return { object: 'list', data: page.map(({ apiModel }) => apiModel) }
 }
