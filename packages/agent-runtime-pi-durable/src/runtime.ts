@@ -794,9 +794,10 @@ export async function createPiDurableRuntime(
     const observations = new Set<Observation>()
     const unavailable = () => released || closing
     const goalCommand = async (args: string, requestId: string) => {
-      if (!behavior || !behaviorEntries) throw new Error('Durable goal command is unavailable')
+      const goalEntries = behaviorEntries
+      if (!behavior || !goalEntries) throw new Error('Durable goal command is unavailable')
       const notice = await behavior.withCall(entry.ref.id, (ports) =>
-        behaviorEntries.goalCommand(ports, entry.ref.id, args, requestId)
+        goalEntries.goalCommand(ports, entry.ref.id, args, requestId)
       )
       native.resume()
       return notice
