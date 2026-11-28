@@ -6,8 +6,10 @@ import {
   getTrailingApiVersion,
   hasApiVersion,
   isBareVertexApiHost,
+  isFullImageRequestUrl,
   isWithTrailingSharp,
   joinApiKeyString,
+  normalizeFullImageRequestUrl,
   splitApiKeyString,
   withoutTrailingApiVersion,
   withoutTrailingSharp
@@ -383,6 +385,42 @@ describe('api', () => {
       ''
     ])('treats %s as a user override', (host) => {
       expect(isBareVertexApiHost(host)).toBe(false)
+    })
+  })
+
+  describe('isFullImageRequestUrl', () => {
+    it.each([
+      'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti',
+      'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti#',
+      'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti/',
+      'https://api.example.com/v1/images/generations',
+      'https://api.example.com/v1/images/generations#',
+      'https://api.example.com/v1/images/edits',
+      'https://api.example.com/v1/images/edits#'
+    ])('treats %s as a full image request URL', (url) => {
+      expect(isFullImageRequestUrl(url)).toBe(true)
+    })
+
+    it.each([
+      '',
+      'https://api.example.com',
+      'https://api.example.com/v1',
+      'https://relay.example.com/custom#',
+      'https://relay.example.com/gateway/v1',
+      'https://api.example.com/v1beta'
+    ])('treats %s as a base host, not a full request URL', (url) => {
+      expect(isFullImageRequestUrl(url)).toBe(false)
+    })
+  })
+
+  describe('normalizeFullImageRequestUrl', () => {
+    it.each([
+      ['https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti#', 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti'],
+      ['https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti/', 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti'],
+      ['  https://api.example.com/v1/images/generations#  ', 'https://api.example.com/v1/images/generations'],
+      ['', '']
+    ])('normalizes %s to %s', (input, expected) => {
+      expect(normalizeFullImageRequestUrl(input)).toBe(expected)
     })
   })
 })

@@ -14,6 +14,16 @@ const TRAILING_VERSION_REGEX = /\/v\d+(?:alpha|beta)?\/?$/i
 const VERSION_REGEX = /\/v\d+(?:alpha|beta)?(?:\/|$)/i
 
 /**
+ * Matches a dotted API version segment like `/v2.1/` (iFlytek Spark TTI, etc.).
+ * The stock `VERSION_REGEX` only matches `/vN` without a dot, so hosts such as
+ * `https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti` would otherwise gain a
+ * spurious `/v1` suffix via `formatApiHost`.
+ */
+const DOTTED_VERSION_REGEX = /\/v\d+\.\d+(?:\/|$)/i
+
+const FULL_IMAGE_REQUEST_SUFFIXES = ['/images/generations', '/images/edits'] as const
+
+/**
  * Formats an API key string.
  *
  * @param {string} value - The API key string to format.
@@ -231,4 +241,57 @@ export function formatOllamaApiHost(host: string): string {
     ?.replace(/\/api$/, '')
     ?.replace(/\/chat$/, '')
   return formatApiHost(normalizedHost + '/api', false)
+}
+
+/**
+ * Whether an image endpoint baseUrl is a complete request URL that must be
+ * POSTed as-is instead of `baseURL + /images/generations|edits`.
+ *
+ * Full-URL cases (see #18572, iFlytek Spark TTI `.../v2.1/tti`):
+ * - already ends with `/images/generations` or `/images/edits` (pasted full
+ *   OpenAI path — appending again would double the suffix), or
+ * - contains a dotted version segment with a trailing path
+ *   (`/v2.1/tti`), which `hasApiVersion` does not recognise and
+ *   `formatApiHost` would otherwise corrupt with a spurious `/v1`.
+ *
+ * A trailing `#` is stripped before detection, so `.../v2.1/tti#` is also a
+ * full request URL. A bare `.../custom#` stays a base host and keeps the
+ * legacy `base + /images/...` behaviour.
+ */
+export function isFullImageRequestUrl(url?: string): boolean {
+  const trimmed = trim(url ?? '')
+  if (!trimmed) return false
+
+  const stripped = withoutTrailingSlash(withoutTrailingSharp(trimmed))
+  if (!stripped) return false
+
+  const lower = stripped.toLowerCase()
+  if ((FULL_IMAGE_REQUEST_SUFFIXES as readonly string[]).some((suffix) => lower.endsWith(suffix))) {
+    return true
+  }
+
+  // Dotted-version vendor path, e.g. `.../v2.1/tti` — full API path, not a base host.
+  if (DOTTED_VERSION_REGEX.test(stripped)) {
+    try {
+      const pathname = new URL(stripped).pathname
+      // Require something after the dotted version (`/v2.1/tti`, not just `/v2.1`).
+      return /\/v\d+\.\d+\/.+$/i.test(pathname)
+    } catch {
+      return /\/v\d+\.\d+\/.+$/i.test(stripped)
+    }
+  }
+
+  // A trailing `#` alone does not imply full-URL (preserves `.../custom#` base behaviour);
+  // only the suffix / dotted-version cases above opt in.
+  return false
+}
+
+/**
+ * Normalise a full image request URL: trim, strip a trailing `#` opt-in and
+ * any trailing slash. Returns `''` for empty input.
+ */
+export function normalizeFullImageRequestUrl(url?: string): string {
+  const trimmed = trim(url ?? '')
+  if (!trimmed) return ''
+  return withoutTrailingSlash(withoutTrailingSharp(trimmed))
 }

@@ -24,7 +24,9 @@ import {
   formatApiHost,
   formatOllamaApiHost,
   isBareVertexApiHost,
+  isFullImageRequestUrl,
   isWithTrailingSharp,
+  normalizeFullImageRequestUrl,
   withoutTrailingApiVersion,
   withoutTrailingSlash
 } from '@shared/utils/api'
@@ -99,6 +101,16 @@ export interface ResolvedProviderAiSdkConfig {
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
 function formatBaseURL(baseURL: string, provider: Provider, endpointType?: EndpointType): string {
   if (!baseURL) return ''
+
+  // Full image request URLs (e.g. iFlytek Spark TTI `.../v2.1/tti`, or a pasted
+  // `.../v1/images/generations`) must be POSTed as-is: no `/v1` appending here
+  // and no `/images/...` appending downstream (see buildOpenAICompatibleConfig).
+  if (
+    (endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION || endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) &&
+    isFullImageRequestUrl(baseURL)
+  ) {
+    return normalizeFullImageRequestUrl(baseURL)
+  }
 
   const appendApiVersion = !isWithTrailingSharp(baseURL)
 
@@ -869,6 +881,29 @@ function buildAzureConfig(
 
 function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'openai-compatible'> {
   const commonOptions = buildCommonOptions(ctx)
+
+  // Full image request URLs (see #18572) bypass the SDK's hardcoded
+  // `baseURL + /images/generations|edits` join: POST the OpenAI body directly
+  // to the user-entered full path.
+  if (
+    (ctx.endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION ||
+      ctx.endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) &&
+    isFullImageRequestUrl(ctx.resolvedBaseUrl)
+  ) {
+    const fullImageUrl = normalizeFullImageRequestUrl(ctx.resolvedBaseUrl)
+    return {
+      providerId: 'openai-compatible',
+      endpoint: ctx.endpoint,
+      providerSettings: {
+        ...ctx.baseConfig,
+        baseURL: fullImageUrl,
+        ...commonOptions,
+        name: ctx.actualProvider.id,
+        includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
+        fetch: (_input, init) => customFetch(fullImageUrl, init)
+      }
+    }
+  }
 
   return {
     providerId: 'openai-compatible',

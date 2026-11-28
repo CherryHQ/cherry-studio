@@ -7,9 +7,11 @@ export {
   formatApiHost,
   formatApiKeys,
   hasApiVersion,
+  isFullImageRequestUrl,
   isWithTrailingSharp,
   joinApiKeyString,
   maskApiKey,
+  normalizeFullImageRequestUrl,
   splitApiKeyString,
   withoutTrailingSharp,
   withoutTrailingSlash

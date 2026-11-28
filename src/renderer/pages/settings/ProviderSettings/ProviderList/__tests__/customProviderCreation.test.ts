@@ -96,6 +96,16 @@ describe('custom provider creation', () => {
     ).toBe('https://api.example.com/custom/v2/chat/completions')
   })
 
+  it.each([
+    [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti'],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti#'],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, 'https://api.example.com/v1/images/generations'],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, 'https://api.example.com/v1/images/edits#']
+  ] as const)('previews %s full image request URL as-is: %s (#18572)', (endpointType, baseUrl) => {
+    const expected = baseUrl.replace(/#$/, '').replace(/\/+$/, '')
+    expect(buildCustomProviderEndpointPreview(baseUrl, endpointType)).toBe(expected)
+  })
+
   it('requires at least one text endpoint even when an image endpoint is configured', () => {
     expect(
       findInvalidCustomProviderCreationUrl({
