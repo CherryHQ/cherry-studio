@@ -3721,17 +3721,13 @@ describe('ChatComposer', () => {
         kind: 'quote',
         label: 'Quote',
         textOffset: 0
-      })
-    ])
-    expect(mocks.surfaceProps?.tokens).toEqual([
+      }),
       expect.objectContaining({
         kind: 'file',
         label: 'default-topic.png',
         payload: expect.objectContaining({
           type: 'image',
-          ext: '.png',
-          name: 'default-topic.png',
-          origin_name: 'default-topic.png'
+          previewUrl: 'file:///tmp/default-topic.png'
         })
       }),
       expect.objectContaining({
@@ -3739,23 +3735,8 @@ describe('ChatComposer', () => {
         label: 'report.pdf',
         payload: expect.objectContaining({
           type: 'document',
-          ext: '.pdf',
-          name: 'report.pdf',
-          origin_name: 'report.pdf'
+          previewUrl: 'file:///tmp/report.pdf'
         })
-      })
-    ])
-    expect(mocks.surfaceProps?.tokens).not.toEqual([
-      expect.objectContaining({
-        kind: 'file',
-        label: 'default-topic.png',
-        payload: expect.objectContaining({
-          type: 'document'
-        })
-      }),
-      expect.objectContaining({
-        kind: 'file',
-        label: 'report.pdf'
       })
     ])
 
@@ -3765,6 +3746,7 @@ describe('ChatComposer', () => {
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
     expect(mocks.surfaceProps?.text).toBe('original draft')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([])
   })
 
   it('restores the real live draft after editing from an active history preview', async () => {

@@ -24,6 +24,7 @@ import type * as ImageTransportRegistryModule from '../provider/custom/imageTran
 import type * as ListModelsModule from '../provider/listModels'
 import type * as BuildApiKeyFallbackModelsModule from '../runtime/aiSdk/retry/buildApiKeyFallbackModels'
 import type { createRetryableWrap, WrapLanguageModel } from '../runtime/aiSdk/retry/createRetryableWrap'
+import type { readRetryPolicy } from '../runtime/aiSdk/retry/retryPolicy'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
 import { makeModel } from './fixtures/model'
@@ -65,7 +66,7 @@ const mockHasApiKeyFallbackCandidates = vi.fn((options?: unknown) => {
   void options
   return false
 })
-const mockReadRetryPolicy = vi.fn(() => ({
+const mockReadRetryPolicy = vi.fn<typeof readRetryPolicy>(() => ({
   enabled: true,
   maxAttempts: 3,
   backoffEnabled: true,
@@ -259,9 +260,8 @@ vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', async (importOrigina
   }
 })
 
-vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
-  MIN_RETRY_ATTEMPTS: 1,
-  MAX_RETRY_ATTEMPTS: 10,
+vi.mock(import('../runtime/aiSdk/retry/retryPolicy'), async (importOriginal) => ({
+  ...(await importOriginal()),
   readRetryPolicy: () => mockReadRetryPolicy(),
   resolveEffectiveFallbackModelIds: (
     requestMaxRetries: number | undefined,

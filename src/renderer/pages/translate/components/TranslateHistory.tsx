@@ -311,7 +311,7 @@ const HistoryRow: FC<{
           onSelect(item.id)
         }
       }}
-      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none">
+      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-[color] hover:bg-accent focus-visible:bg-accent focus-visible:outline-none">
       <IconButton
         size="sm"
         tone="star"

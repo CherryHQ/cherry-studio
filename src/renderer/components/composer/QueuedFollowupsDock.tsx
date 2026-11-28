@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ReorderableList, ScrollArea, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, ReorderableList, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { type ChatInputTokenKind, type ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
@@ -20,7 +20,7 @@ interface QueuedFollowupsDockProps {
   paused?: boolean
   onTogglePause?: () => void
   onSteer?: (id: string) => void
-  onEdit: (id: string) => void
+  onEdit?: (id: string) => void
   onRemove: (id: string) => void
   onReorder: (nextItems: FollowupQueueItem[]) => void
   onDragStart?: () => void
@@ -65,7 +65,7 @@ function QueuedFollowupRow({
   item: FollowupQueueItem
   dragging: boolean
   onSteer?: (id: string) => void
-  onEdit: (id: string) => void
+  onEdit?: (id: string) => void
   onRemove: (id: string) => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
@@ -74,7 +74,7 @@ function QueuedFollowupRow({
   const previewText = item.draft
     ? excludeComposerDraftTokens(item.draft, (token) => isComposerInputTokenKind(token.kind)).text.trim()
     : item.payload.text
-  const steerDisabled = isSteerDisabled?.(item) ?? false
+  const steerDisabled = item.editing || isSteerDisabled?.(item)
 
   return (
     <div className="group flex items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5">
@@ -88,13 +88,16 @@ function QueuedFollowupRow({
         {previewText ? <span className="line-clamp-2 text-sm text-foreground">{previewText}</span> : null}
         <DraftTokenChips item={item} hasText={Boolean(previewText)} />
       </div>
+      {item.editing && <Badge variant="secondary">{t('chat.input.followup_queue.editing')}</Badge>}
       <div className="text-muted-foreground flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         {onSteer ? (
           <Tooltip
             placement="top"
             content={
               steerDisabled
-                ? (steerDisabledReason ?? t('chat.input.followup_queue.steer'))
+                ? item.editing
+                  ? t('chat.input.followup_queue.editing')
+                  : (steerDisabledReason ?? t('chat.input.followup_queue.steer'))
                 : t('chat.input.followup_queue.steer')
             }>
             <Button
@@ -109,17 +112,19 @@ function QueuedFollowupRow({
             </Button>
           </Tooltip>
         ) : null}
-        <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 shadow-none text-muted-foreground"
-            aria-label={t('chat.input.followup_queue.edit')}
-            onClick={() => onEdit(item.id)}>
-            <Pencil className="size-4" />
-          </Button>
-        </Tooltip>
+        {onEdit && (
+          <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 shadow-none text-muted-foreground"
+              aria-label={t('chat.input.followup_queue.edit')}
+              onClick={() => onEdit(item.id)}>
+              <Pencil className="size-4" />
+            </Button>
+          </Tooltip>
+        )}
         <Tooltip placement="top" content={t('chat.input.followup_queue.remove')}>
           <Button
             type="button"

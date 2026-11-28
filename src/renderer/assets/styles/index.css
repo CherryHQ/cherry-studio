@@ -48,6 +48,9 @@
 }
 
 @layer app {
+  *:focus {
+    outline-style: none;
+  }
   * {
     -webkit-tap-highlight-color: transparent;
   }

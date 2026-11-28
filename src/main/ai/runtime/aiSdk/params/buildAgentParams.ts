@@ -903,6 +903,8 @@ function buildAgentOptions(
             providerSettings: sdkConfig.providerSettings,
             modelId: sdkConfig.modelId,
             headers,
+            signal: scope.signal,
+            retryInvalidOutput: maxRetries !== 0,
             getUsagePlugins: getRepairUsagePlugins
           })
   }

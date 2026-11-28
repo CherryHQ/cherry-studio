@@ -339,6 +339,7 @@ export function useAgentMessageListProviderValue({
           waitingForModel,
           ...(row.sourceMessageId && { parentId: null }),
           sourceMessageId: row.sourceMessageId,
+          isBeforeLatestRunInput: row.isBeforeLatestRunInput,
           isRunBoundary: row.isRunBoundary,
           ...(row.isRunBoundary === false && { stats: undefined })
         }

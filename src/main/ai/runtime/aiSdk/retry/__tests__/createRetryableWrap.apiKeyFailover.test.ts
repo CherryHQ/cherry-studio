@@ -280,7 +280,7 @@ describe('createRetryableWrap API key failover', () => {
           attempts.push('key-2')
           throw makeApiError(503)
         })
-        .mockImplementationOnce(async () => {
+        .mockImplementation(async () => {
           attempts.push('key-2')
           return okResult
         })
@@ -295,11 +295,13 @@ describe('createRetryableWrap API key failover', () => {
         throw makeApiError(401)
       })
 
-      const pending = wrap!(makeFakeLanguageModel('same-model', primaryGenerate)).doGenerate({ prompt: [] })
+      const model = wrap!(makeFakeLanguageModel('same-model', primaryGenerate))
+      const pending = model.doGenerate({ prompt: [] })
       await vi.advanceTimersByTimeAsync(2_000)
       await pending
 
-      expect(attempts).toEqual(['key-1', 'key-2', 'key-2'])
+      await model.doGenerate({ prompt: [] })
+      expect(attempts).toEqual(['key-1', 'key-2', 'key-2', 'key-2'])
       expect(onRetryEvent).toHaveBeenCalledTimes(3)
       expect(onRetryEvent).toHaveBeenNthCalledWith(
         1,
