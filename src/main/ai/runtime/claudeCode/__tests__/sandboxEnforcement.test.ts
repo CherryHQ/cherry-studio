@@ -299,7 +299,8 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
   })
 
   it('routes a request to leave the sandbox to canUseTool and does not run it when denied (AC3)', async () => {
-    const target = path.join(root, 'outside', 'escape.txt')
+    // The workspace is writable inside the sandbox, so the file would appear if the denied call still ran there.
+    const target = path.join(root, 'work', 'escape.txt')
     const input = { command: `touch '${target}'`, description: 'escape probe', dangerouslyDisableSandbox: true }
 
     const { approvals } = await runBash(input, 'acceptEdits')
