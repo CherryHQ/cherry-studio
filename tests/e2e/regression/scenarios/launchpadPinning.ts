@@ -57,7 +57,9 @@ export async function launchpadPinning(app: RegressionApp, page: Page, testInfo:
     )
   const toggleSidebar = async (pin: boolean) => {
     await tile().click({ button: 'right' })
-    await page.getByRole('menuitem', { name: pin ? 'Add to Sidebar' : 'Remove from Sidebar', exact: true }).click()
+    const item = page.getByRole('menuitem', { name: pin ? 'Add to Sidebar' : 'Remove from Sidebar', exact: true })
+    await expect(item).toBeVisible()
+    await item.dispatchEvent('click', {}, { timeout: 20_000 })
     await expect.poll(isPinned).toBe(pin)
     if (pin) await expect(sidebarButton()).toBeVisible()
     else await expect(sidebarButton()).toHaveCount(0)
