@@ -348,7 +348,7 @@ describe('local protocol processes', () => {
       { type: 'file', mediaType: 'image/png', url: `data:image/png;base64,${image}`, filename: 'image.png' },
       { type: 'file', mediaType: 'text/plain', url: pathToFileURL(file).href, filename: '说明 #1.txt' }
     ]
-    await connection.send({ message: { data: { parts } } } as AgentRuntimeUserInput)
+    await connection.send({ message: { ...input.message, data: { parts } } } as AgentRuntimeUserInput)
     const wire = await readWire()
     const prompt = wire.find((message) => message.method === 'session/prompt').params.prompt
     expect(prompt).toEqual([
@@ -383,7 +383,7 @@ describe('local protocol processes', () => {
       ...(source === 'managed' ? { providerMetadata: { cherry: { fileEntryId: 'managed-audio' } } } : {})
     }
     await connection.send({
-      message: { data: { parts: [{ type: 'text', text: 'Listen' }, part] } }
+      message: { ...input.message, data: { parts: [{ type: 'text', text: 'Listen' }, part] } }
     } as AgentRuntimeUserInput)
     const wire = await readWire()
     expect(wire.find(({ method }) => method === 'session/prompt').params.prompt).toEqual([
@@ -475,6 +475,7 @@ describe('local protocol processes', () => {
     const gbk = Buffer.from('c4e3bac3', 'hex').toString('base64')
     await connection.send({
       message: {
+        ...input.message,
         data: {
           parts: [
             {
@@ -488,7 +489,7 @@ describe('local protocol processes', () => {
           ]
         }
       }
-    } as AgentRuntimeUserInput)
+    })
     const wire = await readWire()
     expect(wire.find((message) => message.method === 'session/prompt').params.prompt).toEqual([
       {

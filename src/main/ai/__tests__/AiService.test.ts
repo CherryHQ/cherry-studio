@@ -238,7 +238,8 @@ vi.mock('@main/data/services/AiUsageRecordService', async (importActual) => {
   }
 })
 
-vi.mock('../runtime/aiSdk/retry/createRetryableWrap', () => ({
+vi.mock(import('../runtime/aiSdk/retry/createRetryableWrap'), async (importOriginal) => ({
+  ...(await importOriginal()),
   createRetryableWrap: (options: unknown) => mockCreateRetryableWrap(options)
 }))
 
