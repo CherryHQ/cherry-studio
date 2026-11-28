@@ -48,6 +48,7 @@ export interface AgentConversationControlsProps {
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
   workspaceChanging?: boolean
+  workspaceDisabledReason?: string
   workspaceWarning?: string
   selectAgentLabel: string
   selectModelLabel: string
@@ -261,6 +262,7 @@ function WorkspaceControl({
   workspace,
   workspaceId,
   workspaceChanging,
+  workspaceDisabledReason,
   workspaceWarning,
   selectWorkspaceLabel,
   side,
@@ -271,6 +273,7 @@ function WorkspaceControl({
   | 'workspace'
   | 'workspaceId'
   | 'workspaceChanging'
+  | 'workspaceDisabledReason'
   | 'workspaceWarning'
   | 'selectWorkspaceLabel'
   | 'side'
@@ -333,7 +336,8 @@ function WorkspaceControl({
         iconOnly ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : side === 'bottom' && COMPOSER_TOP_BAR_SHRINK_CLASS,
         hasWarning && 'text-warning hover:text-warning'
       )}
-      disabled={!onWorkspaceChange || workspaceChanging}
+      disabled={!onWorkspaceChange || workspaceChanging || Boolean(workspaceDisabledReason)}
+      title={workspaceDisabledReason}
       aria-label={workspaceWarning}
       onClick={(event) => {
         const target = event.target as Element | null

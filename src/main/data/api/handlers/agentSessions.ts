@@ -8,8 +8,9 @@
  * session relation.
  */
 
+import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { toDataApiError } from '@shared/data/api/errors'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSessionSchemas,
@@ -64,6 +65,11 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions/:sessionId/workspace': {
     PUT: async ({ params, body }) => {
       agentSessionService.getConversationById(params.sessionId)
+      // Swapping the directory under a running turn would re-resolve its paths
+      // mid-execution, so a rebind is rejected only while a turn is in flight.
+      if (application.get('AgentSessionRuntimeService').isSessionBusy(params.sessionId)) {
+        throw DataApiErrorFactory.invalidOperation('update session workspace', 'turn_in_flight')
+      }
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.setWorkspace(params.sessionId, parsed.data)

@@ -34,6 +34,7 @@ import PermissionRequestComposer, {
 } from '@renderer/components/composer/variants/PermissionRequestComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -346,7 +347,7 @@ const AgentChat = ({
     !runtime.hasOlder &&
     runtime.uiMessages.length === 0
   )
-  const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
+  const canChangeWorkspace = Boolean(onSessionWorkspaceChange)
   const runAfterFileNavigation = useCallback(
     (transition: () => void) => {
       if (requestFileNavigation) {
@@ -392,11 +393,24 @@ const AgentChat = ({
   )
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
-      runAfterFileNavigation(() => {
-        void onSessionWorkspaceChange?.(workspaceId)
+      if (isEmptyConversation) {
+        runAfterFileNavigation(() => {
+          void onSessionWorkspaceChange?.(workspaceId)
+        })
+        return
+      }
+      void ConfirmActionPopup.show({
+        title: t('agent.session.workspace_rebind.confirm_title'),
+        content: t('agent.session.workspace_rebind.confirm_content'),
+        okText: t('agent.session.workspace_rebind.confirm_ok'),
+        action: () => {
+          runAfterFileNavigation(() => {
+            void onSessionWorkspaceChange?.(workspaceId)
+          })
+        }
       })
     },
-    [onSessionWorkspaceChange, runAfterFileNavigation]
+    [isEmptyConversation, onSessionWorkspaceChange, runAfterFileNavigation, t]
   )
   const handleCreateEmptySession = useCallback(() => {
     if (!sessionSnapshot || !onCreateEmptySession) return
@@ -527,6 +541,9 @@ const AgentChat = ({
               workspace={sessionSnapshot.workspace}
               workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
               workspaceChanging={replacingSessionWorkspace}
+              workspaceDisabledReason={
+                runtime.isPending ? t('agent.session.workspace_rebind.turn_in_flight') : undefined
+              }
               workspaceWarning={workspaceWarning}
               selectAgentLabel={t('chat.alerts.select_agent')}
               selectModelLabel={t('button.select_model')}

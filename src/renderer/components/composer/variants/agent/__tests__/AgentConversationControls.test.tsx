@@ -12,6 +12,12 @@ import { AgentConversationControls, type AgentConversationControlsProps } from '
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
+// The catalog fetch is irrelevant to these controls; render the trigger directly.
+vi.mock('@renderer/components/resourceCatalog/selectors', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
+}))
+
 const workspace = { id: 'workspace-1', type: 'user', name: 'My workspace', path: '/projects/my-workspace' } as const
 
 function renderControls(
@@ -134,5 +140,41 @@ describe('locked conversation workspace', () => {
     expect(avatar.querySelector('[data-slot="cli-icon"] svg')).toBeInTheDocument()
     await userEvent.click(avatar)
     expect(openProfile).toHaveBeenCalledOnce()
+  })
+})
+
+describe('workspace picker busy state', () => {
+  beforeEach(async () => {
+    MockUseCacheUtils.resetMocks()
+    await i18n.changeLanguage('en-US')
+    // The workspace picker fetches its catalog; an empty list is enough here.
+    vi.mocked(window.api.ipcApi.request).mockReset()
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: [] })
+  })
+
+  it('disables the picker with the reason while a turn is in flight', () => {
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <AgentConversationControls
+          workspace={workspace}
+          workspaceId={workspace.id}
+          workspaceDisabledReason="A task is running. Change the work directory when it finishes."
+          selectAgentLabel="Select agent"
+          selectModelLabel="Select model"
+          selectWorkspaceLabel="Select workspace"
+          shouldAutoSelectCreatedAgent={false}
+          side="bottom"
+          agentTriggerMode="edit"
+          canChangeModel={false}
+          onAgentChange={vi.fn()}
+          onModelSelect={vi.fn()}
+          onWorkspaceChange={vi.fn()}
+        />
+      </SWRConfig>
+    )
+
+    const picker = screen.getByRole('button', { name: 'My workspace' })
+    expect(picker).toBeDisabled()
+    expect(picker).toHaveAttribute('title', 'A task is running. Change the work directory when it finishes.')
   })
 })

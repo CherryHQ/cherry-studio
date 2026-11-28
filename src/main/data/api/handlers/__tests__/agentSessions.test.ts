@@ -1,14 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getConversationByIdMock, getLatestActiveMock, updateMock, setWorkspaceMock, reorderMock, reorderBatchMock } =
-  vi.hoisted(() => ({
-    getConversationByIdMock: vi.fn(),
-    getLatestActiveMock: vi.fn(),
-    updateMock: vi.fn(),
-    setWorkspaceMock: vi.fn(),
-    reorderMock: vi.fn(),
-    reorderBatchMock: vi.fn()
-  }))
+const {
+  getConversationByIdMock,
+  getLatestActiveMock,
+  updateMock,
+  setWorkspaceMock,
+  reorderMock,
+  reorderBatchMock,
+  isSessionBusyMock
+} = vi.hoisted(() => ({
+  getConversationByIdMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
+  updateMock: vi.fn(),
+  setWorkspaceMock: vi.fn(),
+  reorderMock: vi.fn(),
+  reorderBatchMock: vi.fn(),
+  isSessionBusyMock: vi.fn(() => false)
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    AgentSessionRuntimeService: { isSessionBusy: isSessionBusyMock }
+  })
+})
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
@@ -106,6 +121,33 @@ describe('agentSessionHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(setWorkspaceMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a workspace change while a turn is in flight', async () => {
+      isSessionBusyMock.mockReturnValueOnce(true)
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId/workspace'].PUT({
+          params: { sessionId: 'session-1' },
+          body: { type: 'system' }
+        })
+      ).rejects.toMatchObject({ code: 'INVALID_OPERATION' })
+
+      expect(isSessionBusyMock).toHaveBeenCalledWith('session-1')
+      expect(setWorkspaceMock).not.toHaveBeenCalled()
+    })
+
+    it('accepts a workspace change when no turn is in flight', async () => {
+      setWorkspaceMock.mockReturnValueOnce({ id: 'session-1' })
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId/workspace'].PUT({
+          params: { sessionId: 'session-1' },
+          body: { type: 'system' }
+        })
+      ).resolves.toEqual({ id: 'session-1' })
+
+      expect(setWorkspaceMock).toHaveBeenCalledWith('session-1', { type: 'system' })
     })
   })
 

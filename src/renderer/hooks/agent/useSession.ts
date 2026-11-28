@@ -541,7 +541,7 @@ export const useSessions = (
  * Patch session-level fields (`name`, `description`, `agentId`, `model`). Remaining
  * config fields (instructions, configuration, ...) live on the parent agent — use
  * {@link import('./useAgent').useUpdateAgent} for those. The workspace binding
- * is changed separately via {@link setSessionWorkspace} (only while empty).
+ * is changed separately via {@link setSessionWorkspace}.
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()
@@ -576,9 +576,9 @@ export const useUpdateSession = () => {
   )
 
   /**
-   * Replace a session's workspace. Backend rejects this once the session has
-   * any message (only empty sessions may rebind), so callers should gate on an
-   * untouched session.
+   * Replace a session's workspace. Sessions with messages may rebind (the
+   * change is recorded on the session and applies to future turns); the
+   * backend only rejects while a turn is in flight.
    */
   const setSessionWorkspace = useCallback(
     async (id: string, workspace: SetAgentSessionWorkspaceDto): Promise<AgentSessionEntity | undefined> => {
