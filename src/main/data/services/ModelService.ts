@@ -12,7 +12,11 @@ import { isEqual } from 'es-toolkit/compat'
 
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
-import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import {
+  inferReasoningControls,
+  inferReasoningOwnedBy,
+  matchesReasoningFamilyProfile
+} from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -545,20 +549,35 @@ class ModelService {
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
     // infer the controls from the registry heuristics so custom rows are
-    // descriptor-driven like catalog rows (#16598).
+    // descriptor-driven like catalog rows (#16598). Unknown ids with an
+    // explicitly declared REASONING capability fall back to the default
+    // low/medium/high ladder inside inferCustomModelReasoning (#25203), derived
+    // at read time so removing the capability clears it. Ollama keeps its
+    // richer toggle + effort descriptor so thinking can be disabled.
+    // Recognized family vocabularies always win over the Ollama fallback, and
+    // PROFILE matches with no knobs (e.g. `step-3`) stay knob-less.
     if (dtoValues.reasoning == null) {
       const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
-      const inferred =
-        inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning }) ??
-        (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
-          ? projectRuntimeReasoning(
-              {
-                controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
-              },
-              registryData.reasoningProfile.wire
-            )
-          : undefined)
-      if (inferred) dtoValues.reasoning = inferred
+      const familyControls = inferReasoningControls(dto.modelId)
+      if (familyControls) {
+        const inferred = inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, {
+          declaredReasoning
+        })
+        if (inferred) dtoValues.reasoning = inferred
+      } else if (declaredReasoning && !matchesReasoningFamilyProfile(dto.modelId)) {
+        if (registryData?.reasoningProfile.format === 'ollama') {
+          dtoValues.reasoning = projectRuntimeReasoning(
+            {
+              controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+            },
+            registryData.reasoningProfile.wire
+          )
+        }
+        // Non-Ollama synthetic fallback is intentionally NOT persisted here:
+        // it is derived during enrichment from the current capability so that
+        // removing REASONING clears the picker instead of leaving a stale
+        // stored ladder behind (#25203).
+      }
     }
 
     dtoValues.reasoning = mergeUserReasoning(dtoValues.reasoning, dto.reasoning)
@@ -847,12 +866,40 @@ class ModelService {
         let reasoning: RuntimeReasoning | undefined
         if (registryModel) {
           reasoning = registryModel.reasoning
-        } else if (model.reasoning?.controls?.length) {
-          reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
-          reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, {
-            declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
-          })
+          // Custom row with no catalog match: preserve stored intrinsic
+          // controls (e.g. a custom `ultra` ladder) and synthesize the
+          // default fallback only when intrinsic controls are absent
+          // (#25203). Removing REASONING clears a synthetic ladder from a
+          // truly unmatched id. Recognized family vocabularies win over the
+          // Ollama fallback, and PROFILE matches with no knobs
+          // (e.g. `step-3`) stay knob-less.
+          const declaredReasoning = model.capabilities.includes(MODEL_CAPABILITY.REASONING)
+          const familyControls = inferReasoningControls(modelId)
+          const isFixedReasoner = !familyControls && matchesReasoningFamilyProfile(modelId)
+          if (isFixedReasoner) {
+            reasoning = undefined
+          } else if (model.reasoning?.controls?.length) {
+            reasoning =
+              !declaredReasoning && !familyControls
+                ? undefined
+                : projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
+          } else if (familyControls) {
+            reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, { declaredReasoning })
+          } else if (!declaredReasoning) {
+            reasoning = undefined
+          } else if (reasoningProfile.format === 'ollama') {
+            reasoning = projectRuntimeReasoning(
+              {
+                controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+              },
+              reasoningProfile.wire
+            )
+          } else {
+            reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, {
+              declaredReasoning: true
+            })
+          }
         }
         if (reasoning)
           updates.reasoning = {

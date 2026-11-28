@@ -70,3 +70,16 @@ export function matchReasoningMembership(rawModelId: string, rules: readonly Rea
     GENERIC_REASONING_SHAPES.some((pattern) => membershipRegex(pattern).test(id))
   )
 }
+
+/**
+ * Test whether an id matches any PROFILE rule (template rules excluded).
+ * Used to distinguish a known fixed reasoner (e.g. `step-3`, which intentionally
+ * declares no knobs) from a truly unmatched id before applying a synthetic
+ * fallback ladder (#25203). Generic shapes do NOT count — an unknown id that
+ * merely contains `reasoner`/`thinking` is still unmatched and may fall back.
+ */
+export function matchReasoningProfile(rawModelId: string, rules: readonly ReasoningFamilyRule[]): boolean {
+  const id = membershipBaseName(rawModelId)
+  if (NON_REASONING_GUARD.test(id)) return false
+  return rules.some((rule) => rule.template !== true && membershipRegex(rule.pattern).test(id))
+}

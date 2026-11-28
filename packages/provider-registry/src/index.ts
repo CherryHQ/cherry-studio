@@ -156,7 +156,8 @@ export { isVendor, matchVendor, VENDOR_PATTERNS } from './patterns/vendor-patter
 export {
   inferReasoningControls,
   inferReasoningMembership,
-  inferReasoningOwnedBy
+  inferReasoningOwnedBy,
+  matchesReasoningFamilyProfile
 } from './patterns/reasoning-heuristics'
 export { isWebSearchEffortUnsupported, supportsServerToolFunctionMixing } from './patterns/serverToolConstraints'
 export { isServerToolModelEligible } from './patterns/serverToolModelEligibility'
