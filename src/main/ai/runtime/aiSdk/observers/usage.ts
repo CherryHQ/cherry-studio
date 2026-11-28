@@ -22,6 +22,7 @@
 
 import type { LanguageModelUsage } from 'ai'
 
+import { providerReportedOutputUsage } from '@shared/ai/reportedOutputUsage'
 import type { MessageStats } from '@shared/data/types/message'
 
 import type { Agent } from '../Agent'
@@ -110,7 +111,8 @@ export function attachUsageObserver(agent: Agent): void {
     agent.write({
       type: 'message-metadata',
       messageMetadata: {
-        stats: usageToStats(total)
+        stats: usageToStats(total),
+        reportedOutputUsage: providerReportedOutputUsage(step.usage)
       }
     })
   })

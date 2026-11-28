@@ -20,6 +20,7 @@ import { needsPlainToolReasoning, ToolContinuationRouteError } from '../../provi
 import { resolveReplayRouteId } from '../../provider/sdkConfig'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
+import { formatPiOutputLimitDiagnostic } from './outputLimitDiagnostic'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
 import {
   getForeignPiToolOrdinals,
@@ -27,6 +28,7 @@ import {
   preparePiReplay,
   type ReplayAssistantMessage
 } from './replayHistory'
+import { reportedOutputUsageObserver, type ReportedOutputUsage } from './reportedOutputUsage'
 
 const OBJECT_TRANSPORT_API_KEY = 'cherry-object-transport'
 
@@ -100,6 +102,8 @@ export async function createPiGatewayModelBinding(
       }
     ],
     streamSimple: (model, context, options) => {
+      // Native reasoning can enlarge per-call output caps before the gateway receives them.
+      const reported: ReportedOutputUsage = {}
       const output = createAssistantMessageEventStream()
       void (async () => {
         let transportFailure: RecoverableModelTransportFailure | undefined
@@ -151,12 +155,19 @@ export async function createPiGatewayModelBinding(
             }),
             disableContinuation: true,
             reasoning: undefined,
-            maxRetries: 0
+            maxRetries: 0,
+            onProviderStreamEvent: reportedOutputUsageObserver(reported, options?.onProviderStreamEvent)
           })
           for await (const event of stream) {
             if (event.type === 'done') {
               const message = event.message as ReplayAssistantMessage
               message.cherryReplayRouteId = routeId
+              if (message.stopReason === 'length') {
+                message.errorMessage = formatPiOutputLimitDiagnostic({
+                  configuredMaxTokens: model.maxTokens,
+                  ...reported
+                })
+              }
               if (needsPlainToolReasoning(endpoint.endpointType, current.model))
                 message.cherryRequiresToolReasoning = true
             }

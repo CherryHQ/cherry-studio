@@ -1,4 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -7,6 +8,7 @@ import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import { obj } from '@earendil-works/pi-schema'
 import { childTimeline } from '@test-helpers/childTimeline'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
@@ -20,6 +22,8 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
@@ -36,6 +40,7 @@ import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { RetryPartData } from '@shared/data/types/uiParts'
+import { getRawModelId } from '@shared/utils/model'
 import { getSentryLogContext } from '@shared/utils/sentry'
 
 import {
@@ -48,6 +53,7 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, subagentCall, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import type * as GatewayModelBinding from './gatewayModelBinding'
 import * as piBehaviorHost from './piBehaviorHost'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
@@ -65,7 +71,8 @@ const mocks = vi.hoisted(() => ({
   binding: vi.fn(),
   prompt: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
-  delegated: vi.fn()
+  delegated: vi.fn(),
+  gatewayUrl: 'http://gateway.invalid'
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -76,6 +83,25 @@ vi.mock('@application', async () => {
       ensureInternalGateway: async () => {
         throw new Error('Pi must start without an internal HTTP listener')
       },
+      // The binding speaks to the gateway in-process now; this stand-in keeps the
+      // fixture's real HTTP SSE server behind the object-transport seam.
+      createAgentObjectTransports: () => ({
+        'openai-completions': async () => {
+          const res = await fetch(`${mocks.gatewayUrl}/v1/chat/completions`, { method: 'POST' })
+          const body = await res.text()
+          const events = body
+            .split('\n')
+            .filter((line) => line.startsWith('data: ') && line.trim() !== 'data: [DONE]')
+            .map((line) => JSON.parse(line.slice(6)))
+          return {
+            status: res.status,
+            headers: res.headers,
+            events: (async function* () {
+              for (const event of events) yield event
+            })()
+          }
+        }
+      }),
       getAgentSessionUsageHeaders: () => ({})
     },
     McpCatalogService: { listTools: () => [] },
@@ -825,6 +851,103 @@ describe('desktop Pi root connection', () => {
     await expect.poll(() => childRuns).toBe(3)
     expect(child).toBe(firstChild)
   })
+
+  it.each(['en-US', 'ja-JP'] as const)(
+    'emits localized truncation diagnostics through the real native gateway path (%s)',
+    async (language) => {
+      const server = createServer(async (req, res) => {
+        for await (const chunk of req) {
+          void chunk // Drain the real native request.
+        }
+        res.writeHead(200, { 'content-type': 'text/event-stream' })
+        for (const chunk of [
+          {
+            id: 'native-length',
+            object: 'chat.completion.chunk',
+            choices: [{ index: 0, delta: { role: 'assistant', content: 'partial' }, finish_reason: null }]
+          },
+          {
+            id: 'native-length',
+            object: 'chat.completion.chunk',
+            choices: [{ index: 0, delta: {}, finish_reason: 'length' }]
+          },
+          {
+            id: 'native-length',
+            object: 'chat.completion.chunk',
+            choices: [],
+            usage: {
+              prompt_tokens: 10,
+              completion_tokens: 8192,
+              total_tokens: 8202,
+              completion_tokens_details: { reasoning_tokens: 7000 }
+            }
+          }
+        ])
+          res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+        res.end('data: [DONE]\n\n')
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('No listener')
+      mocks.gatewayUrl = `http://127.0.0.1:${address.port}`
+      snapshot.provider = ProviderSchema.parse({
+        ...snapshot.provider,
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'openai-compatible' } }
+      })
+      snapshot.model = ModelSchema.parse({ ...snapshot.model, maxOutputTokens: 8192 })
+      // The binding resolves its model through the registry, so the fixture's rows must exist.
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: snapshot.provider.id,
+          name: snapshot.provider.name,
+          isEnabled: true,
+          defaultChatEndpoint: snapshot.provider.defaultChatEndpoint,
+          endpointConfigs: snapshot.provider.endpointConfigs,
+          orderKey: 'a0'
+        })
+        .run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: snapshot.model.id,
+          providerId: snapshot.provider.id,
+          modelId: getRawModelId(snapshot.model),
+          name: snapshot.model.name,
+          capabilities: snapshot.model.capabilities,
+          endpointTypes: snapshot.model.endpointTypes,
+          supportsStreaming: snapshot.model.supportsStreaming,
+          isEnabled: true,
+          orderKey: 'a0'
+        })
+        .run()
+      const actual = await vi.importActual<typeof GatewayModelBinding>('./gatewayModelBinding')
+      mocks.binding.mockImplementation(() =>
+        actual.createPiGatewayModelBinding(input, snapshot.provider, snapshot.model)
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', language)
+      try {
+        const { connection, events } = await connect()
+        await connection.send({ message: message('short answer') })
+        await done(events)
+        const failure = events.find((event) => event.type === 'error')
+        expect(failure?.type).toBe('error')
+        const error = failure?.type === 'error' ? String(failure.error) : ''
+        expect(error).toContain(
+          language === 'ja-JP' ? '設定された最大出力: 8192 トークン' : 'Configured maximum output: 8192 tokens'
+        )
+        expect(error).toContain('7000')
+        expect(snapshot.model?.maxOutputTokens).toBe(8192)
+        expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(0)
+      } finally {
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+        mocks.gatewayUrl = 'http://gateway.invalid'
+        server.closeAllConnections()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    }
+  )
 
   // Catches a recovered root being rebuilt forever after one historical child reports a startup error.
   it('keeps a reopened parent usable and its child archive readable when child configuration fails', async () => {
