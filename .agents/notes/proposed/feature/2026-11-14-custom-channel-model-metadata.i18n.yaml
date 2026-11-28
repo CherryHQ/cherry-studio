@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-custom-channel-model-metadata.md
+2026-11-14-custom-channel-model-metadata.md: 47fcd08058dd881fa449ad0caae21770af9a3cd7
+2026-11-14-custom-channel-model-metadata.zh.md: ac6019554369e5248d0486b1fca8c30b8f9a5a2c
