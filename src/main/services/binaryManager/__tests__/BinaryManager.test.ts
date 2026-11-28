@@ -1,6 +1,4 @@
-import type * as NodeFs from 'node:fs'
 import type * as NodeModule from 'node:module'
-import type * as NodeOs from 'node:os'
 import path from 'node:path'
 import type * as NodePath from 'node:path'
 
