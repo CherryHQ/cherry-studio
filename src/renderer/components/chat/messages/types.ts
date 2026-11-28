@@ -249,6 +249,7 @@ export interface MessageListItem {
   localTurnUsage?: LocalAgentTurnUsage
   stats?: MessageStats
   delivery?: AgentSessionDelivery
+  waitingForModel?: boolean
   turnOrigin?: AutonomousTurnOrigin
   mentions?: Array<{
     id: string

@@ -30,6 +30,7 @@ import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messag
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
 import { messageProjectionService } from '@renderer/services/aiTransport'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -39,6 +40,7 @@ import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { PartOverrides, type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
+import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
 import { extractAgentSessionId } from '@shared/ai/agentSessionTopic'
 import type { ProjectionTarget } from '@shared/ai/messageProjection'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -246,6 +248,8 @@ export function useAgentMessageListProviderValue({
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionId(topic.id), [topic.id])
+  const runtimeControls = useSharedCacheValue(AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(sessionId))
+  const pendingSteerIds = normalInteractionsEnabled ? runtimeControls?.pendingSteerIds : undefined
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -317,14 +321,22 @@ export function useAgentMessageListProviderValue({
   const messageItems = useMemo(
     () =>
       visibleRows.map((row) => {
+        const waitingForModel = row.message.role === 'user' && pendingSteerIds?.includes(row.id)
         const cached = messageItemCacheRef.current.get(row)
-        if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) return cached.item
+        if (
+          cached &&
+          cached.assistantId === resolvedAgentId &&
+          cached.topicId === topic.id &&
+          cached.item.waitingForModel === waitingForModel
+        )
+          return cached.item
         const item: MessageListItem = {
           ...toMessageListItem(row.message, { assistantId: resolvedAgentId, topicId: topic.id }),
           id: row.id,
           partIds: row.partIds,
           presentation: row.kind,
           showHeader: row.showHeader,
+          waitingForModel,
           ...(row.sourceMessageId && { parentId: null }),
           sourceMessageId: row.sourceMessageId,
           isRunBoundary: row.isRunBoundary,
@@ -334,7 +346,7 @@ export function useAgentMessageListProviderValue({
         messageItemCacheRef.current.set(row, { assistantId: resolvedAgentId, item, topicId: topic.id })
         return item
       }),
-    [resolvedAgentId, visibleRows, topic.id]
+    [resolvedAgentId, visibleRows, topic.id, pendingSteerIds]
   )
 
   const getDoctorSubject = useCallback(

@@ -24,6 +24,7 @@ import {
   type EntryId,
   type HarnessOptions,
   type Storage,
+  type SubmissionDraft,
   type SubmissionRecord,
   type ToolTaskInput,
   type Tx
@@ -73,7 +74,7 @@ import {
 import { productInputId, readDurableInput, submissionState } from './inputLookup'
 import { previewContentIndices, previewTextAppends } from './previewTextAppends'
 import { DurableProjection, type DurableObservation } from './projection'
-import { readDurableWork, type DurableRecoveryWork } from './recovery'
+import { readDurableWork, recoveryIndex, type DurableRecoveryWork } from './recovery'
 import { toolPreviewIndices, toolResultSlot } from './toolOutputOps'
 
 function queuedInputId(view: ConversationView, record: SubmissionRecord): InputId | undefined {
@@ -106,6 +107,7 @@ export type PiDurableSessionOptions = ConversationCreateOptions
 export interface PiDurableThreadHandle extends ThreadHandle {
   readonly input: ThreadInput & Required<Pick<ThreadInput, 'steer'>>
   readonly durable: {
+    submitStagedFollowup(draft: InputDraft): Promise<SubmitResult>
     followups(): readonly DurableFollowup[]
     changeFollowups(change: DurableFollowupChange): Promise<boolean>
     observe(
@@ -807,7 +809,11 @@ export async function createPiDurableRuntime(
         return { status: 'unknown', error: error('observe', 'source-lost') }
       }
     }
-    function submit(input: InputDraft, whenBusy: 'reject' | 'steer' | 'follow-up'): Promise<SubmitResult> {
+    function submit(
+      input: InputDraft,
+      whenBusy: 'reject' | 'steer' | 'follow-up',
+      project = false
+    ): Promise<SubmitResult> {
       if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
       entry.projection.beginAdmission(input.inputId)
       const attempt = entry.admission.then(async (): Promise<SubmitResult> => {
@@ -864,29 +870,41 @@ export async function createPiDurableRuntime(
               return { status: 'acknowledged', inputId: input.inputId, facts: state.facts }
             }
           }
-          const submission = await entry.conversation.submit(
-            {
-              type: 'input',
-              content: input.text,
-              requestId: input.inputId,
-              whenBusy: whenBusy === 'follow-up' ? 'followUp' : whenBusy,
-              entry: { kind: 'cherry.user-input', data: { cherryInputId: input.inputId } }
-            },
-            context
-          )
+          const draft: SubmissionDraft = {
+            type: 'input',
+            content: input.text,
+            requestId: input.inputId,
+            whenBusy: whenBusy === 'follow-up' ? 'followUp' : whenBusy,
+            entry: { kind: 'cherry.user-input', data: { cherryInputId: input.inputId } }
+          }
+          const submission = project
+            ? await native.commit(async (tx) => {
+                const id = await entry.conversation.submit(tx, draft)
+                const index = await tx.doc(recoveryIndex)
+                index.followupProjections ??= {}
+                index.followupProjections[entry.ref.id] = {
+                  ...index.followupProjections[entry.ref.id],
+                  [input.inputId]: true
+                }
+                return id
+              }, context)
+            : await entry.conversation.submit(draft, context)
+          const id = typeof submission === 'number' ? submission : submission.id
           let state: InputState = {
             inputId: input.inputId,
-            nativeInput: { session: entry.ref, id: runtimeId(String(submission.id)) },
+            nativeInput: { session: entry.ref, id: runtimeId(String(id)) },
             facts: ['accepted']
           }
           try {
-            const record = await submission.status(context)
+            const record =
+              typeof submission === 'number'
+                ? await committedStorage.submission(submission, context)
+                : await submission.status(context)
+            if (!record) throw new Error('Durable submission is missing after admission')
             state = submissionState(entry.ref, record, undefined, input.inputId)
           } catch (cause) {
             report(cause)
-            const known = entry.projection.feed.snapshot.inputs.find(
-              (value) => value.nativeInput?.id === String(submission.id)
-            )
+            const known = entry.projection.feed.snapshot.inputs.find((value) => value.nativeInput?.id === String(id))
             state = { ...state, ...known, inputId: input.inputId }
             entry.projection.input(state)
           }
@@ -962,6 +980,7 @@ export async function createPiDurableRuntime(
         }
       },
       durable: {
+        submitStagedFollowup: (draft) => submit(draft, 'follow-up', true),
         followups: entry.followups,
         changeFollowups: (change) =>
           unavailable()
