@@ -78,6 +78,7 @@ export function defaultRipgrepGlobArgs(): string[] {
 export interface GitignorePredicate {
   /** True if the absolute path should be excluded from scan/watch. */
   (absPath: string): boolean
+  readonly rules: readonly string[]
 }
 
 /**
@@ -113,20 +114,17 @@ export async function loadGitignorePredicate(rootPath: string): Promise<Gitignor
     }
   }
 
+  const rules = [...DEFAULT_IGNORE_PATTERNS, ...(raw ? raw.split(/\r\n|\r|\n/) : []), '.git']
   let ig: Ignore
   try {
     ig = ignore()
-    // Defaults first so the user's `.gitignore` can override (`!pattern`).
-    ig.add(DEFAULT_IGNORE_PATTERNS.join('\n'))
-    if (raw) ig.add(raw)
-    // `.git` is force-ignored last — user cannot un-ignore it.
-    ig.add('.git')
+    ig.add(rules)
   } catch (err) {
     logger.warn(`Failed to parse .gitignore under ${normalizedRoot}`, err as Error)
     return null
   }
 
-  return (absPath: string) => {
+  const predicate = (absPath: string) => {
     const normalized = absPath.replace(/\\/g, '/')
     if (normalized === normalizedRoot) return false
     if (!normalized.startsWith(`${normalizedRoot}/`)) return false
@@ -134,4 +132,5 @@ export async function loadGitignorePredicate(rootPath: string): Promise<Gitignor
     if (!rel) return false
     return ig.ignores(rel)
   }
+  return Object.assign(predicate, { rules })
 }

@@ -95,14 +95,14 @@ describe('BasicDataSettings', () => {
     })
     const onClear = clearCacheShowMock.mock.calls[0][0].onClear as (
       groups: Array<'normal_cache' | 'legacy_v1'>
-    ) => Promise<boolean>
+    ) => Promise<Array<'normal_cache' | 'legacy_v1'>>
 
-    let succeeded: boolean | undefined
+    let remaining: Array<'normal_cache' | 'legacy_v1'> | undefined
     await act(async () => {
-      succeeded = await onClear(['normal_cache', 'legacy_v1'])
+      remaining = await onClear(['normal_cache', 'legacy_v1'])
     })
 
-    expect(succeeded).toBe(false)
+    expect(remaining).toEqual(['legacy_v1'])
     expect(requestMock).toHaveBeenCalledWith('app.cache_cleanup.run', { groups: ['normal_cache'] })
     expect(toast.warning).toHaveBeenCalledWith('settings.data.clear_cache.partial_success')
   })

@@ -1,6 +1,9 @@
+import { dialog } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { logFailure } from '@main/core/logger/logFailure'
+import { t } from '@main/i18n'
 import {
   assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
@@ -25,6 +28,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 /**
  * The caller window's WebContents — the directory tree addresses its mutation
@@ -202,6 +206,14 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       (path) => safeOpen(path, { channel: 'file.open' })
     )
   },
+  'file.select_folder': async ({ defaultPath }) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: t('dialog.select_folder'),
+      properties: ['openDirectory'],
+      defaultPath
+    })
+    return canceled || !filePaths[0] ? null : AbsoluteFilePathSchema.parse(filePaths[0])
+  },
   'file.show_in_folder': async (handle) => {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
@@ -235,9 +247,11 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     )
   },
   'file.validate_notes_directory': async (path) => validateNotesDirectory(path),
-  'file.tree.create': async ({ rootPath, options }, { senderId }) => {
+  'file.tree.create': async ({ rootPath, options, refresh }, { senderId }) => {
     try {
-      return await application.get('DirectoryTreeManager').create(requireManagedSender(senderId), rootPath, options)
+      return await application
+        .get('DirectoryTreeManager')
+        .create(requireManagedSender(senderId), rootPath, options, refresh)
     } catch (error) {
       // Shutdown-in-flight, not a failure the user should be toasted about — carry a
       // domain code so the renderer can stay quiet (`error.name` does not survive IpcApi).

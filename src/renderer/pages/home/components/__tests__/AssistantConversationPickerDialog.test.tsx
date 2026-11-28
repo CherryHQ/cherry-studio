@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -157,7 +157,7 @@ describe('AssistantConversationPickerDialog', () => {
     expect(mocks.createDialogProps.initialName).toBe('测试助手')
   })
 
-  it('creates the assistant and starts a conversation with it on submit', async () => {
+  it('creates the assistant and starts a conversation with it from the result page', async () => {
     mocks.createAssistant.mockResolvedValue({ id: 'assistant-new' })
     const onSelect = vi.fn()
 
@@ -178,7 +178,35 @@ describe('AssistantConversationPickerDialog', () => {
         }
       })
     )
-    await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ type: 'assistant', assistantId: 'assistant-new' }))
+    expect(onSelect).not.toHaveBeenCalled()
+
+    mocks.createDialogProps.onStartConversation('assistant-new')
+
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith({ type: 'assistant', assistantId: 'assistant-new' })
+  })
+
+  // A new Assistant has no topic, so dismissing the result page must still surface it in the rail.
+  it('starts the conversation once when the result page is closed, even after Start conversation', async () => {
+    mocks.createAssistant.mockResolvedValue({ id: 'assistant-new' })
+    const onSelect = vi.fn()
+    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={[]} onSelect={onSelect} />)
+    await mocks.createDialogProps.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: '', prompt: '' })
+
+    await act(async () => {
+      mocks.createDialogProps.onOpenChange(false)
+    })
+    mocks.createDialogProps.onStartConversation('assistant-new')
+
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith({ type: 'assistant', assistantId: 'assistant-new' })
+  })
+
+  it('resolves the created assistant id for the result page', async () => {
+    mocks.createAssistant.mockResolvedValue({ id: 'assistant-new' })
+    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={[]} onSelect={vi.fn()} />)
+
+    await expect(
+      mocks.createDialogProps.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: '', prompt: '' })
+    ).resolves.toBe('assistant-new')
   })
 
   it('keeps the create dialog open and does not select when assistant creation fails', async () => {

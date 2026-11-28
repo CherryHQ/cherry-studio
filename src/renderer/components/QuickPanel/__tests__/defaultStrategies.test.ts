@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { defaultFilterFn } from '../defaultStrategies'
+import { calculateMatchScore, defaultFilterFn, defaultSortFn } from '../defaultStrategies'
 import type { QuickPanelListItem } from '../types'
 
 function matches(item: QuickPanelListItem, searchText: string) {
@@ -67,5 +67,81 @@ describe('default QuickPanel filtering', () => {
     expect(matches(item, query)).toBe(false)
     expect(matches({ ...item, description: 'ax'.repeat(2000) }, 'a'.repeat(1000))).toBe(true)
     expect(performance.now() - start).toBeLessThan(100)
+  })
+})
+
+describe('default QuickPanel sorting', () => {
+  it('ranks exact, slash-command, prefix, label-substring, alias, description, and fallback matches in order', () => {
+    const descriptionItem: QuickPanelListItem = {
+      label: 'session-cleanup',
+      description: 'compact context before archiving',
+      filterText: 'session-cleanup compact context before archiving',
+      icon: 'icon'
+    }
+    const aliasSubstringItem: QuickPanelListItem = {
+      label: 'Cleanup',
+      searchAliases: ['run compact pass'],
+      icon: 'icon'
+    }
+    const labelSubstringItem: QuickPanelListItem = {
+      label: 'my-compact-tool',
+      description: 'helper',
+      icon: 'icon'
+    }
+    const prefixItem: QuickPanelListItem = {
+      label: 'compact-notes',
+      description: 'Takes notes',
+      filterText: 'compact-notes Takes notes',
+      icon: 'icon'
+    }
+    const commandItem: QuickPanelListItem = {
+      label: '/compact',
+      description: 'Free up context',
+      filterText: '/compact Free up context',
+      icon: 'icon'
+    }
+    const exactItem: QuickPanelListItem = {
+      label: 'compact',
+      description: 'Skill named compact',
+      filterText: 'compact Skill named compact',
+      icon: 'icon'
+    }
+    const pinyinItem: QuickPanelListItem = {
+      label: '压缩上下文',
+      icon: 'icon'
+    }
+
+    const sorted = defaultSortFn(
+      [pinyinItem, descriptionItem, aliasSubstringItem, labelSubstringItem, prefixItem, commandItem, exactItem],
+      'compact'
+    )
+
+    expect(sorted.map((item) => item.label)).toEqual([
+      'compact',
+      '/compact',
+      'compact-notes',
+      'my-compact-tool',
+      'Cleanup',
+      'session-cleanup',
+      '压缩上下文'
+    ])
+  })
+
+  it('does not treat slash-delimited file paths as slash command names', () => {
+    const pathItem: QuickPanelListItem = { label: '/compact/notes.md', icon: 'file' }
+    const commandItem: QuickPanelListItem = { label: '/compact', icon: 'terminal' }
+
+    expect(calculateMatchScore(commandItem, 'compact')).toBeGreaterThan(calculateMatchScore(pathItem, 'compact'))
+    expect(calculateMatchScore(commandItem, 'comp')).toBeGreaterThan(calculateMatchScore(pathItem, 'comp'))
+  })
+
+  it('keeps original order for empty queries and equal scores', () => {
+    const items: QuickPanelListItem[] = [
+      { label: 'first-helper', description: 'Run compact', icon: 'icon' },
+      { label: 'second-helper', description: 'Run compact', icon: 'icon' }
+    ]
+
+    expect(defaultSortFn(items, '')).toBe(items)
+    expect(defaultSortFn(items, 'compact').map((item) => item.label)).toEqual(['first-helper', 'second-helper'])
   })
 })

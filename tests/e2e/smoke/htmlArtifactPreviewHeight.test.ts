@@ -1,3 +1,4 @@
+import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { expect, test } from './fixtures/electron.fixture'
 
 const MARKDOWN = [
@@ -11,13 +12,13 @@ const MARKDOWN = [
 ].join('\n')
 
 test('inline HTML iframe preview settles and stays stable across scrolling', async ({ mainWindow: page }, testInfo) => {
-  await page.evaluate(async () => {
+  await page.evaluate(async (policyVersion) => {
     await window.api.preference.setMultiple({
       'app.language': 'en-US',
       'app.onboarding.provider_setup.status': 'skipped',
-      'app.privacy.policy_version': '20260820'
+      'app.privacy.policy_version': policyVersion
     })
-  })
+  }, LATEST_PRIVACY_POLICY_VERSION)
   await page.reload()
   await page.waitForSelector('#root')
 

@@ -160,10 +160,13 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }, testInfo) =>
     if (await expand.isVisible()) await expand.click()
     await chat.getByTestId('topic-list-row').filter({ hasText: topicName }).click()
     await page.getByRole('button', { name: `Edit Assistant: ${assistantName}`, exact: true }).click()
-    await page.getByRole('tab', { name: 'MCP', exact: true }).click()
-    await page.getByRole('radio', { name: 'Manual', exact: true }).click()
-    await page.getByRole('switch', { name: 'everything', exact: true }).setChecked(true)
-    await page.getByRole('button', { name: 'Close', exact: true }).click()
+    const assistantSettings = page.getByRole('dialog', { name: 'Edit Assistant', exact: true })
+    await assistantSettings.getByRole('radio', { name: 'Manual', exact: true }).click()
+    await assistantSettings.getByRole('button', { name: /^MCP servers:/ }).click()
+    const mcp = page.getByRole('dialog', { name: 'MCP servers', exact: true })
+    await mcp.getByRole('switch', { name: 'everything', exact: true }).setChecked(true)
+    await mcp.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(mcp).toBeHidden()
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(model.modelId)
     const [messageId] = await Promise.all([
       sendChatMarker(
@@ -281,7 +284,7 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
-  await openSettingsSection(page, 'API Gateway')
+  await openSettingsSection(page, 'Unified Gateway')
   const startGateway = page.getByRole('button', { name: 'Start', exact: true })
   const stopGateway = page.getByRole('button', { name: 'Stop', exact: true })
   await expect(startGateway.or(stopGateway)).toBeVisible()

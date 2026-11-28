@@ -16,6 +16,13 @@ const loader = new RegistryLoader({
 })
 
 describe('OpenAI catalog', () => {
+  it('omits unsupported top_p from GPT 5.6 Luna request parameters', () => {
+    const model = loader.findModel('openai/gpt-5.6-luna')
+
+    expect(model).not.toBeNull()
+    expect(model?.parameterSupport?.topP.supported).toBe(false)
+  })
+
   it.each([
     ['astra', 8, 0.4, 10, 40, 272000, 144000],
     ['sol', 2, 0.1, 2.5, 10, 500000, 372000]

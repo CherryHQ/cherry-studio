@@ -5,7 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
-import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
+import ComposerSurface, {
+  type ComposerSurfaceActions,
+  type ComposerSurfaceProps
+} from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
@@ -29,8 +32,8 @@ import { fileToComposerToken } from '@renderer/components/composer/variants/shar
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
-import { FILE_TYPE } from '@renderer/types/file'
 import type { Model } from '@shared/data/types/model'
+import { FILE_TYPE } from '@shared/types/file'
 import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 
@@ -135,6 +138,8 @@ function paramsSummary(
 
 export interface PaintingComposerProps {
   painting: PaintingData
+  disabled?: boolean
+  onFocusTargetChange?: ComposerSurfaceProps['onFocusTargetChange']
   /** Data-derived: a generation is running for this painting (possibly resumed). */
   generating: boolean
   /** Action-scoped: a send started here is in flight. Owned by usePaintingGenerationSubmit. */
@@ -210,6 +215,8 @@ interface PaintingComposerInnerProps extends PaintingComposerProps {
 
 const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   painting,
+  disabled,
+  onFocusTargetChange,
   generating,
   submitting,
   onPromptChange,
@@ -307,6 +314,8 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
       <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />
       <ComposerSurface
+        editable={!disabled}
+        onFocusTargetChange={onFocusTargetChange}
         onActionsChange={(actions) => {
           surfaceActions.current = actions
         }}

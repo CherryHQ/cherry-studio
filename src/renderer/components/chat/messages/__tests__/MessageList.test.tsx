@@ -164,7 +164,7 @@ vi.mock('../list/MessageAnchorLine', () => ({
 vi.mock('../list/MessageGroup', async () => {
   const React = await import('react')
   const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
-  const { useOptionalMessageCaptureLease } = await import('../list/MessageCaptureLeaseContext')
+  const { useOptionalMessageMountLease } = await import('../list/MessageMountLeaseContext')
   const { exportService } = await import('@renderer/services/ExportService')
   const ArtifactLifecycleControl = () => {
     const popupContext = useHtmlArtifactPopupContext()
@@ -209,7 +209,7 @@ vi.mock('../list/MessageGroup', async () => {
     }, [])
 
     const MessageCaptureProbe = ({ messageId }: { messageId: string }) => {
-      const captureLease = useOptionalMessageCaptureLease()
+      const captureLease = useOptionalMessageMountLease()
       const captureRef = React.useMemo(
         () => ({
           get current() {
@@ -219,7 +219,7 @@ vi.mock('../list/MessageGroup', async () => {
         [captureLease, messageId]
       )
       const runCapture = React.useCallback(async () => {
-        const release = captureLease?.acquireMessageCaptureLease(messageId)
+        const release = captureLease?.acquireMessageMountLease(messageId)
         try {
           return await exportService.captureScrollableAsDataUrl(captureRef)
         } finally {

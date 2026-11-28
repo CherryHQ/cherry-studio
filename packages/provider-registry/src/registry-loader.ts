@@ -10,7 +10,8 @@ import { readFileSync } from 'node:fs'
 
 import semver from 'semver'
 
-import { type CatalogManifest, REGISTRY_SCHEMA_VERSION } from './catalog'
+import { type CatalogManifest, type RegistryFileName, REGISTRY_SCHEMA_VERSION } from './catalog'
+import type { RegistryCatalog } from './registry'
 import { ModelIndex, ProviderModelIndex } from './registry-index'
 import type { ModelConfig } from './schemas/model'
 import { ModelListSchema } from './schemas/model'
@@ -75,6 +76,13 @@ export interface RegistryPaths {
   providerModels: string
 }
 
+export interface RegistryLoaderOptions {
+  idleTtlMs?: number
+  fallbacks?: Partial<RegistryCatalog>
+  onFallback?: (event: { file: RegistryFileName; path: string; error: unknown }) => void
+  onDiskLoad?: (event: { file: RegistryFileName; path: string }) => void
+}
+
 /** Default idle TTL in milliseconds (30 seconds). */
 const DEFAULT_IDLE_TTL_MS = 30_000
 
@@ -96,13 +104,36 @@ export class RegistryLoader {
   private overrideIndex: ProviderModelIndex | null = null
 
   private idleTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly fallbackRetryAt = new Map<RegistryFileName, number>()
   private readonly idleTtlMs: number
+  private readonly options: RegistryLoaderOptions
 
   constructor(
     private readonly paths: RegistryPaths,
-    idleTtlMs?: number
+    options?: number | RegistryLoaderOptions
   ) {
-    this.idleTtlMs = idleTtlMs ?? DEFAULT_IDLE_TTL_MS
+    this.options = typeof options === 'number' ? { idleTtlMs: options } : (options ?? {})
+    this.idleTtlMs = this.options.idleTtlMs ?? DEFAULT_IDLE_TTL_MS
+  }
+
+  private read<T>(file: RegistryFileName, path: string, fallback: T | undefined, read: (path: string) => T): T {
+    let data: T
+    try {
+      data = read(path)
+    } catch (error) {
+      if (fallback === undefined) throw error
+      this.fallbackRetryAt.set(file, Date.now() + this.idleTtlMs)
+      this.options.onFallback?.({ file, path, error })
+      return fallback
+    }
+    this.fallbackRetryAt.delete(file)
+    this.options.onDiskLoad?.({ file, path })
+    return data
+  }
+
+  private canUseCache(file: RegistryFileName): boolean {
+    const retryAt = this.fallbackRetryAt.get(file)
+    return retryAt === undefined || Date.now() < retryAt
   }
 
   /** Reset the idle timer. Called on every public access. */
@@ -114,9 +145,10 @@ export class RegistryLoader {
   /** Load and cache models.json. Returns models array. */
   loadModels(): ModelConfig[] {
     this.touch()
-    if (this.models) return this.models
-    const data = readModelRegistry(this.paths.models)
-    this.models = data.models ?? []
+    if (this.models && this.canUseCache('models.json')) return this.models
+    const data = this.read('models.json', this.paths.models, this.options.fallbacks?.models, readModelRegistry)
+    // Copy loaded arrays so callers cannot mutate the shared in-bundle arrays.
+    this.models = data.models?.slice() ?? []
     this.modelsVersion = data.version
     this.modelIndex = new ModelIndex(this.models)
     return this.models
@@ -125,9 +157,14 @@ export class RegistryLoader {
   /** Load and cache providers.json. Returns providers array. */
   loadProviders(): ProviderConfig[] {
     this.touch()
-    if (this.providers) return this.providers
-    const data = readProviderRegistry(this.paths.providers)
-    this.providers = data.providers ?? []
+    if (this.providers && this.canUseCache('providers.json')) return this.providers
+    const data = this.read(
+      'providers.json',
+      this.paths.providers,
+      this.options.fallbacks?.providers,
+      readProviderRegistry
+    )
+    this.providers = data.providers?.slice() ?? []
     this.providersVersion = data.version
     return this.providers
   }
@@ -135,9 +172,14 @@ export class RegistryLoader {
   /** Load and cache provider-models.json. Returns overrides array. */
   loadProviderModels(): ProviderModelOverride[] {
     this.touch()
-    if (this.providerModels) return this.providerModels
-    const data = readProviderModelRegistry(this.paths.providerModels)
-    this.providerModels = data.overrides ?? []
+    if (this.providerModels && this.canUseCache('provider-models.json')) return this.providerModels
+    const data = this.read(
+      'provider-models.json',
+      this.paths.providerModels,
+      this.options.fallbacks?.providerModels,
+      readProviderModelRegistry
+    )
+    this.providerModels = data.overrides?.slice() ?? []
     this.providerModelsVersion = data.version
     this.overrideIndex = new ProviderModelIndex(this.providerModels)
     return this.providerModels
@@ -183,6 +225,7 @@ export class RegistryLoader {
 
   /** Release all cached data and indexes. Next access triggers a fresh load. */
   invalidate(): void {
+    this.fallbackRetryAt.clear()
     this.models = null
     this.providers = null
     this.providerModels = null

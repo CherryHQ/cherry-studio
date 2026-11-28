@@ -38,6 +38,10 @@ on:
         description: "Exact release commit SHA (required for release mode)"
         required: false
         type: string
+      recover_v225_mac:
+        description: "Recover v2.2.5 macOS using Windows and Linux packages from run 46144310016"
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -67,22 +71,54 @@ jobs:
       tag: ${{ steps.release-ref.outputs.tag }}
       targets: ${{ steps.release-ref.outputs.targets }}
       draft-id: ${{ steps.draft.outputs.id }}
+      mac-bridge-electron: ${{ steps.bridge.outputs.mac-bridge-electron }}
     steps:
       - name: Validate release selection
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
+          PLATFORM: ${{ inputs.platform }}
+          RECOVER_V225_MAC: ${{ inputs.recover_v225_mac }}
         run: |
           if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] ||
              [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "Release mode requires a semantic-version tag and exact expected_sha" >&2
             exit 1
           fi
+          if [[ "$RECOVER_V225_MAC" == true &&
+                ( "$TAG" != v2.2.5 || "$PLATFORM" != all || "$RELEASE_SHA" != 5889cb03204440131fce6b5b915603be4bb02a7e ) ]]; then
+            echo "Recovery requires the original v2.2.5 all-platform release selection" >&2
+            exit 1
+          fi
           BRANCH_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha')"
           if [ "$BRANCH_SHA" != "$RELEASE_SHA" ]; then
             echo "Release branch moved away from $RELEASE_SHA" >&2
             exit 1
+          fi
+
+      - name: Select the CN macOS bridge
+        id: bridge
+        env:
+          TAG: ${{ inputs.tag }}
+          MAC_BRIDGE_TAG: ${{ vars.CHERRY_MAC_CN_REGION_BRIDGE_TAG }}
+          MAC_BRIDGE_ELECTRON_ASSETS: ${{ vars.CHERRY_MAC_BRIDGE_ELECTRON_ASSETS }}
+        run: |
+          if [[ -n "$MAC_BRIDGE_TAG" && "$TAG" == "$MAC_BRIDGE_TAG" ]]; then
+            if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "The CN macOS bridge requires a stable release" >&2
+              exit 1
+            fi
+            if ! assets="$(jq -ces '
+              select(length == 1) | .[0] | select(.version | type == "string") |
+              select(all(.x64, .arm64;
+                (.url | test("^https://[^[:space:]]+$")) and (.sha256 | test("^[a-f0-9]{64}$"))
+              ))' <<< "$MAC_BRIDGE_ELECTRON_ASSETS")"; then
+              echo "Set CHERRY_MAC_BRIDGE_ELECTRON_ASSETS with an Electron version and HTTPS ZIP URLs and SHA-256 values for x64 and arm64" >&2
+              exit 1
+            fi
+            echo "mac-bridge-electron=$assets" >> "$GITHUB_OUTPUT"
+            echo "CN macOS bridge enabled for $TAG" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Check out workflow scripts
@@ -105,6 +141,8 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
           PLATFORM: ${{ inputs.platform }}
+          RECOVER_V225_MAC: ${{ inputs.recover_v225_mac }}
+          MAC_BRIDGE_ELECTRON: ${{ steps.bridge.outputs.mac-bridge-electron }}
         run: |
           PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-source/package.json', 'utf8')).version")"
           if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
@@ -114,7 +152,13 @@ jobs:
           node -e 'const { scripts } = require("./release-source/package.json"); for (const name of ["build:release", "build:release:cn"]) { if (!scripts[name]) throw new Error(`Release source does not support ${name}`) }'
           node -e 'require("node:fs").accessSync("release-source/scripts/release/js-bundle.js")'
           node -e 'const tools = require("./release-source/scripts/download-binaries.js"); if (tools.PACKAGING_DOWNLOAD_VERSION !== 1) throw new Error("Release source does not support packaging tool assets v1"); require("node:fs").accessSync("release-source/scripts/release/prepare-tools.js")'
+          if [[ -n "$MAC_BRIDGE_ELECTRON" ]]; then
+            node -e 'const { devDependencies } = require("./release-source/package.json"); if (JSON.parse(process.env.MAC_BRIDGE_ELECTRON).version !== devDependencies.electron) throw new Error("The bridge Electron distribution must match the release Electron version"); require("node:fs").accessSync("release-source/electron-builder.region-bridge.config.cjs")'
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [[ "$RECOVER_V225_MAC" == true ]]; then
+            PLATFORM=mac
+          fi
           echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
 
       - name: Verify release commit passed CI
@@ -124,6 +168,7 @@ jobs:
         run: |
           CI_RUN="$(gh api --method GET \
             "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f branch="$RELEASE_BRANCH" \
             -f head_sha="$RELEASE_SHA" \
             -f event=push \
             -f status=completed \
@@ -131,11 +176,12 @@ jobs:
             --jq '[.workflow_runs[] | select(.conclusion == "success")][0] // empty')"
 
           if [ -z "$CI_RUN" ]; then
-            echo "No successful CI push run found for release commit $RELEASE_SHA" >&2
+            echo "No successful CI push run found for $RELEASE_BRANCH at $RELEASE_SHA" >&2
             exit 1
           fi
 
           if [ "$(jq -r '.head_sha' <<< "$CI_RUN")" != "$RELEASE_SHA" ] || \
+             [ "$(jq -r '.head_branch' <<< "$CI_RUN")" != "$RELEASE_BRANCH" ] || \
              [ "$(jq -r '.event' <<< "$CI_RUN")" != "push" ] || \
              [ "$(jq -r '.status' <<< "$CI_RUN")" != "completed" ] || \
              [ "$(jq -r '.conclusion' <<< "$CI_RUN")" != "success" ]; then
@@ -181,11 +227,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release-ref.outputs.tag }}
+          RECOVER_V225_MAC: ${{ inputs.recover_v225_mac }}
           TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
           TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
         run: |
           RELEASE="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
             jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty')"
+          if [[ "$RECOVER_V225_MAC" == true ]]; then
+            jq -ne --argjson draft "${RELEASE:-null}" --arg sha "$RELEASE_SHA" \
+              '$draft.id == 461540497 and $draft.draft and $draft.target_commitish == $sha'
+          fi
           jq -n --arg tag "$TAG" --arg sha "$RELEASE_SHA" \
             '{tag_name: $tag, target_commitish: $sha, draft: true, prerelease: ($tag | contains("-"))}' > "$RUNNER_TEMP/draft.json"
           if [ -n "$RELEASE" ]; then
@@ -295,6 +346,7 @@ jobs:
       tag: ${{ needs.prepare.outputs.tag }}
       draft-id: ${{ needs.prepare.outputs.draft-id }}
       clean: ${{ inputs.clean }}
+      mac-bridge-electron: ${{ needs.prepare.outputs.mac-bridge-electron }}
     secrets: inherit
 
   release-cn:
@@ -384,12 +436,37 @@ jobs:
       - name: Install Tencent COS SDK
         run: python -m pip install cos-python-sdk-v5==1.9.44
 
+      - name: Reuse v2.2.5 Windows and Linux packages
+        if: inputs.recover_v225_mac
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/46144310016" | jq -e \
+            --arg title "Release build all $RELEASE_BRANCH @ $RELEASE_SHA" '
+              .display_title == $title and .run_attempt == 1 and
+              .head_branch == "main" and .path == ".github/workflows/release.yml"
+            '
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/46144310016/attempts/1/jobs?per_page=100" | jq -e '
+            .jobs as $jobs |
+            all(("global", "cn") as $edition | ("windows-all", "linux-x64", "linux-arm64") as $target |
+                "Build \($edition) (\($target))";
+                . as $build | any($jobs[]; .name == "\($build) / Package target" and .conclusion == "success")) and
+            all(("windows-all", "linux-x64", "linux-arm64");
+                . as $target | any($jobs[]; .name == "Build global (\($target)) / Upload draft target" and .conclusion == "success"))
+          '
+          python scripts/release/release-cos.py reuse-non-mac 46144310016
+
       - name: Assemble release inventory from COS
         id: inventory
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
           TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
+          MAC_CN_REGION_BRIDGE: ${{ needs.prepare.outputs.mac-bridge-electron != '' }}
           PLATFORM: ${{ inputs.platform }}
         run: |
           node -e 'process.stdout.write(require("yaml").parse(require("node:fs").readFileSync("release-source/electron-builder.yml", "utf8")).releaseInfo.releaseNotes)' > release_body.txt

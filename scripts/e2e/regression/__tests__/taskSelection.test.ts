@@ -1,10 +1,4 @@
-import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-
 import { describe, expect, it } from 'vitest'
-import { parse } from 'yaml'
 
 import { caseGrep, parseTaskSelection, resolveWorkflowTasks, selectCases } from '../cases'
 
@@ -13,31 +7,6 @@ describe('combined regression tasks', () => {
     expect(
       selectCases(parseTaskSelection('custom-provider-chat,polish-prompts,browser-recovery')).map(({ id }) => id)
     ).toEqual(['M-02', 'MP-16', 'MP-125'])
-  })
-
-  it('limits the added settings smoke to its existing test file', () => {
-    const workflow = parse(readFileSync('.github/workflows/e2e-regression-test.yml', 'utf8'))
-    const step = workflow.jobs.test.steps.find((step: { name: string }) => step.name === 'Run standalone smoke suite')
-    const root = mkdtempSync(join(tmpdir(), 'cherry-smoke-selection-'))
-    try {
-      const cli = join(root, 'node_modules', '@playwright', 'test')
-      mkdirSync(cli, { recursive: true })
-      writeFileSync(join(cli, 'cli.js'), 'process.stdout.write(JSON.stringify(process.argv.slice(2)))')
-      for (const scope of ['settings-search', 'all']) {
-        const args = JSON.parse(
-          execFileSync('bash', ['-e', '-c', step.run], {
-            cwd: root,
-            encoding: 'utf8',
-            env: { ...process.env, GITHUB_WORKSPACE: root, RUN_DIR: root, SMOKE_SCOPE: scope }
-          })
-        ) as string[]
-        expect(args.filter((arg) => arg.endsWith('.test.ts'))).toEqual(
-          scope === 'settings-search' ? ['tests/e2e/smoke/settingsSearchKeepOpen.test.ts'] : []
-        )
-      }
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
   })
 
   it('executes overlapping selections once in manifest order', () => {
@@ -56,28 +25,43 @@ describe('combined regression tasks', () => {
     (value) => expect(() => parseTaskSelection(value)).toThrow()
   )
 
-  it('uses selected modules and scopes additional smoke', () => {
-    expect(resolveWorkflowTasks({ task: 'notes,browser', settings_search_smoke: true })).toEqual({
-      task: 'notes,browser',
+  it('selects the two migrated settings search cases without adding standalone smoke', () => {
+    const selection = parseTaskSelection('settings-search')
+    const caseIds = ['SET-01', 'SET-02']
+    expect(selectCases(selection, 'settings').map(({ id }) => id)).toEqual(caseIds)
+    for (const task of ['settings', 'all'] as const) {
+      expect(selectCases(task, 'settings').map(({ id }) => id)).toEqual(expect.arrayContaining(caseIds))
+    }
+    expect(resolveWorkflowTasks({ task: 'settings-search', suite: 'regression' })).toEqual({
+      task: 'settings-search',
+      regression: 'true',
       prepare_mcp: 'false',
-      smoke: 'settings-search'
+      smoke: 'none'
     })
   })
 
   it('prepares Everything when it is part of a combined selection', () => {
-    expect(resolveWorkflowTasks({ task: 'chat-core,mcp-skills' })).toEqual({
+    expect(resolveWorkflowTasks({ suite: 'regression', task: 'chat-core,mcp-skills' })).toEqual({
       task: 'chat-core,mcp-skills',
+      regression: 'true',
       prepare_mcp: 'true',
       smoke: 'none'
     })
   })
 
-  it('preserves scheduled full runs and legacy focused tasks', () => {
-    expect(resolveWorkflowTasks({})).toEqual({ task: 'all', prepare_mcp: 'true', smoke: 'all' })
-    expect(resolveWorkflowTasks({ task: 'notes-smoke' })).toEqual({
-      task: 'notes-smoke',
-      prepare_mcp: 'false',
-      smoke: 'none'
-    })
+  it.each([
+    ['branch', {}, 'all', 'true', 'true', 'all'],
+    ['branch', { task: 'notes-smoke' }, 'notes-smoke', 'true', 'false', 'all'],
+    ['branch', { suite: 'regression' }, 'all', 'true', 'true', 'none'],
+    ['branch', { suite: 'smoke', task: 'not-a-task' }, 'all', 'false', 'false', 'all'],
+    ['tag', {}, 'all', 'true', 'true', 'none'],
+    ['tag', { suite: 'regression', task: 'notes-smoke' }, 'notes-smoke', 'true', 'false', 'none']
+  ] as const)('resolves %s inputs %j to the requested suites', (mode, inputs, task, regression, prepare_mcp, smoke) => {
+    expect(resolveWorkflowTasks(inputs, mode)).toEqual({ task, regression, prepare_mcp, smoke })
+  })
+
+  it('rejects unknown suites and standalone smoke for installers before runner allocation', () => {
+    expect(() => resolveWorkflowTasks({ suite: 'unknown' })).toThrow('Invalid E2E suite')
+    expect(() => resolveWorkflowTasks({ suite: 'smoke' }, 'tag')).toThrow('Standalone smoke requires a branch checkout')
   })
 })

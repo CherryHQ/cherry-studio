@@ -290,7 +290,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
       aria-pressed={!isReadOnlyLocked && item.isSelected !== undefined ? selected : undefined}
       tabIndex={isUnavailable ? -1 : 0}
       className={cn(
-        'mx-[5px] mb-px flex items-center justify-between gap-3 rounded-md px-2 py-1 transition-colors duration-100',
+        'mx-[5px] mb-px flex items-center justify-between gap-3 rounded-md px-2 py-1 transition-[color] duration-100',
         isReadOnlyLocked ? 'cursor-default' : item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
         // Selection is marked by the check suffix alone: bg-accent and bg-muted share the same
         // token value, so a selected tint would read as a second keyboard cursor on the row.

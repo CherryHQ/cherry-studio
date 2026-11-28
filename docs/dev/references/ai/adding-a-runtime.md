@@ -56,6 +56,9 @@ bottom of this document — read them.
      orphan models (provider deleted / not yet loaded); decide fail-open vs
      fail-closed explicitly and say why in a comment. A runtime that needs
      provider endpoint config to drive the model must fail closed.
+   - `nativeFollowUp` — true only when the connection implements `followUp()`. The composer then
+     sends a message typed while the agent works at once, with the follow-up intent, instead of
+     holding it in its window-local follow-up dock.
    - `transport` — a unique tag stamped on every tool part by your stream
      adapter (`providerMetadata.cherry.transport`); the renderer uses it to
      route tool parts to the right card renderer.
@@ -92,18 +95,26 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      `isForkCheckpoint(value)` using the adapter's native checkpoint schema. Message
      listing uses this predicate without loading the SDK, opening storage or starting
      execution. The fork operation still verifies native history before publication.
-   - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
-     runtimes that benefit from idle warmup (see the Claude driver).
+   - A driver can use `onSessionIdle` to prepare for its next command. Main invokes
+     `recoverWork` after lifecycle initialization for work that survives a restart.
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
-   - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
-     mapping: `message-projection` for authoritative Agent content, `chunk` for
-     host controls and display metadata, `turn-complete` to settle the
-     host turn (the host closes the UI turn on this event — a runtime that
-     never emits it strands the turn), `resume-token` whenever the runtime
-     learns a recovery handle, `error` on failure.
+   - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Use `message-projection` to
+     establish or reconcile native messages and `NativePartUpdate` for live text,
+     reasoning and tool results. Emit `message-metadata` for turn statistics,
+     `data-retry` for model retries and `tool-input-available` for a tool input
+     surfaced before approval. A `tool-approval-request` carries the full request
+     so the host can present it in the stream or in a separate message.
+     Emit `resume-token` when a recovery handle becomes available. Close each
+     turn with `turn-complete`, set its status to `paused` for a native abort,
+     or emit `error` on failure. Independently confirmed fork positions may use `run-checkpoint`,
+     carrying the native context and stable product input ID. Main resolves the owning Run;
+     emitting this evidence does not finish it or require the whole connection to become idle.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
-     steer, wrap it with `wrapSteerReminder(...)`.
+     steer, wrap it with `wrapSteerReminder(...)`. Apply optional model-only
+     `input.context` through ordinary input/attachment conversion with
+     `withAgentContext` or `buildAgentUserContent`; keep native admission validation
+     tied to the original message parts. The Session host owns history selection.
    - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent
      calls per connection; hot-apply safe policy facts before returning `rebuild` for
      spawn-frozen differences, apply permission-mode changes even during an active turn
@@ -115,19 +126,20 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    - Optional `contextId` identifies the bound product context. Expose it before controls
      that may precede the first native message so Main can attach them to the reserved reply.
    - Optional, with host fallbacks when omitted:
-     - `interrupt()` — cancel foreground work for user Stop before the host closes the
-       connection. Keep this separate from durable shutdown and recovery.
-     - `redirect(input)` — native mid-turn steering; without it the host
-       queues follow-ups as the next turn. If implemented, you must emit
-       `steer-boundary` with input IDs when native placement is evidenced. Keep original product
-       snapshots/headless policy on the existing session entry, including unknown admission across
-       replacement. Prepare the native binding before dispatch, fence stale callbacks by generation,
-       and reconcile retained inputs without automatically resending. Pi/Durable reserve the reply
-       synchronously before the next provider request; Claude command-start alone is not placement. A driver that returns unplaced inputs
-       for the next turn emits `steer-undelivered`; Pi instead records native queued
-       inputs as aborted when execution ends without placing them, without automatic resend.
-       Claude uses native next-priority admission across the turn boundary and never
-       returns an accepted input for host resend.
+     - `interrupt()` — cancel foreground work for user Stop. The host then closes the
+       connection unless it declares `retainOnStop`; a retained connection stays open and emits
+       `stop-confirmed` after the stopped turn's terminal event. Keep this separate from durable
+       shutdown and recovery.
+     - `threadInput.steer.submit({ inputId, message })` binds native steering. Main saves the
+       input's context before dispatch. Return explicit rejection only when the input was not
+       admitted. A missing receipt keeps the original binding. Emit `steer-boundary` with input
+       IDs once native placement is evidenced. The existing Run and reply keep ownership.
+     - `threadInput.followUp` declares the queue's persistence and submits live follow-ups with
+       the same input contract. The Composer sends directly to a durable queue. When native work
+       places a follow-up, emit `run-started` after the preceding answer
+       so the next input gets its own reply.
+     - `compact()` runs a standalone idle-thread operation. Report success from the matching
+       native outcome without creating a chat turn.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` — retain the connection while native background work exists.
@@ -136,11 +148,14 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        confirmed empty set proves drainage. Publish these facts after their observed content.
        `autonomous-turn-state: started` carries `sourceToolCallIds` for a background notification.
        Main resumes the reply owning those calls; an independent native turn keeps its own reply.
+       After reopen, `recoveredInputId` names a placed input that native recovery resumed; Main continues
+       that input's reply. A projection's `inputs` maps native user messages to product input IDs, so
+       committed answers rebuild a reply that never reached terminal persistence.
        Resident commands may retain the connection without holding a product reply open.
-     - `childProjection(toolCallId)` — expose a child snapshot and subscription
-       through the root owner. `messageChild(contextId, text)` dispatches child input
-       through that owner. These optional desktop facets do not add native history
-       methods to the common Runtime contract; see [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
+     - A child writer publishes its product archive through `childTimelines`. The
+       desktop reads that archive directly and subscribes to live changes. An explicit
+       `messageChild(contextId, text)` command opens its original execution owner.
+       See [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
        A connection with independent child writes also provides `drainChildWrites()`:
        after input admission drains, wait for native work, queued observation delivery and in-flight
        callbacks before the final archive flush. Keep the write boundary sealed until resume.
@@ -150,24 +165,19 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `compaction-start` / `compaction-complete` / `compaction-error`
        events if the runtime compacts its own history.
 
-3. **System prompt adapter** — call the runtime-neutral
-   `buildAgentRuntimePrompt()` from `src/main/ai/runtime/agentPrompt.ts`, then map its
-   `{ base, append }` result into the SDK's native prompt representation. Pass resolved
-   channel state and capability-gated citation guidance into the common materializer.
+3. **System prompt adapter** — for Cherry-managed prompt runtimes, call the runtime-neutral
+   `buildAgentPrompt()` from `src/main/ai/agents/prompt/buildAgentPrompt.ts`, then map its
+   `{ base, append }` result into the SDK's native prompt representation. Pass references to callable tools and capability-gated citation guidance into the common materializer.
    Do not copy instruction precedence, built-in Agent fallback/provisioning, prompt-variable
    resolution, channel security, artifact reporting, or language guidance into the driver.
    Keep only native mechanics in the adapter: the SDK base prompt, cwd/project-context
    carrier, tool snippets, skills transport, and the representation of base/append.
    See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
 
-4. **Content producer** — choose one source per execution. Common runtime adapters
-   expose AI SDK `RuntimeMessage` values through observation. Native deltas use
-   `RuntimeMessageStream` before observer fanout; authoritative native snapshots
-   can produce messages directly. Main uses `ThreadMessageProjection` and product
-   decorators such as `pi/PiMessageMetadata.ts` and `claudeCode/ClaudeMessageMetadata.ts`,
-   then publishes replacement-aware product views. Keep lifecycle/approval controls separate;
-   do not produce the same text and tools through both sources. Import the transport
-   constant from the descriptor rather than re-declaring its string.
+4. **Content producer** — establish the native source in its execution context with
+   `message-projection` before the first live update. Address text, reasoning and tool
+   changes by source and block. Main owns durable part IDs and forwards changes to
+   subscribers. Publish approval, usage and lifecycle controls independently.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a
@@ -177,6 +187,11 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 6. **Path keys** — if the runtime needs disk state (config home, session
    files), add `feature.agents.<name>.*` keys to the path registry
    (`src/main/core/paths/`) instead of building paths ad hoc.
+
+[Local CLI runtimes](./local-agent-runtime.md#ownership-and-routing) use native
+configuration. Their drivers may supply a provider-free `getExecutionId(agent)`
+(`undefined` makes the Agent unroutable). Set `sessionCostScope: 'native-session'`
+when cumulative cost follows the connection's resume token.
 
 ## Step 3 — renderer
 
@@ -192,8 +207,8 @@ known exceptions, only if you need them:
 
 These are the choices nothing enforces:
 
-- **Cherry prompt policy is runtime-neutral.** Every driver must consume
-  `buildAgentRuntimePrompt()` rather than assembling its own Cherry policy. A runtime may
+- **Cherry prompt policy is runtime-neutral.** Every Cherry-managed prompt driver must consume
+  `buildAgentPrompt()` rather than assembling its own Cherry policy. A runtime may
   supply native workspace/context mechanics, but it may not omit or fork instruction authority,
   built-in Agent resolution, channel security, citation/artifact guidance, or response language.
   Add common policy in the materializer and test that each driver carries it.
@@ -237,5 +252,4 @@ These are the choices nothing enforces:
 - `pnpm build:check` for this broad cross-process change.
 - Manual smoke: create an agent of the new type (selector shows the label),
   open a session, run a turn with a mutating tool (approval prompt
-  appears), send a mid-turn follow-up (steers or queues per your `redirect`
-  support), restart the app and resume the session.
+  appears), send a mid-turn follow-up (steers or queues according to the bound `threadInput` operations), restart the app and resume the session.

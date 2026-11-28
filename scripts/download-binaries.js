@@ -18,7 +18,6 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execFileSync, spawn } = require('child_process')
-const StreamZip = require('node-stream-zip')
 
 const REPO_ROOT = path.join(__dirname, '..')
 const BINARIES_ROOT = path.join(REPO_ROOT, 'resources', 'binaries')
@@ -73,8 +72,8 @@ function linkFile(src, dest, stats) {
   const srcStat = fs.statSync(src)
   const destStat = fs.statSync(dest, { throwIfNoEntry: false })
   if (destStat) {
-    // ino is 0 on filesystems that do not report one; never treat that as a match.
-    if (srcStat.ino !== 0 && destStat.ino === srcStat.ino) return
+    // Inodes identify files only within one device. An inode of zero is unavailable.
+    if (srcStat.ino !== 0 && destStat.ino === srcStat.ino && destStat.dev === srcStat.dev) return
     // A copied bundle never matches inodes, so compare size+mtime too or every run
     // re-copies ~200MB. getTime(), since utimesSync loses sub-ms precision.
     if (destStat.size === srcStat.size && destStat.mtime.getTime() === srcStat.mtime.getTime()) return
@@ -482,8 +481,13 @@ function chmodExec(filePath) {
   if (process.platform !== 'win32') fs.chmodSync(filePath, 0o755)
 }
 
+function isNonEmptyFile(filePath) {
+  const stats = statOrNull(filePath)
+  return stats !== null && stats.isFile() && stats.size > 0
+}
+
 function isUpToDate(binaryPaths, versionPath, expectedVersion) {
-  if (binaryPaths.some((binaryPath) => !fs.existsSync(binaryPath))) return false
+  if (!binaryPaths.every(isNonEmptyFile)) return false
   // No marker path means the directory itself is version-scoped.
   if (!versionPath) return true
   if (!fs.existsSync(versionPath)) return false
@@ -517,6 +521,7 @@ function download(url, dest) {
  * when extraction fails; the empty tree resurfaces later as a copy ENOENT.
  */
 async function extractZipArchive(archivePath, destinationDir) {
+  const StreamZip = require('node-stream-zip')
   fs.mkdirSync(destinationDir, { recursive: true })
   const zip = new StreamZip.async({ file: archivePath })
   try {
@@ -962,7 +967,9 @@ function verifyBundledBinaries(platform, arch, options = {}) {
       continue
     }
     for (const binary of pkg.binaries) {
-      if (!fs.existsSync(path.join(outputDir, binary))) problems.push(path.join(platformKey, binary))
+      if (!isNonEmptyFile(path.join(outputDir, binary))) {
+        problems.push(`${path.join(platformKey, binary)} (expected a non-empty regular file)`)
+      }
     }
     // BinaryManager refuses to extract a tool whose marker is missing, so a
     // bundle without one ships a dead toolchain and no error until runtime.
