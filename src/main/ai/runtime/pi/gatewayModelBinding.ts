@@ -20,6 +20,7 @@ import { needsPlainToolReasoning, ToolContinuationRouteError } from '../../provi
 import { resolveReplayRouteId } from '../../provider/sdkConfig'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
 import {
   getForeignPiToolOrdinals,
@@ -45,6 +46,7 @@ export async function createPiGatewayModelBinding(
 ): Promise<{
   modelRuntime: ModelRuntime
   model: NonNullable<ReturnType<ModelRuntime['getModel']>>
+  compaction: ReturnType<typeof resolvePiCompactionSettings>
   onRetry?: typeof onRetry
 }> {
   if (!isPiCompatibleModel(provider, model)) {
@@ -209,5 +211,10 @@ export async function createPiGatewayModelBinding(
   }
   const registered = modelRuntime.getModel(providerName, modelId)
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)
-  return { modelRuntime, model: registered, ...(onRetry && { onRetry }) }
+  return {
+    modelRuntime,
+    model: registered,
+    compaction: resolvePiCompactionSettings(model),
+    ...(onRetry && { onRetry })
+  }
 }

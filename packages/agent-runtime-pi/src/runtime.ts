@@ -30,6 +30,7 @@ import {
 
 import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
+import { compactionReserveForPercent } from './compaction'
 import { readContextUsage } from './contextUsage'
 import { PiProjection, type PiObservation } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
@@ -40,9 +41,15 @@ export interface PiRuntimeBehavior {
   configureChild(child: {
     readonly thread: Thread
     readonly modelKey: string
-  }):
-    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>
-    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>>
+  }): PiChildConfiguration | Promise<PiChildConfiguration>
+}
+
+/**
+ * A child may choose token budgets only. A custom `summarize` callback could call the model outside
+ * the child's request limit and usage meter, so the native metered summarizer is always used.
+ */
+export type PiChildConfiguration = Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>> & {
+  compaction?: Pick<NonNullable<AgentRuntimeSessionOptions['compaction']>, 'reserveTokens' | 'keepRecentTokens'>
 }
 
 interface PiRuntimeErrorContext {
@@ -205,11 +212,20 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             compaction: {
               ...settings,
               ...config.compaction,
+              ...(configured?.compaction && {
+                ...(configured.compaction.reserveTokens !== undefined && {
+                  reserveTokens: configured.compaction.reserveTokens
+                }),
+                ...(configured.compaction.keepRecentTokens !== undefined && {
+                  keepRecentTokens: configured.compaction.keepRecentTokens
+                })
+              }),
               ...(!child &&
                 config.compactionPercent !== undefined && {
-                  reserveTokens: Math.max(
-                    settings.reserveTokens,
-                    Math.ceil((model.contextWindow * (100 - config.compactionPercent)) / 100)
+                  reserveTokens: compactionReserveForPercent(
+                    config.compaction?.reserveTokens ?? settings.reserveTokens,
+                    model.contextWindow,
+                    config.compactionPercent
                   )
                 })
             },

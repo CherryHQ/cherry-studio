@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
+import { defineTool, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished, vi } from 'vitest'
 
@@ -947,6 +947,45 @@ it('isolates child restore failures and recovers the same child after its model 
   await expect.poll(() => inputs(continued, 'continue child').at(-1)?.outcome).toBe('completed')
 })
 
+// A large root reserve must not override a small selected child's native settings.
+it('uses child-specific compaction budgets instead of the large root reserve', async () => {
+  const manager = SessionManager.inMemory('/tmp')
+  const rootId = manager.getSessionId()
+  const provider = respondingModel((call) => {
+    if (call.sessionId !== rootId) return assistantReply('child answer')
+    if (JSON.stringify(call.messages.at(-1)).includes('delegate'))
+      return assistantReply([subagentCall('small-child', { description: 'small', prompt: 'work' })], 'toolUse')
+    return assistantReply('parent answer')
+  })
+  const inMemory = SettingsManager.inMemory
+  const nativeBudgets: unknown[] = []
+  const spy = vi.spyOn(SettingsManager, 'inMemory').mockImplementation((settings, options) => {
+    if (settings?.compaction) nativeBudgets.push(settings.compaction)
+    return inMemory(settings, options)
+  })
+  onTestFinished(() => spy.mockRestore())
+  const { runtime, config, host } = await setup(provider.model, {
+    model: { ...MODEL, contextWindow: 1_000_000, maxTokens: 8_192 },
+    sessionManager: manager,
+    compaction: { reserveTokens: 108_192, keepRecentTokens: 20_000 }
+  })
+  config.behavior = {
+    host,
+    configureChild: () => ({
+      model: { ...MODEL, contextWindow: 65_536, maxTokens: 8_192 },
+      compaction: { reserveTokens: 16_384, keepRecentTokens: 16_384 }
+    })
+  }
+  const root = confirmed(await runtime.create(config))
+  const events = await observe(root)
+  await root.input.submit!(draft('delegate'))
+  await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('completed')
+  expect(nativeBudgets).toEqual([
+    { enabled: true, reserveTokens: 108_192, keepRecentTokens: 20_000 },
+    { enabled: true, reserveTokens: 16_384, keepRecentTokens: 16_384 }
+  ])
+})
+
 it('predicts from native context without appending history or executing a tool response', async () => {
   const provider = respondingModel((_call, n) =>
     n <= 2
@@ -976,4 +1015,21 @@ it('predicts from native context without appending history or executing a tool r
   expect(await root.pi.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
   expect(root.pi.history()).toEqual(before)
   expect(provider.calls).toHaveLength(4)
+})
+
+it('keeps the model-aware reserve when a reused root pins an 80 percent trigger', async () => {
+  const inMemory = SettingsManager.inMemory
+  const nativeBudgets: Array<{ reserveTokens?: number }> = []
+  const spy = vi.spyOn(SettingsManager, 'inMemory').mockImplementation((settings, options) => {
+    if (settings?.compaction) nativeBudgets.push(settings.compaction)
+    return inMemory(settings, options)
+  })
+  onTestFinished(() => spy.mockRestore())
+  const { runtime, config } = await setup(respondingModel(() => assistantReply('ready')).model, {
+    model: { ...MODEL, contextWindow: 128_000, maxTokens: 32_768 },
+    compaction: { enabled: true, reserveTokens: 45_568, keepRecentTokens: 20_000 },
+    compactionPercent: 80
+  })
+  confirmed(await runtime.create(config))
+  expect(nativeBudgets.at(-1)?.reserveTokens).toBe(45_568)
 })
