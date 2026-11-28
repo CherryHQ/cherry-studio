@@ -66,6 +66,16 @@ export async function recoverDurableFollowups(
     for (const item of candidates) {
       const record = await storage.submissionByRequest(thread, item.inputId, BACKGROUND_CONTEXT)
       if (!isWritable(context.sessionId)) break
+      if (
+        record?.type === 'input' &&
+        record.status === 'unanswered' &&
+        record.reason === 'withdrawn' &&
+        record.entry === undefined
+      ) {
+        messages.discardStagedFollowup(context.sessionId, item.inputId, context.id)
+        if (tracked.has(item.inputId)) acknowledged.push(item)
+        continue
+      }
       if (messages.inputBinding(context.sessionId, item.inputId)?.contextId !== context.id) continue
       if (!record && !tracked.has(item.inputId)) {
         messages.markUserMessageUnsent(context.sessionId, item.inputId, context.id)

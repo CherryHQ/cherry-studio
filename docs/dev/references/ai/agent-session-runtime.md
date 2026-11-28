@@ -1441,8 +1441,9 @@ For connections subject to the idle timer, expiry closes the entry:
 Service stop and destroy close all runtime entries. User Stop (`stopSession()`) additionally
 invokes an optional connection `interrupt()` before closing, including when the visible stream has
 already finished but background work remains. A `retainOnStop` connection (Pi Durable) is
-interrupted but not closed: Stop withdraws queued follow-ups, and the host marks each withdrawn user
-message `paused`, which the transcript shows as not sent with Resend and Edit. The connection's `stopping`
+interrupted and remains open. Stop pauses waiting follow-ups in the native inbox. They keep their order
+and submission IDs across reopen and require an explicit resume to start draining again. A natural turn
+completion drains a running queue. The connection's `stopping`
 occupancy keeps the session busy and holds later input until the connection emits
 `stop-confirmed`. After stop confirmation, Main checks every input admitted to the stopped Run. A completed original
 input cannot replace the paused status while a steered input was aborted or remains unresolved.

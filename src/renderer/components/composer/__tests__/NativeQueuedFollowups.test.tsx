@@ -48,11 +48,11 @@ it('rejects a drop computed from a queue changed in another window, and allows a
   const key = AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId)
   const queue = (ids: string[]): AgentSessionFollowup[] =>
     ids.map((id) => ({ id, revision: 0, parts: [{ type: 'text', text: id }] }))
-  cacheService.setShared(key, queue(['A', 'B', 'C', 'D']))
+  cacheService.setShared(key, { items: queue(['A', 'B', 'C', 'D']), paused: false })
   render(<NativeQueuedFollowups topicId={topicId} onEdit={vi.fn()} />)
   await user.click(screen.getByRole('button', { name: 'Queued (4)' }))
   await user.click(screen.getByRole('button', { name: 'Start drag' }))
-  act(() => cacheService.setShared(key, queue(['A', 'C', 'D', 'B'])))
+  act(() => cacheService.setShared(key, { items: queue(['A', 'C', 'D', 'B']), paused: false }))
   await user.click(screen.getByRole('button', { name: 'Drop third' }))
 
   expect(request).not.toHaveBeenCalled()

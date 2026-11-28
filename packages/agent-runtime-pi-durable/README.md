@@ -33,8 +33,10 @@ still drains admitted relation reads and their final facts before closing feeds.
 
 `resume()` enables the entire Harness scheduler. Reading with `open` or `observe` does not resume it. Native `submit` and `interrupt` can resume the entire
 Harness, including other conversations. Without shared behavior, `interrupt()` uses native ordinary-scope
-abort: queued inputs and owned non-background work are included; queued writes and
-background subtrees are not. These effects are not application-wide cancellation.
+abort includes queued inputs and owned non-background work. Queued writes and background subtrees remain.
+With shared behavior, a user stop on a root records the stop, pauses waiting follow-ups and marks the active run for
+cancellation in the same native transaction. Paused follow-ups keep their inbox entries and submission IDs until the
+host explicitly resumes or withdraws them. Run completion counts only inputs eligible to run.
 
 ## Input and output
 
@@ -54,16 +56,15 @@ The child submission proves admission. A lookup starts no execution.
 
 `input.steer.submit` delivers input at the next native input boundary. If the current
 run finishes normally before taking it, the input starts a subsequent run. `input.followUp.submit`
-waits for the final boundary. Both policies start a run when the conversation is idle;
-normal completion does not discard accepted input. Explicit interruption still follows
-the native cancellation scope. Read captured input facts to distinguish
-acceptance from placement and completion.
+waits for the final boundary. Both policies can start a run when idle. A paused inbox
+holds follow-ups until resume. The desktop's explicit new turn can start while the inbox
+is paused. Read captured input facts to distinguish acceptance, placement and completion.
 
 The desktop mirrors the ordered native follow-up inbox after attachment and on inbox commits.
 Editing and reordering check the still-waiting entries inside a native transaction. An edit carries
 its native content and the revised message parts to placement under the original submission ID. The desktop
-can reapply those parts on reopen, including legacy text-only edits. Withdrawing one entry uses the native
-submission abort operation.
+can reapply those parts on reopen, including legacy text-only edits. Remove settles one waiting submission
+as `withdrawn` and removes it from the inbox in one commit.
 
 Several inputs can share a native answer. Native `done` alone is insufficient: Durable also uses it for truncated output
 and tool-only termination. The adapter reads the actual assistant stop reason before reporting

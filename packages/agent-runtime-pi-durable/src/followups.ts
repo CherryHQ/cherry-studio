@@ -74,20 +74,22 @@ export function readFollowups(inbox: InboxState | undefined): DurableFollowup[] 
 }
 
 export async function changeFollowups(
-  harness: Pick<Harness, 'commit' | 'abortSubmission'>,
+  harness: Pick<Harness, 'commit'>,
   conversationId: ConversationId,
   change: DurableFollowupChange,
   context: Context
 ): Promise<boolean> {
-  if (change.type === 'withdraw') {
-    const item = await harness.commit(async (tx) => {
-      const inbox = await tx.doc(InboxDoc, conversationId)
-      return inbox.items.find((item) => followupId(item) === change.inputId)?.id
-    }, context)
-    return item !== undefined && (await harness.abortSubmission(item, context, conversationId)) === 'aborted'
-  }
   return harness.commit(async (tx) => {
     const inbox = await tx.doc(InboxDoc, conversationId)
+    if (change.type === 'withdraw') {
+      const index = inbox.items.findIndex((item) => followupId(item) === change.inputId)
+      if (index < 0) return false
+      const [item] = inbox.items.splice(index, 1)
+      if (inbox.followUpsPaused && !inbox.items.some((item) => item.mode === 'followUp')) delete inbox.followUpsPaused
+      tx.settleSubmission(item.id, { status: 'unanswered', reason: 'withdrawn' })
+      await registerFollowupProjection(tx, { threadId: String(conversationId), inputId: change.inputId })
+      return true
+    }
     if (change.type === 'steer') {
       const { run } = await tx.doc(LiveDoc, conversationId)
       const item = inbox.items.find((item) => followupId(item) === change.inputId)
@@ -96,6 +98,7 @@ export async function changeFollowups(
       const active = await tx.submissionByRequest(conversationId, change.activeInputId)
       if (active?.type !== 'input' || active.runId !== runId || active.status !== 'placed') return false
       item.mode = 'steer'
+      if (inbox.followUpsPaused && !inbox.items.some((item) => item.mode === 'followUp')) delete inbox.followUpsPaused
       item.entry.data = { ...(item.entry.data as JsonObject), steer: { runId, replyId: change.replyId } }
       await registerFollowupProjection(tx, { threadId: String(conversationId), inputId: change.inputId })
       return true

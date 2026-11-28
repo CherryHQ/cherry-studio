@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
-import type { ConversationView, EntryRecord, LiveState, ToolSlot, TaskId } from '@earendil-works/pi-durable'
+import type { ConversationView, EntryRecord, InboxState, LiveState, ToolSlot, TaskId } from '@earendil-works/pi-durable'
 
 import { subagentResults, type HistoryEntry, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
@@ -51,6 +51,7 @@ export class DurableProjection {
   readonly aliases: Record<string, string> = {}
 
   private nativeBusy = false
+  private pausedFollowups?: ReadonlySet<string>
   private revision?: number
   private pending = false
   private readonly admitting = new Set<InputId>()
@@ -234,7 +235,12 @@ export class DurableProjection {
     let unfinished = false
     for (const input of inputs) {
       if (input.outcome || input.facts.includes('locally-handled')) continue
-      this.cycle.add(input.nativeInput?.id ?? input.inputId!)
+      const id = input.nativeInput?.id ?? input.inputId!
+      if (this.pausedFollowups?.has(id)) {
+        this.cycle.delete(id)
+        continue
+      }
+      this.cycle.add(id)
       unfinished = true
     }
     const pending = Boolean(this.admitting.size || this.nativeBusy || unfinished)
@@ -359,6 +365,10 @@ export class DurableProjection {
         ? { inputs: publication.inputs, events: [] }
         : this.acceptInputFacts(previousState.inputs, publication?.changes ?? [], revision)
     const live = view.docs['pi.live'] as LiveState | undefined
+    const inbox = view.docs['pi.inbox'] as InboxState | undefined
+    this.pausedFollowups = inbox?.followUpsPaused
+      ? new Set(inbox.items.flatMap((item) => (item.mode === 'followUp' ? [String(item.id)] : [])))
+      : undefined
     this.nativeBusy = Boolean(live?.run || live?.compactions?.length)
     const content = this.committedContent(view.entries)
     const generation = live?.generation

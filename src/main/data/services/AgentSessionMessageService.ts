@@ -1283,6 +1283,50 @@ export class AgentSessionMessageService {
     )
   }
 
+  removeResentUnsentMessageTx(tx: DbOrTx, sessionId: string, message: { id: string; updatedAt: string }): void {
+    const source = tx
+      .select({ contextId: sessionMessagesTable.inputContextId })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.id, message.id),
+          eq(sessionMessagesTable.role, 'user'),
+          eq(sessionMessagesTable.status, 'paused'),
+          eq(sessionMessagesTable.updatedAt, Date.parse(message.updatedAt)),
+          isNull(sessionMessagesTable.pos),
+          isNull(sessionMessagesTable.replyId),
+          isNull(sessionMessagesTable.deliveryStatus)
+        )
+      )
+      .get()
+    if (!source || (source.contextId && !this.releaseInputBindingTx(tx, sessionId, message.id, source.contextId)))
+      throw DataApiErrorFactory.resourceLocked('Message', message.id, 'a changed or already resent input')
+    this.deleteSessionMessageTx(tx, sessionId, message.id)
+  }
+
+  discardStagedFollowup(sessionId: string, messageId: string, contextId: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const staged = tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.id, messageId),
+            eq(sessionMessagesTable.role, 'user'),
+            eq(sessionMessagesTable.status, 'success'),
+            isNull(sessionMessagesTable.replyId),
+            isNull(sessionMessagesTable.deliveryStatus),
+            sql`json_extract(${sessionMessagesTable.data}, '$.stagedFollowup') = 1`
+          )
+        )
+        .get()
+      if (staged && this.releaseInputBindingTx(tx, sessionId, messageId, contextId))
+        this.deleteSessionMessageTx(tx, sessionId, messageId)
+    })
+  }
+
   stagedFollowups(sessionId: string) {
     return application
       .get('DbService')
