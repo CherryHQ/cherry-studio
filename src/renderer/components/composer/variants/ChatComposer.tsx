@@ -81,7 +81,7 @@ import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { type FollowupQueueItem, QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import {
   type ChatComposerControlsRenderer,
@@ -1512,10 +1512,16 @@ const ChatComposerInner = ({
     sendId: sendFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    clear: clearFollowups,
     editItem: editFollowup,
     releaseEdit,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    failedItemId: failedFollowupId,
+    retryFailed: retryFailedFollowup,
+    skipFailed: skipFailedFollowup,
+    drainingId: drainingFollowupId,
+    hasLiveSend: hasLiveFollowupSend
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
     status: streamStatus,
@@ -1754,8 +1760,11 @@ const ChatComposerInner = ({
 
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
-      if (canSteer) {
-        enqueueFollowup(draft, payload)
+      if (canSteer || hasLiveFollowupSend()) {
+        if (enqueueFollowup(draft, payload) !== 'ok') {
+          toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
+          return
+        }
         clearCurrentDraft()
         return
       }
@@ -1781,6 +1790,7 @@ const ChatComposerInner = ({
       commitEditedMessage,
       editingMessageForCurrentTopic,
       enqueueFollowup,
+      hasLiveFollowupSend,
       handleModelSelect,
       loading,
       missingAssistantMessage,
@@ -1899,6 +1909,14 @@ const ChatComposerInner = ({
         }}
         onRemove={removeFollowup}
         onReorder={reorderFollowups}
+        onClearAll={clearFollowups}
+        failedItemId={failedFollowupId}
+        onRetryFailed={retryFailedFollowup}
+        onSkipFailed={skipFailedFollowup}
+        onAbortQueue={clearFollowups}
+        isFailureDraining={
+          failedFollowupId != null && (failedFollowupId === drainingFollowupId || hasLiveFollowupSend())
+        }
         isSteerDisabled={isQueuedFollowupSteerDisabled}
       />
     ) : undefined

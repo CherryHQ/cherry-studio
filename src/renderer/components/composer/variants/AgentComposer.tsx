@@ -108,7 +108,7 @@ import { NativeQueuedFollowups } from '../NativeQueuedFollowups'
 import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { type FollowupQueueItem, QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { getPathComparisonKey } from './agent/accessiblePath'
 import {
@@ -1626,12 +1626,20 @@ const AgentComposerInner = ({
     sendId: sendFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    clear: clearFollowups,
     editItem: editFollowup,
     releaseEdit,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    failedItemId: failedFollowupId,
+    retryFailed: retryFailedFollowup,
+    skipFailed: skipFailedFollowup,
+    drainingId: drainingFollowupId,
+    hasLiveSend: hasLiveFollowupSend
   } = useFollowupQueue({
-    scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
+    scopeKey: launchOptions?.editing
+      ? `${agentId}:${sessionTopicId}:edit:${launchOptions.editing.messageId}`
+      : `${agentId}:${sessionTopicId}`,
     status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
     lastCompletedAt,
     onDrain: sendQueuedPayload
@@ -1773,8 +1781,11 @@ const AgentComposerInner = ({
       // falls through to the direct send below, mirroring the dock's "insert" action.
       // A runtime with a durable native queue receives the follow-up at once so it survives a crash.
       const followUp = isStreaming && !options?.steer && !steerWhileBusy
-      if (followUp && !hasDurableFollowUp) {
-        enqueueFollowup(draft, payload)
+      if ((followUp || hasLiveFollowupSend()) && !hasDurableFollowUp) {
+        if (enqueueFollowup(draft, payload) !== 'ok') {
+          toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
+          return
+        }
         clearCurrentDraft()
         return
       }
@@ -1794,6 +1805,7 @@ const AgentComposerInner = ({
       buildQueuedPayload,
       clearCurrentDraft,
       enqueueFollowup,
+      hasLiveFollowupSend,
       isStreaming,
       model,
       hasDurableFollowUp,
@@ -2087,6 +2099,14 @@ const AgentComposerInner = ({
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
+                  onClearAll={clearFollowups}
+                  failedItemId={failedFollowupId}
+                  onRetryFailed={retryFailedFollowup}
+                  onSkipFailed={skipFailedFollowup}
+                  onAbortQueue={clearFollowups}
+                  isFailureDraining={
+                    failedFollowupId != null && (failedFollowupId === drainingFollowupId || hasLiveFollowupSend())
+                  }
                 />
               ) : undefined}
             </>
