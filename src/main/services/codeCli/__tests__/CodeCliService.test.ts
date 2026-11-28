@@ -1,3 +1,4 @@
+import type * as ChildProcess from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -738,7 +739,7 @@ describe('CodeCliService', () => {
         const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
         const line = script.split('\n').find((entry) => entry.includes("'/usr/bin/printf'"))!
         const command = line.slice(line.indexOf("'/usr/bin/printf'"))
-        const { execFileSync } = await vi.importActual<typeof import('node:child_process')>('node:child_process')
+        const { execFileSync } = await vi.importActual<typeof ChildProcess>('node:child_process')
         expect(execFileSync('/bin/sh', ['-c', command], { encoding: 'utf8' })).toBe(`${args.join('\n')}\n`)
       }
     )
