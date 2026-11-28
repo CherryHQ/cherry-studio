@@ -13,6 +13,8 @@ import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
+import TranslateSettings from '@renderer/components/translate/TranslateSettings'
+import { useTranslateReasoningEffort } from '@renderer/components/translate/useTranslateReasoningEffort'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFileProcessingTask } from '@renderer/hooks/useFileProcessingTask'
@@ -64,9 +66,7 @@ import type {
   PdfTranslationOutput,
   PdfTranslationStatus
 } from './pdf/PdfTranslationView'
-import TranslateSettings from './TranslateSettings'
 import type { TranslationFiles } from './translationFiles'
-import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
@@ -222,8 +222,20 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
-  // Every output write goes through smoothReset: a direct setTranslateOutput is replayed over by the queue's next frame.
-  const { reset: resetOutputStream, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
+  const {
+    translate: runTranslate,
+    isTranslating,
+    cancel
+  } = useTranslate({
+    loggerContext: 'TranslatePage',
+    onResponse: (text, isComplete) => smoothUpdate(text, isComplete)
+  })
+
+  const { reset: resetOutputStream, update: smoothUpdate } = useSmoothStream({
+    onUpdate: setTranslateOutput,
+    streamDone: !isTranslating,
+    initialText: translateOutput
+  })
   const [outputRevision, setOutputRevision] = useState(0)
   const smoothReset = useCallback(
     (text = '') => {
@@ -232,14 +244,6 @@ const TranslatePage: FC = () => {
     },
     [resetOutputStream]
   )
-  const {
-    translate: runTranslate,
-    isTranslating,
-    cancel
-  } = useTranslate({
-    loggerContext: 'TranslatePage',
-    onResponse: smoothUpdate
-  })
   const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
   const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -943,6 +947,7 @@ const TranslatePage: FC = () => {
               value={selectedModelId}
               onSelect={handleModelIdSelect}
               filter={modelSelectorFilter}
+              forUtilityTask
               showTagFilter={false}
               showPinnedModels
               prioritizedProviderIds={PRIORITIZED_PROVIDER_IDS}

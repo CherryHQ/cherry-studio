@@ -24,6 +24,7 @@ export {
   type ComposerUnifiedPanelResourceProvider,
   type ComposerUnifiedPanelSection,
   type ComposerUnifiedPanelSelectHandler,
+  createUnifiedPanelSubmenuItems,
   createUnifiedQuickPanelOpenOptions,
   hasUnifiedQuickPanelRootContent,
   prepareComposerQuickPanelSearch

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-27-mermaid-preview-stale-svg.md
+2026-11-27-mermaid-preview-stale-svg.md: 73fa184858b8eb2f7225771b3453c7893683a1dd
+2026-11-27-mermaid-preview-stale-svg.zh.md: 6ada8fed1bf278935b86ea4c01f94951b08deeb7

@@ -39,7 +39,7 @@ vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
-vi.mock('../components/LanguagePicker', () => ({
+vi.mock('@renderer/components/translate/LanguagePicker', () => ({
   default: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
     <button type="button" data-testid={`language-picker-${value}`} onClick={() => onChange('zh-cn')}>
       {value}
@@ -47,7 +47,7 @@ vi.mock('../components/LanguagePicker', () => ({
   )
 }))
 
-vi.mock('../components/IconButton', () => ({
+vi.mock('@renderer/components/translate/IconButton', () => ({
   default: ({ children, ...props }: React.ComponentProps<'button'> & { active?: boolean; size?: string }) => (
     <button type="button" {...props}>
       {children}
@@ -177,7 +177,7 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
-import TranslateSettings, { TranslateSettingsPanelContent } from '../TranslateSettings'
+import TranslateSettings, { TranslateSettingsPanelContent } from '@renderer/components/translate/TranslateSettings'
 
 const getPromptTextarea = () => screen.getAllByRole('textbox')[0]
 const getAddLanguageButton = () => screen.getByRole('button', { name: 'common.add common.language' })

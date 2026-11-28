@@ -25,8 +25,10 @@ import {
 import { cn } from '@renderer/utils/style'
 import type { ScheduledTaskListItem } from '@shared/data/api/schemas/agents'
 
-const TaskFormDialog = lazy(() =>
-  import('@renderer/components/ScheduledTask/TaskFormDialog').then((module) => ({ default: module.TaskFormDialog }))
+const SelectableTaskFormDialog = lazy(() =>
+  import('@renderer/components/ScheduledTask/SelectableTaskFormDialog').then((module) => ({
+    default: module.SelectableTaskFormDialog
+  }))
 )
 
 export interface ScheduledTaskGroupProps {
@@ -73,7 +75,7 @@ function TaskRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1 rounded-lg pr-1.5 shadow-none transition-colors',
+        'group flex items-center gap-1 rounded-lg pr-1.5 shadow-none transition-[color]',
         selected
           ? 'bg-resource-list-row-selected'
           : 'hover:bg-resource-list-row-hover has-[:focus-visible]:bg-resource-list-row-hover'
@@ -153,7 +155,7 @@ function TaskRow({
       </DropdownMenu>
       {editOpen !== undefined && (
         <Suspense fallback={null}>
-          <TaskFormDialog
+          <SelectableTaskFormDialog
             open={editOpen}
             task={task}
             agents={[{ id: task.agentId, name: agentName ?? task.agentId }]}

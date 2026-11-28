@@ -178,6 +178,10 @@ export const fileRequestSchemas = {
     output: z.void()
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.select_folder': defineRoute({
+    input: z.strictObject({ defaultPath: AbsoluteFilePathSchema.optional() }),
+    output: AbsoluteFilePathSchema.nullable()
+  }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.get_clipboard_status': defineRoute({ input: FileHandleSchema, output: clipboardCopyStatusSchema }),
   'file.copy_to_clipboard': defineRoute({ input: FileHandleSchema, output: z.void() }),

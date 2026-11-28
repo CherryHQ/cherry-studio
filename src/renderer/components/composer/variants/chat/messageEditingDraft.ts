@@ -210,7 +210,9 @@ function findEditableFileToken(
 
   // Only fall back when exactly one file token remains unused — guessing among multiple unmatched
   // tokens could attach a part to the wrong token source id.
-  const unusedTokens = fileTokens.filter((token) => !usedTokenIds.has(token.id))
+  const unusedTokens = fileTokens.filter(
+    (token) => !usedTokenIds.has(token.id) && (!part.filename || token.label === part.filename)
+  )
   return unusedTokens.length === 1 ? unusedTokens[0] : undefined
 }
 
@@ -285,6 +287,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
   const usedFileTokenIds = new Set<string>()
   const attachmentByMatchedTokenId = new Map<string, ComposerAttachment>()
   const originalFileTokens: EditableMessageDraft['originalFileTokens'] = []
+  const extraFileTokens: ComposerSerializedToken[] = []
   const files = parts.flatMap((part, index) => {
     if (part.type !== 'file') return []
     const path = part.url
@@ -297,21 +300,29 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
     const file = createEditableAttachment(part, index, fileTokenSourceId, readFileTokenPayload(token?.payload))
     if (!file) return []
     if (token) attachmentByMatchedTokenId.set(token.id, file)
+    else {
+      extraFileTokens.push({
+        id: composerFileTokenIdFromSourceId(file.fileTokenSourceId),
+        kind: 'file',
+        label: file.origin_name || file.name,
+        index: draftTokens.length + extraFileTokens.length,
+        textOffset: text.length,
+        payload: file
+      })
+    }
     originalFileTokens.push({ tokenId: chatComposerTokenId.file(file), partIndex: index })
     return [file]
   })
   // Live composer file tokens carry the attachment as their payload; the stored snapshot only
   // carries the serialized display fields. Restore the attachment so the token renders the same.
-  const normalizedDraftTokens = draftTokens.map((token) => {
-    if (token.kind !== 'file') return token
+  const normalizedDraftTokens = draftTokens.flatMap((token) => {
+    if (token.kind !== 'file') return [token]
 
     const file = attachmentByMatchedTokenId.get(token.id)
-    if (!file) return token
-
-    return { ...token, id: composerFileTokenIdFromSourceId(file.fileTokenSourceId), payload: file }
+    return file ? [{ ...token, id: composerFileTokenIdFromSourceId(file.fileTokenSourceId), payload: file }] : []
   })
 
-  return { text, draftTokens: [...normalizedDraftTokens, ...anchors], files, originalFileTokens }
+  return { text, draftTokens: [...normalizedDraftTokens, ...extraFileTokens, ...anchors], files, originalFileTokens }
 }
 
 export function getEditableKnowledgeBases(

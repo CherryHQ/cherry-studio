@@ -12,6 +12,7 @@ import { type MessageConfig, readGatewayRequest, resolveGatewayRequest } from '.
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { GATEWAY_STREAM_IDLE_TIMEOUT_MS } from './streamLifecycle'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
+import { stripAnthropicBillingHeader } from './utils/anthropicBillingHeader'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
@@ -53,6 +54,9 @@ export async function prepareGatewayMessage(config: MessageConfig) {
   })
   const { provider, model, endpoint, reasoning, modelId, modelAddress, logContext } = request
   const internal = request.isInternalRequest
+  if (inputFormat === 'anthropic' && endpoint.endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+    effectiveParams = stripAnthropicBillingHeader(effectiveParams as MessageCreateParams)
+  }
   if (normalization?.status === 'repaired') {
     logger.warn('Repaired duplicate tool history in internal Agent request', {
       ...logContext,
@@ -120,6 +124,9 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     : positionedMessages
   const tools = converter.toAiSdkTools?.(effectiveParams, endpoint.endpointType)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
+  if (streamOptions.maxOutputTokens !== undefined && model.maxOutputTokens !== undefined) {
+    streamOptions.maxOutputTokens = Math.min(streamOptions.maxOutputTokens, model.maxOutputTokens)
+  }
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const extractedProviderOptions =
@@ -150,9 +157,20 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     ...(claudeCodeSession && {
       captureReplay: (blocks) => saveClaudeCodeReplay(claudeCodeSession, modelAddress, endpoint.endpointType, blocks)
     }),
-    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
+    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {}),
+    ...(converter.resolveClientToolCall
+      ? { resolveClientToolCall: converter.resolveClientToolCall.bind(converter) }
+      : {})
   }
-  return { ...request, messages, convertedMessages, callOverrides, adapterOptions, internal }
+  return {
+    ...request,
+    messages,
+    convertedMessages,
+    callOverrides,
+    adapterOptions,
+    internal,
+    modelString: request.modelString
+  }
 }
 
 export function gatewayPromptOptions(
@@ -168,6 +186,7 @@ export function gatewayPromptOptions(
     callOverrides: request.callOverrides,
     contextOwner: 'caller' as const,
     ...(request.adapterOptions.captureReplay && { replayProviderState: true }),
+    ...(request.internal && request.agentSessionId && { retryOutputTokenLimit: true }),
     ...(usageContext ? { usageContext } : {}),
     ...(request.agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
     idleTimeoutMs,

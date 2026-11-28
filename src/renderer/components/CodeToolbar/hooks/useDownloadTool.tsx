@@ -24,7 +24,7 @@ export const useDownloadTool = ({ showPreviewTools, previewRef, onDownloadSource
     const baseTool = {
       ...TOOL_SPECS.download,
       icon: <Download className="tool-icon" />,
-      tooltip: includePreviewTools ? undefined : t('code_block.download.source')
+      tooltip: includePreviewTools ? t('code_block.download.label') : t('code_block.download.source')
     }
 
     if (includePreviewTools) {

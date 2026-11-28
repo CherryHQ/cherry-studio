@@ -32,9 +32,7 @@ const TopicNamingSettings = lazy(() =>
   import('./TopicNamingSettings').then((module) => ({ default: module.TopicNamingSettings }))
 )
 const TranslateSettingsPanelContent = lazy(() =>
-  // Preserve the existing cross-page panel ownership while moving its cost behind the activation boundary.
-  // eslint-disable-next-line import-x/no-restricted-paths
-  import('@renderer/pages/translate/TranslateSettings').then((module) => ({
+  import('@renderer/components/translate/TranslateSettings').then((module) => ({
     default: module.TranslateSettingsPanelContent
   }))
 )
@@ -309,6 +307,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               providers={providers}
               filter={translateModelFilter}
               showSubscriptionOffers={!modelFilter}
+              forUtilityTask
               compact={compact}
               onSelect={onSelectTranslate}
               placeholder={t('settings.models.empty')}

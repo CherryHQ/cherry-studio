@@ -5,9 +5,10 @@ import {
   type BashToolInput as BashToolInputType,
   type BashToolOutput as BashToolOutputType
 } from '../shared/agentToolTypes'
-import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { SkeletonValue, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 import { TerminalOutput } from './TerminalOutput'
 
 export function BashTool({

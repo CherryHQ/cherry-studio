@@ -27,7 +27,7 @@ import { loggerService } from '@logger'
 import { ChannelConfigDialog } from '@renderer/components/channel/ChannelConfigDialog'
 import type { AvailableChannel, ChannelData, ChannelUpdates } from '@renderer/components/channel/channelTypes'
 import CopyButton from '@renderer/components/CopyButton'
-import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
+import { WorkspaceSelector } from '@renderer/components/resourceCatalog/WorkspaceSelector'
 import {
   SettingDivider,
   SettingGroup,

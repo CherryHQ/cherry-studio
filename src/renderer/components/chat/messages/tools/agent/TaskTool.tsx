@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { StaticMarkdown } from '@renderer/components/markdown'
 
 import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
-import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { SkeletonValue, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed'
 

@@ -35,7 +35,7 @@ icon: route
 | 按计划生成日报或提醒 | 先跑通智能体，再创建【定时任务】 | 智能体、工作目录、频道、运行记录 |
 | 同时查看资料与任务 | 标签页右键→【从新窗口打开】 | 多窗口、固定标签页、全局搜索 |
 | 管理编程命令行 | 启动台【编码搭档】 | Code CLI、模型连接、目录与终端 |
-| 让本机程序调用模型或排错 | 【设置】→【API 网关】/【通用】 | 兼容 API、调用链、开发者模式 |
+| 让本机程序调用模型或排错 | 【设置】→【统一网关】/【通用】 | 兼容 API、调用链、开发者模式 |
 
 ### 推荐学习顺序
 
@@ -64,7 +64,7 @@ icon: route
 
 ### 按模块阅读
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><strong>对话进阶</strong></td><td>多模型、分支、上下文与产物</td><td><a href="chat/README.md">chat/README.md</a></td></tr><tr><td><strong>智能体工作区</strong></td><td>从配置、执行到文件交付</td><td><a href="agent-workspace/README.md">agent-workspace/README.md</a></td></tr><tr><td><strong>知识与内容工作流</strong></td><td>知识库、笔记、绘画和翻译</td><td><a href="knowledge-content/README.md">knowledge-content/README.md</a></td></tr><tr><td><strong>扩展智能体的能力</strong></td><td>技能与 MCP</td><td><a href="extensions/README.md">extensions/README.md</a></td></tr><tr><td><strong>自动化与外部触达</strong></td><td>频道、定时任务和心跳</td><td><a href="automation/README.md">automation/README.md</a></td></tr><tr><td><strong>高效工作台</strong></td><td>多窗口、效率工具与搜索</td><td><a href="workbench/README.md">workbench/README.md</a></td></tr><tr><td><strong>开发与诊断</strong></td><td>Code CLI、API 网关与调用链</td><td><a href="developer-tools/README.md">developer-tools/README.md</a></td></tr><tr><td><strong>应用案例</strong></td><td>九种完整工作流</td><td><a href="cases/README.md">cases/README.md</a></td></tr></tbody></table>
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><strong>对话进阶</strong></td><td>多模型、分支、上下文与产物</td><td><a href="chat/README.md">chat/README.md</a></td></tr><tr><td><strong>智能体工作区</strong></td><td>从配置、执行到文件交付</td><td><a href="agent-workspace/README.md">agent-workspace/README.md</a></td></tr><tr><td><strong>知识与内容工作流</strong></td><td>知识库、笔记、绘画和翻译</td><td><a href="knowledge-content/README.md">knowledge-content/README.md</a></td></tr><tr><td><strong>扩展智能体的能力</strong></td><td>技能与 MCP</td><td><a href="extensions/README.md">extensions/README.md</a></td></tr><tr><td><strong>自动化与外部触达</strong></td><td>频道、定时任务和心跳</td><td><a href="automation/README.md">automation/README.md</a></td></tr><tr><td><strong>高效工作台</strong></td><td>多窗口、效率工具与搜索</td><td><a href="workbench/README.md">workbench/README.md</a></td></tr><tr><td><strong>开发与诊断</strong></td><td>Code CLI、统一网关与调用链</td><td><a href="developer-tools/README.md">developer-tools/README.md</a></td></tr><tr><td><strong>应用案例</strong></td><td>九种完整工作流</td><td><a href="cases/README.md">cases/README.md</a></td></tr></tbody></table>
 
 {% hint style="warning" %}
 工作目录、MCP、频道和高权限模式都会扩大智能体可以接触的数据范围。只提供当前任务需要的目录、工具和账号，不把 API Key、机器人密钥或私人资料放进公开对话与截图。

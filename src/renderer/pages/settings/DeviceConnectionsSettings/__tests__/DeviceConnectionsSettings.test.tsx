@@ -591,7 +591,7 @@ describe('DeviceConnectionsSettings', () => {
     expect(screen.queryByText(enUS['deviceConnections.toggle.risk'])).not.toBeInTheDocument()
     expect(screen.getAllByText(enUS['deviceConnections.gateway.required'])[0]).toBeVisible()
     expect(screen.queryByText(enUS['deviceConnections.pairing.requiresRunning'])).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Open API Gateway settings' }))
+    await user.click(screen.getByRole('button', { name: 'Open Unified Gateway settings' }))
 
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/api-gateway' })
     expect(requestMock).not.toHaveBeenCalled()

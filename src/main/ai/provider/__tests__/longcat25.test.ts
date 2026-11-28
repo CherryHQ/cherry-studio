@@ -12,7 +12,7 @@ import { mergePresetModel, resolveReasoningProfileFromRegistry } from '@data/ser
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
-import { resolveNativeFileSupport } from '../../runtime/aiSdk/params/nativeFileSupport'
+import { resolveNativeFileSupport } from '../../messages/nativeFileSupport'
 import { buildResolvedReasoningProviderOptions } from '../../utils/options'
 import { resolveReasoningInvocation } from '../../utils/reasoningSerializers'
 import { resolveAiSdkProviderId, resolveEndpointProviderOptionsKey } from '../endpoint'

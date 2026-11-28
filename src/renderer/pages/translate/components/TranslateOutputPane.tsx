@@ -6,10 +6,9 @@ import { useTranslation } from 'react-i18next'
 import { Button, ScrollArea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AppMarkdown } from '@renderer/components/markdown'
+import IconButton from '@renderer/components/translate/IconButton'
 import { toast } from '@renderer/services/toast'
 import { readTextAloud } from '@renderer/services/voice'
-
-import IconButton from './IconButton'
 
 const logger = loggerService.withContext('TranslateOutputPane')
 

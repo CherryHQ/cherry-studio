@@ -69,6 +69,7 @@ function agentSessionMessageToExportView(
     modelId: row.modelId ?? undefined,
     model: modelSnapshotToModel(modelSnapshot),
     messageSnapshot: row.messageSnapshot ?? undefined,
+    provenance: row.provenance ?? undefined,
     stats: row.stats ?? undefined,
     parts: row.data.parts ?? []
   }
