@@ -203,3 +203,85 @@ it('overwrites streamed tool_invoke input with the canonical identity before per
     expect.objectContaining({ type: 'tool-tool_invoke', state: 'output-available', input: { name: wire, params: {} } })
   )
 })
+
+it.each(['stream', 'generate'] as const)(
+  'preserves native web-search identity through SDK %s with an MCP namesake',
+  async (mode) => {
+    const { openai } = await import('@ai-sdk/openai')
+    const { generateText, readUIMessageStream, streamText, wrapLanguageModel } = await import('ai')
+    const { MockLanguageModelV3, convertArrayToReadableStream } = await import('ai/test')
+    const { toModelMessages } = await import('../../../../messages/messageRules')
+    const mcpWire = 'mcp__server__webSearch_digest'
+    const execute = vi.fn(async () => 'MCP result')
+    const mcp: ToolSet = {
+      [mcpWire]: {
+        inputSchema: jsonSchema({ type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }),
+        metadata: { cherry: { tool: { type: 'mcp', name: 'webSearch' } } },
+        execute
+      }
+    }
+    // Provider plugins add their tools separately from the request's MCP catalog.
+    const callable: ToolSet = { ...mcp, webSearch: openai.tools.webSearch({}) }
+    const call = {
+      type: 'tool-call' as const,
+      toolCallId: 'native',
+      toolName: 'webSearch',
+      input: '{}',
+      providerExecuted: true
+    }
+    const output = { sources: [], action: { type: 'search', queries: ['example'] } }
+    const result = { type: 'tool-result' as const, toolCallId: 'native', toolName: 'webSearch', result: output }
+    const usage = {
+      inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+      outputTokens: { total: 1, text: 1, reasoning: 0 }
+    }
+    const finishReason = { unified: 'stop' as const, raw: undefined }
+    const model = wrapLanguageModel({
+      model: new MockLanguageModelV3({
+        doGenerate: async () => ({ content: [call, result], finishReason, usage, warnings: [] }),
+        doStream: async () => ({
+          stream: convertArrayToReadableStream<LanguageModelV3StreamPart>([
+            { type: 'stream-start', warnings: [] },
+            { type: 'tool-input-start', id: 'native', toolName: 'webSearch', providerExecuted: true },
+            { type: 'tool-input-delta', id: 'native', delta: '{}' },
+            { type: 'tool-input-end', id: 'native' },
+            call,
+            result,
+            { type: 'finish', finishReason, usage }
+          ])
+        })
+      }),
+      middleware: createMcpAliasMiddleware(mcp, mcp)
+    })
+    if (mode === 'generate') {
+      const generated = await generateText({ model, tools: callable, prompt: 'search', maxRetries: 0 })
+      expect(generated.toolCalls).toEqual([
+        expect.objectContaining({ toolName: 'webSearch', providerExecuted: true, input: {} })
+      ])
+      expect(generated.toolResults).toEqual([expect.objectContaining({ toolName: 'webSearch', output })])
+      expect(JSON.stringify(generated.response.messages)).not.toContain(mcpWire)
+      expect(JSON.stringify(generated.response.messages)).toContain('webSearch')
+    } else {
+      let saved: UIMessage | undefined
+      const response = streamText({ model, tools: callable, prompt: 'search', maxRetries: 0 })
+      for await (const message of readUIMessageStream({ stream: response.toUIMessageStream() })) saved = message
+      expect(saved?.parts).toContainEqual(
+        expect.objectContaining({
+          type: 'tool-webSearch',
+          state: 'output-available',
+          providerExecuted: true,
+          input: {},
+          output
+        })
+      )
+      expect(saved?.parts.some((part) => part.type === `tool-${mcpWire}`)).toBe(false)
+      const replay = await toModelMessages([JSON.parse(JSON.stringify(saved))], undefined, callable)
+      expect(JSON.stringify(replay)).toContain('webSearch')
+      expect(JSON.stringify(replay)).not.toContain(mcpWire)
+      expect(await response.toolCalls).toEqual([
+        expect.objectContaining({ toolName: 'webSearch', providerExecuted: true, input: {} })
+      ])
+    }
+    expect(execute).not.toHaveBeenCalled()
+  }
+)

@@ -16,7 +16,9 @@ export function createMcpAliasMiddleware(inline: ToolSet, catalog: ToolSet): Lan
       return name
     }
   }
-  const canonicalCall = <T extends { toolName: string; input: string }>(call: T): T => {
+  const canonicalCall = <T extends { toolName: string; input: string; providerExecuted?: boolean }>(call: T): T => {
+    // Provider-owned calls have their own schemas and replay identity, even when an MCP alias collides.
+    if (call.providerExecuted) return call
     const toolName = directName(call.toolName)
     if (toolName !== 'tool_invoke') return toolName === call.toolName ? call : { ...call, toolName }
     try {
@@ -44,7 +46,7 @@ export function createMcpAliasMiddleware(inline: ToolSet, catalog: ToolSet): Lan
         stream: result.stream.pipeThrough(
           new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
             transform(part, controller) {
-              if (part.type === 'tool-input-start') {
+              if (part.type === 'tool-input-start' && !part.providerExecuted) {
                 controller.enqueue({ ...part, toolName: directName(part.toolName) })
               } else if (part.type === 'tool-call') {
                 controller.enqueue(canonicalCall(part))
