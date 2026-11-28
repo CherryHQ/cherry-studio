@@ -1610,6 +1610,38 @@ describe('ResourceList', () => {
     expect(screen.queryByText('Group Context Menu')).not.toBeInTheDocument()
   })
 
+  it('keeps group header actions with alwaysVisible laid out instead of hover-only', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderAction={() => (
+          <>
+            <ResourceList.GroupHeaderActionButton aria-label="Group more" />
+            <ResourceList.GroupHeaderActionButton alwaysVisible aria-label="Persistent create" />
+          </>
+        )}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const createButton = screen.getAllByRole('button', { name: 'Persistent create' })[0]
+    const cluster = createButton.closest('div.-ml-1\\.5')
+    expect(cluster).not.toBeNull()
+    expect(cluster!.className).toContain('opacity-100')
+    expect(cluster!.className).not.toContain('opacity-0')
+  })
+
   it('routes group header context menu items to the right group', async () => {
     const onAction = vi.fn()
     const Provider = ResourceList.Provider<TestItem>

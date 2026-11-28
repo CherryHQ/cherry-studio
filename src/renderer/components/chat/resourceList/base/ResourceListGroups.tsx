@@ -45,6 +45,29 @@ function stopEventPropagation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
 }
 
+/**
+ * Returns true when a group-header action tree contains an element marked
+ * `alwaysVisible` (e.g. the topic list's persistent "New Chat" button). Handles
+ * fragments/arrays since callers like `Topics.getGroupHeaderAction` return
+ * multiple buttons in a single fragment.
+ */
+function containsAlwaysVisibleFlag(node: ReactNode): boolean {
+  if (Array.isArray(node)) {
+    return node.some(containsAlwaysVisibleFlag)
+  }
+  if (!isValidElement<{ alwaysVisible?: boolean; children?: ReactNode }>(node)) {
+    return false
+  }
+  if (node.props.alwaysVisible === true) {
+    return true
+  }
+  const children = node.props.children
+  if (children === undefined || children === null) {
+    return false
+  }
+  return containsAlwaysVisibleFlag(children as ReactNode)
+}
+
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === 'function') {
     ref(value)
@@ -228,6 +251,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const selected = clickBehavior === 'select-first-then-toggle' && groupState.selected
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
+  const groupHeaderActionAlwaysVisible = containsAlwaysVisibleFlag(groupHeaderAction)
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
@@ -401,9 +425,14 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       {groupHeaderAction && (
         <div
           className={cn(
-            '-ml-1.5 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 motion-reduce:transition-none',
+            '-ml-1.5 grid shrink-0 transition-[grid-template-columns,opacity] duration-150 motion-reduce:transition-none',
             !hasLeadingSlot && '-mr-1',
-            'group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:grid-cols-[1fr] group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:grid-cols-[1fr] has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:grid-cols-[1fr] group-has-[:focus-visible]/resource-list-group:opacity-100 no-hover:pointer-events-auto no-hover:grid-cols-[1fr] no-hover:opacity-100'
+            groupHeaderActionAlwaysVisible
+              ? // Persistent actions (e.g. topic "New Chat"): always reserve space so the
+                // control never pops in under the cursor. Hover/focus styles on the
+                // buttons themselves still provide feedback.
+                'pointer-events-auto grid-cols-[1fr] opacity-100'
+              : 'pointer-events-none grid-cols-[0fr] opacity-0 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:grid-cols-[1fr] group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:grid-cols-[1fr] has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:grid-cols-[1fr] group-has-[:focus-visible]/resource-list-group:opacity-100 no-hover:pointer-events-auto no-hover:grid-cols-[1fr] no-hover:opacity-100'
           )}
           onClick={stopEventPropagation}
           onContextMenu={stopEventPropagation}

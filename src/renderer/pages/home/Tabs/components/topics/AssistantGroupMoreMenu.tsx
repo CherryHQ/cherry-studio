@@ -15,6 +15,7 @@ import {
 export function AssistantGroupMoreMenu({
   assistantId,
   assistantIconType,
+  buttonClassName,
   deleteAssistantDisabled,
   deleteTopicsDisabled,
   disabled,
@@ -33,6 +34,7 @@ export function AssistantGroupMoreMenu({
 }: {
   assistantId: string
   assistantIconType: AssistantIconType
+  buttonClassName?: string
   deleteAssistantDisabled?: boolean
   deleteTopicsDisabled?: boolean
   disabled?: boolean
@@ -80,6 +82,7 @@ export function AssistantGroupMoreMenu({
       <ResourceList.GroupHeaderActionButton
         type="button"
         aria-label={t('common.more')}
+        className={buttonClassName}
         onClick={(event) => event.stopPropagation()}>
         <MoreHorizontal className="block" />
       </ResourceList.GroupHeaderActionButton>

@@ -3136,6 +3136,22 @@ describe('Topics', () => {
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
+  it('keeps the group new-topic action persistently laid out with a larger target', () => {
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+
+    const createButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
+    // 28px target for discoverability (#18168).
+    expect(createButton.className).toContain('size-7')
+
+    const cluster = createButton.closest('div.-ml-1\\.5')
+    expect(cluster).not.toBeNull()
+    expect(cluster!.className).toContain('opacity-100')
+    expect(cluster!.className).not.toContain('opacity-0')
+  })
+
   it('uses a generic header create action in time display mode', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { onNewTopic } = renderTopicList()
