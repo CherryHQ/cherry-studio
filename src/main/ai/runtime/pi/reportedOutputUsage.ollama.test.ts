@@ -1,3 +1,4 @@
+import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { describe, expect, it } from 'vitest'
 
@@ -24,7 +25,7 @@ describe('pinned Ollama adapter output count presence', () => {
           new Response(JSON.stringify(payload) + '\n', { headers: { 'content-type': 'application/x-ndjson' } })
       })
       const result = await provider('fixture').doStream({ prompt })
-      const parts = []
+      const parts: LanguageModelV3StreamPart[] = []
       for await (const part of result.stream) parts.push(part)
       expect(parts.some((part) => part.type === 'error')).toBe(false)
       const terminal = parts.find((part) => part.type === 'finish')
