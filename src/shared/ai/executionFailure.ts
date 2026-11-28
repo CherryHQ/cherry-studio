@@ -48,7 +48,11 @@ export function toExecutionFailure(
     ? error.providerErrorCategory
     : isErrorCategory(error.claudeCodeExitCategory)
       ? error.claudeCodeExitCategory
-      : classifyErrorCategory({ text: raw, status })
+      : classifyErrorCategory({
+          text: raw,
+          status,
+          finishReason: typeof error.finishReason === 'string' ? error.finishReason : undefined
+        })
   const message =
     safeText(
       getSafeProviderErrorMessage({
