@@ -30,6 +30,12 @@ Pi and Pi Durable also offer `/skill:<name>` from the managed and workspace Skil
 
 Submitting a Skill command revalidates the candidate against the selected session. The runtime starts a model turn with the Skill reference and optional arguments through the existing slash-command dispatch. Cherry preserves the assistant reply and keeps the invocation out of conversation history and input recall.
 
+Each driver declares its command catalog capabilities. An offline source supplies commands without an open connection. A live source uses the existing connection path on explicit activation or refresh. Native pushes and query results update the current connection's catalog. Passive readers use the published snapshot. The Channel help reader can use the existing catalog without opening a runtime.
+
+The Composer retains the identity of a selected or recognized command in its draft. An outdated catalog or a removed command leaves that draft available. Main verifies command identity, session and current branch or connection before dispatch.
+
+Main coordinates one execution entry point. A runtime receipt confirms that the command was handled locally or that the runtime accepted it. Actual model replies and run completion continue through runtime events. Cursor releases the Composer once its SDK has accepted a turn, while the runtime continues to observe that turn. Skill source resolution is shared between the Pi connections and their catalog. Cursor owns its compatibility discovery.
+
 ## Alternatives considered
 
 - Filter command text only in the renderer. This leaves command rows in the product tree and input history and can change which input a later replay treats as conversation.
@@ -50,6 +56,10 @@ Submitting a Skill command revalidates the candidate against the selected sessio
 - AC9 — Activating or returning to an ordinary Claude or Codex conversation updates the displayed command descriptions from the current connection. Codex sees updated Skill metadata on return. Browsing read-only history or an inactive view opens no connection for this purpose. (verification: renderer, Main and native catalog — implementation owner)
 
 - AC10 — Pi and Pi Durable complete available Skill names and descriptions. Cursor completes user and project Skills from its supported folders. Selection changes the draft only. Sending a recognized Skill command passes the selected descriptor and arguments to the runtime, preserves its real reply, and leaves no Cherry command row or ArrowUp entry. A Skill removed after completion is rejected with the draft intact. (verification: catalog, runtime, and renderer — implementation owner)
+
+- AC11 — Reading a command snapshot, including from Channel help, leaves an idle or disconnected runtime closed. Explicit activation of a live-capable driver refreshes the catalog, and a late result from a retired connection is discarded. (verification: Main and renderer — implementation owner)
+- AC12 — A selected or recognized command remains a command after a catalog update. If it becomes unavailable, sending it leaves the draft and writes no ordinary chat input. A never-recognized slash path still sends as text. (verification: renderer and Main — implementation owner)
+- AC13 — A Cursor Skill releases the Composer after the SDK accepts the turn. Its later model output and completion still follow the existing runtime events. (verification: runtime and renderer — implementation owner)
 
 ## Risks
 

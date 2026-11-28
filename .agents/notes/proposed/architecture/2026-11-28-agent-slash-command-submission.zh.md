@@ -30,6 +30,12 @@ Pi 和 Pi Durable 也从会话可用的托管与工作区 Skill 中提供 `/skil
 
 提交 Skill 命令时会根据所选会话重新验证候选。Runtime 通过现有斜杠命令分发，以 Skill 引用和可选参数启动模型回合。Cherry 保留助理回复，调用原文不进入会话历史和输入召回。
 
+各 driver 声明命令目录能力。离线来源可以在没有连接时提供命令。实时来源在显式激活或刷新时沿用现有连接路径。原生推送和查询结果更新当前连接的目录。被动读取使用已发布的快照，Channel 帮助也可读取已有目录而不启动 runtime。
+
+Composer 在草稿中保留已选中或已识别命令的标识。目录变化或命令被移除时，草稿仍可保留。Main 在分发前校验命令标识、会话以及当前分支或连接。
+
+Main 统一协调命令执行。Runtime 回执确认本地命令已处理，或确认 runtime 已接收提交。实际模型回复和回合结束继续通过 runtime 事件传递。Cursor SDK 接收回合后 Composer 即可继续编辑，runtime 继续观察该回合。Pi 的连接和目录共用 Skill 来源解析，Cursor 自己负责兼容发现。
+
 ## 备选方案
 
 - 只在渲染进程过滤命令文本。命令行仍留在产品消息树和输入历史中，也可能改变后续回放时被视作会话输入的内容。
@@ -50,6 +56,10 @@ Pi 和 Pi Durable 也从会话可用的托管与工作区 Skill 中提供 `/skil
 - AC9 — 打开或切回普通 Claude 或 Codex 会话时，界面从当前连接更新命令说明。切回 Codex 后可以看到更新后的 Skill 元数据。浏览只读历史或非活跃标签时不会为此打开连接。（verification: renderer, Main and native catalog — implementation owner）
 
 - AC10 — Pi 和 Pi Durable 补全会话可用的 Skill 名称和说明。Cursor 补全受支持目录里的用户和项目 Skill。选择候选只修改草稿。提交已知 Skill 命令时，runtime 收到选中的描述文件和参数，Cherry 保留真实回复且没有命令消息或 ↑ 召回记录。补全后被移除的 Skill 提交时会被拒绝，草稿保留。（verification: catalog, runtime, and renderer — implementation owner）
+
+- AC11 — 读取命令快照时，包括 Channel 帮助，空闲或断开的 runtime 保持关闭。显式激活支持实时目录的 driver 时更新目录，已退役连接的延迟结果会被丢弃。（verification: Main and renderer — implementation owner）
+- AC12 — 目录更新后，已选中或已识别的命令仍按命令处理。发送已失效命令会保留草稿，不写入普通聊天输入。从未识别为命令的斜杠路径仍可作为文本发送。（verification: renderer and Main — implementation owner）
+- AC13 — Cursor SDK 接收 Skill 回合后，Composer 可继续编辑。后续模型输出和结束状态仍走现有 runtime 事件。（verification: runtime and renderer — implementation owner）
 
 ## 风险
 
