@@ -22,6 +22,18 @@ describe('filePath utils', () => {
     expect(resolveInlineFilePath('`~/Desktop/report.html`')).toBe('/Users/alice/Desktop/report.html')
     expect(isInlineFilePath('~/Desktop/report.html')).toBe(true)
   })
+
+  it('recognizes Windows drive and backslash paths on windows while keeping POSIX paths gated off', () => {
+    expect(isInlineFilePath('C:\\Users\\Alice\\report.html', 'windows')).toBe(true)
+    expect(isInlineFilePath('C:\\Users\\Alice\\app.ts:12:3', 'windows')).toBe(true)
+    expect(isInlineFilePath('.\\src\\index.ts', 'windows')).toBe(true)
+    expect(isInlineFilePath('src\\main.ts:12', 'windows')).toBe(true)
+    expect(isInlineFilePath('/home/user/file.ts', 'windows')).toBe(false)
+    expect(isInlineFilePath('~/Desktop/report.html', 'windows')).toBe(true)
+    expect(isInlineFilePath('package.json', 'windows')).toBe(false)
+    expect(isInlineFilePath('console.log', 'windows')).toBe(false)
+    expect(isInlineFilePath('/home/user/file.ts', 'posix')).toBe(true)
+  })
 })
 
 describe('parseFileLinkHref', () => {
@@ -35,8 +47,12 @@ describe('parseFileLinkHref', () => {
     ['.agents/skills/gh-create-pr/SKILL.md', '.agents/skills/gh-create-pr/SKILL.md'],
     ['/abs/path/x.md', '/abs/path/x.md'],
     ['C:/Users/Alice/README.md', 'C:/Users/Alice/README.md'],
-    ['C:\\Users\\Alice\\README.md', 'C:\\Users\\Alice\\README.md']
-  ])('parses schemeless file path %s → %s', (href, expected) => {
+    ['C:\\Users\\Alice\\README.md', 'C:\\Users\\Alice\\README.md'],
+    ['file:///Users/x.md', '/Users/x.md'],
+    ['file:///C:/Users/Alice/README.md', 'C:/Users/Alice/README.md'],
+    ['file://localhost/Users/Alice/my%20file.html#L10-L20', '/Users/Alice/my file.html'],
+    ['file:///Users/Alice/app.ts:12:3', '/Users/Alice/app.ts']
+  ])('parses schemeless and local file href %s → %s', (href, expected) => {
     expect(parseFileLinkHref(href)).toBe(expected)
   })
 
@@ -52,11 +68,12 @@ describe('parseFileLinkHref', () => {
     ['%2F%2Fcdn.example.com%2Fx.md'], // encoded protocol-relative
     ['javascript%3Aalert(1)'], // encoded unsafe scheme
     ['#section'], // in-page anchor
-    ['file:///C:/Users/Alice/README.md'],
-    ['file:///Users/x.md'],
+    ['file://attacker.example/share/x.md'],
+    ['file:///'],
+    ['file://localhost/'],
     [''],
     [undefined]
-  ])('returns null for external / scheme-prefixed href %s', (href) => {
+  ])('returns null for external / invalid scheme-prefixed href %s', (href) => {
     expect(parseFileLinkHref(href)).toBeNull()
   })
 })

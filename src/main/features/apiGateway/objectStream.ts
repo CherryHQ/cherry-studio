@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import type { ObjectTransportResponse, ObjectTransports } from '@earendil-works/pi-ai'
-import { RetryError } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -14,7 +13,7 @@ import { type IStreamAdapter, StreamAdapterFactory, type StreamAdapterOptions } 
 import { objectGatewayError } from './errors'
 import type { AgentGatewayContext, MessageConfig } from './gatewayRequest'
 import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
-import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
+import { isStartupCommitChunk, requiresSemanticFrames, streamInterruptedError } from './streamLifecycle'
 
 const logger = loggerService.withContext('GatewayObjectStream')
 
@@ -267,8 +266,15 @@ async function openObjectMessage<T>(
           config.agentContext?.onRetryEvent?.(event)
           return
         }
-        write(adapter.transformChunk(chunk))
-        if (isStartupCommitChunk(chunk)) commit()
+        if (!started && requiresSemanticFrames(chunk)) {
+          const { opening, events } = adapter.transformChunkWithOpening(chunk)
+          write(opening)
+          write(events)
+          if (events.length > 0) commit()
+        } else {
+          write(adapter.transformChunk(chunk))
+          if (isStartupCommitChunk(chunk)) commit()
+        }
       } catch (error) {
         fail(error)
         manager.abort(streamId, 'object model adapter failed')
@@ -284,12 +290,7 @@ async function openObjectMessage<T>(
         fail(error)
       }
     },
-    onError: (result, error) => {
-      const terminal = RetryError.isInstance(error) ? error.lastError : error
-      fail(
-        objectGatewayError(terminal, terminal === error ? result.error : serializeError(terminal), request.outputFormat)
-      )
-    },
+    onError: (result, error) => fail(objectGatewayError(error, result.error, request.outputFormat)),
     onPaused: () => fail(streamInterruptedError()),
     isAlive: () => !closed
   }
@@ -298,6 +299,7 @@ async function openObjectMessage<T>(
     manager.streamPrompt({
       ...gatewayPromptOptions(request, usageContext, config.timeoutMs),
       maxRetries: 3,
+      onModelTransportFailure: config.agentContext?.onModelTransportFailure,
       streamId,
       listener
     })

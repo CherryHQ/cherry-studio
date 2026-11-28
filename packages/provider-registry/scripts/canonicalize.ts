@@ -25,10 +25,10 @@ const base = (id: string) => stripBedrockVendorPrefix(stripAggregatorPrefixes(id
 // Drop instead of fold so it cannot claim the base model's pricing or `apiModelId`.
 const BATCH_TWIN = /[:-]batch$/
 
-// Vercel lists `openai/*-fast` gateway routes as model SKUs; they are not creator models.
-// Keep real vendor `-fast` SKUs from Vercel and every other upstream source.
+// These Vercel aliases are absent from the desktop's v3 listing. Extract-1's v3 language route is scaledown/scaledown-extract-1.
 export const isModelsDevRoutingAlias = (provider: string, id: string): boolean =>
-  provider === 'vercel' && /^openai\/.+-fast$/i.test(id)
+  provider === 'vercel' &&
+  (/^openai\/.+-fast$/i.test(id) || id === 'reflection/beam-free' || id === 'scaledown/extract-1')
 
 // Minus param-size stripping — the catalog keeps `qwen3-235b` ≠ `qwen3-30b`.
 // Returns `''` for an id that is not a catalog model; every intake point drops those.

@@ -255,10 +255,6 @@ const agentSessionPartsMocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useInvalidateCache: () => vi.fn()
-}))
-
 vi.mock('@renderer/hooks/agent/useSession', () => ({
   useActiveSession: () => activeSessionMocks.result,
   useUpdateSession: () => ({ updateSession: vi.fn() })

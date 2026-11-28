@@ -16,7 +16,7 @@ sources:
 本文负责身份与寻址分离、发现、拨号、访问路径策略及两端 ownership，是
 [远程访问架构](./remote-agent-access.md)的连接层补充。
 [Agent API](../ai/remote-agent-access.md)继续负责业务 RPC、事件、checkpoint 与命令回执；本文不复制或改变这些业务契约。
-[API Gateway](./README.md)继续负责本机 HTTP 服务与直接 WebSocket 入口。
+[Unified Gateway](./README.md)继续负责本机 HTTP 服务与直接 WebSocket 入口。
 
 ## 首期实施边界
 

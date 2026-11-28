@@ -4,9 +4,11 @@
 
 import * as z from 'zod'
 
+import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
 import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FORK_FAILURE_REASONS } from '@shared/ai/agentSessionFork'
+import { MessageProvenanceSchema } from '@shared/data/types/conversationImport'
 import {
   type CherryUIMessage,
   ContentMessageRoleSchema,
@@ -22,6 +24,7 @@ import type { CursorPaginationResponse } from '../types'
  *  newest-first; an absent `cursor` returns the most recent page unless
  *  `messageId` anchors the first page at a known message, then each
  *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
+ *  expands a seam through a referenced Run, so a returned page may exceed that window. The renderer
  *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
  *  pages in on demand, so per-page size never has to cover a whole session.
  *  If `messageId` cannot be resolved inside the session, the endpoint falls
@@ -67,8 +70,12 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   /** Session ID this message belongs to */
   sessionId: z.string(),
   partIds: z.array(z.string()).optional(),
+  partPositions: z.array(z.number().int().nullable()).optional(),
+  pos: z.number().int().nullable().optional(),
+  replyId: z.string().nullable().optional(),
   siblings: z.array(z.string()).optional(),
   historyActions: AgentSessionHistoryActionsSchema.optional(),
+  provenance: MessageProvenanceSchema.nullable().optional(),
   searchableText: z.string(),
   runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),
@@ -113,6 +120,13 @@ export type AgentSessionMessageSchemas = {
       response: CursorPaginationResponse<CherryUIMessage>
     }
   }
+  '/agent-sessions/:sessionId/cost': {
+    GET: {
+      params: { sessionId: string }
+      response: AgentSessionCostSnapshot | null
+    }
+  }
+
   '/agent-sessions/:sessionId/branch': {
     PUT: {
       params: { sessionId: string }

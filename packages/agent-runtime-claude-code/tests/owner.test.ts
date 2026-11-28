@@ -18,7 +18,10 @@ vi.mock('node:os', async (importOriginal) => ({
   homedir: () => home.dir
 }))
 
-async function spawnEnvironment(configDir: (home: string) => string, env: Options['env'] = {}) {
+async function spawnEnvironment(
+  configDir: (home: string) => string,
+  env: Options['env'] | ((home: string) => Options['env']) = {}
+) {
   home.dir = await mkdtemp(join(tmpdir(), 'cherry-claude-home-'))
   const { process, exit } = wireProcess()
   let spawned: Options['env'] | undefined
@@ -27,14 +30,14 @@ async function spawnEnvironment(configDir: (home: string) => string, env: Option
     const root = confirmed(
       await runtime.create({
         cwd: home.dir,
-        env,
+        env: typeof env === 'function' ? env(home.dir) : env,
         spawnClaudeCodeProcess: (options) => {
           spawned = options.env
           return process
         }
       })
     )
-    await root.input!.submit({ inputId: inputId(), text: 'Spawn', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: inputId(), text: 'Spawn' })
     await expect.poll(() => spawned).toBeDefined()
     return spawned!
   } finally {
@@ -51,6 +54,14 @@ it('leaves the CLI default config dir implicit so a macOS `claude /login` stays 
   })
   expect(env).not.toHaveProperty('CLAUDE_CONFIG_DIR')
   expect(env.PATH).toBe('/usr/bin')
+})
+
+it('preserves an explicitly selected account even when its config path is the default directory', async () => {
+  const env = await spawnEnvironment(
+    (home) => join(home, '.claude'),
+    (home) => ({ CLAUDE_CONFIG_DIR: join(home, '.claude') })
+  )
+  expect(env.CLAUDE_CONFIG_DIR).toBe(join(home.dir, '.claude'))
 })
 
 it('points the CLI at a non-default config dir', async () => {

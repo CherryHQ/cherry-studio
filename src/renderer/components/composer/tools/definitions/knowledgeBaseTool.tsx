@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { composerKnowledgeBaseTokenId, getComposerTokenIds } from '../../variants/shared/composerTokens'
@@ -54,6 +55,7 @@ const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
   label: KNOWLEDGE_BASE_TOOLBAR_MANIFEST.label,
   visibleInScopes: KNOWLEDGE_BASE_TOOLBAR_MANIFEST.visibleInScopes,
+  condition: ({ session }) => !session?.agentType || AGENT_RUNTIME_CAPABILITIES[session.agentType].knowledgeBases,
 
   dependencies: {
     state: ['selectedKnowledgeBases', 'files', 'selectableKnowledgeBases'] as const,

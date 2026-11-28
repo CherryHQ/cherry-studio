@@ -96,9 +96,9 @@ QVeris 位于【内置服务器】中，用于让智能体发现、检查和调�
 
 <details>
 
-<summary>MCP 与 API 网关有什么区别？</summary>
+<summary>MCP 与统一网关有什么区别？</summary>
 
-MCP 是把外部工具接入 Cherry Studio；API 网关是把 Cherry Studio 的模型能力以兼容 API 提供给其他程序。数据流方向相反。
+MCP 是把外部工具接入 Cherry Studio；统一网关是把 Cherry Studio 的模型能力以兼容 API 提供给其他程序。数据流方向相反。
 
 </details>
 

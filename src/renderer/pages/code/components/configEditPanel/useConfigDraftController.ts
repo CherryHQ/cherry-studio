@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
 import {
   cliConfigConnectionMatchesProvider,
   extractConfigFromCliConfigDraft,
@@ -9,16 +8,15 @@ import {
   gatewayExpectedModel,
   gatewayModelIdFromAddress,
   getClaudeContextModelId,
-  safeCreateUniqueModelId,
-  sanitizeCliConfigBlob,
   stripClaudeDetailedModels,
-  updateCliConfigDraftConfig,
-  validateCliConfigDraftForWrite
-} from '@renderer/pages/code/cliConfig'
+  updateCliConfigDraftConfig
+} from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
+import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@shared/utils/cliConfig'
+import { safeCreateUniqueModelId, sanitizeCliConfigBlob, validateCliConfigDraftForWrite } from '@shared/utils/cliConfig'
 
 import {
   createDraftSnapshot,

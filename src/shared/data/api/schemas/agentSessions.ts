@@ -4,6 +4,7 @@
 
 import * as z from 'zod'
 
+import { AgentSessionImportMetadataSchema } from '@shared/data/types/conversationImport'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { TraceIdSchema } from '@shared/data/types/trace'
 
@@ -36,6 +37,7 @@ export const AgentSessionEntitySchema = z.strictObject({
   name: SessionNameEntitySchema,
   isNameManuallyEdited: z.boolean(),
   description: z.string().optional(),
+  importMetadata: AgentSessionImportMetadataSchema.nullable().optional(),
   workspaceId: z.string(),
   workspace: AgentWorkspaceEntitySchema,
   /** Container-level OTel trace id — one trace tree per session. */

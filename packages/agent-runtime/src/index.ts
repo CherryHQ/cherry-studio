@@ -1,4 +1,13 @@
 export type {
+  RuntimeAccountAccess,
+  RuntimeAccountIdentity,
+  RuntimeAccountResult,
+  RuntimeLoginHost,
+  RuntimeLoginRequest,
+  SubscriptionUsageResult,
+  SubscriptionUsageWindow
+} from './account'
+export type {
   RuntimeId,
   BackendId,
   ThreadId,
@@ -9,9 +18,11 @@ export type {
   Thread,
   ItemRef,
   NativeInputRef,
-  BusyPolicy,
+  SubmitInput,
   InputDraft,
   RuntimeError,
+  RuntimeEffortControl,
+  RuntimeModelOption,
   OperationResult,
   InputFact,
   SubmitResult,
@@ -38,6 +49,7 @@ export type {
   ObservationSink,
   ProjectionEvents,
   Observation,
+  CompactThread,
   ThreadHandle,
   ThreadInput,
   AgentRuntime
@@ -53,3 +65,4 @@ export { partEdits, textPartUpdates } from './textPartUpdates'
 
 export { projectNestedTool, type NestedToolRecord } from './nestedTool'
 export { applyRuntimePartEdit } from './stagePartUpdate'
+export type { AgentPermissionMode, PermissionModeApplication, PermissionModeCatalog } from './permissionMode'
