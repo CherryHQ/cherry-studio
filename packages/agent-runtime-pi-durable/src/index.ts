@@ -22,4 +22,4 @@ export type {
 
 export type { DurableObservation } from './projection'
 
-export { followupEdit, type DurableFollowup, type DurableFollowupChange } from './followups'
+export { followupEdit, followupSteerPlacement, type DurableFollowup, type DurableFollowupChange } from './followups'
