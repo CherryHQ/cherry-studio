@@ -157,6 +157,7 @@ vi.mock('electron', async () => {
         const created = Object.assign(new EventEmitter(), {
           fetch: vi.fn(),
           clearCache: vi.fn(),
+          clearData: vi.fn(),
           clearStorageData: vi.fn(),
           clearCodeCaches: vi.fn(),
           setProxy: vi.fn(async () => {}),

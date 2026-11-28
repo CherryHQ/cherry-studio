@@ -224,6 +224,7 @@ export interface RemoveMessageErrorPartInput {
 export interface MessageListItem {
   /** Durable owner when this row is a segment of an execution. */
   sourceMessageId?: string
+  isBeforeLatestRunInput?: boolean
   isRunBoundary?: boolean
   presentation?: 'content' | 'marker' | 'interrupted'
   showHeader?: boolean
@@ -249,6 +250,7 @@ export interface MessageListItem {
   localTurnUsage?: LocalAgentTurnUsage
   stats?: MessageStats
   delivery?: AgentSessionDelivery
+  waitingForModel?: boolean
   turnOrigin?: AutonomousTurnOrigin
   mentions?: Array<{
     id: string

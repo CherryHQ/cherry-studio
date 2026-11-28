@@ -296,7 +296,7 @@ describe('ApiGatewayService internal gateway', () => {
     for (const result of results) {
       expect(result.status).toBe('rejected')
       if (result.status === 'rejected') {
-        expect(result.reason.message).toContain('internal API Gateway')
+        expect(result.reason.message).toContain('internal Unified Gateway')
         expect(result.reason.message).toContain('::1, requested TCP port 49152')
         expect(result.reason.message).toContain('Retry the request')
         expect(result.reason.cause).toBe(original)
@@ -854,7 +854,7 @@ describe('ApiGatewayService independent LAN access', () => {
     const service = new ApiGatewayService()
     await service._doInit()
 
-    await expect(service.setLanEnabled(true)).rejects.toThrow('Start the API Gateway')
+    await expect(service.setLanEnabled(true)).rejects.toThrow('Start the Unified Gateway')
 
     expect(service.getCurrentConfig()).toMatchObject({ enabled: false, host: '127.0.0.1' })
     expect(service.isActivated).toBe(false)
@@ -911,6 +911,20 @@ describe('ApiGatewayService independent LAN access', () => {
 })
 
 describe('ApiGatewayService running-state publication', () => {
+  it('publishes the bound endpoint when the preference changes during startup and clears it on stop', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    const started = service.start()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    captured.portPreference = 24444
+    startResolvers[0]()
+    await started
+    expect(mockSetShared).toHaveBeenCalledWith('feature.api_gateway.endpoint', { host: '127.0.0.1', port: 23333 })
+    await service.stop()
+    expect(mockSetShared).toHaveBeenLastCalledWith('feature.api_gateway.lan_running', false)
+    expect(mockSetShared).toHaveBeenCalledWith('feature.api_gateway.endpoint', null)
+  })
+
   it('returns stopped when stop() deactivates the server immediately', async () => {
     const service = new ApiGatewayService()
     await service._doInit()

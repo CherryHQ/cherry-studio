@@ -10,11 +10,13 @@ shell configuration and tool rendering. Each native provider call passes protoco
 gateway in process, which owns upstream credentials and billing without an internal HTTP/JSON/SSE round trip. Root and child bindings share
 the backend model registry and are restored before native execution resumes. Each binding uses its own native provider registration, preserving other models' routes,
 request options and usage callbacks even when their Cherry Provider is the same.
-The desktop Harness disables native provider retries for roots and children. The shared
-[gateway binding](../pi/README.md#model-requests) uses `ai-retry` before the first content chunk.
-A final failure retains its upstream error; later user input can start a new run.
-The patched Harness applies its native retry budget and backoff to generation interrupted
-by host exit so reopened work can resume.
+For roots and children, the [gateway binding](../pi/README.md#model-requests) relays typed
+transport failures from Cherry's AI execution layer. That layer sets the retry budget and delay for
+resets and interruptions, and keeps planning attempts while the network is explicitly offline or
+suspended. Other eligible upstream failures use `ai-retry` before content. The Harness persists each
+retry plan, handles cancellation, and resumes the original run with its committed tool results. Partial
+output stays in history as an aborted attempt and is excluded from subsequent model context. A final
+failure retains its upstream error. Reopening also resumes generation interrupted by host exit.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
 prompt and selected skills. `durableMcp.ts` connects Cherry-selected MCP servers through
@@ -71,7 +73,9 @@ text even when shared behavior wraps its native input.
 Input placement reserves attribution before a model call. Each native answer is
 associated with its product input once; later snapshots and autonomous child-result
 turns do not repeat a prior input's response association.
-The adapter delivers content, input outcomes and foreground settlement from one native revision.
+The adapter delivers content, input outcomes and ended-run membership from one native revision.
+When a run fails and the native inbox retains its follow-ups, Main settles the failed reply
+immediately. The composer keeps showing the retained inputs in the queue.
 Successful submission answer positions become `run-checkpoint` events, addressed through the
 stable product input association. Main resolves the owning Run, including deferred placements
 and already saved replies. Overall foreground settlement does not overwrite this precise answer
@@ -79,7 +83,10 @@ position. Pending-reply recovery reads the same native answer and commits its ch
 The connection consumes that batch; it does not poll pending inputs or infer completion from idle.
 It reports an input only when its state changes and reconsiders a child's status and release on
 snapshots, activity changes and input changes.
-An `aborted` outcome, including one caused by user Stop, settles the turn as paused; `failed` and
+The connection sends the input outcomes with the retained run boundary, including when another native
+run continues the foreground execution. Main combines the outcomes by input ID for the owning reply
+and reads any missing terminal outcome from its bound Durable context before settling.
+An `aborted` outcome, including one caused by user Stop, settles the reply as paused; `failed` and
 `unanswered` outcomes report an error carrying their native reason.
 A message sent while native work runs is submitted with Durable's `follow-up` busy policy and
 persisted at once. The Work composer sends it immediately instead of holding it in its follow-up
@@ -88,10 +95,14 @@ boundary, in the same batch as the preceding answer. The connection announces th
 `run-started` after that batch's projection, so the preceding answer stays in its reply and Main
 opens a new one. The event marks the placement as a follow-up: Main holds it while the previous reply
 is still starting, so it never joins that reply, while steers placed into the running turn still share
-its continuation. Durable reports the preceding input's outcome only when the run ends, so Main
-settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
-cycle completion aggregates only the inputs owned by the current Run. A follow-up whose submission
-fails before it reaches Durable moves to Main's queue.
+its continuation. At a same-commit handoff, Main settles the preceding reply through its input
+outcomes and carries the stream into the new reply. A follow-up whose submission fails before it
+reaches Durable moves to Main's queue.
+The composer opens an edit after Durable marks the waiting input as editing. The native boundary can
+place earlier follow-ups and waits at this item. Save checks the editing window's token and the
+captured revision, then updates the content and clears the mark in one native commit. Desktop
+projection reconciles parts and file references in one transaction, and startup recovery reads the
+same record. The run uses the knowledge-base authorization of its native connection.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.
@@ -104,11 +115,12 @@ summary marker to the current reply.
 ## Stop, close and reopen
 
 - User Stop calls `interrupt()` and keeps the access open. It records the shared stop policy,
-  cancels the native foreground scope and stops running background children. Unconsumed input is
-  withdrawn, including queued follow-ups, which receive an `aborted` outcome without being placed;
-  Main marks each such message `paused`, shown as not sent with Resend and Edit. The connection emits
-  `stop-confirmed` after the stopped turn's terminal event; the
-  next message reuses the same access. An unconfirmed stop, including a native interrupt that never
+  cancels the native foreground scope and stops running background children. The same native commit
+  records the stop intent and pauses waiting follow-ups in `pi.inbox`. Those inputs stay in queue order
+  with their original submission IDs across reopen. Users can edit, reorder, withdraw or resume them.
+  An unconsumed steer can still be aborted and shown as not sent. The connection emits
+  `stop-confirmed` after the stopped turn's terminal event. The next explicit send reuses the access
+  and can start while older follow-ups remain paused. An unconfirmed stop, including a native interrupt that never
   returns, closes the access after 20 seconds. If Durable completed or failed the input before the stop
   landed, Main replaces the paused reply with that outcome. When that outcome arrived before Stop
   registered, Main reads it from Durable's input record. A reply that a background run continued after
@@ -128,14 +140,17 @@ summary marker to the current reply.
   names it in `recoveredInputId`, and its output continues the reply Main linked to that input
   when it opened it (`reply_id`); queued inputs are saved before their replies, so row ancestry
   cannot identify that reply. A queued input that has no reply yet gets a new one. Follow-ups
-  still queued are placed and answered after it. A pending reply whose input already has a
+  still queued are placed and answered after it when their queue is running. A pending reply whose input already has a
   Durable outcome is rebuilt from committed entries with that outcome; a reply already stored
   with a terminal status is not rebuilt. At startup Main reads terminal native evidence by the original input and
   commits the recovered body to the corresponding product Run. The driver owns one scheduler per
   physical store with unfinished work. It installs the affected roots and child writers before
-  resuming and keeps unresolved stores eligible for another recovery. Startup also restores the unsent
-  status of inputs withdrawn before placement by matching the submission request ID to the user
-  message bound to the native root. This works for stores with no remaining work.
+  resuming and keeps unresolved stores eligible for another recovery. Interactive follow-up admission
+  records a pending conversation update in the native transaction. Startup reads those request IDs
+  even when the store has no execution work. It publishes placed inputs, discards explicitly removed
+  drafts, and restores interrupted inputs that qualify as unsent. The desktop retires the ID after the
+  product transaction succeeds. A cold session open
+  checks any saved input left before native admission against its original binding.
 - Closing a child panel only detaches its projection subscription.
 
 Background continuation keeps one child identity. Independent continuation of an ended
@@ -153,7 +168,7 @@ attribution, repeated snapshots, the difference between stop and shutdown, Stop 
 closing, resynchronization after a child projection fault and after a root observation overflow, a
 backend diagnostic that leaves the turn and its access running, naming the input that reopening
 resumes, and native follow-up admission: placement after the preceding answer, a send during running
-work, Stop withdrawal, a submission that throws and answering after reopen.
+work, Stop with a paused queue, a submission that throws and answering after reopen.
 `AgentSessionRuntimeService.projection.test.ts` covers continuing a resumed input, outcome rebuilds,
 the Stop/completion race in both orders with one terminal event, Stop on a background continuation, a
 native interrupt that never returns, placed follow-ups getting their own replies in Main, including

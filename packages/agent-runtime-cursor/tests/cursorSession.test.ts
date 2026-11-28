@@ -1,7 +1,7 @@
 import { Agent, Cursor, type AgentOptions } from '@cursor/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import { listCursorModels, openCursorSession, sendCursorTurn, type SDKAgent } from '@cherrystudio/agent-runtime-cursor'
+import { listCursorModels, openCursorSession, sendCursorTurn, type SDKAgent } from '../src/adapter'
 
 const env = {}
 const readShellEnv = async () => ({})

@@ -7,7 +7,7 @@ import { OFFICE_ZIP_LIMITS } from '../../../officeZipPreflight'
 import { MAX_COLS, MAX_MERGED_RANGES, MAX_ROWS } from '../gridLayout'
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
 import { loadExcelJsWorkbook, parseWorkbook } from '../worker/parseWorkbook'
-import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
+import { buildChartWorkbookArrayBuffer, buildChartWorkbookZip } from './xlsxTestPackages'
 
 async function toArrayBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
   const buf = await workbook.xlsx.writeBuffer()
@@ -342,6 +342,13 @@ describe('parseWorkbook — formulas: three states', () => {
     ws.getCell('A4').value = { formula: 'A1*A2' }
     // an evaluator-unfriendly / unknown function should remain unevaluated
     ws.getCell('A5').value = { formula: 'NOTAREALFUNCTION(A1)' }
+    ws.getCell('B1').value = { formula: '_xlfn.XLOOKUP(20,A1:A2,A1:A2)' }
+    ws.getCell('C1').value = { formula: 'B1*2' }
+    ws.getCell('C2').value = 3
+    ws.getCell('D1').value = { formula: 'SUM(C1:C2)' }
+    ws.getCell('D2').value = { formula: 'SUM(B2:C2)' }
+    ws.getCell('E1').value = { formula: 'IF(TRUE,42,B1)' }
+    ws.getCell('E2').value = { formula: 'IFERROR(B1,9)' }
 
     const buffer = await toArrayBuffer(wb)
     model = await parseWorkbook(buffer, 'formulas.xlsx')
@@ -354,15 +361,23 @@ describe('parseWorkbook — formulas: three states', () => {
     expect(cell.text).toBe('30')
   })
 
-  it('formula without cache: either evaluated correctly or unevaluated with formula text shown', () => {
+  it('keeps dependent formulas unevaluated while a genuine blank still contributes zero', () => {
+    const { cells } = model.sheets[0]
+    expect(cells['1:2'].formulaState).toBe('unevaluated')
+    expect(cells['1:3'].text).toBe('=B1*2')
+    expect(cells['1:4'].text).toBe('=SUM(C1:C2)')
+    expect(cells['2:4'].text).toBe('3')
+    expect(cells['1:5'].text).toBe('42')
+    expect(cells['2:5'].text).toBe('=IFERROR(B1,9)')
+  })
+
+  it('formula without cache: a supported multiplication evaluates to its computed result', () => {
     const cell = model.sheets[0].cells['4:1']
     expect(cell.formula).toBe('A1*A2')
-    if (cell.formulaState === 'evaluated') {
-      expect(cell.text).toBe('200')
-    } else {
-      expect(cell.formulaState).toBe('unevaluated')
-      expect(cell.text).toBe('=A1*A2')
-    }
+    // Multiplication is supported, so only evaluation is acceptable; an
+    // unevaluated fallback for this valid input would be a regression.
+    expect(cell.formulaState).toBe('evaluated')
+    expect(cell.text).toBe('200')
   })
 
   it('unresolvable function formula ends up unevaluated with formula text shown, greyed by UI', () => {
@@ -387,6 +402,8 @@ describe('parseWorkbook — formulas: forward references evaluate recursively', 
     // A2 references a formula cell on a later sheet.
     ws1.getCell('A2').value = { formula: 'S2!A1+1' }
     ws2.getCell('A1').value = { formula: '5*2' }
+    ws2.getCell('A2').value = 7
+    ws1.getCell('A3').value = { formula: "SUM('s2'!A1:A2)" }
     // Mutual reference cycle: must not hang, and both cells should remain unevaluated.
     ws1.getCell('A5').value = { formula: 'A6' }
     ws1.getCell('A6').value = { formula: 'A5' }
@@ -411,6 +428,10 @@ describe('parseWorkbook — formulas: forward references evaluate recursively', 
     expect(model.sheets[0].cells['5:1'].formulaState).toBe('unevaluated')
     expect(model.sheets[0].cells['6:1'].formulaState).toBe('unevaluated')
     expect(model.warnings).toContain('formula-unevaluated')
+  })
+
+  it('resolves a mixed-case sheet reference to both formula and literal cells', () => {
+    expect(model.sheets[0].cells['3:1'].text).toBe('17')
   })
 })
 
@@ -756,6 +777,16 @@ describe('parseWorkbook — ZIP preflight rejects decompression bombs', () => {
 })
 
 describe('parseWorkbook — openpyxl default-namespace chart drawings must not crash ExcelJS', () => {
+  it('reads uncached chart values with a mixed-case sheet reference', async () => {
+    const zip = await buildChartWorkbookZip('no-cache')
+    const chartPath = 'xl/charts/chart1.xml'
+    const chart = await zip.file(chartPath)!.async('string')
+    zip.file(chartPath, chart.replaceAll('Data', 'DATA'))
+
+    const model = await parseWorkbook(await zip.generateAsync({ type: 'arraybuffer' }), 'chart.xlsx')
+    expect(model.sheets[0].charts[0].series[0].values).toEqual([10, 20, 30, 40])
+  })
+
   // openpyxl-style drawings use <wsDr xmlns=...> without an xdr: prefix; without
   // normalization ExcelJS crashes during reconcile.
   it.each([

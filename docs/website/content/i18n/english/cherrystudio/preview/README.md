@@ -4,7 +4,7 @@ icon: box-check
 
 # Features Overview
 
-Cherry Studio is a desktop AI client that brings together core capabilities such as **chat assistants, agents, painting, translation, knowledge bases, notes, file management and a coding companion**. Through the [API Gateway](../../advanced-basic/developer-tools/api-gateway.md), [Channels](../../advanced-basic/automation/channels.md) and [Scheduled Tasks](../../advanced-basic/automation/scheduled-heartbeat.md), it also extends AI into automation and cross-platform scenarios.
+Cherry Studio is a desktop AI client that brings together core capabilities such as **chat assistants, agents, painting, translation, knowledge bases, notes, file management and a coding companion**. Through the [Unified Gateway](../../advanced-basic/developer-tools/api-gateway.md), [Channels](../../advanced-basic/automation/channels.md) and [Scheduled Tasks](../../advanced-basic/automation/scheduled-heartbeat.md), it also extends AI into automation and cross-platform scenarios.
 
 The table below lists the main features covered in this section and where to find them:
 

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-28-agent-steer-process-disclosure.md
+2026-11-28-agent-steer-process-disclosure.md: 9e6cdeb2ef80695625ff0cbc5c7335e3079a6800
+2026-11-28-agent-steer-process-disclosure.zh.md: 82178ecceef2c1f541d47c6fe995d7fced39fb51

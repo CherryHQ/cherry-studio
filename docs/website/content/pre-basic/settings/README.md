@@ -13,7 +13,7 @@ Cherry Studio 的设置面板覆盖 **模型配置、工具能力、界面偏好
 | 模型服务 | [模型服务](../providers/) | 服务商添加、密钥、API 地址、多 Key 轮询 |
 | 默认模型 | [默认模型设置](default-models.md) | 全局默认对话 / 命名 / 翻译等模型 |
 | 本地模型 | [本地模型](local-models.md) | 内置、离线运行的嵌入模型与 OCR 模型 |
-| API 网关 | [API 网关](../../advanced-basic/developer-tools/api-gateway.md) | 对外暴露本地 OpenAI 兼容 API |
+| 统一网关| [统一网关](../../advanced-basic/developer-tools/api-gateway.md) | 对外暴露本地 OpenAI 兼容 API |
 
 ### 工具
 

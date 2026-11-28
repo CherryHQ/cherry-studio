@@ -9,6 +9,7 @@ import { app } from 'electron'
 import { application } from '@application'
 import { antigravityTerminalArgs } from '@cherrystudio/agent-runtime-antigravity-acp/terminal'
 import { loggerService } from '@logger'
+import { getClaudeSdkFallback } from '@main/ai/runtime/cli/installedCli'
 import { skillService } from '@main/ai/skills/SkillService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
@@ -600,8 +601,8 @@ export class CodeCliService extends BaseService {
 
     // Reuse existing installations; missing CLIs install into the user's system environment.
     const binaryManager = application.get('BinaryManager')
-    let snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
-    let { availability } = snapshot
+    let { availability } = (await binaryManager.getToolSnapshots([executableName]))[executableName]
+    if (availability.source === 'none') availability = getClaudeSdkFallback(executableName) ?? availability
 
     if (availability.source === 'none') {
       logger.info(`${cliTool} not installed, installing globally...`)
@@ -614,8 +615,7 @@ export class CodeCliService extends BaseService {
         return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
 
-      snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
-      availability = snapshot.availability
+      availability = (await binaryManager.getToolSnapshots([executableName]))[executableName].availability
       if (availability.source === 'none') {
         const message = `${cliTool} is not available after install`
         logger.error(message)

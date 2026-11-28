@@ -1,4 +1,4 @@
-import type { AgentSessionFollowup } from '@shared/ai/agentSessionFollowups'
+import type { AgentSessionFollowupQueue } from '@shared/ai/agentSessionFollowups'
 import type { AgentSessionRuntimeControls } from '@shared/ai/agentSessionRuntimeControls'
 import type { LocalAgentSessionOverrides } from '@shared/ai/localAgent'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
@@ -325,7 +325,7 @@ export type SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
   'agent.session.runtime_controls.${sessionId}': AgentSessionRuntimeControls | null
   'agent.session.stream_topic.${sessionId}': string | null
-  'agent.session.followups.${topicId}': AgentSessionFollowup[]
+  'agent.session.followups.${topicId}': AgentSessionFollowupQueue
   'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.cost.${sessionId}': CacheValueTypes.CacheAgentSessionCost
@@ -345,6 +345,7 @@ export type SharedCacheSchema = {
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  'feature.api_gateway.endpoint': { host: string; port: number } | null
   'feature.remote_access.discovery_status': 'inactive' | 'starting' | 'available' | 'unavailable'
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
@@ -416,7 +417,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': null,
   'agent.session.runtime_controls.${sessionId}': null,
   'agent.session.stream_topic.${sessionId}': null,
-  'agent.session.followups.${topicId}': [],
+  'agent.session.followups.${topicId}': { items: [], paused: false },
   'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,
   'agent.session.cost.${sessionId}': null,
@@ -435,6 +436,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.codebuddy.web_ui.status': { status: 'stopped', owned: false },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'feature.api_gateway.endpoint': null,
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},

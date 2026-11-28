@@ -238,11 +238,11 @@ test(...caseDefinition('MP-141'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(page.getByRole('button', { name: 'Download mobile app', exact: true })).toBeVisible()
     await expect(
       settings()
-        .getByText('Start the gateway in API Gateway settings before allowing network access.', { exact: true })
+        .getByText('Start the gateway in Unified Gateway settings before allowing network access.', { exact: true })
         .first()
     ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Allow network access', exact: true })).toHaveCount(0)
-    await page.getByRole('button', { name: 'Open API Gateway settings', exact: true }).click()
+    await page.getByRole('button', { name: 'Open Unified Gateway settings', exact: true }).click()
     await expect(settings().getByText('Stopped', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Start', exact: true }).click()
     await expect(settings().getByText('Running', { exact: true })).toBeVisible()
