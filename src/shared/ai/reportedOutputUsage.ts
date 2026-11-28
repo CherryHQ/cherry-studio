@@ -29,7 +29,7 @@ export function providerReportedOutputUsage(usage: {
   const breakdown = typeof details === 'object' && details !== null ? (details as Record<string, unknown>) : undefined
   const candidates = count(wire.candidatesTokenCount)
   const thoughts = count(wire.thoughtsTokenCount)
-  const canonical = count(wire.completion_tokens)
+  const canonical = count(wire.completion_tokens) ?? count(wire.eval_count)
   const alias = count(wire.output_tokens) ?? count(wire.outputTokens)
   const normalized = count(usage.outputTokens)
   const rawOutput = canonical ?? alias ?? (candidates === null ? null : candidates + (thoughts ?? 0))
