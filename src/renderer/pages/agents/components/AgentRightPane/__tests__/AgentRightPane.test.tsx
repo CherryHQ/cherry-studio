@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -28,6 +29,7 @@ import type * as RendererIpc from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileLocation } from '@renderer/types/fileLocation'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
+import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ComputerUseControl } from '@shared/ipc/schemas/computerUse'
 import type { EventPayload } from '@shared/ipc/types'
@@ -450,10 +452,6 @@ vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
   useAgentSessionCompaction: () => ({ status: 'idle' })
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
-  useAgentSessionContextUsage: () => ({ percentage: null, usage: null })
-}))
-
 vi.mock('@renderer/hooks/agent/useAgentSessionBackgroundTasks', () => ({
   useAgentSessionBackgroundTasks: () => backgroundTasksState.value
 }))
@@ -510,7 +508,7 @@ vi.mock('motion/react', () => ({
 const stableT = (key: string, values?: Record<string, unknown>) =>
   key === 'agent.right_pane.status.task_progress_compact' ? `Step ${values?.current}/${values?.total}` : key
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: stableT })
+  useTranslation: () => ({ t: stableT, i18n: { resolvedLanguage: 'en-US' } })
 }))
 
 import { AgentRightPane, AgentTaskProgressCapsule, useAgentRightPaneActions } from '../AgentRightPane'
@@ -732,6 +730,7 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     desktopState.controls = []
     desktopState.pending = new Set()
     mockUsePreference.mockImplementation(defaultPreferenceImplementation)
@@ -783,7 +782,7 @@ describe('AgentRightPane', () => {
     }))
   })
 
-  it('requests a missing context reading when session details are opened', async () => {
+  it('requests a missing context reading without showing a context row', async () => {
     const user = userEvent.setup()
     render(
       <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
@@ -796,8 +795,32 @@ describe('AgentRightPane', () => {
     await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
     expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.refresh_context_usage', { sessionId: 'session-a' })
-    expect(screen.getByText('agent.right_pane.info.context_details.unavailable')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.info.context' })).not.toBeInTheDocument()
   })
+
+  it.each([{ tokens: 0, precision: 'reported' } as const, undefined])(
+    'shows context in session details only when used tokens are known (%j)',
+    async (used) => {
+      MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY('session-a'), {
+        result: {
+          status: 'confirmed',
+          value: { model: 'test-model', revision: 'r1', basis: 'current-context', contextWindow: 100_000, used }
+        }
+      })
+      const user = userEvent.setup()
+      render(
+        <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+          <AgentRightPane.Shortcuts />
+        </TestAgentRightPane>
+      )
+
+      await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
+
+      const context = screen.queryByRole('button', { name: 'agent.right_pane.info.context' })
+      if (used) expect(context).toHaveTextContent('0%')
+      else expect(context).not.toBeInTheDocument()
+    }
+  )
 
   it('navigates repeatedly within one file and clears locations for a plain open', async () => {
     resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
@@ -2489,7 +2512,6 @@ describe('AgentRightPane', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Native child transcript is unavailable')
     expect(screen.getByRole('heading', { name: 'agent.right_pane.info.context_usage' })).toBeInTheDocument()
-    expect(screen.getByText('agent.right_pane.info.context_details.unavailable')).toBeVisible()
     expect(screen.queryByRole('meter')).toBeNull()
     expect(screen.queryByRole('button', { name: 'chat.input.send' })).toBeNull()
     expect(ipcRequestMock).toHaveBeenCalledWith('ai.projection.attach', {

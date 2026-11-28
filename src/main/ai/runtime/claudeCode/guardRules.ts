@@ -49,6 +49,7 @@ export const WORKSPACE_PATH_FIELDS = {
   Edit: 'file_path',
   Glob: 'path',
   Grep: 'path',
+  MultiEdit: 'file_path',
   NotebookEdit: 'notebook_path',
   Read: 'file_path',
   Write: 'file_path'
@@ -64,20 +65,21 @@ export function approvalRequiredRuntimeNames(mountedServers: ReadonlySet<string>
     .map(toMcpRuntimeName)
 }
 
-function bashCommand(ctx: ToolGuardContext): string | undefined {
+function shellCommand(ctx: ToolGuardContext): string | undefined {
+  if (!shellToolDialect(ctx.toolName)) return undefined
   const command = ctx.input?.command
   return typeof command === 'string' && command.trim() ? command : undefined
 }
 
 const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
-  const command = bashCommand(ctx)
+  const command = shellCommand(ctx)
   if (!command) return null
   const reason = detectGlobalInstall(command)
   return reason ? { evidence: reason } : null
 }
 
 const miseMutationCommand = (ctx: ToolGuardContext): GuardHit | null => {
-  const command = bashCommand(ctx)
+  const command = shellCommand(ctx)
   if (!command) return null
   const reason = detectMiseMutation(command)
   return reason ? { evidence: reason } : null
@@ -121,7 +123,7 @@ const skillWithAbsentDependency = async (ctx: ToolGuardContext): Promise<GuardHi
 }
 
 const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
-  const command = bashCommand(ctx)
+  const command = shellCommand(ctx)
   if (!command) return null
   const run = ctx.bashNoProgressRun?.(command)
   // Hard tier only: the soft tier (a one-shot warning at BASH_NO_PROGRESS_THRESHOLD) lives in the
@@ -140,7 +142,7 @@ export function shellToolDialect(toolName: string): CommandDialect | undefined {
 }
 
 function commandDecision(ctx: ToolGuardContext): Promise<CommandCheck> | undefined {
-  const command = bashCommand(ctx)
+  const command = shellCommand(ctx)
   const dialect = shellToolDialect(ctx.toolName)
   if (!dialect || !command) return undefined
   return checkCommand({
@@ -220,7 +222,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // direct mise mutations remain blocked in every mode.
     id: 'mise-mutation',
     bypassBehavior: 'enforce',
-    match: { tool: 'Bash', when: miseMutationCommand },
+    match: { when: miseMutationCommand },
     effect: 'deny',
     reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
   },
@@ -234,14 +236,14 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'global-install-plan',
     bypassBehavior: 'enforce',
-    match: { tool: 'Bash', when: (ctx) => (ctx.permissionMode === 'plan' ? globalInstallCommand(ctx) : null) },
+    match: { when: (ctx) => (ctx.permissionMode === 'plan' ? globalInstallCommand(ctx) : null) },
     effect: 'deny',
     reason: GLOBAL_INSTALL_PLAN_DENIAL
   },
   {
     id: 'global-install',
     bypassBehavior: 'skipInteractiveEffect',
-    match: { tool: 'Bash', when: globalInstallCommand },
+    match: { when: globalInstallCommand },
     effect: 'ask',
     reason: (hit) => `Global package installation requires user approval: ${hit.evidence}.`,
     headless: {
@@ -265,10 +267,10 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // an approval — bypassPermissions does not lift it.
     id: 'bash-repeat-no-progress',
     bypassBehavior: 'enforce',
-    match: { tool: 'Bash', when: bashRepeatWithoutProgress },
+    match: { when: bashRepeatWithoutProgress },
     effect: 'deny',
-    reason: (hit) =>
-      `This exact Bash command already ran ${hit.evidence} times in a row with byte-identical output — repeating it yields no new information. Diagnose why the output is not changing, vary the command, or report the blocker instead of retrying.`
+    reason: (hit, ctx) =>
+      `This exact ${ctx.toolName} command already ran ${hit.evidence} times in a row with byte-identical output — repeating it yields no new information. Diagnose why the output is not changing, vary the command, or report the blocker instead of retrying.`
   },
   {
     id: 'interactive-headless',

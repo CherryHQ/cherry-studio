@@ -9,6 +9,14 @@
     ".": {
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.mts",
+      "default": "./dist/cli.mjs"
+    },
+    "./stdio": {
+      "types": "./dist/stdio.d.mts",
+      "default": "./dist/stdio.mjs"
     }
   },
   "scripts": {

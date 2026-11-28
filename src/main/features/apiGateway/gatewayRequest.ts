@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import type { RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
 import type { InProcessUsageContext } from '@main/ai/types'
 import {
   ENDPOINT_TYPE,
@@ -30,6 +31,7 @@ export interface AgentGatewayContext {
   serviceTier?: ServiceTierSelection
   fastMode: boolean
   onRetryEvent?: (event: RetryPartData) => void
+  onModelTransportFailure?: (failure: RecoverableModelTransportFailure) => void
   resolveUsage(responseId: string): InProcessUsageContext | undefined
 }
 
@@ -39,6 +41,8 @@ export interface AgentGatewayContext {
  */
 export interface MessageConfig {
   provider?: Provider
+  /** Route-owned default when the caller did not supply internal reasoning options. */
+  defaultReasoningEffort?: ReasoningEffortOption
   modelId?: string
   /** Internal Agent-session hint carried by the Claude Code SDK gateway route. */
   fastMode?: boolean
@@ -108,7 +112,7 @@ export function readGatewayRequest(config: MessageConfig) {
     : isInternalRequest
       ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER)
       : null
-  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? undefined)
+  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? config.defaultReasoningEffort)
   const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
   if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
     throw asClientError(new Error('Invalid internal Agent request options'))

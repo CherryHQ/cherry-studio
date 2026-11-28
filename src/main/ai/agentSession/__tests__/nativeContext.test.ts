@@ -29,8 +29,7 @@ import {
   type OperationResult,
   type Thread,
   type ThreadHandle,
-  type InputState,
-  type BusyPolicy
+  type InputState
 } from '@cherrystudio/agent-runtime'
 import { createPiRuntime, type PiSessionOptions, type PiRuntime } from '@cherrystudio/agent-runtime-pi'
 import {
@@ -183,9 +182,9 @@ describe('native context storage and reconciliation', () => {
     )
     return { inputs, stop: () => observation.stop() }
   }
-  async function submitInput(handle: ThreadHandle, id: string, contextId: string, whenBusy: BusyPolicy = 'reject') {
-    const draft = prepareNativeSubmission(sessionId, id, contextId, whenBusy)
-    const result = await handle.input!.submit(draft)
+  async function submitInput(handle: ThreadHandle, id: string, contextId: string) {
+    const draft = prepareNativeSubmission(sessionId, id, contextId)
+    const result = await handle.input!.submit!(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     return result
   }
@@ -491,15 +490,15 @@ describe('native context storage and reconciliation', () => {
     const parts = messages.getSessionMessage(sessionId, id).data.parts
     messages.updateSessionMessage(sessionId, id, { data: { parts: [{ type: 'text', text: 'edited' }] } })
     expect(() =>
-      prepareNativeSubmission(sessionId, id, created.context.id, 'reject', { text: 'wrapped original', parts })
+      prepareNativeSubmission(sessionId, id, created.context.id, { text: 'wrapped original', parts })
     ).toThrow('content changed')
     expect(messages.inputBinding(sessionId, id)).toBeUndefined()
     expect(faux.state.callCount).toBe(0)
-    const draft = prepareNativeSubmission(sessionId, id, created.context.id, 'reject', {
+    const draft = prepareNativeSubmission(sessionId, id, created.context.id, {
       text: 'wrapped edited',
       parts: [{ type: 'text', text: 'edited' }]
     })
-    expect(draft).toEqual({ inputId: id, text: 'wrapped edited', whenBusy: 'reject' })
+    expect(draft).toEqual({ inputId: id, text: 'wrapped edited' })
   })
 
   it('recovers a reserved directory without losing its contents or durable turn history', async () => {
@@ -638,10 +637,10 @@ describe('native context storage and reconciliation', () => {
     await submitInput(handle, message('running'), created.context.id)
     await reached.promise
     const queuedId = message('queued')
-    const draft = prepareNativeSubmission(sessionId, queuedId, created.context.id, 'follow-up')
-    const receipt = await handle.input.submit(draft)
+    const draft = prepareNativeSubmission(sessionId, queuedId, created.context.id)
+    const receipt = await handle.input.followUp!.submit(draft)
     expect(receipt).toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
-    expect(await handle.input.submit(draft)).toEqual(receipt)
+    expect(await handle.input.followUp!.submit(draft)).toEqual(receipt)
     const other = confirmed(await runtime.create({ ownership: { kind: 'ownerless' } }))
     expect(await runtime.lookupInput(other.thread, draft.inputId)).toBeUndefined()
     const legacy = await runtime.durable.commit(
@@ -654,7 +653,7 @@ describe('native context storage and reconciliation', () => {
       BACKGROUND_CONTEXT
     )
     const legacyId = message('legacy queued')
-    prepareNativeSubmission(sessionId, legacyId, created.context.id, 'follow-up')
+    prepareNativeSubmission(sessionId, legacyId, created.context.id)
     dbh.db
       .update(agentSessionMessageTable)
       .set({ nativeInputId: String(legacy.id) })

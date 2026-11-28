@@ -111,6 +111,7 @@ describe('toAgentSessionUIMessage', () => {
       },
       stats: { totalTokens: 10 },
       runtimeResumeToken: 'agent-session-1',
+      provenance: { source: 'codex', sourceOrder: 2 },
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:01.000Z'
     } as AgentSessionMessageEntity
@@ -124,6 +125,7 @@ describe('toAgentSessionUIMessage', () => {
         createdAt: '2026-01-01T00:00:00.000Z',
         status: 'success',
         modelId: 'anthropic::claude',
+        provenance: { source: 'codex', sourceOrder: 2 },
         messageSnapshot: {
           id: 'ag1',
           name: 'Agent',

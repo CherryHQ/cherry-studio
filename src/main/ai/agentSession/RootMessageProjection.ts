@@ -10,7 +10,7 @@ import {
   type RootProjectionCheckpoint
 } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
-import type { AgentControlChunk, RuntimeMessageProjection } from '@main/ai/runtime/types'
+import type { AgentControlChunk, AgentRuntimeEvent, RuntimeMessageProjection } from '@main/ai/runtime/types'
 import {
   type AgentPartChange,
   dropEmptyContentParts,
@@ -19,6 +19,7 @@ import {
   stripTransientStatusParts
 } from '@main/ai/streamManager'
 import { orderAgentTimelineParts } from '@main/utils/agentTimelineOrder'
+import { updatedPartValue } from '@shared/ai/messageProjection'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
@@ -249,6 +250,28 @@ export class RootMessageProjection {
 
   parts(messageId: string): CherryUIMessage['parts'] | undefined {
     return this.replyEntries(messageId)?.map((entry) => entry.payload)
+  }
+
+  changeTerminal(event: Extract<AgentRuntimeEvent, { type: 'local-tool-terminal' }>): AcceptedRootPart[] {
+    const source = this.activeSource(event.itemId)
+    const slot = source?.entries[event.part]
+    if (!source || slot?.value.kind !== 'live') return []
+    const terminalPatch = { type: 'part-tool-terminal' as const, partId: slot.partId, delta: event.delta }
+    const part = updatedPartValue(slot.value.payload, terminalPatch)
+    if (part?.type !== 'dynamic-tool') return []
+    slot.value.payload = part
+    return [
+      {
+        messageId: source.messageId,
+        patch: {
+          type: 'part-put',
+          archiveMessageId: source.messageId,
+          partId: slot.partId,
+          part,
+          terminalPatch
+        }
+      }
+    ]
   }
 
   changePart(event: LivePartInput): AcceptedRootPart[] {
@@ -565,6 +588,7 @@ export class RootMessageProjection {
     if (chunk.type === 'tool-input-available' || chunk.type === 'tool-approval-request') {
       if (!this.extras.has(messageId)) this.extras.set(messageId, [])
       if (chunk.type === 'tool-approval-request') {
+        if (this.approvals.get(chunk.toolCallId)?.id !== chunk.approvalId) this.approvals.delete(chunk.toolCallId)
         this.retiredToolApprovals.delete(chunk.toolCallId)
         this.extras.set(
           messageId,
@@ -643,6 +667,10 @@ export class RootMessageProjection {
 
   resolveToolApproval(toolCallId: string, approvalId: string, approved: boolean): void {
     this.approvals.set(toolCallId, { id: approvalId, approved })
+  }
+
+  isPendingToolApproval(toolCallId: string, approvalId: string): boolean {
+    return this.pendingTools.get(toolCallId)?.approvalId === approvalId
   }
 
   retireToolApproval(toolCallId: string): boolean {

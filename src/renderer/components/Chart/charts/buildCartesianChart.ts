@@ -36,7 +36,7 @@ export function buildCartesianChart(
       : {
           type: 'line' as const,
           showSymbol: props.categories.length <= 30,
-          symbolSize: 5
+          symbolSize: 6
         })
   }))
 

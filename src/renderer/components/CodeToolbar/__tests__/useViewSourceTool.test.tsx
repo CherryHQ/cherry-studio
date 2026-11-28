@@ -47,8 +47,11 @@ describe('useViewSourceTool', () => {
     rerender({ canEdit: true, hasSpecialView: true, isStreaming: true, viewMode: 'source' })
 
     rerender({ canEdit: true, hasSpecialView: true, isStreaming: false, viewMode: 'source' })
+    expect(result.current).toHaveLength(2)
     act(() => result.current[0].onClick?.())
     expect(onViewModeChange).toHaveBeenLastCalledWith('edit')
+    act(() => result.current[1].onClick?.())
+    expect(onViewModeChange).toHaveBeenLastCalledWith('special')
   })
 
   it('offers edit only when a settled source can enter edit mode', () => {

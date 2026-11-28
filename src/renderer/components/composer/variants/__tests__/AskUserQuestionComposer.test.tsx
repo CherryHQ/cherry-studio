@@ -18,9 +18,11 @@ vi.mock('react-i18next', async (importOriginal) => ({
         {
           'agent.askUserQuestion.close': 'Close',
           'agent.askUserQuestion.customPlaceholder': 'Enter your answer...',
+          'agent.askUserQuestion.discuss': 'Discuss first',
           'agent.askUserQuestion.next': 'Next',
           'agent.askUserQuestion.previous': 'Previous',
           'agent.askUserQuestion.skip': 'Skip',
+          'agent.askUserQuestion.skipInterview': 'Skip interview and plan',
           'agent.askUserQuestion.submit': 'Submit'
         }[key] ?? key
       )
@@ -74,6 +76,132 @@ function makeRequest(
 }
 
 describe('AskUserQuestionComposer', () => {
+  it.each([
+    ['Discuss first', 'discuss'],
+    ['Skip interview and plan', 'skip-interview']
+  ] as const)(
+    'allows %s after the final single choice and keeps unsent note text out of the reply',
+    async (label, action) => {
+      const onRespond = vi.fn()
+      const request = makeRequest()
+      request.input.responseMode = 'native-request'
+      request.input.interviewActions = ['discuss', 'skip-interview']
+      render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+      fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'draft for me' } })
+      fireEvent.click(screen.getByText('Next'))
+      fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+      expect(onRespond).not.toHaveBeenCalled()
+      fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'more draft text' } })
+      fireEvent.click(screen.getByRole('button', { name: label }))
+      await waitFor(() =>
+        expect(onRespond).toHaveBeenCalledWith({
+          approved: true,
+          match: request.match,
+          updatedInput: {
+            ...request.input,
+            action,
+            selections: [{ selected: [], freeform: true }, { selected: ['Bunyan'] }]
+          }
+        })
+      )
+    }
+  )
+
+  it('keeps option labels intact when a native request needs each selection', async () => {
+    const onRespond = vi.fn()
+    const request = makeRequest([
+      { question: 'Choose', header: 'Choose', options: [{ label: 'A, B' }, { label: 'C' }], multiSelect: true }
+    ])
+    request.input.responseMode = 'native-request'
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+    expect(screen.queryByRole('button', { name: 'Skip interview and plan' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /A, B/ }))
+    fireEvent.click(screen.getByText('C'))
+    fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'Keep both' } })
+    fireEvent.click(screen.getByText('Submit'))
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          approved: true,
+          updatedInput: expect.objectContaining({
+            answers: { Choose: 'A, B, C' },
+            selections: [{ selected: ['A, B', 'C'], notes: 'Keep both' }]
+          })
+        })
+      )
+    )
+  })
+
+  it('reviews ACP defaults without auto-submitting, then sends typed edited values', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const request = makeRequest([
+      {
+        id: 'enabled',
+        question: 'Enabled',
+        header: 'Enabled',
+        options: [
+          { id: 'true', label: 'true' },
+          { id: 'false', label: 'false' }
+        ],
+        multiSelect: false
+      },
+      { id: 'count', question: 'Count', header: 'Count', options: [], multiSelect: false }
+    ])
+    request.input.elicitation = {
+      agentName: 'Pi',
+      message: 'Configure task',
+      schema: {
+        type: 'object',
+        properties: {
+          enabled: { type: 'boolean', default: false },
+          count: { type: 'integer', minimum: 1, maximum: 5, default: 2 }
+        },
+        required: ['enabled', 'count']
+      }
+    }
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText('Configure task')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /local_agents.elicitation_yes/ }))
+    expect(onRespond).not.toHaveBeenCalled()
+    expect(screen.getByText('Enabled *')).toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[0])
+    const entry = screen.getByRole('textbox')
+    expect(entry).toHaveValue('2')
+    await user.clear(entry)
+    await user.type(entry, '6')
+    await user.click(screen.getAllByRole('button', { name: 'Submit' }).at(-1)!)
+    expect(onRespond).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    await user.clear(entry)
+    await user.type(entry, '3')
+    await user.click(screen.getAllByRole('button', { name: 'Submit' }).at(-1)!)
+    expect(onRespond).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approved: true,
+        updatedInput: expect.objectContaining({ elicitationContent: { enabled: true, count: 3 } })
+      })
+    )
+  })
+
+  it.each(['decline', 'cancel'])('keeps ACP %s distinct from an empty submission', async (action) => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const request = makeRequest()
+    request.input.elicitation = {
+      agentName: 'Pi',
+      message: 'Configure task',
+      schema: { type: 'object', properties: {} }
+    }
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+    await user.click(
+      screen.getByRole('button', { name: action === 'cancel' ? 'Close' : 'agent.toolPermission.button.deny' })
+    )
+    expect(onRespond).toHaveBeenCalledWith(
+      expect.objectContaining({ approved: false, updatedInput: { elicitationAction: action } })
+    )
+  })
+
   // Unsubmitted answers are cached per approval id, so the harness must not leak
   // one test's draft into the next one.
   beforeEach(() => {
@@ -479,5 +607,78 @@ describe('AskUserQuestionComposer', () => {
         }
       }
     })
+  })
+
+  it('groups Deny next to Submit on the right for elicitation forms and omits empty option lists', () => {
+    const request = makeRequest([
+      {
+        question: 'Confirm environment override',
+        header: 'Override',
+        options: [],
+        multiSelect: false
+      }
+    ])
+    request.input.elicitation = {
+      agentName: 'Pi',
+      message: 'Confirm environment override',
+      schema: {
+        type: 'object',
+        properties: {
+          env: { type: 'string', title: 'Environment' }
+        }
+      }
+    }
+
+    const { container } = render(<AskUserQuestionComposer request={request} onRespond={vi.fn()} />)
+
+    expect(container.querySelector('.min-h-24')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter your answer...')).toBeInTheDocument()
+
+    const denyButton = screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })
+    const submitButton = screen.getByText('Submit')
+    expect(denyButton.parentElement).toBe(submitButton.parentElement)
+    expect(denyButton.parentElement).toHaveClass('ml-auto')
+    expect(denyButton.compareDocumentPosition(submitButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(denyButton).toHaveAttribute('variant', 'outline')
+  })
+
+  it('right-aligns Grok interviewActions, keeps long option labels unwrapped cleanly, and avoids solid emphasis when Submit is disabled', () => {
+    const longOptionLabel =
+      'Use full workspace sandbox isolation with strict domain allowlisting and explicit confirmation prompts'
+    const request = makeRequest([
+      {
+        question: 'Select execution policy',
+        header: 'Policy',
+        options: [
+          { label: longOptionLabel, description: 'Long policy option description' },
+          { label: 'Ask before running', description: 'Prompt for every command' }
+        ],
+        multiSelect: false
+      }
+    ])
+    request.input.responseMode = 'native-request'
+    request.input.interviewActions = ['discuss', 'skip-interview']
+
+    render(<AskUserQuestionComposer request={request} onRespond={vi.fn()} />)
+
+    const optionLabel = screen.getByText(longOptionLabel)
+    expect(optionLabel).toHaveClass('whitespace-pre-wrap')
+    expect(optionLabel).not.toHaveClass('truncate')
+
+    const submitButton = screen.getByText('Submit')
+    expect(submitButton).toBeDisabled()
+    expect(submitButton).toHaveAttribute('variant', 'ghost')
+    expect(submitButton).not.toHaveAttribute('variant', 'emphasis')
+
+    const interviewBar = screen.getByTestId('ask-user-question-interview-actions')
+    expect(interviewBar).toHaveClass('justify-end')
+    const interviewButtons = within(interviewBar).getAllByRole('button')
+    expect(interviewButtons.map((button) => button.textContent?.trim())).toEqual([
+      'Discuss first',
+      'Skip interview and plan'
+    ])
+    for (const button of interviewButtons) {
+      expect(button).toHaveAttribute('variant', 'outline')
+    }
   })
 })

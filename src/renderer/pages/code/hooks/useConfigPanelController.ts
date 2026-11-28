@@ -1,36 +1,28 @@
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ApiGatewayProviderBundle } from '@renderer/hooks/useApiGatewayProvider'
+import {
+  clearCliConfig,
+  parseConfiguredModelId,
+  resolveCliConfigApplyContext,
+  writeCliConfigDraft
+} from '@renderer/services/codeCliConfig'
+import { isModelConfiguredCli } from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { isFileConfiguredCli } from '@shared/utils/cliConfig'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { type CliConfigGatewayContext, sanitizeCliConfigBlob } from '@shared/utils/cliConfig'
 
-import {
-  clearCliConfig,
-  type CliConfigConnection,
-  type CliConfigFileDraft,
-  type CliConfigGatewayContext,
-  extractConnectionFromCliConfigDraft,
-  isOwnLoginConfigurable,
-  parseConfiguredModelId,
-  resolveCliConfigApplyContext,
-  sanitizeCliConfigBlob,
-  writeCliConfigDraft,
-  writeOwnLoginCliConfigDraft
-} from '../cliConfig'
-import type { OwnLoginConfigPanelProps } from '../components/configEditPanel/OwnLoginConfigPanel'
 import type { ConfigEditPanelProps, ConfigEditPanelSubmitValues } from '../components/configEditPanel/types'
-import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 
 const logger = loggerService.withContext('useConfigPanelController')
 
 interface UseConfigPanelControllerOptions {
   selectedCliTool: CodeCli
-  toolName: string
   currentProviderId: string | null
   providerConfigs: Record<string, CliProviderConfig>
   upsertProviderConfig: (
@@ -39,7 +31,6 @@ interface UseConfigPanelControllerOptions {
   ) => Promise<string>
   deleteProviderConfig: (providerId: string) => Promise<void>
   setCurrentProvider: (providerId: string | null) => Promise<void>
-  setCurrentCliConfigConnection: (connection: CliConfigConnection | null) => void
   makeModelFilter: (providerId: string) => (model: Model) => boolean
   /** Synthetic Cherry gateway bundle (null when the gateway config is unavailable). */
   apiGatewayProvider?: ApiGatewayProviderBundle | null
@@ -51,20 +42,18 @@ interface UseConfigPanelControllerOptions {
 interface ConfigPanelController {
   configPanelKey?: string
   configPanelProps?: ConfigEditPanelProps
-  ownLoginConfigPanelProps?: OwnLoginConfigPanelProps
   openConfigurePanel: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
+  selectModel: (provider: Provider, modelId: UniqueModelId) => Promise<boolean>
 }
 
 export function useConfigPanelController({
   selectedCliTool,
-  toolName,
   currentProviderId,
   providerConfigs,
   upsertProviderConfig,
   deleteProviderConfig,
   setCurrentProvider,
-  setCurrentCliConfigConnection,
   makeModelFilter,
   apiGatewayProvider,
   gatewayModelsById,
@@ -74,11 +63,12 @@ export function useConfigPanelController({
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const [panelSession, setPanelSession] = useState(0)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
-  const writesCliConfig = isFileConfiguredCli(selectedCliTool)
+  const writesCliConfig =
+    isModelConfiguredCli(selectedCliTool) ||
+    selectedCliTool === CodeCli.OPENCLAW ||
+    selectedCliTool === CodeCli.DEEPSEEK_HARNESS
 
-  // For a gateway write: start the gateway if needed and resolve its configured key, then hand back the
-  // synthetic provider + key so `writeCliConfigDraft` injects the gateway URL/key (never the real
-  // provider key). Returns undefined for non-gateway providers.
+  // CLI files receive the gateway key while upstream credentials stay in Cherry.
   const resolveGatewayWriteContext = useCallback(
     async (providerId: string): Promise<CliConfigGatewayContext | undefined> => {
       if (!writesCliConfig || !isApiGatewayProviderId(providerId) || !apiGatewayProvider) {
@@ -90,9 +80,7 @@ export function useConfigPanelController({
     },
     [apiGatewayProvider, writesCliConfig]
   )
-  // Tracks tools with an in-flight enable/disable. writeCliConfigDraft / clearCliConfig write multiple
-  // files sequentially with snapshot rollback and no cross-file lock, so a rapid second toggle for the
-  // same tool could interleave the two operations' reads/writes and leave its config files inconsistent.
+  // Prevent a second action from interleaving multi-file writes and rollback.
   const inFlightToolsRef = useRef<Set<CodeCli>>(new Set())
 
   const openConfigurePanel = useCallback((provider: Provider) => {
@@ -106,11 +94,10 @@ export function useConfigPanelController({
     setEditingProvider(null)
   }, [])
 
-  const handlePanelSubmit = useCallback(
-    async (values: ConfigEditPanelSubmitValues) => {
-      if (!editingProvider) return
+  const applyProviderConfig = useCallback(
+    async (provider: Provider, values: ConfigEditPanelSubmitValues, enable = false) => {
       const hasModelValue = 'modelId' in values
-      const modelId = values.modelId ?? (hasModelValue ? null : (providerConfigs[editingProvider.id]?.modelId ?? null))
+      const modelId = values.modelId ?? (hasModelValue ? null : (providerConfigs[provider.id]?.modelId ?? null))
       const hasConfigValue = 'config' in values
       const sanitizedConfig = hasConfigValue ? sanitizeCliConfigBlob(selectedCliTool, values.config ?? {}) : undefined
       const configPatch = hasConfigValue ? { config: sanitizedConfig ?? {} } : {}
@@ -125,70 +112,60 @@ export function useConfigPanelController({
           files
         })
         if (hasModelValue || hasConfigValue) {
-          await upsertProviderConfig(editingProvider.id, {
+          await upsertProviderConfig(provider.id, {
             modelId,
             ...configPatch
           })
         }
-        setCurrentCliConfigConnection(extractConnectionFromCliConfigDraft(selectedCliTool, files))
         logger.info('Updated CLI config file draft', { toolId: selectedCliTool })
         return
       }
 
-      const shouldEnableAfterSave = pendingEnableProviderIdRef.current === editingProvider.id
+      const shouldEnableAfterSave = enable || pendingEnableProviderIdRef.current === provider.id
       const resolvedCliConfigContext = resolveCliConfigApplyContext(
         selectedCliTool,
-        editingProvider.id,
+        provider.id,
         {
           modelId,
-          config: sanitizedConfig ?? providerConfigs[editingProvider.id]?.config
+          config: sanitizedConfig ?? providerConfigs[provider.id]?.config
         },
-        isApiGatewayProviderId(editingProvider.id) ? gatewayModelsById : undefined
+        isApiGatewayProviderId(provider.id) ? gatewayModelsById : undefined
       )
       const cliConfigModelId = values.cliConfigModelId ?? resolvedCliConfigContext?.modelId
       const writePrimaryModel = values.writePrimaryModel ?? resolvedCliConfigContext?.writePrimaryModel
-      if (isApiGatewayProviderId(editingProvider.id) && writePrimaryModel === false && !cliConfigModelId) {
+      if (isApiGatewayProviderId(provider.id) && writePrimaryModel === false && !cliConfigModelId) {
         throw new Error('Cannot resolve the detailed gateway model')
       }
-      const shouldApplyCliConfig =
-        writesCliConfig && (currentProviderId === editingProvider.id || shouldEnableAfterSave)
+      const shouldApplyCliConfig = writesCliConfig && (currentProviderId === provider.id || shouldEnableAfterSave)
       // Preference and the external CLI files are one user-visible config. The active provider owns
       // the current files, so with nothing addressing a model the write below is skipped and
       // persisting anyway would strand the files on their previous contents (e.g. flipping Claude's
       // detailed mode back to common without picking a model). Reject instead of half-saving.
       // Only the active provider is at risk: any other provider owns no files to diverge from, and
       // an enable-on-save that resolves no model simply leaves it disabled with its params stored.
-      if (currentProviderId === editingProvider.id && !cliConfigModelId) {
+      if (currentProviderId === provider.id && !cliConfigModelId) {
         throw new Error('Cannot apply a CLI config without a model')
       }
-      const previousProviderConfig = providerConfigs[editingProvider.id]
+      const previousProviderConfig = providerConfigs[provider.id]
       let providerConfigPersisted = false
       if (hasModelValue || hasConfigValue) {
-        await upsertProviderConfig(editingProvider.id, {
+        await upsertProviderConfig(provider.id, {
           modelId,
           ...configPatch
         })
         providerConfigPersisted = true
       }
-      logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
-      if (selectedCliTool === CodeCli.DEEPSEEK_HARNESS) {
-        if (shouldEnableAfterSave) await setCurrentProvider(editingProvider.id)
-        setCurrentCliConfigConnection(null)
-        return
-      }
+      logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: provider.id })
       if (!cliConfigModelId) return
       if (!shouldApplyCliConfig) {
         if (shouldEnableAfterSave) {
-          await setCurrentProvider(editingProvider.id)
-          setCurrentCliConfigConnection(null)
+          await setCurrentProvider(provider.id)
         }
         return
       }
 
       try {
-        const gateway = isApiGatewayProviderId(editingProvider.id)
-          ? await resolveGatewayWriteContext(editingProvider.id)
-          : undefined
+        const gateway = isApiGatewayProviderId(provider.id) ? await resolveGatewayWriteContext(provider.id) : undefined
         await writeCliConfigDraft({
           cliTool: selectedCliTool,
           modelId: cliConfigModelId,
@@ -204,7 +181,7 @@ export function useConfigPanelController({
         if (providerConfigPersisted) {
           try {
             if (previousProviderConfig) {
-              await upsertProviderConfig(editingProvider.id, {
+              await upsertProviderConfig(provider.id, {
                 modelId: previousProviderConfig.modelId,
                 config: previousProviderConfig.config,
                 ...(previousProviderConfig.sortIndex !== undefined
@@ -212,7 +189,7 @@ export function useConfigPanelController({
                   : {})
               })
             } else {
-              await deleteProviderConfig(editingProvider.id)
+              await deleteProviderConfig(provider.id)
             }
           } catch (rollbackError) {
             logger.error('Failed to roll back CLI provider config preference:', rollbackError as Error)
@@ -222,19 +199,16 @@ export function useConfigPanelController({
         throw err
       }
       if (shouldEnableAfterSave) {
-        await setCurrentProvider(editingProvider.id)
+        await setCurrentProvider(provider.id)
       }
-      setCurrentCliConfigConnection(null)
     },
     [
-      editingProvider,
       selectedCliTool,
       currentProviderId,
       providerConfigs,
       upsertProviderConfig,
       deleteProviderConfig,
       setCurrentProvider,
-      setCurrentCliConfigConnection,
       resolveGatewayWriteContext,
       gatewayModelsById,
       writesCliConfig
@@ -244,44 +218,16 @@ export function useConfigPanelController({
   const handleToggleCurrent = useCallback(
     (provider: Provider) => {
       const isEnabling = currentProviderId !== provider.id
-      // Ignore a re-entrant toggle for the same tool while its config write/clear is still running.
       if (inFlightToolsRef.current.has(selectedCliTool)) return
       inFlightToolsRef.current.add(selectedCliTool)
       void (async () => {
-        // Virtual "own login" entry: the CLI falls back to its own stored login. Always scrub the
-        // Cherry-managed credentials/model first (this also clears credential-only side files like
-        // Codex auth.json / Gemini .env), then — for configurable tools on select — layer the saved
-        // tool params back on. Finally mark the reserved id current (or clear it when re-toggled).
-        if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
-          try {
-            if (writesCliConfig) {
-              await clearCliConfig({ cliTool: selectedCliTool })
-            }
-            if (isEnabling && isOwnLoginConfigurable(selectedCliTool)) {
-              await writeOwnLoginCliConfigDraft({
-                cliTool: selectedCliTool,
-                configBlob: providerConfigs[CLI_OWN_LOGIN_PROVIDER_ID]?.config
-              })
-            }
-            // Only flip the active selection once the scrub/write actually succeeded, so the UI never
-            // shows own login as active while the CLI files still hold the previous managed credentials.
-            await setCurrentProvider(isEnabling ? CLI_OWN_LOGIN_PROVIDER_ID : null)
-            setCurrentCliConfigConnection(null)
-          } catch (err) {
-            logger.error('Failed to apply CLI config on own-login toggle:', err as Error)
-            toast.error(t('code.apply_failed'))
-          }
-          return
-        }
         if (!isEnabling) {
           try {
             if (writesCliConfig) {
               await clearCliConfig({ cliTool: selectedCliTool })
             }
-            // Only clear the active selection after any required scrub succeeds; otherwise the UI could show
-            // a file-configured provider disabled while its CLI files still retain managed credentials.
+            // Active state must reflect whether managed credentials were cleared.
             await setCurrentProvider(null)
-            setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to clear CLI config on disable:', err as Error)
             toast.error(t('code.apply_failed'))
@@ -316,7 +262,6 @@ export function useConfigPanelController({
         if (!writesCliConfig) {
           try {
             await setCurrentProvider(provider.id)
-            setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to select CLI provider:', err as Error)
             toast.error(t('code.apply_failed'))
@@ -340,7 +285,6 @@ export function useConfigPanelController({
             gateway
           })
           await setCurrentProvider(provider.id)
-          setCurrentCliConfigConnection(null)
           if (gateway) toast.info(t('code.api_gateway.requires_running'))
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
@@ -356,7 +300,6 @@ export function useConfigPanelController({
       providerConfigs,
       upsertProviderConfig,
       setCurrentProvider,
-      setCurrentCliConfigConnection,
       resolveGatewayWriteContext,
       gatewayModelsById,
       writesCliConfig,
@@ -364,73 +307,41 @@ export function useConfigPanelController({
     ]
   )
 
-  const handleOwnLoginSubmit = useCallback(
-    async (values: { config: Record<string, unknown>; cliConfigFiles?: CliConfigFileDraft[] }) => {
-      const sanitizedConfig = sanitizeCliConfigBlob(selectedCliTool, values.config)
-
-      // Write the CLI file BEFORE persisting the preference when own login is active: if the disk
-      // write fails, the preference stays unchanged so OwnLoginConfigPanel keeps its baseline and
-      // the dialog remains dirty/retryable. Persisting first would reset that baseline (the panel
-      // recomputes initialConfig from the prop), disabling Save even though the file is stale.
-      // Hand-edited raw files (if any) are written verbatim; otherwise the file is rebuilt.
-      if (currentProviderId === CLI_OWN_LOGIN_PROVIDER_ID) {
-        try {
-          await writeOwnLoginCliConfigDraft({
-            cliTool: selectedCliTool,
-            configBlob: sanitizedConfig,
-            files: values.cliConfigFiles
-          })
-        } catch (err) {
-          // Rethrow so the submitting dialog treats the save as failed and keeps the
-          // user's draft (it owns the failure toast) instead of silently closing.
-          logger.error('Failed to inject own-login config on edit:', err as Error)
-          throw err
-        }
-      }
-
-      await upsertProviderConfig(CLI_OWN_LOGIN_PROVIDER_ID, { modelId: null, config: sanitizedConfig })
-      logger.info('Updated own-login config', { toolId: selectedCliTool })
-      if (currentProviderId === CLI_OWN_LOGIN_PROVIDER_ID) {
-        setCurrentCliConfigConnection(null)
-      }
-    },
-    [selectedCliTool, currentProviderId, upsertProviderConfig, setCurrentCliConfigConnection]
-  )
-
-  const isEditingOwnLogin = editingProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
-
   return {
     configPanelKey: editingProvider ? `${selectedCliTool}:${editingProvider.id}:${panelSession}` : undefined,
-    configPanelProps:
-      editingProvider && !isEditingOwnLogin
-        ? {
-            onClose: closePanel,
-            cliTool: selectedCliTool,
-            provider: editingProvider,
-            providerConfig: providerConfigs[editingProvider.id] ?? null,
-            isCurrentProvider: currentProviderId === editingProvider.id,
-            modelFilter: makeModelFilter(editingProvider.id),
-            // Preview key only (may be null before first start); the actual write reads the configured key.
-            gateway:
-              isApiGatewayProviderId(editingProvider.id) && apiGatewayProvider
-                ? { provider: apiGatewayProvider.provider, apiKey: apiGatewayProvider.apiKey ?? '' }
-                : undefined,
-            gatewayModels: isApiGatewayProviderId(editingProvider.id) ? gatewayModelsById : undefined,
-            isGatewayModelsLoading: isApiGatewayProviderId(editingProvider.id) ? isGatewayModelsLoading : false,
-            onSubmit: handlePanelSubmit
-          }
-        : undefined,
-    ownLoginConfigPanelProps:
-      editingProvider && isEditingOwnLogin
-        ? {
-            onClose: closePanel,
-            cliTool: selectedCliTool,
-            toolName,
-            providerConfig: providerConfigs[CLI_OWN_LOGIN_PROVIDER_ID] ?? null,
-            onSubmit: handleOwnLoginSubmit
-          }
-        : undefined,
+    configPanelProps: editingProvider
+      ? {
+          onClose: closePanel,
+          cliTool: selectedCliTool,
+          provider: editingProvider,
+          providerConfig: providerConfigs[editingProvider.id] ?? null,
+          isCurrentProvider: currentProviderId === editingProvider.id,
+          modelFilter: makeModelFilter(editingProvider.id),
+          // Preview key only (may be null before first start); the actual write reads the configured key.
+          gateway:
+            isApiGatewayProviderId(editingProvider.id) && apiGatewayProvider
+              ? { provider: apiGatewayProvider.provider, apiKey: apiGatewayProvider.apiKey ?? '' }
+              : undefined,
+          gatewayModels: isApiGatewayProviderId(editingProvider.id) ? gatewayModelsById : undefined,
+          isGatewayModelsLoading: isApiGatewayProviderId(editingProvider.id) ? isGatewayModelsLoading : false,
+          onSubmit: (values) => applyProviderConfig(editingProvider, values)
+        }
+      : undefined,
     openConfigurePanel,
+    selectModel: async (provider, modelId) => {
+      if (inFlightToolsRef.current.has(selectedCliTool)) return false
+      inFlightToolsRef.current.add(selectedCliTool)
+      try {
+        await applyProviderConfig(provider, { modelId }, true)
+        return true
+      } catch (error) {
+        logger.error('Failed to select CLI model', error as Error)
+        toast.error(t('code.apply_failed'))
+        return false
+      } finally {
+        inFlightToolsRef.current.delete(selectedCliTool)
+      }
+    },
     onToggleCurrent: handleToggleCurrent
   }
 }
