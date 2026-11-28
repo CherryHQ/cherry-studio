@@ -66,6 +66,11 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
 
 const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
 
+const legacySetupHeaders = new Map([
+  ['claude-code', /^\[Historical local command(?: output)?\]\r?\n/],
+  ['codex', /^\[Historical (?:project instructions|environment|plugin context|app context)\]\r?\n/]
+])
+
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
 export function scrollAgentMessageListToEnd(topicId: string): void {
@@ -87,6 +92,7 @@ function withTerminalErrorFallback(
       ? messageProjectionService.readParts(parts)
       : parts
     const hasVisiblePart = resolvedParts.some((part) => !isHiddenPart(part))
+    if (message.metadata?.provenance && hasVisiblePart) continue
     if (message.metadata?.importedHistory) {
       if (status === 'error' || !hasVisiblePart) {
         replacements.set(message.id, [
@@ -247,7 +253,25 @@ export function useAgentMessageListProviderValue({
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
-  const timeline = useAgentTimeline(messages, displayPartsByMessageId, projectionTarget)
+  const visibleMessages = useMemo(() => {
+    if (hasOlder) return messages
+    const firstImportedTask = messages.findIndex(
+      ({ role, metadata }) => role === 'user' && metadata?.provenance && !metadata.provenance.isSetup
+    )
+    if (firstImportedTask <= 0) return messages
+    return messages.filter((message, index) => {
+      const provenance = message.metadata?.provenance
+      if (index >= firstImportedTask || !provenance) return true
+      if (provenance.isSetup) return false
+      if (message.role !== 'system') return true
+      // Older imports stored formatted setup text without a provenance marker.
+      const header = legacySetupHeaders.get(provenance.source)
+      if (!header) return true
+      const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts
+      return !parts?.length || !parts.every((part) => part.type === 'text' && header.test(part.text))
+    })
+  }, [hasOlder, messages, partsByMessageId])
+  const timeline = useAgentTimeline(visibleMessages, displayPartsByMessageId, projectionTarget)
   const sourceIds = useMemo(
     () => new Map(timeline.rows.map((row) => [row.id, row.sourceMessageId ?? row.id])),
     [timeline.rows]
@@ -288,6 +312,7 @@ export function useAgentMessageListProviderValue({
           isRunBoundary: row.isRunBoundary,
           ...(row.isRunBoundary === false && { stats: undefined })
         }
+        if (row.message.role === 'assistant' && row.message.metadata?.provenance) item.messageSnapshot = undefined
         messageItemCacheRef.current.set(row, { assistantId: resolvedAgentId, item, topicId: topic.id })
         return item
       }),

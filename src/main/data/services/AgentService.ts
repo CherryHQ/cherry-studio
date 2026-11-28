@@ -46,6 +46,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
+import { supportsHistoryImport } from '@shared/data/types/conversationImport'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
@@ -679,6 +680,16 @@ export class AgentService {
     const result = database.select().from(agentsTable).where(whereClause).limit(1).all()
 
     return result[0]
+  }
+
+  getImportTargetTx(tx: DbOrTx, id: string) {
+    const row = tx
+      .select()
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+      .get()
+    if (!row || !supportsHistoryImport(row.type)) throw new Error('target_changed')
+    return row
   }
 
   /** Usage overview of one live Agent; null when it does not exist. */
