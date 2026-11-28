@@ -366,6 +366,26 @@ describe('KnowledgeVectorStoreService', () => {
     expect(reopened).not.toBe(store)
   })
 
+  it('waits for in-flight directory deletion during stop', async () => {
+    const service = createTrackedService()
+    const cleanup = Promise.withResolvers<void>()
+    deleteDirMock.mockReturnValueOnce(cleanup.promise)
+
+    const deletion = service.deleteStore('kb-1')
+    const stop = (service as unknown as { onStop: () => Promise<void> }).onStop()
+    let stopped = false
+    void stop.then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+
+    expect(stopped).toBe(false)
+
+    cleanup.resolve()
+    await Promise.all([deletion, stop])
+    expect(stopped).toBe(true)
+  })
+
   it('closes all cached stores during stop and continues when one close throws', async () => {
     const service = createTrackedService()
 

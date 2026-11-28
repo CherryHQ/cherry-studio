@@ -41,6 +41,7 @@ export class KnowledgeVectorStoreService extends BaseService {
   // same base can ever observe an in-flight open, and a failed open never gets
   // cached (the throw happens before .set() below runs).
   private instanceCache = new Map<string, KnowledgeIndexStore>()
+  private readonly pendingDeletions = new Set<Promise<void>>()
 
   /** Open (or reuse) the base's index store, ensuring its schema exists. */
   getIndexStore(base: KnowledgeBase): KnowledgeIndexStore {
@@ -83,16 +84,24 @@ export class KnowledgeVectorStoreService extends BaseService {
    * (`feature.knowledgebase.data/{baseId}`) — source files, processed artifacts
    * and `index.sqlite` alike. Only safe when deleting the whole base.
    */
-  async deleteStore(baseId: string): Promise<void> {
+  deleteStore(baseId: string): Promise<void> {
     const store = this.instanceCache.get(baseId)
 
     try {
       this.closeStoreInstance(store)
-      await deleteKnowledgeBaseDir(baseId)
-      logger.info('Deleted knowledge index store', { baseId, hadCachedStore: Boolean(store) })
     } finally {
       this.instanceCache.delete(baseId)
     }
+
+    const deletion = deleteKnowledgeBaseDir(baseId).then(() => {
+      logger.info('Deleted knowledge index store', { baseId, hadCachedStore: Boolean(store) })
+    })
+    this.pendingDeletions.add(deletion)
+    void deletion.then(
+      () => this.pendingDeletions.delete(deletion),
+      () => this.pendingDeletions.delete(deletion)
+    )
+    return deletion
   }
 
   protected async onStop(): Promise<void> {
@@ -107,6 +116,7 @@ export class KnowledgeVectorStoreService extends BaseService {
           logger.error('Failed to close knowledge index store', error as Error, { baseId })
         }
       }
+      await Promise.allSettled(this.pendingDeletions)
     } finally {
       this.instanceCache.clear()
       logger.info('Stopped knowledge index stores', { storeCount })
