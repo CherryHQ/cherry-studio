@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { skillRelativePath, skillRoot, verifyMcpSkillFile } from '@main/ai/skills/mcpSkillContent'
 import { skillService } from '@main/ai/skills/SkillService'
 import { t } from '@main/i18n'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { resolveMcpSourceSkillAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 
@@ -114,9 +115,17 @@ export function createSkillsServer(agentId: string, sessionId?: string): McpServ
 
       // SkillService validates the source prefix and (for claude-plugins) resolves the exact directory,
       // rejecting a path that escapes the clone root. The tool never builds the identifier itself.
-      const installed = await skillService.install({ installSource })
+      const installed = await skillService.install({ installSource }, 'agent_tool')
       // Enable the freshly-installed skill for the CURRENT agent only; enablement is per-agent.
       const enabled = skillService.toggle({ skillId: installed.id, agentId, isEnabled: true })
+      if (enabled) {
+        trackMainProductEvent({
+          event: 'feature_used',
+          feature: 'skills',
+          action: 'skill_enabled',
+          origin: 'agent_tool'
+        })
+      }
 
       logger.info('Skill installed via tool', { agentId, installSource, name: installed.name })
       return {

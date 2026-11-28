@@ -339,7 +339,7 @@ export function useResourceCatalogController(
         const created =
           kind === 'assistant'
             ? await createAssistant(buildCreateAssistantDto(values))
-            : await createAgent(buildCreateAgentCommand(values))
+            : await createAgent(buildCreateAgentCommand(values, { entry: 'library' }))
         if (kind === 'assistant') trackAssistantCreated('blank')
 
         refetch()

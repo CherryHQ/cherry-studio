@@ -15,13 +15,18 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { updateAgent } from '@main/ai/agents/updateAgent'
 import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { readToolResult } from '@main/ai/messages/toolResultRead'
 import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
-import { trackAgentSessionCreated, trackMainProductEvent } from '@main/services/productAnalytics'
+import {
+  reportAgentSessionAction,
+  trackAgentSessionCreated,
+  trackMainProductEvent
+} from '@main/services/productAnalytics'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
@@ -218,6 +223,17 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': (input) => createAgent(input),
+  'ai.agent.update': async ({ agentId, updates }) => {
+    try {
+      return updateAgent(agentId, updates)
+    } catch (error) {
+      // Another window can delete the Agent before a stale editor saves.
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        throw new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, error.message)
+      }
+      throw error
+    }
+  },
   'ai.agent.preview_config_change': async ({ approvalId }) => previewAgentConfigChange(approvalId),
   'ai.agent.restore': async ({ agentId }) => {
     try {
@@ -269,25 +285,42 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     await application.get('AgentSessionRuntimeService').listSessionCommands(sessionId)
   },
   'ai.agent.session.delete': ({ sessionIds, permanent }) =>
-    exposeAgentSessionArchiveError(() =>
-      permanent
-        ? application.get('AgentLifecycleService').purgeSessions(sessionIds)
-        : application.get('AgentLifecycleService').archiveSessions(sessionIds)
+    reportAgentSessionAction(
+      permanent ? 'purge' : 'archive',
+      sessionIds.length,
+      () =>
+        exposeAgentSessionArchiveError(() =>
+          permanent
+            ? application.get('AgentLifecycleService').purgeSessions(sessionIds)
+            : application.get('AgentLifecycleService').archiveSessions(sessionIds)
+        ),
+      // A stale request from another window can find the sessions already gone.
+      (result) => result.deletedIds.length
     ),
-  'ai.agent.session.restore': ({ sessionId }) => restoreAgentSession(sessionId),
+  'ai.agent.session.restore': ({ sessionId }) =>
+    reportAgentSessionAction('restore', 1, () => restoreAgentSession(sessionId)),
   'ai.agent.session.delete_permanently': ({ sessionIds }) =>
-    exposeAgentSessionArchiveError(() =>
-      application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
+    reportAgentSessionAction(
+      'purge',
+      sessionIds.length,
+      () =>
+        exposeAgentSessionArchiveError(() =>
+          application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
+        ),
+      (result) => result.deletedIds.length
     ),
   'ai.agent.session.reuse_or_create': async (input) => {
     const result = await application.get('AgentLifecycleService').reuseOrCreateSession(input)
     if (result.created) trackAgentSessionCreated(input.agentId)
+    else trackMainProductEvent({ event: 'agent_session_action', action: 'reuse', status: 'success', count: 1 })
     return result
   },
   'ai.agent.session.fork': async ({ sourceSessionId, messageId }) => {
     try {
       return {
-        sessionId: await application.get('AgentSessionRuntimeService').forkSession(sourceSessionId, messageId)
+        sessionId: await reportAgentSessionAction('fork', 1, () =>
+          application.get('AgentSessionRuntimeService').forkSession(sourceSessionId, messageId)
+        )
       }
     } catch (error) {
       logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })
@@ -362,7 +395,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       throw error
     }
   },
-  'ai.agent.heartbeat.run': ({ agentId }) => application.get('AgentJobsService').runHeartbeat(agentId),
+  'ai.agent.heartbeat.run': async ({ agentId }) => {
+    const result = await application.get('AgentJobsService').runHeartbeat(agentId)
+    trackMainProductEvent({ event: 'agent_context_event', action: 'heartbeat_run', trigger: 'manual', result })
+    return result
+  },
   'ai.agent.task.create': ({ agentId, ...form }) =>
     exposeAgentTaskError(() => {
       const task = application.get('AgentJobsService').createTask(agentId, form)

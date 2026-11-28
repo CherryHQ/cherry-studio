@@ -13,7 +13,7 @@ const logger = loggerService.withContext('CreateAgent')
 
 /** User-initiated creation only; builtin agents are seeded through `ensureBuiltinAgent`. */
 export async function createAgent(request: CreateAgentCommand, source: 'manual' | 'assistant_tool' = 'manual') {
-  const { avatarImage, ...data } = request
+  const { avatarImage, analytics, ...data } = request
   const agentId = uuidv4()
   const agentsDataRoot = application.getPath('feature.agents.data')
   await createAgentDataDirectory(agentsDataRoot, agentId)
@@ -38,7 +38,14 @@ export async function createAgent(request: CreateAgentCommand, source: 'manual' 
     } catch (error) {
       logger.warn('Failed to provision heartbeat schedule for new agent', { agentId, error })
     }
-    trackMainProductEvent({ event: 'agent_created', source })
+    trackMainProductEvent({
+      event: 'agent_created',
+      source,
+      agentType: agent.type,
+      permissionMode: agent.configuration?.permission_mode ?? 'default',
+      entry: source === 'assistant_tool' ? 'assistant_tool' : (analytics?.entry ?? 'dialog'),
+      ...(analytics?.target && { target: analytics.target })
+    })
     return agent
   } catch (error) {
     try {

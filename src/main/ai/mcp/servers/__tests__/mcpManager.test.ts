@@ -2,19 +2,23 @@ import type { Client } from '@modelcontextprotocol/client'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createMock, deleteMock, updateAgentMock, getAgentMock, findMock, updateMock, emitMock } = vi.hoisted(() => ({
-  findMock: vi.fn(),
-  updateMock: vi.fn(),
-  emitMock: vi.fn(),
-  createMock: vi.fn(),
-  deleteMock: vi.fn(),
-  updateAgentMock: vi.fn(),
-  getAgentMock: vi.fn()
-}))
+const { createMock, deleteMock, updateAgentMock, getAgentMock, findMock, updateMock, emitMock, trackMock } = vi.hoisted(
+  () => ({
+    trackMock: vi.fn(),
+    findMock: vi.fn(),
+    updateMock: vi.fn(),
+    emitMock: vi.fn(),
+    createMock: vi.fn(),
+    deleteMock: vi.fn(),
+    updateAgentMock: vi.fn(),
+    getAgentMock: vi.fn()
+  })
+)
 
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { create: createMock, delete: deleteMock, findByConfig: findMock, update: updateMock }
 }))
+vi.mock('@main/services/productAnalytics', () => ({ trackMainProductEvent: trackMock }))
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: getAgentMock, updateAgent: updateAgentMock, emitAgentUpdatedForIds: emitMock }
 }))
@@ -362,6 +366,20 @@ describe('mcp-manager MCP server', () => {
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('bind write failed')
       expect(deleteMock).toHaveBeenCalledWith('server-1')
+    })
+
+    it('reports a server the Agent added only once it is bound, never with its name', async () => {
+      mockAgent()
+      mockCreatedServer()
+      await callTool(createServer(), 'install_mcp_server', { name: 'my-mcp', command: 'npx' })
+      updateAgentMock.mockImplementation(() => {
+        throw new Error('bind write failed')
+      })
+      await callTool(createServer(), 'install_mcp_server', { name: 'other', command: 'npx' })
+
+      expect(trackMock.mock.calls).toEqual([
+        [{ event: 'feature_used', feature: 'mcp', action: 'server_added', status: 'success', origin: 'agent_tool' }]
+      ])
     })
 
     it('rolls back a newly created server when binding returns null', async () => {

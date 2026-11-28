@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { regionService } from '@main/services/RegionService'
 
 import { claudeCodeBinaryManifest } from '../binaryManifest'
@@ -22,6 +23,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 
 vi.mock('../binaryManifest', () => ({ claudeCodeBinaryManifest: { version: '1.2.3', packages: {} } }))
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina: vi.fn() } }))
+vi.mock('@main/services/productAnalytics', () => ({ trackMainProductEvent: vi.fn() }))
 
 let root: string
 let archive: Buffer
@@ -387,5 +389,60 @@ describe('Claude runtime acquisition', () => {
     service.ensure()
     expect(await settled()).toMatchObject({ phase: 'error', error: 'storage' })
     expect(() => service.requireExecutable()).toThrow()
+  })
+})
+
+describe('Claude runtime install analytics', () => {
+  const installs = () => vi.mocked(trackMainProductEvent).mock.calls.map(([event]) => event)
+
+  beforeEach(() => vi.mocked(trackMainProductEvent).mockClear())
+
+  it('reports a successful install once, noting the fallback registry', async () => {
+    vi.mocked(net.fetch).mockRejectedValueOnce(new Error('offline'))
+    service.ensure()
+    await vi.waitFor(() => expect(installs()).toHaveLength(1))
+    expect(installs()[0]).toMatchObject({
+      event: 'agent_runtime_install',
+      result: 'success',
+      retry: false,
+      fallback: true
+    })
+    expect(installs()[0]).not.toHaveProperty('error')
+  })
+
+  it('reports a failed install with its kind, then the retry that repaired it', async () => {
+    vi.mocked(net.fetch).mockImplementation(async () => new Response('corrupt'))
+    service.ensure()
+    await vi.waitFor(() => expect(installs()).toHaveLength(1))
+    vi.mocked(net.fetch).mockImplementation(async () => new Response(new Uint8Array(archive)))
+    service.ensure(true)
+    await vi.waitFor(() => expect(installs()).toHaveLength(2))
+    expect(installs()).toEqual([
+      expect.objectContaining({ result: 'error', error: 'integrity', retry: false }),
+      expect.objectContaining({ result: 'success', retry: true, fallback: false })
+    ])
+  })
+
+  it('does not count a shutdown abort as a failed install', async () => {
+    vi.mocked(net.fetch).mockImplementation(
+      async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array([1]))
+            }
+          })
+        )
+    )
+    service.ensure()
+    await vi.waitFor(() => expect(service.getStatus().receivedBytes).toBe(1))
+    await service._doStop()
+    expect(installs()).toEqual([])
+  })
+
+  it('reports an unsupported platform without downloading', () => {
+    claudeCodeBinaryManifest.packages = {}
+    service.ensure()
+    expect(installs()).toEqual([expect.objectContaining({ result: 'unsupported', fallback: false })])
   })
 })

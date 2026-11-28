@@ -498,6 +498,7 @@ describe('useResourceCatalogController', () => {
     expect(createdId).toBe('agent-created')
 
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
+      analytics: { entry: 'library' },
       configuration: {
         avatar: createValues.avatar,
         permission_mode: 'auto'

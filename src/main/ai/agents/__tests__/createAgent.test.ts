@@ -64,13 +64,36 @@ describe('createAgent', () => {
     )
   })
 
-  it('reports who created the Agent only after it exists', async () => {
-    await createAgent(request)
-    await createAgent(request, 'assistant_tool')
+  it('reports who created the Agent, its runtime, mode, and entry only after it exists', async () => {
+    await createAgent({
+      ...request,
+      configuration: { permission_mode: 'plan' },
+      analytics: { entry: 'marketplace', target: 'code-reviewer' }
+    })
+    await createAgent({ ...request, type: 'pi' }, 'assistant_tool')
     expect(trackProductEvent.mock.calls).toEqual([
-      [{ event: 'agent_created', source: 'manual' }],
-      [{ event: 'agent_created', source: 'assistant_tool' }]
+      [
+        {
+          event: 'agent_created',
+          source: 'manual',
+          agentType: 'claude-code',
+          permissionMode: 'plan',
+          entry: 'marketplace',
+          target: 'code-reviewer'
+        }
+      ],
+      [
+        {
+          event: 'agent_created',
+          source: 'assistant_tool',
+          agentType: 'pi',
+          permissionMode: 'default',
+          entry: 'assistant_tool'
+        }
+      ]
     ])
+    // The analytics tag never reaches the stored Agent.
+    expect(createAgentWithId.mock.calls[0][1]).not.toHaveProperty('analytics')
 
     trackProductEvent.mockClear()
     createAgentWithId.mockImplementation(() => {

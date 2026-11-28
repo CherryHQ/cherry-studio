@@ -117,4 +117,14 @@ describe('buildCreateAgentCommand', () => {
       configuration: { avatar: '🤖', permission_mode: 'acceptEdits' }
     })
   })
+
+  it('tags the command with the creating UI and keeps only static template ids', () => {
+    expect(
+      buildCreateAgentCommand(values, { entry: 'marketplace', templateId: 'agent:code-reviewer' }).analytics
+    ).toEqual({ entry: 'marketplace', target: 'agent:code-reviewer' })
+    expect(buildCreateAgentCommand(values, { entry: 'marketplace', templateId: 'My Template' }).analytics).toEqual({
+      entry: 'marketplace'
+    })
+    expect(buildCreateAgentCommand(values)).not.toHaveProperty('analytics')
+  })
 })

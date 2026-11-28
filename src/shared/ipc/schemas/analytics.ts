@@ -1,11 +1,13 @@
 import * as z from 'zod'
 
 import { type AiFailureReason, aiFailureReasonSchema } from '@cherrystudio/remote-protocol/failure'
+import type { AgentPermissionMode, AgentType } from '@shared/data/api/schemas/agents'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { ANALYTICS_PRESET_ID_PATTERN } from '@shared/utils/analyticsModelSource'
 import { ERROR_CATEGORIES } from '@shared/utils/errorCategory'
 
 import { defineRoute } from '../define'
+import type { HeartbeatRunResult } from './ai'
 
 /**
  * Product analytics event catalog — the only events the generic analytics route accepts.
@@ -61,7 +63,11 @@ export const featureUsedEventSchema = z.strictObject({
     'skill_installed',
     'task_created',
     'channel_connected',
-    'provider_configured'
+    'provider_configured',
+    'skill_enabled',
+    'skill_disabled',
+    'skill_uninstalled',
+    'server_connected'
   ]),
   status: z.enum(['success', 'error']).optional(),
   modelSource: analyticsModelSourceSchema.optional(),
@@ -69,7 +75,10 @@ export const featureUsedEventSchema = z.strictObject({
   target: presetIdSchema.optional(),
   count: z.number().int().nonnegative().optional(),
   durationMs: durationMsSchema.optional(),
-  errorReason: aiFailureReasonSchema.optional()
+  errorReason: aiFailureReasonSchema.optional(),
+  // Where a skill came from; `origin` tells Cherry tool calls apart from the UI.
+  source: z.enum(['marketplace', 'zip', 'local', 'system']).optional(),
+  origin: z.enum(['ui', 'agent_tool']).optional()
 })
 export type FeatureUsedEvent = z.infer<typeof featureUsedEventSchema>
 
@@ -111,8 +120,32 @@ export const BEHAVIOR_ANALYTICS_EVENTS = [
   'topic_action_used',
   'assistant_snapshot',
   'quick_panel_used',
-  'code_block_action'
+  'code_block_action',
+  'agent_setting_changed',
+  'agent_snapshot',
+  'agent_session_action',
+  'tool_approval',
+  'agent_context_event'
 ] as const
+
+/** Where an Agent was created from; renderer callers attach it to the create command. */
+export const agentCreateAnalyticsSchema = z.strictObject({
+  entry: z.enum(['dialog', 'library', 'selector', 'marketplace']),
+  target: presetIdSchema.optional()
+})
+export type AgentCreateAnalytics = z.infer<typeof agentCreateAnalyticsSchema>
+
+/** Who started an Agent turn; 'user' is a person sending from the desktop app. */
+export type AgentTurnSource =
+  | 'user'
+  | 'phone'
+  | 'scheduled_task'
+  | 'heartbeat'
+  | 'channel'
+  | 'delivery'
+  | 'doctor'
+  | 'autonomous'
+  | 'headless'
 
 export const chatBranchSourceSchema = z.enum(['regenerate', 'edit', 'manual', 'mention'])
 export type ChatBranchSource = z.infer<typeof chatBranchSourceSchema>
@@ -270,16 +303,67 @@ export type MainAnalyticsEvent =
   // Restores and relocations end in a relaunch, so their results are reported on the next launch.
   | { event: 'restore_run'; target?: BackupAnalyticsTarget; status: 'completed' | 'failed' }
   | { event: 'data_relocation_run'; copy: boolean; status: 'completed' | 'failed' | 'abandoned' }
-  | {
+  | ({
       event: 'agent_turn_finished'
       status: 'success' | 'error' | 'stopped'
-      trigger: 'user' | 'headless'
+      trigger: AgentTurnSource
       agentKind: 'builtin' | 'custom'
+      agentType: AgentType
+      permissionMode: AgentPermissionMode
       modelSource: AnalyticsModelSource
+      errorReason?: AiFailureReason
       durationMs: number
       toolCallCount: number
+      toolErrorCount: number
+      subagentCount: number
+      skillCount: number
+      // Per-tool counts keyed `tool:<built-in tool name>`; user MCP tools fold into `tool:mcp_custom`.
+    } & Record<`tool:${string}`, number>)
+  | {
+      event: 'agent_created'
+      source: 'manual' | 'assistant_tool'
+      agentType: AgentType
+      permissionMode: AgentPermissionMode
+      entry: AgentCreateAnalytics['entry'] | 'assistant_tool'
+      target?: string
     }
-  | { event: 'agent_created'; source: 'manual' | 'assistant_tool' }
+  | {
+      event: 'agent_runtime_install'
+      result: 'success' | 'error' | 'unsupported'
+      error?: 'network' | 'integrity' | 'storage' | 'installation'
+      retry: boolean
+      // The download came from the fallback registry.
+      fallback: boolean
+      durationMs: number
+    }
+  // Values only for enum and boolean settings; names, instructions, env vars, and cron stay out.
+  | { event: 'agent_setting_changed'; key: string; value?: boolean | string }
+  | ({ event: 'agent_snapshot'; agentCount: number; heartbeatCount: number; withChannelCount: number } & Record<
+      `type:${string}` | `permission:${string}` | `kind:${string}`,
+      number
+    >)
+  | {
+      event: 'agent_session_action'
+      action: 'fork' | 'archive' | 'purge' | 'restore' | 'reuse'
+      status: 'success' | 'error'
+      count: number
+    }
+  | { event: 'remote_paired'; result: 'approved' | 'rejected' | 'expired' | 'error' }
+  | {
+      event: 'tool_approval'
+      surface: 'agent' | 'chat'
+      decision: 'approved' | 'denied' | 'always' | 'session' | 'aborted'
+      // Built-in tool name, else 'mcp_custom' or 'other'.
+      tool: string
+      // Only for live approvals; a persisted chat card has no request time.
+      waitMs?: number
+    }
+  | {
+      event: 'agent_context_event'
+      action: 'compacted' | 'steered' | 'heartbeat_run'
+      trigger?: 'manual' | 'auto'
+      result?: HeartbeatRunResult
+    }
   | { event: 'cherryin_quota_error'; composer: 'chat' | 'agent' }
   | {
       event: 'chat_turn_finished'

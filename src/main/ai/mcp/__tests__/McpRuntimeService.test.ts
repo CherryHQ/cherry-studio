@@ -21,13 +21,15 @@ const interactionMocks = vi.hoisted(() => ({
 const connectionFactoryMocks = vi.hoisted(() => ({
   createExternal: vi.fn()
 }))
+const analyticsMock = vi.hoisted(() => ({ trackProductEvent: vi.fn() }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     McpCatalogService: mcpCatalogMock,
     WindowManager: { getWindow: interactionMocks.getWindow },
-    IpcApiService: { send: interactionMocks.send, broadcastToType: interactionMocks.broadcastToType }
+    IpcApiService: { send: interactionMocks.send, broadcastToType: interactionMocks.broadcastToType },
+    AnalyticsService: analyticsMock
   } as Record<string, unknown>)
 })
 
@@ -488,6 +490,40 @@ describe('McpRuntimeService connect retry gate', () => {
     await expect(service.listTools(server.id)).rejects.toBe(rejected)
     await service.restartServer(server.id)
     expect(create).toHaveBeenCalledTimes(3)
+  })
+
+  it('reports each real connect attempt once, coarsely, never naming a user server', async () => {
+    analyticsMock.trackProductEvent.mockClear()
+    const service = new McpRuntimeService()
+    const create = vi.spyOn(service as any, 'createConnection').mockRejectedValueOnce(rejected)
+
+    await expect(service.listTools(server.id)).rejects.toBe(rejected)
+    // The backoff gate rethrows the cached failure without a new attempt.
+    await expect(service.listTools(server.id)).rejects.toBe(rejected)
+    create.mockResolvedValue(connection)
+    getByIdMock.mockReturnValue({ ...server, baseUrl: 'https://b.example/mcp' })
+    await service.listTools(server.id)
+
+    const events = analyticsMock.trackProductEvent.mock.calls.map(([event]) => event)
+    expect(events).toEqual([
+      { event: 'feature_used', feature: 'mcp', action: 'server_connected', status: 'error', errorReason: 'mcp' },
+      { event: 'feature_used', feature: 'mcp', action: 'server_connected', status: 'success' }
+    ])
+    expect(JSON.stringify(events)).not.toContain('docs')
+  })
+
+  it('names only a built-in install as a preset, not a custom server called @cherry/fetch', async () => {
+    analyticsMock.trackProductEvent.mockClear()
+    const service = new McpRuntimeService()
+    vi.spyOn(service as any, 'createConnection').mockResolvedValue(connection)
+
+    getByIdMock.mockReturnValue({ ...server, name: '@cherry/fetch', installSource: 'manual' })
+    await service.listTools(server.id)
+
+    expect(analyticsMock.trackProductEvent.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'feature_used', feature: 'mcp', action: 'server_connected', status: 'success' }
+    ])
+    getByIdMock.mockReturnValue(server)
   })
 
   it('shows browser authorization and stops reconnecting after the user cancels it', async () => {

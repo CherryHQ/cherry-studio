@@ -818,6 +818,74 @@ describe('AgentSessionRuntimeService', () => {
       mocks.getAgent.mockReset()
     })
 
+    it('reports who started the turn instead of folding it into headless', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, turnSource: 'phone' })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({ ...baseTurnInput, headless: true, turnSource: 'scheduled_task' })
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(finishedTurns().map((event) => event.trigger)).toEqual(['phone', 'scheduled_task'])
+    })
+
+    it('reports the permission mode the turn started with, not a mid-turn change', () => {
+      const service = new AgentSessionRuntimeService()
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: { permission_mode: 'plan' } })
+      service.beginTurn(baseTurnInput)
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: { permission_mode: 'bypassPermissions' } })
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(finishedTurns()).toEqual([expect.objectContaining({ permissionMode: 'plan', agentType: 'test-runtime' })])
+      mocks.getAgent.mockReset()
+    })
+
+    it('reports the mode a channel ran the turn in, not the Agent default', () => {
+      const service = new AgentSessionRuntimeService()
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: { permission_mode: 'default' } })
+      service.beginTurn({ ...baseTurnInput, permissionModeOverride: 'plan' })
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(finishedTurns()).toEqual([expect.objectContaining({ permissionMode: 'plan' })])
+      mocks.getAgent.mockReset()
+    })
+
+    it('reports why a failed turn failed, without the message', () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn(baseTurnInput)
+      const terminal = handle.listeners.find((listener) => listener.id === 'agent-runtime:session-1')!
+      void terminal.onError({
+        status: 'error',
+        isTopicDone: true,
+        error: { message: '401 invalid x-api-key sk-secret', statusCode: 401 }
+      } as never)
+
+      const [event] = finishedTurns()
+      expect(event).toMatchObject({ status: 'error', errorReason: 'auth' })
+      expect(JSON.stringify(event)).not.toContain('sk-secret')
+    })
+
+    it('counts a message the open turn accepted as a steer, never a follow-up or a headless message', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn(() => true) }
+      entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+      entry.runtimeState.execution.reply.admission = 'admitted'
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { followUp: true })
+      service.enqueueUserMessage('session-1', userMessage('user-3'), { headless: true, turnSource: 'channel' })
+      expect(
+        mocks.trackProductEvent.mock.calls.map(([event]) => event).filter((e) => e.event === 'agent_context_event')
+      ).toEqual([])
+
+      service.enqueueUserMessage('session-1', userMessage('user-4'))
+      expect(
+        mocks.trackProductEvent.mock.calls.map(([event]) => event).filter((e) => e.event === 'agent_context_event')
+      ).toEqual([{ event: 'agent_context_event', action: 'steered' }])
+      void service.closeSession('session-1')
+    })
+
     it('never lets analytics failures break turn settlement', () => {
       const service = new AgentSessionRuntimeService()
       mocks.trackProductEvent.mockImplementationOnce(() => {
@@ -944,6 +1012,42 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.respondToolApproval('approval-1', { approved: true })).toEqual({ ok: true })
       expect(resolve).toHaveBeenCalledWith({ approved: true })
       expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
+    })
+
+    it('reports the user answer with the tool and wait time, and an approval the turn abandoned as aborted', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: 1_000 })
+      try {
+        const register = (approvalId: string, toolName: string) =>
+          toolApprovalRegistry.register({
+            approvalId,
+            sessionId: 'session-1',
+            toolCallId: `call-${approvalId}`,
+            toolName,
+            originalInput: {},
+            resolve: vi.fn()
+          })
+        register('approval-a', 'Bash')
+        register('approval-b', 'mcp__0a1b__send_invoice')
+        register('approval-c', 'Write')
+        const service = new AgentSessionRuntimeService()
+        await (service as any).onInit()
+        mocks.trackProductEvent.mockClear()
+        vi.setSystemTime(4_000)
+
+        service.respondToolApproval('approval-a', { approved: true, applicationScope: 'session' })
+        service.respondToolApproval('approval-b', { approved: false, reason: 'no' })
+        toolApprovalRegistry.abort('session-1', 'stream-ended')
+
+        expect(
+          mocks.trackProductEvent.mock.calls.map(([event]) => event).filter((e) => e.event === 'tool_approval')
+        ).toEqual([
+          { event: 'tool_approval', surface: 'agent', decision: 'session', tool: 'Bash', waitMs: 3_000 },
+          { event: 'tool_approval', surface: 'agent', decision: 'denied', tool: 'mcp_custom', waitMs: 3_000 },
+          { event: 'tool_approval', surface: 'agent', decision: 'aborted', tool: 'Write', waitMs: 3_000 }
+        ])
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('settles a persisted background interaction before resolving the requesting agent', () => {
@@ -5047,6 +5151,39 @@ describe('AgentSessionRuntimeService', () => {
       status: 'compacting',
       startedAt: expect.any(String)
     })
+  })
+
+  it('reports each compaction run once, with whether the user or the runtime started it', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    service.markTurnTerminal('session-1', 'success')
+    mocks.trackProductEvent.mockClear()
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start', trigger: 'auto' })
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-complete' })
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-complete' })
+
+    expect(mocks.trackProductEvent.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'agent_context_event', action: 'compacted', trigger: 'auto' }
+    ])
+  })
+
+  it('takes the trigger Claude supplies at the completion boundary, once per run', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    service.markTurnTerminal('session-1', 'success')
+    mocks.trackProductEvent.mockClear()
+    const boundary = { status: 'done', phase: 'agent-session', trigger: 'manual' }
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-complete', anchor: boundary })
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-complete' })
+
+    expect(mocks.trackProductEvent.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'agent_context_event', action: 'compacted', trigger: 'manual' }
+    ])
   })
 
   it('a no-anchor compaction success (no boundary) settles status to idle and is no longer busy (B2)', () => {

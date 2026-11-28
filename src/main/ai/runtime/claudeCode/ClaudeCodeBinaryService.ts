@@ -14,6 +14,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { regionService } from '@main/services/RegionService'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 
@@ -39,6 +40,7 @@ export class ClaudeCodeBinaryService extends BaseService {
   private status: ClaudeCodeBinaryStatus = { version: manifest.version, phase: 'missing', receivedBytes: 0 }
   private pending?: Promise<void>
   private controller?: AbortController
+  private usedFallbackRegistry = false
 
   private get installDir(): string {
     return path.join(application.getPath('feature.claude_code.binary'), manifest.version, this.target)
@@ -94,27 +96,46 @@ export class ClaudeCodeBinaryService extends BaseService {
     if (status.phase === 'error' && !retry) return status
     if (!manifest.packages[this.target]) {
       this.publish({ phase: 'error', error: 'unsupported', receivedBytes: 0 })
+      trackMainProductEvent({
+        event: 'agent_runtime_install',
+        result: 'unsupported',
+        retry,
+        fallback: false,
+        durationMs: 0
+      })
       return this.getStatus()
     }
-    this.controller = new AbortController()
+    const controller = new AbortController()
+    this.controller = controller
+    this.usedFallbackRegistry = false
+    const startedAt = Date.now()
+    const report = (error?: NonNullable<ClaudeCodeBinaryStatus['error']>) =>
+      trackMainProductEvent({
+        event: 'agent_runtime_install',
+        result: error ? 'error' : 'success',
+        ...(error && error !== 'unsupported' && { error }),
+        retry,
+        fallback: this.usedFallbackRegistry,
+        durationMs: Date.now() - startedAt
+      })
     this.publish({ phase: 'downloading', receivedBytes: 0 })
-    this.pending = this.install(this.controller.signal)
+    this.pending = this.install(controller.signal)
+      .then(() => report())
       .catch((error) => {
         logger.warn('Claude Code binary installation failed', { error })
         const code = (error as NodeJS.ErrnoException).code
-        this.publish({
-          phase: 'error',
-          receivedBytes: this.status.receivedBytes,
-          error:
-            error instanceof BinaryStorageError ||
-            ['ENOSPC', 'EACCES', 'EPERM', 'EROFS', 'EIO', 'ENOTDIR'].includes(code ?? '')
-              ? 'storage'
-              : error instanceof BinaryIntegrityError
-                ? 'integrity'
-                : this.status.phase === 'installing'
-                  ? 'installation'
-                  : 'network'
-        })
+        const kind =
+          error instanceof BinaryStorageError ||
+          ['ENOSPC', 'EACCES', 'EPERM', 'EROFS', 'EIO', 'ENOTDIR'].includes(code ?? '')
+            ? 'storage'
+            : error instanceof BinaryIntegrityError
+              ? 'integrity'
+              : this.status.phase === 'installing'
+                ? 'installation'
+                : 'network'
+        this.publish({ phase: 'error', receivedBytes: this.status.receivedBytes, error: kind })
+        // Shutdown aborts the download; that is not a failed install.
+        if (!controller.signal.aborted) report(kind)
       })
       .finally(() => {
         this.pending = undefined
@@ -152,6 +173,7 @@ export class ClaudeCodeBinaryService extends BaseService {
             pkg.integrity,
             signal
           )
+          this.usedFallbackRegistry = index > 0
           break
         } catch (error) {
           signal.throwIfAborted()

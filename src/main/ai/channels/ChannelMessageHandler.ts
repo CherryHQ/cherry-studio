@@ -906,6 +906,7 @@ export class ChannelMessageHandler {
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
         permissionModeOverride: channel.permissionMode ?? undefined,
+        turnSource: 'channel',
         requireIdle: { expectedAgentId: session.agentId }
       })
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.

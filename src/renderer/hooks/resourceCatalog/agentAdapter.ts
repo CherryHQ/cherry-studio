@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
@@ -64,15 +65,18 @@ export function useAgentMutations() {
 /** Mutation hook scoped to a single agent id. */
 export function useAgentMutationsById(id: string) {
   const path = `/agents/${id}` as const
+  const invalidate = useInvalidateCache()
 
-  const { trigger: updateTrigger } = useMutation('PATCH', path, {
-    // skillUpdates writes the agent_skill join table, which backs `GET /skills?agentId=…`
-    // (per-agent isEnabled projection) — refresh it so those lists don't go stale.
-    refresh: ({ args }) => (args?.body?.skillUpdates !== undefined ? ['/agents', path, '/skills'] : ['/agents', path])
-  })
+  // The command reports the setting and skill changes; DataApi routes stay persistence-only.
   const updateAgent = useCallback(
-    (dto: UpdateAgentDto): Promise<AgentDetail> => updateTrigger({ body: dto }),
-    [updateTrigger]
+    async (dto: UpdateAgentDto): Promise<AgentDetail> => {
+      const agent = await ipcApi.request('ai.agent.update', { agentId: id, updates: dto })
+      // skillUpdates writes the agent_skill join table, which backs `GET /skills?agentId=…`
+      // (per-agent isEnabled projection) — refresh it so those lists don't go stale.
+      await invalidate(dto.skillUpdates !== undefined ? ['/agents', path, '/skills'] : ['/agents', path])
+      return agent
+    },
+    [id, invalidate, path]
   )
 
   return { updateAgent }

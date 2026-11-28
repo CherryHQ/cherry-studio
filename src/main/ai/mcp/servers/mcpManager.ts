@@ -4,6 +4,7 @@ import * as z from 'zod'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { CreateMcpServerSchema } from '@shared/data/api/schemas/mcpServers'
 import { McpServerTypeSchema } from '@shared/data/types/mcpServer'
 
@@ -197,6 +198,13 @@ export function createMcpManagerServer(agentId: string): McpServer {
         throw error
       }
 
+      trackMainProductEvent({
+        event: 'feature_used',
+        feature: 'mcp',
+        action: 'server_added',
+        status: 'success',
+        origin: 'agent_tool'
+      })
       logger.info('MCP server installed via tool', {
         agentId,
         serverId: created.id,

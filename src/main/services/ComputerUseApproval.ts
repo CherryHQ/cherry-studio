@@ -1,6 +1,7 @@
 import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
+import { COMPUTER_USE_APP_APPROVAL, trackToolApproval } from '@main/ai/agentSession/agentTurnAnalytics'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type {
   ComputerUseApp,
@@ -42,7 +43,10 @@ export class ComputerUseApproval {
   respond(approvalId: string, scope: ComputerUseApprovalScope, windowId: string | null): boolean {
     const pending = [...this.pending.values()].find((entry) => entry.request.approvalId === approvalId)
     if (!pending || pending.windowId !== windowId || pending.cancel.signal.aborted) return false
-    return !!toolApprovalRegistry.dispatch(approvalId, { approved: scope !== 'reject', applicationScope: scope })
+    const decision = { approved: scope !== 'reject', applicationScope: scope }
+    if (!toolApprovalRegistry.dispatch(approvalId, decision)) return false
+    trackToolApproval('agent', COMPUTER_USE_APP_APPROVAL, decision)
+    return true
   }
 
   async authorize(

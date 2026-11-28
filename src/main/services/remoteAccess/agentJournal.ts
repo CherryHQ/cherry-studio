@@ -276,6 +276,7 @@ export class SessionJournal {
         sessionId: this.sessionId,
         userParts: [...(text.trim() ? [{ type: 'text' as const, text }] : []), ...attachments],
         listeners: [listener],
+        turnSource: 'phone',
         requireIdle: { expectedAgentId },
         beforePersist,
         onPersist: (tx, messages) => {

@@ -4,6 +4,7 @@ import type { PostHog } from 'posthog-node'
 import { application } from '@application'
 import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
 import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
+import { agentService } from '@data/services/AgentService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
@@ -404,6 +405,11 @@ export class AnalyticsService extends BaseService implements Activatable {
     } catch (error) {
       logger.warn('Assistant snapshot skipped', error as Error)
     }
+    try {
+      this.trackProductEvent({ event: 'agent_snapshot', ...agentService.countForAnalytics() })
+    } catch (error) {
+      logger.warn('Agent snapshot skipped', error as Error)
+    }
   }
 
   // Rapid edits of one setting (sliders, typing) report once with the last value; text values stay out.
@@ -480,7 +486,9 @@ export class AnalyticsService extends BaseService implements Activatable {
       local_weekday: ((now.getDay() + 6) % 7) + 1
     }
     for (const [key, value] of Object.entries(fields)) {
-      if (value !== undefined) properties[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] = value
+      if (value === undefined) continue
+      // Prefixed keys (`setting:`, `tool:`, `type:`) carry static ids verbatim, e.g. `tool:Bash`.
+      properties[key.includes(':') ? key : key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] = value
     }
     // Launch events keep the device id, which is never merged into an account.
     const identity = DEVICE_EVENTS.has(event)

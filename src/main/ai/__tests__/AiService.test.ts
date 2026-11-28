@@ -2137,6 +2137,33 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('reports a chat tool approval decision without its input', async () => {
+    const trackProductEvent = vi.fn()
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService')
+        return { respondToolApproval: () => ({ ok: false, reason: 'rejected' }) }
+      if (name === 'AiStreamManager') return { dispatchCommand: vi.fn(), hasLiveStream: () => false }
+      if (name === 'AnalyticsService') return { trackProductEvent }
+      return undefined
+    })
+    const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'output-denied', input: { command: 'rm -rf' } }]
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(
+      approvalMutationResult(committed, ['mcp-approval-1']) as never
+    )
+
+    await getApprovalHandler()(fakeEvent(), {
+      approvalId: 'mcp-approval-1',
+      approved: false,
+      topicId: 'topic-1',
+      anchorId: 'anchor-1'
+    })
+
+    const events = trackProductEvent.mock.calls.map(([event]) => event)
+    expect(events).toEqual([expect.objectContaining({ event: 'tool_approval', surface: 'chat', decision: 'denied' })])
+    expect(events[0]).not.toHaveProperty('waitMs')
+    expect(JSON.stringify(events)).not.toContain('rm -rf')
+  })
+
   it('skips the continuation (ok:false) when there is no caller window to stream it to', async () => {
     const respondToolApproval = vi.fn(() => ({ ok: false, reason: 'rejected' }))
     const dispatch = vi.fn().mockResolvedValue(undefined)

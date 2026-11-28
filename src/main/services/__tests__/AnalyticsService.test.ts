@@ -2,6 +2,7 @@ import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-moc
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AnalyticsClient, AnalyticsClientOptions } from '@cherrystudio/analytics-client'
+import { agentService } from '@data/services/AgentService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { BaseService } from '@main/core/lifecycle'
@@ -865,6 +866,17 @@ describe('AnalyticsService daily snapshots', () => {
       withWebSearch: 1,
       withKnowledge: 0
     })
+    vi.spyOn(agentService, 'countForAnalytics').mockReturnValue({
+      agentCount: 3,
+      heartbeatCount: 1,
+      withChannelCount: 1,
+      'type:claude-code': 2,
+      'type:pi': 1,
+      'permission:plan': 1,
+      'permission:default': 2,
+      'kind:builtin': 1,
+      'kind:custom': 2
+    })
   })
 
   afterEach(() => {
@@ -962,6 +974,46 @@ describe('AnalyticsService daily snapshots', () => {
     })
   })
 
+  it('keeps prefixed ids verbatim while snake-casing field names', async () => {
+    const service = await startService()
+    service.trackProductEvent({
+      event: 'agent_turn_finished',
+      status: 'success',
+      trigger: 'user',
+      agentKind: 'custom',
+      agentType: 'claude-code',
+      permissionMode: 'acceptEdits',
+      modelSource: 'own_key',
+      durationMs: 10,
+      toolCallCount: 2,
+      toolErrorCount: 0,
+      subagentCount: 0,
+      skillCount: 0,
+      'tool:Bash': 1,
+      'tool:WebFetch': 1
+    })
+
+    expect(captures('agent_turn_finished')[0].properties).toMatchObject({
+      permission_mode: 'acceptEdits',
+      tool_call_count: 2,
+      'tool:Bash': 1,
+      'tool:WebFetch': 1
+    })
+  })
+
+  it('reports Agent counts by runtime and permission mode alongside the settings', async () => {
+    await startService()
+
+    expect(captures('agent_snapshot')[0].properties).toMatchObject({
+      agent_count: 3,
+      heartbeat_count: 1,
+      with_channel_count: 1,
+      'type:claude-code': 2,
+      'permission:plan': 1,
+      'kind:builtin': 1
+    })
+  })
+
   it("omits a value outside a setting's fixed options", async () => {
     captured.preferenceValues['ui.theme_mode'] = 'sepia'
     await startService()
@@ -988,6 +1040,7 @@ describe('AnalyticsService daily snapshots', () => {
     expect(captures('settings_snapshot')).toEqual([])
     expect(captures('chat_branch_snapshot')).toEqual([])
     expect(captures('assistant_snapshot')).toEqual([])
+    expect(captures('agent_snapshot')).toEqual([])
     expect(MockMainCacheServiceExport.cacheService.getPersist('analytics.snapshot.last_day')).toBeNull()
   })
 

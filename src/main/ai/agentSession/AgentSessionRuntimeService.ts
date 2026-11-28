@@ -3,6 +3,7 @@ import { isToolUIPart } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import type { AiFailureReason } from '@cherrystudio/remote-protocol/failure'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
@@ -69,7 +70,7 @@ import {
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
-import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, AgentPermissionMode, AgentType, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import {
@@ -81,6 +82,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import type { AgentTurnSource } from '@shared/ipc/schemas/analytics'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
@@ -140,6 +142,7 @@ import {
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
 import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
+import { summarizeAgentTurnTools, trackToolApproval } from './agentTurnAnalytics'
 import { childTimelines } from './childTimelines'
 import { validateEditedInput } from './editInput'
 import { markLocalInput, nativeOutcomeTerminal, releaseNativeInputBinding } from './nativeSubmission'
@@ -195,6 +198,8 @@ export interface BeginAgentSessionTurnInput {
   userMessage?: AgentSessionMessageEntity
   headless?: boolean
   permissionModeOverride?: AgentPermissionMode
+  /** Analytics only: who started the turn; unset means the desktop user unless headless. */
+  turnSource?: AgentTurnSource
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
@@ -266,6 +271,9 @@ type AgentSessionRun = {
   origin?: AutonomousTurnOrigin
   headless?: boolean
   permissionModeOverride?: AgentPermissionMode
+  turnSource?: AgentTurnSource
+  /** Agent permission mode when the turn began; the composer toggle can change it mid-turn. */
+  permissionMode?: AgentPermissionMode
   trustedNotifyChannels?: readonly NotifyChannel[]
   /** A background run continued this reply after its input ended; Stop then ends that run, not the input. */
   continuedInBackground?: boolean
@@ -282,6 +290,7 @@ type QueuedAgentSessionInput = {
   /** The follow-up must open a responder-less/headless turn. */
   headless?: boolean
   permissionModeOverride?: AgentPermissionMode
+  turnSource?: AgentTurnSource
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   /** Submit-time author snapshot so a mid-session agent/model change can't restamp the reply. */
@@ -341,6 +350,8 @@ type AgentSessionRuntimeEntry = {
   deferredPlacements?: (readonly string[])[]
   recoveryHeadless?: boolean
   compactionAnchorId?: string
+  /** The trigger a compaction start carried; Claude supplies it only at the completion boundary. */
+  compactionTrigger?: AgentSessionCompactionTrigger
   /** Native answers can arrive while their queued placement still awaits a reply. */
   pendingRunCheckpoints?: Map<string, RuntimeForkAnchor>
   /** Pending input outcomes share one aggregate per Run provisionally settled by a queued placement. */
@@ -406,7 +417,8 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 
   onError(result: StreamErrorResult): void {
     if (result.isTopicDone === false) return
-    this.service.markTurnTerminal(this.sessionId, 'error', this.turnId)
+    const reason = (result.failure ?? toExecutionFailure(result.error, result.modelId)).failure.reasonCode
+    this.service.markTurnTerminal(this.sessionId, 'error', this.turnId, reason)
   }
 
   isAlive(): boolean {
@@ -647,7 +659,14 @@ export class AgentSessionRuntimeService extends BaseService {
     this.registerDisposable(
       agentSessionMessageService.onBranchSelected(({ sessionId, head }) => this.selectBranchStream(sessionId, head))
     )
-    this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))
+    this.registerDisposable(
+      toolApprovalRegistry.onAborted((aborted) => {
+        if (aborted.presentation !== 'application') {
+          trackToolApproval('agent', aborted.toolName, 'aborted', aborted.registeredAt)
+        }
+        this.retireAbortedApprovalCard(aborted)
+      })
+    )
   }
 
   /**
@@ -938,6 +957,9 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode: input.fastMode === true,
       headless: input.headless === true,
       permissionModeOverride: input.permissionModeOverride,
+      turnSource: input.turnSource,
+      // A channel or task can run the turn in another mode than the Agent's own.
+      permissionMode: input.permissionModeOverride ?? readPermissionMode(input.agentId),
       trustedNotifyChannels: input.trustedNotifyChannels
     })
     const { turnId } = turn
@@ -1142,6 +1164,8 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds: source.knowledgeBaseIds,
       fastMode: source.fastMode,
       headless: source.headless === true && inputs.every((item) => item.headless === true),
+      // Placed inputs run inside the source's native execution, in its mode.
+      permissionMode: source.permissionMode,
       trustedNotifyChannels: source.trustedNotifyChannels
     })
     return turn
@@ -1417,6 +1441,7 @@ export class AgentSessionRuntimeService extends BaseService {
     opts: {
       headless?: boolean
       permissionModeOverride?: AgentPermissionMode
+      turnSource?: AgentTurnSource
       trustedNotifyChannels?: readonly NotifyChannel[]
       messageSnapshot?: MessageSnapshot
       reasoningEffort?: ReasoningEffortOption
@@ -1497,8 +1522,11 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.execution.reply.delivery.kind === 'open' &&
       this.isTurnLive(entry, turn) &&
       submitNatively(connection?.redirect?.bind(connection))
-    )
+    ) {
+      // Only an accepted redirect steers; a follow-up or queued message waits for the next turn.
+      trackMainProductEvent({ event: 'agent_context_event', action: 'steered' })
       return
+    }
     // A runtime with native admission holds the message in its own queue, which survives a crash.
     if (interactive && submitNatively(connection?.followUp?.bind(connection))) return
 
@@ -1515,13 +1543,19 @@ export class AgentSessionRuntimeService extends BaseService {
         steer: true,
         ...(headless ? { headless } : {}),
         ...(opts.permissionModeOverride ? { permissionModeOverride: opts.permissionModeOverride } : {}),
+        ...(opts.turnSource ? { turnSource: opts.turnSource } : {}),
         ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
         ...(messageSnapshot ? { messageSnapshot } : {})
       }
     })
   }
 
-  markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
+  markTurnTerminal(
+    sessionId: string,
+    status: AgentSessionRuntimeTerminalStatus,
+    expectedTurnId?: string,
+    errorReason?: AiFailureReason
+  ): void {
     const entry = expectedTurnId
       ? this.entryForTurn(sessionId, (turn) => turn.turnId === expectedTurnId)
       : this.entries.get(sessionId)
@@ -1539,7 +1573,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.execution.kind === 'run-handoff' && entry.runtimeState.execution.source.turn === completedTurn
     this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
     const trackFinished = (finalStatus: AgentSessionRuntimeTerminalStatus) =>
-      this.trackTurnFinished(entry, completedTurn, finalStatus)
+      this.trackTurnFinished(entry, completedTurn, finalStatus, finalStatus === status ? errorReason : undefined)
     if (status === 'success' && !isRowRoll) this.startPromptPrediction(entry)
     const terminal: AgentSessionTurnTerminalEvent = {
       sessionId,
@@ -1558,6 +1592,33 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     this.refreshIdleTimer(entry)
     if (!this.isSessionBusy(sessionId)) this._onRuntimeIdle.fire({ sessionId })
+  }
+
+  private trackTurnFinished(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionRun,
+    status: AgentSessionRuntimeTerminalStatus,
+    errorReason?: AiFailureReason
+  ): void {
+    try {
+      const { tools, ...toolCounts } = summarizeAgentTurnTools(turn.projection?.parts(turn.runId))
+      trackMainProductEvent({
+        event: 'agent_turn_finished',
+        status: status === 'paused' ? 'stopped' : status,
+        // Scheduled tasks, channel messages, and runtime-opened turns are not a user asking.
+        trigger: turn.turnSource ?? (turn.origin ? 'autonomous' : turn.headless ? 'headless' : 'user'),
+        agentKind: analyticsAgentKind(entry.agentId),
+        agentType: entry.agentType as AgentType,
+        permissionMode: turn.permissionMode ?? 'default',
+        modelSource: analyticsModelSource(parseUniqueModelId(turn.modelId).providerId),
+        ...(status === 'error' && errorReason && { errorReason }),
+        durationMs: Date.now() - turn.startedAt,
+        ...toolCounts,
+        ...tools
+      })
+    } catch (error) {
+      logger.debug('Skipped agent turn analytics', { sessionId: entry.sessionId, error })
+    }
   }
 
   /**
@@ -1645,27 +1706,6 @@ export class AgentSessionRuntimeService extends BaseService {
       if (native) trackFinished?.(native.status)
     } catch (error) {
       logger.warn('Failed to apply the native outcome to a stopped reply', { sessionId: entry.sessionId, error })
-    }
-  }
-
-  private trackTurnFinished(
-    entry: AgentSessionRuntimeEntry,
-    turn: AgentSessionRun,
-    status: AgentSessionRuntimeTerminalStatus
-  ): void {
-    try {
-      trackMainProductEvent({
-        event: 'agent_turn_finished',
-        status: status === 'paused' ? 'stopped' : status,
-        // Scheduled tasks, channel messages, and runtime-opened turns are not a user asking.
-        trigger: turn.headless || turn.origin ? 'headless' : 'user',
-        agentKind: analyticsAgentKind(entry.agentId),
-        modelSource: analyticsModelSource(parseUniqueModelId(turn.modelId).providerId),
-        durationMs: Date.now() - turn.startedAt,
-        toolCallCount: turn.projection?.parts(turn.runId)?.filter(isToolUIPart).length ?? 0
-      })
-    } catch (error) {
-      logger.debug('Skipped agent turn analytics', { sessionId: entry.sessionId, error })
     }
   }
 
@@ -2098,6 +2138,7 @@ export class AgentSessionRuntimeService extends BaseService {
       ...(!decision.approved && { reasonSource: 'user' as const })
     })
     if (!dispatched) return { ok: false, reason: 'rejected' }
+    trackToolApproval('agent', dispatched.toolName, decision, dispatched.registeredAt)
 
     if (dispatched.presentation === 'stream') {
       const entry = this.entryForContext(dispatched.sessionId, dispatched.contextId)
@@ -3018,6 +3059,7 @@ export class AgentSessionRuntimeService extends BaseService {
             : entry.messageSnapshot,
           headless,
           origin: event.origin,
+          permissionMode: readPermissionMode(entry.agentId),
           ...(background ? { runId: assistantMessageId } : {})
         })
         if (background) turn.projection = projection
@@ -3096,6 +3138,7 @@ export class AgentSessionRuntimeService extends BaseService {
       data: { status: 'compacting', phase: 'agent-session', trigger, startedAt: new Date().toISOString() }
     })
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: true })
+    entry.compactionTrigger = trigger
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'compacting',
       startedAt: new Date().toISOString(),
@@ -3153,6 +3196,12 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
+    // One event per run: only the first completion after a start still holds its anchor id.
+    if (entry.compactionAnchorId && anchor?.status !== 'skipped') {
+      const trigger = anchor?.trigger ?? entry.compactionTrigger
+      trackMainProductEvent({ event: 'agent_context_event', action: 'compacted', ...(trigger && { trigger }) })
+    }
+    delete entry.compactionTrigger
     if (anchor || entry.compactionAnchorId)
       this.deliverRuntimeChunk(entry, {
         type: 'data-compaction-anchor',
@@ -3957,6 +4006,8 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode: pending.fastMode,
       headless: pending.headless,
       permissionModeOverride: pending.permissionModeOverride,
+      turnSource: pending.turnSource,
+      permissionMode: pending.permissionModeOverride ?? readPermissionMode(entry.agentId),
       trustedNotifyChannels: pending.trustedNotifyChannels
     })
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
@@ -4492,5 +4543,13 @@ function createSessionRun(
     messageSnapshot: input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined,
     abortController: new AbortController(),
     activeToolIds: new Set()
+  }
+}
+
+function readPermissionMode(agentId: string): AgentPermissionMode {
+  try {
+    return agentService.getAgent(agentId)?.configuration?.permission_mode ?? 'default'
+  } catch {
+    return 'default'
   }
 }

@@ -59,26 +59,33 @@ const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' 
 const BUILTIN_VERSION_FILE = '.version'
 const CHERRY_MARKETPLACE_NAMESPACE = marketplaceSkillNamespace('')
 
+const REPORTED_SKILL_SOURCES = ['marketplace', 'zip', 'local', 'system'] as const
+type SkillInstallProvenance = { namespace?: string | null; origin?: 'ui' | 'agent_tool' }
+
 /** Only Cherry's own marketplace catalog ids are reported; other sources name user or third-party skills. */
-function reportSkillInstalled(status: 'success' | 'error', namespace: string | null | undefined): void {
+function reportSkillInstalled(status: 'success' | 'error', source: string, provenance: SkillInstallProvenance): void {
+  const { namespace, origin = 'ui' } = provenance
   const target = namespace?.startsWith(CHERRY_MARKETPLACE_NAMESPACE)
     ? namespace.slice(CHERRY_MARKETPLACE_NAMESPACE.length)
     : undefined
+  const reportedSource = REPORTED_SKILL_SOURCES.find((value) => value === source)
   trackMainProductEvent({
     event: 'feature_used',
     feature: 'skills',
     action: 'skill_installed',
     status,
+    origin,
+    ...(reportedSource && { source: reportedSource }),
     ...(target && presetIdSchema.safeParse(target).success && { target })
   })
 }
 
 /** A package that never arrives is a failed install too; member writes report their own outcome. */
-async function reportAcquisitionFailure<T>(acquire: Promise<T>, namespace?: string): Promise<T> {
+async function reportAcquisitionFailure<T>(acquire: Promise<T>, provenance: SkillInstallProvenance): Promise<T> {
   try {
     return await acquire
   } catch (error) {
-    reportSkillInstalled('error', namespace)
+    reportSkillInstalled('error', 'marketplace', provenance)
     throw error
   }
 }
@@ -229,6 +236,7 @@ export class SkillService {
         throw new Error(`Skill not found: ${skillId}`)
       }
       await this.uninstallLocked(skill)
+      trackMainProductEvent({ event: 'feature_used', feature: 'skills', action: 'skill_uninstalled', origin: 'ui' })
     })
   }
 
@@ -253,12 +261,12 @@ export class SkillService {
    * "skills.sh:{owner}/{repo}/{skillId}", "clawhub:{owner}/{slug}",
    * or "github:{https URL of the skill's SKILL.md}".
    */
-  async install(options: SkillInstallOptions): Promise<InstalledSkill> {
+  async install(options: SkillInstallOptions, origin: 'ui' | 'agent_tool' = 'ui'): Promise<InstalledSkill> {
     const [source, ...rest] = options.installSource.split(':')
-    const fetched = await reportAcquisitionFailure(fetchRemoteSkill(source, rest.join(':')))
+    const fetched = await reportAcquisitionFailure(fetchRemoteSkill(source, rest.join(':')), { origin })
 
     try {
-      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
+      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl, { origin })
       fetched.onInstalled?.()
       return installed
     } finally {
@@ -276,10 +284,11 @@ export class SkillService {
 
   private async installMarketplacePackage(id: string): Promise<MarketplaceInstallResult> {
     const namespace = marketplaceSkillNamespace(id)
-    const downloaded = await reportAcquisitionFailure(
-      getMarketplaceSkill(id).then((skill) => downloadMarketplaceSkill(skill)),
-      namespace
-    )
+    // The requested id is caller input until the catalog knows it; only the catalog id is a preset.
+    const skill = await reportAcquisitionFailure(getMarketplaceSkill(id), {})
+    const downloaded = await reportAcquisitionFailure(downloadMarketplaceSkill(skill), {
+      namespace: marketplaceSkillNamespace(skill.id)
+    })
     const result: MarketplaceInstallResult = {
       members: downloaded.directories.map(({ path, name }) => ({ path, name })),
       installed: [],
@@ -623,7 +632,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: SkillInstallProvenance = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -634,12 +643,12 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: SkillInstallProvenance = {}
   ): Promise<InstalledSkill> {
     try {
       return await this.addSkillDirToLibrary(skillDir, source, sourceUrl, provenance)
     } catch (error) {
-      reportSkillInstalled('error', provenance.namespace)
+      reportSkillInstalled('error', source, provenance)
       throw error
     }
   }
@@ -648,7 +657,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null }
+    provenance: SkillInstallProvenance
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -766,7 +775,7 @@ export class SkillService {
       this.enableForAllAgents(inserted.id)
     } else {
       // Only first installs report success; any failed attempt reports an error.
-      reportSkillInstalled('success', provenance.namespace)
+      reportSkillInstalled('success', source, provenance)
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })
