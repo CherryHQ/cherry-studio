@@ -5,6 +5,7 @@ import type { ComponentProps, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUiModule from '@cherrystudio/ui'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import type { InstalledSkill } from '@shared/data/types/agent'
 
 const mocks = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   },
   ipcRequest: vi.fn(),
   flushBrowser: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   launchSkill: vi.fn(),
   navigate: vi.fn(),
   query: { data: undefined, error: undefined, isLoading: false } as {
@@ -48,6 +50,10 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
 }))
 vi.mock('@renderer/hooks/useSkillLauncher', () => ({ useSkillLauncher: () => mocks.launchSkill }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
+}))
 vi.mock('@renderer/components/resourceCatalog/catalog/SkillSourceBadge', () => ({
   SkillSourceBadge: ({ source, sourceUrl }: { source: string; sourceUrl?: string | null }) => (
     <span data-source-url={sourceUrl ?? ''} data-testid="source-badge">
@@ -100,6 +106,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  Alert: (await importOriginal<typeof CherryUiModule>()).Alert,
   Label: (await importOriginal<typeof CherryUiModule>()).Label,
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({ children, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
@@ -112,25 +119,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
       </button>
     )
   },
-  ConfirmDialog: ({
-    confirmText,
-    open,
-    onConfirm,
-    title
-  }: {
-    confirmText?: ReactNode
-    open: boolean
-    onConfirm: () => Promise<void>
-    title: ReactNode
-  }) =>
-    open ? (
-      <div role="dialog">
-        <span>{title}</span>
-        <button type="button" onClick={() => void onConfirm()}>
-          {confirmText}
-        </button>
-      </div>
-    ) : null,
+  ConfirmDialog: (await importOriginal<typeof CherryUiModule>()).ConfirmDialog,
   DropdownMenu: (await importOriginal<typeof CherryUiModule>()).DropdownMenu,
   DropdownMenuContent: (await importOriginal<typeof CherryUiModule>()).DropdownMenuContent,
   DropdownMenuCheckboxItem: (await importOriginal<typeof CherryUiModule>()).DropdownMenuCheckboxItem,
@@ -139,20 +128,26 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   DropdownMenuTrigger: (await importOriginal<typeof CherryUiModule>()).DropdownMenuTrigger,
   EmptyState: ({
     actionLabel,
+    description,
+    detail,
     onAction,
     title
   }: {
     actionLabel?: ReactNode
+    description?: ReactNode
+    detail?: ReactNode
     onAction?: () => void
     title: ReactNode
   }) => (
     <div>
       <span>{title}</span>
+      {description}
       {actionLabel ? (
         <button type="button" onClick={onAction}>
           {actionLabel}
         </button>
       ) : null}
+      {detail}
     </div>
   ),
   Skeleton: () => <div data-testid="skeleton" />,
@@ -161,6 +156,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
 }))
 
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import { SkillDetails } from '../SkillDetails'
 
@@ -222,9 +218,36 @@ describe('SkillDetails', () => {
     expect(screen.getAllByTestId('skeleton')).toHaveLength(2)
 
     view.unmount()
-    mocks.query = { data: undefined, error: new Error('missing'), isLoading: false }
+    const missing = DataApiErrorFactory.notFound('Skill', 'skill-1')
+    mocks.query = { data: undefined, error: missing, isLoading: false }
     render(<SkillDetails skillId="skill-1" />)
     expect(screen.getByText('settings.skills.notFound')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
+    expect(screen.queryByText(missing.message)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('skill-file-browser')).not.toBeInTheDocument()
+  })
+
+  it('shows load details for a skill record failure and hides the raw cause', () => {
+    mocks.query = { data: undefined, error: new Error('database locked'), isLoading: false }
+    render(<SkillDetails skillId="skill-1" />)
+
+    expect(screen.getByText('library.skill_detail.load_failed')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
+    expect(screen.queryByText('database locked')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.skills.notFound')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('skill-file-browser')).not.toBeInTheDocument()
+  })
+
+  it('shows file-load details when the skill folder cannot be resolved', () => {
+    mocks.folder = { data: undefined, error: new Error('folder missing on disk'), isLoading: false }
+    render(<SkillDetails skillId="skill-1" />)
+
+    expect(screen.getByText('library.skill_detail.file_load_failed')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
+    expect(screen.queryByText('folder missing on disk')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.skill_detail.no_files')).not.toBeInTheDocument()
     expect(screen.queryByTestId('skill-file-browser')).not.toBeInTheDocument()
   })
 
@@ -314,6 +337,35 @@ describe('SkillDetails', () => {
     expect(toggle).not.toHaveAttribute('aria-disabled', 'true')
   })
 
+  // The confirmation traps focus, so a Details entry that only lives in the global toast is unreachable by keyboard.
+  it('keeps a failed uninstall inside its confirmation with keyboard-reachable Details', async () => {
+    const failure = new Error('uninstall rejected')
+    mocks.uninstallSkill.mockRejectedValueOnce(failure)
+    const user = userEvent.setup()
+    render(<SkillDetails skillId="skill-1" />)
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(screen.getByRole('menuitem', { name: /library.action.uninstall/ }))
+    const dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'library.action.uninstall' }))
+
+    expect(await within(dialog).findByText('common.delete_failed')).toBeVisible()
+    const details = within(dialog).getByRole('button', { name: 'common.detail' })
+    for (let step = 0; step < 10 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(mocks.openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      message: 'uninstall rejected',
+      source: 'skills',
+      operation: 'skill.delete',
+      recordId: 'skill-1'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(mocks.navigate).not.toHaveBeenCalled()
+    expect(dialog).toBeInTheDocument()
+  })
+
   it('returns to the list from the header', () => {
     render(<SkillDetails skillId="skill-1" />)
 
@@ -364,5 +416,33 @@ describe('SkillDetails', () => {
       })
     )
     expect(mocks.flushBrowser).toHaveBeenCalledTimes(2)
+  })
+  it('labels an editor flush failure before a remote check as the flush, not the check', async () => {
+    const user = userEvent.setup()
+    mocks.query = {
+      data: createSkill({
+        source: 'marketplace',
+        sourceUrl: 'https://skills.sh/owner/repo/writer',
+        contentHash: `directory-sha256:${'a'.repeat(64)}`
+      }),
+      error: undefined,
+      isLoading: false
+    }
+    mocks.flushBrowser.mockRejectedValueOnce(new Error('disk full'))
+    render(<SkillDetails skillId="skill-1" />)
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(screen.getByRole('menuitem', { name: 'settings.skills.remote.check' }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({ operation: 'skill.files.flush', message: 'disk full' })
+          })
+        })
+      )
+    )
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('skill.remote.check', expect.anything())
   })
 })

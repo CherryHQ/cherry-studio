@@ -8,6 +8,7 @@ import {
   redactDiagnosticText,
   redactLiteral,
   redactRecord,
+  redactSecretLiterals,
   redactSecretText,
   redactServerKey,
   redactUrlParams,
@@ -380,5 +381,31 @@ describe('redactLiteral', () => {
   it('ignores an empty secret instead of destroying the text', () => {
     expect(redactLiteral('text', '')).toBe('text')
     expect(redactLiteral('text', undefined)).toBe('text')
+  })
+})
+
+describe('redactSecretLiterals', () => {
+  it('masks every known secret in nested strings and leaves other values intact', () => {
+    const value = { statusCode: 401, body: { detail: ['bad key gw7Qx9LmZ2vR4nT8'] }, note: 'other gw7Qx9LmZ2vR4nT8' }
+    expect(redactSecretLiterals(value, ['gw7Qx9LmZ2vR4nT8'])).toEqual({
+      statusCode: 401,
+      body: { detail: [`bad key ${REDACTED}`] },
+      note: `other ${REDACTED}`
+    })
+  })
+
+  it('ignores an empty secret instead of destroying the text', () => {
+    expect(redactSecretLiterals('text', [''])).toBe('text')
+  })
+
+  // A shorter key masked first used to break the longer key's match and leak its suffix.
+  it('masks a longer secret whole when a shorter secret is its prefix, in either order', () => {
+    expect(redactSecretLiterals('key gw7Qx9LmZ2vR4nT8', ['gw7Qx9Lm', 'gw7Qx9LmZ2vR4nT8'])).toBe(`key ${REDACTED}`)
+    expect(redactSecretLiterals('key gw7Qx9LmZ2vR4nT8', ['gw7Qx9LmZ2vR4nT8', 'gw7Qx9Lm'])).toBe(`key ${REDACTED}`)
+  })
+
+  it('masks secrets that partially overlap in the original text without leaving either tail', () => {
+    const result = redactSecretLiterals('token abcXYZdef end', ['abcXYZ', 'XYZdef'])
+    expect(result).toBe(`token ${REDACTED} end`)
   })
 })

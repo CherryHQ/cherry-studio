@@ -1,18 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { ipcApi } from '@renderer/ipc'
+import { diagnosticErrorFromUnknown } from '@renderer/services/AppErrorContextService'
 import type { OutputFor } from '@shared/ipc/types'
 import type { EventPayload } from '@shared/ipc/types'
+import { redactSecretLiterals } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('McpResourcePreview')
 
 export default function McpResourcePreview({ serverId, uri }: { serverId: string; uri: string }) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState<OutputFor<'mcp.server.read_resource_preview'>>()
-  const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState<unknown>(null)
   const [revision, setRevision] = useState(0)
   const [subscription, setSubscription] =
     useState<Exclude<EventPayload<'mcp.resource.changed'>['state'], 'updated'>>('reconnecting')
@@ -38,7 +42,7 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
   useEffect(() => {
     const requestId = crypto.randomUUID()
     let active = true
-    setFailed(false)
+    setFailure(null)
     void ipcApi
       .request('mcp.server.read_resource_preview', {
         serverId,
@@ -53,7 +57,7 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
         },
         (error) => {
           if (active) {
-            setFailed(true)
+            setFailure(error)
             logger.warn('MCP resource preview failed', { serverId, error })
           }
         }
@@ -63,6 +67,13 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
       void ipcApi.request('mcp.request.cancel', { requestId }).catch(() => undefined)
     }
   }, [serverId, uri, revision])
+
+  // A missing-resource error echoes the URI; a signed query or fragment must not reach Details.
+  const detailError = useMemo(() => {
+    const route = uri.split(/[?#]/, 1)[0]
+    if (!failure || route === uri) return failure
+    return redactSecretLiterals(diagnosticErrorFromUnknown(failure) ?? failure, [uri], route)
+  }, [failure, uri])
 
   return (
     <section className="flex flex-col gap-2 py-2" aria-label={t('common.preview')}>
@@ -81,8 +92,14 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
           {t('common.refresh')}
         </Button>
       </div>
-      {failed ? (
-        <Alert type="error" message={t('common.error')} />
+      {failure ? (
+        <ErrorNotice
+          variant="inline"
+          title={t('file_preview.load_error.title')}
+          detail={
+            <ErrorDetailAction error={detailError} source="mcp" operation="mcp.resource.preview" recordId={serverId} />
+          }
+        />
       ) : !preview ? (
         <Spinner text={t('common.loading')} />
       ) : (

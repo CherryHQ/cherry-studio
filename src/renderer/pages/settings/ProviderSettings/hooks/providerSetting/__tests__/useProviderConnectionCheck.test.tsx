@@ -308,6 +308,116 @@ describe('useProviderConnectionCheck', () => {
     }
   )
 
+  it('keeps a prefix-less key echoed in a 401 body out of the toast Details and the stored result', async () => {
+    const key = 'c7f1e9a2b4d6tenantkey'
+    apiKeyEntries = [{ id: 'key-1', key, label: 'Primary', isEnabled: true }]
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) => [
+      {
+        ...failedResult(credentials[0], `Unauthorized: invalid key ${key}`),
+        error: {
+          name: 'AI_APICallError',
+          message: `Unauthorized: invalid key ${key}`,
+          stack: null,
+          statusCode: 401,
+          responseBody: `{"error":"key ${key} is not valid"}`
+        }
+      }
+    ])
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+
+    const shown = toast.getToastQueue().toasts[0]
+    expect(shown).toBeDefined()
+    expect(JSON.stringify({ cause: shown.cause, data: shown.data, title: shown.title })).not.toContain(key)
+    const stored = result.current.singleModelResult
+    const storedErrors = [
+      stored?.kind === 'failed' ? stored.error : undefined,
+      ...(stored?.keyResults ?? []).map((keyResult) => (keyResult.kind === 'failed' ? keyResult.error : undefined))
+    ]
+    expect(storedErrors.some(Boolean)).toBe(true)
+    expect(JSON.stringify(storedErrors)).not.toContain(key)
+  })
+
+  // The probe also sends the provider's custom headers, so an echoed header value is a credential too.
+  it('keeps an echoed custom header value out of the toast Details and the stored result', async () => {
+    const headerToken = 'hdr-Hd83kLq0ZpW1'
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        isEnabled: false,
+        settings: { extraHeaders: { 'X-Gateway-Token': headerToken } }
+      },
+      enableProvider: enableProviderMock
+    })
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => ({
+        ...failedResult(credential),
+        error: {
+          name: 'AI_APICallError',
+          message: `Unauthorized: bad gateway token ${headerToken}`,
+          stack: null,
+          statusCode: 401,
+          responseBody: `{"error":"token ${headerToken} rejected"}`
+        }
+      }))
+    )
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+
+    const shown = toast.getToastQueue().toasts[0]
+    expect(shown).toBeDefined()
+    expect(JSON.stringify({ cause: shown.cause, data: shown.data, title: shown.title })).not.toContain(headerToken)
+    const stored = result.current.singleModelResult
+    expect(stored?.kind).toBe('failed')
+    expect(JSON.stringify(stored)).not.toContain(headerToken)
+  })
+
+  // A gateway may echo the token from a configured `Authorization: Bearer …` header without its scheme.
+  it('keeps the bare credential of a configured authorization header out of the toast Details and the stored result', async () => {
+    const bareToken = 'gw-Qz81mNc4TbVx'
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        isEnabled: false,
+        settings: { extraHeaders: { Authorization: `Bearer ${bareToken}` } }
+      },
+      enableProvider: enableProviderMock
+    })
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => ({
+        ...failedResult(credential),
+        error: {
+          name: 'AI_APICallError',
+          message: `Unauthorized: invalid token ${bareToken}`,
+          stack: null,
+          statusCode: 401,
+          responseBody: `{"error":"token ${bareToken} rejected"}`
+        }
+      }))
+    )
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+
+    const shown = toast.getToastQueue().toasts[0]
+    expect(shown).toBeDefined()
+    expect(JSON.stringify({ cause: shown.cause, data: shown.data, title: shown.title })).not.toContain(bareToken)
+    const stored = result.current.singleModelResult
+    expect(stored?.kind).toBe('failed')
+    expect(JSON.stringify(stored)).not.toContain(bareToken)
+    expect(JSON.stringify(stored)).toContain('Unauthorized: invalid token')
+  })
+
   it('uses the first failed credential for mixed-error feedback while retaining every result', async () => {
     apiKeyEntries.push({ id: 'key-3', key: 'sk-third', label: 'Third', isEnabled: true })
     const firstFailure = {

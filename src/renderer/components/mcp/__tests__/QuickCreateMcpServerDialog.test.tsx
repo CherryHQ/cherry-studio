@@ -1,10 +1,19 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import QuickCreateMcpServerDialog from '../QuickCreateMcpServerDialog'
+
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
+}))
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -107,6 +116,56 @@ describe('QuickCreateMcpServerDialog', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('common.name')
     expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  // The modal traps focus, so a Details entry that only lives in the global toast is unreachable by keyboard.
+  it('keeps the dialog open with keyboard-reachable Details for a create failure', async () => {
+    const failure = new Error('registry down')
+    const { onCreate, onOpenChange, user } = setup(vi.fn().mockRejectedValue(failure))
+
+    await user.type(screen.getByLabelText('settings.mcp.name'), 'new-server')
+    await user.type(screen.getByLabelText('settings.mcp.command'), 'npx')
+    await user.click(submit())
+
+    const dialog = screen.getByRole('dialog')
+    const notice = await within(dialog).findByText('settings.mcp.addError')
+    expect(notice).not.toHaveTextContent('registry down')
+    within(dialog).getByRole('button', { name: 'common.detail' }).focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          localizedErrorMessage: 'settings.mcp.addError',
+          context: expect.objectContaining({
+            message: 'registry down',
+            source: 'settings.mcp',
+            operation: 'mcp.server.create',
+            recordId: 'new-server'
+          })
+        })
+      )
+    )
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(onCreate).toHaveBeenCalledOnce()
+  })
+
+  it('shows why the server was rejected instead of offering it as a fault', async () => {
+    const rejection = DataApiErrorFactory.conflict('MCP server name already exists')
+    const { onOpenChange, user } = setup(vi.fn().mockRejectedValue(rejection))
+
+    await user.type(screen.getByLabelText('settings.mcp.name'), 'new-server')
+    await user.type(screen.getByLabelText('settings.mcp.command'), 'npx')
+    await user.click(submit())
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({
+        title: 'settings.mcp.addError',
+        description: 'MCP server name already exists',
+        data: { suppressDetail: true }
+      })
+    )
+    expect(onOpenChange).not.toHaveBeenCalled()
   })
 
   it('resets registry options when reopened', async () => {

@@ -12,7 +12,7 @@ import type {
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
-import type { ApiKeyEntry } from '@shared/data/types/provider'
+import type { ApiKeyEntry, ProviderSettings } from '@shared/data/types/provider'
 
 import { useHealthCheck } from './useHealthCheck'
 
@@ -22,6 +22,8 @@ interface ModelListHealthRunContextValue {
   providerId: string
   models: readonly Model[]
   apiKeyEntries: readonly ApiKeyEntry[]
+  /** Sent with every check request, so error details must mask these values too. */
+  extraHeaders: ProviderSettings['extraHeaders']
   canSelectApiKey: boolean
   requiresApiKey: boolean
   modelCheckOpen: boolean
@@ -111,6 +113,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       providerId,
       models: single.models,
       apiKeyEntries: credentials.apiKeyEntries,
+      extraHeaders: single.extraHeaders,
       canSelectApiKey: credentials.canSelectApiKey,
       requiresApiKey: credentials.requiresApiKey,
       modelCheckOpen,
@@ -131,6 +134,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       credentials.apiKeyEntries,
       credentials.canSelectApiKey,
       credentials.requiresApiKey,
+      single.extraHeaders,
       all.completedModelStatuses,
       isHealthChecking,
       closeModelCheck,

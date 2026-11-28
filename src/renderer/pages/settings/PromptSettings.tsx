@@ -3,7 +3,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  Alert,
   Badge,
   Button,
   ConfirmDialog,
@@ -22,7 +21,9 @@ import {
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
+import { PromptEditDialog, type PromptEditFailure } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import {
   agentAdapter,
@@ -30,9 +31,8 @@ import {
   usePromptMutations,
   usePromptMutationsById
 } from '@renderer/hooks/resourceCatalog'
-import { toast } from '@renderer/services/toast'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Prompt, PromptBindingRelation, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
 
@@ -56,6 +56,10 @@ export function PromptSettings() {
   const [pendingVisibilityChange, setPendingVisibilityChange] = useState<PendingVisibilityChange | null>(null)
   const [savingPrompt, setSavingPrompt] = useState(false)
   const [deletingPrompt, setDeletingPrompt] = useState(false)
+  // Failures stay inside their focus-trapped dialogs, where a toast's Details is out of keyboard reach.
+  const [saveFailure, setSaveFailure] = useState<PromptEditFailure | null>(null)
+  const [visibilityFailure, setVisibilityFailure] = useState<PromptEditFailure | null>(null)
+  const [deleteFailure, setDeleteFailure] = useState<PromptEditFailure | null>(null)
   const { data, error, isLoading, refetch } = useQuery('/prompts', {})
   const prompts = useMemo(() => data ?? [], [data])
   const {
@@ -145,6 +149,7 @@ export function PromptSettings() {
   const handleSavePrompt = useCallback(
     async (payload: PromptFormValue) => {
       setSavingPrompt(true)
+      setSaveFailure(null)
       try {
         if (promptDialogPrompt) {
           if (promptDialogPrompt.visibility === 'restricted' && payload.visibility === 'global') {
@@ -175,12 +180,14 @@ export function PromptSettings() {
             return
           }
         }
-        toast.error(
-          formatErrorMessageWithPrefix(
-            err,
-            t(promptDialogPrompt ? 'settings.prompts.errors.updateFailed' : 'settings.prompts.errors.createFailed')
-          )
-        )
+        setSaveFailure({
+          error: err,
+          title: t(
+            promptDialogPrompt ? 'settings.prompts.errors.updateFailed' : 'settings.prompts.errors.createFailed'
+          ),
+          operation: promptDialogPrompt ? 'prompt.update' : 'prompt.create',
+          ...(promptDialogPrompt ? { recordId: promptDialogPrompt.id } : {})
+        })
         throw err
       } finally {
         setSavingPrompt(false)
@@ -193,6 +200,7 @@ export function PromptSettings() {
     if (!pendingVisibilityChange) return
 
     setSavingPrompt(true)
+    setVisibilityFailure(null)
     try {
       await updatePrompt({
         ...pendingVisibilityChange.payload,
@@ -207,34 +215,54 @@ export function PromptSettings() {
           setPendingVisibilityChange((current) => (current ? { ...current, bindings: refreshedBindings } : current))
         }
       }
-      toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.updateFailed')))
-      throw err
+      setVisibilityFailure({
+        error: err,
+        title: t('settings.prompts.errors.updateFailed'),
+        operation: 'prompt.update',
+        ...(promptDialogPrompt ? { recordId: promptDialogPrompt.id } : {})
+      })
+      return false
     } finally {
       setSavingPrompt(false)
     }
-  }, [pendingVisibilityChange, refetchActiveBindings, t, updatePrompt])
+    return true
+  }, [pendingVisibilityChange, promptDialogPrompt, refetchActiveBindings, t, updatePrompt])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) return
 
     setDeletingPrompt(true)
+    setDeleteFailure(null)
     try {
       await deletePrompt()
       setDeleteTarget(null)
     } catch (err) {
-      toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.deleteFailed')))
-      throw err
+      setDeleteFailure({
+        error: err,
+        title: t('settings.prompts.errors.deleteFailed'),
+        operation: 'prompt.delete',
+        recordId: deleteTarget.id
+      })
+      return false
     } finally {
       setDeletingPrompt(false)
     }
+    return true
   }, [deletePrompt, deleteTarget, t])
 
   const handleReorderError = useCallback(
     (err: unknown) => {
-      toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.reorderFailed')))
+      toastAppError(t('settings.prompts.errors.reorderFailed'), err, {
+        source: 'settings.prompts',
+        operation: 'prompt.reorder'
+      })
     },
     [t]
   )
+  const openPromptDialog = (prompt: Prompt | null) => {
+    setSaveFailure(null)
+    setPromptDialog({ prompt })
+  }
   const handleRetryBindingData = useCallback(() => {
     void refetchAllBindings()
     refetchAssistants()
@@ -257,7 +285,7 @@ export function PromptSettings() {
             style={{ borderRadius: 8 }}
           />
         </div>
-        <Button size="sm" onClick={() => setPromptDialog({ prompt: null })}>
+        <Button size="sm" onClick={() => openPromptDialog(null)}>
           <Plus size={12} />
           {t('settings.prompts.add')}
         </Button>
@@ -266,17 +294,18 @@ export function PromptSettings() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {error ? (
           <div className="flex min-h-full items-center justify-center p-4">
-            <Alert
-              type="error"
-              showIcon
-              message={t('settings.prompts.errors.loadFailed')}
-              description={error.message}
-              action={
-                <Button variant="outline" size="sm" onClick={() => void refetch()}>
-                  {t('common.retry')}
-                </Button>
+            <ErrorNotice
+              className="max-w-lg"
+              title={t('settings.prompts.errors.loadFailed')}
+              action={{ label: t('common.retry'), onClick: () => void refetch() }}
+              detail={
+                <ErrorDetailAction
+                  error={error}
+                  message={t('settings.prompts.errors.loadFailed')}
+                  source="settings.prompts"
+                  operation="prompt.list"
+                />
               }
-              className="max-w-lg rounded-md px-4 py-3 shadow-none"
             />
           </div>
         ) : isLoading ? (
@@ -308,7 +337,7 @@ export function PromptSettings() {
                   dragHandleProps={state.dragHandleProps}
                   isLoadingBindings={isLoadingAllBindings}
                   isLoadingTargets={isLoadingAssistants || isLoadingAgents}
-                  onEdit={() => setPromptDialog({ prompt })}
+                  onEdit={() => openPromptDialog(prompt)}
                   onDelete={() => setDeleteTarget(prompt)}
                   onRetry={handleRetryBindingData}
                   targets={targetOptions}
@@ -324,6 +353,7 @@ export function PromptSettings() {
         open={promptDialog !== null}
         prompt={promptDialogPrompt}
         saving={savingPrompt}
+        failure={saveFailure}
         onSave={handleSavePrompt}
         onCancel={() => {
           if (!savingPrompt) setPromptDialog(null)
@@ -333,7 +363,9 @@ export function PromptSettings() {
       <ConfirmDialog
         open={pendingVisibilityChange !== null}
         onOpenChange={(open) => {
-          if (!open && !savingPrompt) setPendingVisibilityChange(null)
+          if (open || savingPrompt) return
+          setPendingVisibilityChange(null)
+          setVisibilityFailure(null)
         }}
         title={t('settings.prompts.visibility.makeGlobalConfirmTitle')}
         description={t('settings.prompts.visibility.makeGlobalConfirmDescription', {
@@ -343,13 +375,16 @@ export function PromptSettings() {
         cancelText={t('common.cancel')}
         destructive
         confirmLoading={savingPrompt}
+        content={<PromptFailureNotice failure={visibilityFailure} />}
         onConfirm={handleConfirmVisibilityChange}
       />
 
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open && !deletingPrompt) setDeleteTarget(null)
+          if (open || deletingPrompt) return
+          setDeleteTarget(null)
+          setDeleteFailure(null)
         }}
         title={t('settings.prompts.delete')}
         description={
@@ -367,9 +402,29 @@ export function PromptSettings() {
         cancelText={t('common.cancel')}
         destructive
         confirmLoading={deletingPrompt}
+        content={<PromptFailureNotice failure={deleteFailure} />}
         onConfirm={handleConfirmDelete}
       />
     </SettingsContentBody>
+  )
+}
+
+function PromptFailureNotice({ failure }: { failure: PromptEditFailure | null }) {
+  if (!failure) return null
+  return (
+    <ErrorNotice
+      variant="inline"
+      title={failure.title}
+      detail={
+        <ErrorDetailAction
+          error={failure.error}
+          message={failure.title}
+          source="settings.prompts"
+          operation={failure.operation}
+          {...(failure.recordId ? { recordId: failure.recordId } : {})}
+        />
+      }
+    />
   )
 }
 

@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
+import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import { PromptSettings } from '../PromptSettings'
@@ -56,6 +58,7 @@ const mocks = vi.hoisted(() => ({
   createPrompt: vi.fn(),
   deletePrompt: vi.fn(),
   refetch: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   refetchBindings: vi.fn(),
   updatePrompt: vi.fn(),
   useQuery: vi.fn()
@@ -83,10 +86,12 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   PromptEditDialog: ({
+    failure,
     onSave,
     open,
     prompt
   }: {
+    failure?: { title: string } | null
     onSave: (value: { title: string; content: string; visibility: 'global' | 'restricted' }) => Promise<void>
     open: boolean
     prompt?: (typeof prompts)[number] | null
@@ -94,10 +99,15 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
     open ? (
       <div data-testid="prompt-edit-dialog">
         <span>{prompt ? `edit:${prompt.title}` : 'create'}</span>
+        {failure ? <span role="status">{failure.title}</span> : null}
         <button
           type="button"
           onClick={() =>
-            void onSave({ title: 'Saved title', content: 'Saved content', visibility: prompt?.visibility ?? 'global' })
+            void onSave({
+              title: 'Saved title',
+              content: 'Saved content',
+              visibility: prompt?.visibility ?? 'global'
+            }).catch(() => undefined)
           }>
           save prompt
         </button>
@@ -114,10 +124,11 @@ vi.mock('../PromptTargetPopover', () => ({
   PromptTargetPopover: () => null
 }))
 
-vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
 }))
+vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -126,7 +137,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Alert: ({ message }: { message: ReactNode }) => <div role="alert">{message}</div>,
+  Alert: ({ children }: { children?: ReactNode }) => <div role="alert">{children}</div>,
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
@@ -147,6 +158,7 @@ vi.mock('@cherrystudio/ui', () => ({
   ConfirmDialog: ({
     cancelText,
     confirmText,
+    content,
     description,
     onConfirm,
     onOpenChange,
@@ -155,8 +167,9 @@ vi.mock('@cherrystudio/ui', () => ({
   }: {
     cancelText: string
     confirmText: string
+    content?: ReactNode
     description: ReactNode
-    onConfirm: () => Promise<void>
+    onConfirm: () => Promise<boolean | void>
     onOpenChange: (open: boolean) => void
     open: boolean
     title: string
@@ -164,7 +177,14 @@ vi.mock('@cherrystudio/ui', () => ({
     open ? (
       <div role="dialog" aria-label={title}>
         <span>{description}</span>
-        <button type="button" onClick={() => void onConfirm().catch(() => undefined)}>
+        {content}
+        <button
+          type="button"
+          onClick={() =>
+            void onConfirm().then((result) => {
+              if (result !== false) onOpenChange(false)
+            })
+          }>
           {confirmText}
         </button>
         <button type="button" onClick={() => onOpenChange(false)}>
@@ -243,6 +263,26 @@ describe('PromptSettings', () => {
 
     expect(screen.getByText('Global prompt')).toBeInTheDocument()
     expect(screen.getByText('Targeted prompt')).toBeInTheDocument()
+  })
+
+  it('opens load-failure details under the translated summary, keeping the raw text in the error', async () => {
+    const user = userEvent.setup()
+    const failure = new Error('SQLITE_BUSY: database is locked')
+    mocks.useQuery.mockImplementation((path: string) =>
+      path === '/prompts'
+        ? { data: undefined, error: failure, isLoading: false, refetch: mocks.refetch }
+        : { data: [], error: undefined, isLoading: false, refetch: mocks.refetchBindings }
+    )
+    render(<PromptSettings />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.prompts.errors.loadFailed')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('SQLITE_BUSY')
+    await user.click(within(screen.getByRole('alert')).getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    const [request] = mocks.openErrorDetail.mock.calls[0]
+    expect(request.localizedErrorMessage).toBe('settings.prompts.errors.loadFailed')
+    expect(request.error.message).toBe('SQLITE_BUSY: database is locked')
   })
 
   it('creates a prompt with its selected visibility', async () => {
@@ -391,5 +431,60 @@ describe('PromptSettings', () => {
     expect(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).toHaveTextContent(
       'settings.prompts.deleteRestrictedConfirm'
     )
+  })
+  it('keeps a failed delete inside its dialog with Details for the raw cause', async () => {
+    const user = userEvent.setup()
+    const cause = new Error('SQLITE_BUSY: database is locked')
+    mocks.deletePrompt.mockRejectedValueOnce(cause)
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.delete Global prompt' }))
+    const dialog = screen.getByRole('dialog', { name: 'settings.prompts.delete' })
+    await user.click(within(dialog).getByRole('button', { name: 'common.delete' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('settings.prompts.errors.deleteFailed')
+    await user.click(within(dialog).getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(mocks.openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      message: 'SQLITE_BUSY: database is locked',
+      operation: 'prompt.delete',
+      recordId: prompts[0].id
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).toBeInTheDocument()
+  })
+
+  it('keeps a failed visibility confirmation inside its dialog with Details for the update', async () => {
+    const user = userEvent.setup()
+    mocks.refetchBindings.mockResolvedValue([{ type: 'agent' as const, id: 'agent-1' }])
+    mocks.updatePrompt.mockRejectedValueOnce(new Error('disk I/O error'))
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit Targeted prompt' }))
+    await user.click(screen.getByRole('button', { name: 'save global prompt' }))
+    const dialog = await screen.findByRole('dialog', { name: 'settings.prompts.visibility.makeGlobalConfirmTitle' })
+    await user.click(within(dialog).getByRole('button', { name: 'common.confirm' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('settings.prompts.errors.updateFailed')
+    await user.click(within(dialog).getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(mocks.openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      operation: 'prompt.update',
+      recordId: prompts[1].id
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('hands a failed save to the edit dialog instead of a toast behind it', async () => {
+    const user = userEvent.setup()
+    mocks.updatePrompt.mockRejectedValueOnce(new Error('disk I/O error'))
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit Global prompt' }))
+    await user.click(screen.getByRole('button', { name: 'save prompt' }))
+
+    const dialog = screen.getByTestId('prompt-edit-dialog')
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('settings.prompts.errors.updateFailed')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

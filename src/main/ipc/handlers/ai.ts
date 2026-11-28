@@ -343,7 +343,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     try {
       return await application.get('AgentJobsService').writeHeartbeatDocument(agentId, document)
     } catch (error) {
-      if (error instanceof PathStaleVersionError) throw new IpcError(fileErrorCodes.STALE_VERSION, error.message)
+      // The stale-version message carries the absolute file path; the renderer branches on the code alone.
+      if (error instanceof PathStaleVersionError) {
+        throw new IpcError(fileErrorCodes.STALE_VERSION, 'Heartbeat file changed since it was read')
+      }
       throw error
     }
   },

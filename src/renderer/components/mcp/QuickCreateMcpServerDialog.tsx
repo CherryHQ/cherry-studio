@@ -18,7 +18,10 @@ import {
   Form,
   ScrollArea
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { toast } from '@renderer/services/toast'
+import { isDataApiError } from '@shared/data/api/errors'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 
@@ -47,6 +50,8 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
   const [serverType, setServerType] = useState<McpServerType>('stdio')
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // The modal traps focus, so the failure it stays open for keeps its Details inside it.
+  const [createFailure, setCreateFailure] = useState<{ cause: unknown; name: string } | null>(null)
 
   const form = useForm<McpFormValues>({
     resolver: zodResolver(buildMcpSchema(t)) as any,
@@ -58,6 +63,7 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
   useEffect(() => {
     if (!open) return
     form.reset(MCP_FORM_DEFAULT_VALUES)
+    setCreateFailure(null)
     resetRegistryState()
     setServerType('stdio')
     setAdvancedOpen(false)
@@ -86,11 +92,16 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
     }
 
     setSubmitting(true)
+    setCreateFailure(null)
     try {
       await onCreate({ ...toMcpServerFields(values), name, isActive: false, installSource: 'manual' })
       onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
+      if (isDataApiError(error) && error.isClientError) {
+        toast.error({ title: t('settings.mcp.addError'), description: error.message, data: { suppressDetail: true } })
+        return
+      }
+      setCreateFailure({ cause: error, name })
     } finally {
       setSubmitting(false)
     }
@@ -130,6 +141,22 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
             </form>
           </Form>
         </ScrollArea>
+
+        {createFailure ? (
+          <ErrorNotice
+            variant="inline"
+            title={t('settings.mcp.addError')}
+            detail={
+              <ErrorDetailAction
+                error={createFailure.cause}
+                message={t('settings.mcp.addError')}
+                source="settings.mcp"
+                operation="mcp.server.create"
+                recordId={createFailure.name}
+              />
+            }
+          />
+        ) : null}
 
         <DialogFooter>
           <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>

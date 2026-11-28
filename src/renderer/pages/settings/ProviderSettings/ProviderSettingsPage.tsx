@@ -3,8 +3,10 @@ import { omit } from 'es-toolkit/compat'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Spinner } from '@cherrystudio/ui'
+import { Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { AppRouter } from '@renderer/types/router'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
@@ -144,17 +146,18 @@ export default function ProviderSettingsPage() {
   if (error && !hasLoaded) {
     return (
       <div className="flex h-full w-full items-center justify-center p-6">
-        <Alert
-          type="error"
-          showIcon
-          message={t('common.error')}
-          description={error.message}
-          action={
-            <Button variant="outline" size="sm" onClick={() => void refetch()}>
-              {t('common.retry')}
-            </Button>
+        <ErrorNotice
+          className="max-w-lg"
+          title={t('common.load_failed')}
+          action={{ label: t('common.retry'), onClick: () => void refetch() }}
+          detail={
+            <ErrorDetailAction
+              error={error}
+              message={t('common.load_failed')}
+              source="settings.provider"
+              operation="provider.list"
+            />
           }
-          className="max-w-lg rounded-md px-4 py-3 shadow-none"
         />
       </div>
     )

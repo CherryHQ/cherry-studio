@@ -22,13 +22,17 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { SkillSourceBadge } from '@renderer/components/resourceCatalog/catalog'
 import { SettingDescription, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useSkillLauncher } from '@renderer/hooks/useSkillLauncher'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type { SkillRemoteUpdateCheck } from '@shared/types/skill'
@@ -50,6 +54,8 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   const globalToggleId = useId()
   const [isUpdatingMirror, setIsUpdatingMirror] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // The confirmation traps focus, so its failure stays inside it rather than in a toast.
+  const [deleteFailure, setDeleteFailure] = useState<unknown>(null)
   const [deleting, setDeleting] = useState(false)
   const [remoteCheck, setRemoteCheck] = useState<Extract<SkillRemoteUpdateCheck, { state: 'available' }> | null>(null)
   const [checkingRemote, setCheckingRemote] = useState(false)
@@ -67,7 +73,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       await ipcApi.request('skill.folder.open', { skillId })
     } catch (error) {
       logger.error('Failed to open Skill folder', error as Error, { skillId })
-      toast.error(t('library.skill_detail.open_folder_failed'))
+      toastAppError(t('library.skill_detail.open_folder_failed'), error, {
+        source: 'skills',
+        operation: 'skill.folder.open',
+        recordId: skillId
+      })
     }
   }
 
@@ -77,7 +87,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       await updateGlobalEnabled(checked)
     } catch (error) {
       logger.error('Failed to update Skill global state', error as Error, { skillId })
-      toast.error(t('settings.skills.toggleFailed', { name: skill.name }))
+      toastAppError(t('settings.skills.toggleFailed', { name: skill.name }), error, {
+        source: 'skills',
+        operation: 'skill.toggle',
+        recordId: skillId
+      })
     }
   }
 
@@ -97,21 +111,28 @@ export function SkillDetails({ skillId }: { skillId: string }) {
 
   const handleDelete = async () => {
     setDeleting(true)
+    setDeleteFailure(null)
     try {
       await uninstallSkill()
       setDeleteOpen(false)
       goBack()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
+      logger.error('Failed to uninstall Skill', error as Error, { skillId })
+      setDeleteFailure(error)
+      return false
     } finally {
       setDeleting(false)
     }
+    return true
   }
 
   const checkRemoteUpdate = async () => {
     setCheckingRemote(true)
+    // Pending edits are saved and synced first; a failure there never reached the remote.
+    let operation = 'skill.files.flush'
     try {
       await fileBrowserRef.current?.flush()
+      operation = 'skill.remote.check'
       const result = await ipcApi.request('skill.remote.check', { skillId })
       if (result.state === 'unsupported') {
         toast.info({
@@ -134,7 +155,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       setRemoteCheck(result)
     } catch (error) {
       logger.error('Failed to check Skill update', error as Error, { skillId })
-      toast.error(t('settings.skills.remote.checkFailed'))
+      toastAppError(t('settings.skills.remote.checkFailed'), error, {
+        source: 'skills',
+        operation,
+        recordId: skillId
+      })
     } finally {
       setCheckingRemote(false)
     }
@@ -143,8 +168,10 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   const applyRemoteUpdate = async () => {
     if (!remoteCheck) return
     setApplyingRemote(true)
+    let operation = 'skill.files.flush'
     try {
       await fileBrowserRef.current?.flush()
+      operation = 'skill.remote.apply'
       await ipcApi.request('skill.remote.apply', {
         skillId,
         revision: remoteCheck.revision,
@@ -164,7 +191,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
         setTimeout(() => void checkRemoteUpdate(), 0)
       } else {
         logger.error('Failed to apply Skill update', error as Error, { skillId })
-        toast.error(t('settings.skills.remote.applyFailed'))
+        toastAppError(t('settings.skills.remote.applyFailed'), error, {
+          source: 'skills',
+          operation,
+          recordId: skillId
+        })
       }
     } finally {
       setApplyingRemote(false)
@@ -182,12 +213,34 @@ export function SkillDetails({ skillId }: { skillId: string }) {
     )
   }
 
-  if (!skill || error) {
+  if (error && !isDataApiNotFoundError(error)) {
+    const summary = t('library.skill_detail.load_failed')
+    return (
+      <SettingsContentBody className="min-h-0 flex-1">
+        <EmptyState
+          title={summary}
+          actionLabel={t('common.back')}
+          onAction={goBack}
+          className="min-h-80"
+          detail={
+            <ErrorDetailAction
+              error={error}
+              message={summary}
+              source="skills"
+              operation="skill.load"
+              recordId={skillId}
+            />
+          }
+        />
+      </SettingsContentBody>
+    )
+  }
+
+  if (!skill || isDataApiNotFoundError(error)) {
     return (
       <SettingsContentBody className="min-h-0 flex-1">
         <EmptyState
           title={t('settings.skills.notFound')}
-          description={error?.message}
           actionLabel={t('common.back')}
           onAction={goBack}
           className="min-h-80"
@@ -301,22 +354,53 @@ export function SkillDetails({ skillId }: { skillId: string }) {
             access={folder.data.access}
             disabled={applyingRemote}
           />
+        ) : folder.error ? (
+          <div className="flex h-full min-h-80 flex-1 flex-col">
+            <EmptyState
+              title={t('library.skill_detail.file_load_failed')}
+              className="h-full min-h-80"
+              detail={
+                <ErrorDetailAction
+                  error={folder.error}
+                  message={t('library.skill_detail.file_load_failed')}
+                  source="skills"
+                  operation="skill.folder.resolve"
+                  recordId={skillId}
+                />
+              }
+            />
+          </div>
         ) : (
-          <EmptyState
-            title={t('library.skill_detail.no_files')}
-            description={folder.error?.message}
-            className="h-full min-h-80"
-          />
+          <EmptyState title={t('library.skill_detail.no_files')} className="h-full min-h-80" />
         )}
       </div>
 
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={(open) => {
-          if (!open && !deleting) setDeleteOpen(false)
+          if (open || deleting) return
+          setDeleteOpen(false)
+          setDeleteFailure(null)
         }}
         title={t('library.delete.skill.title')}
         description={t('library.delete.skill.content')}
+        content={
+          deleteFailure != null ? (
+            <ErrorNotice
+              variant="inline"
+              title={t('common.delete_failed')}
+              detail={
+                <ErrorDetailAction
+                  error={deleteFailure}
+                  message={t('common.delete_failed')}
+                  source="skills"
+                  operation="skill.delete"
+                  recordId={skillId}
+                />
+              }
+            />
+          ) : null
+        }
         confirmText={t('library.action.uninstall')}
         cancelText={t('common.cancel')}
         destructive

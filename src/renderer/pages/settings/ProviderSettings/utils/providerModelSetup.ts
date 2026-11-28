@@ -1,13 +1,15 @@
-import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { BulkUpdateModelsDto, CreateModelsDto } from '@shared/data/api/schemas/models'
 import { MODELS_BATCH_MAX_ITEMS, MODELS_BULK_UPDATE_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isSensitiveKey, redactSecretLiterals } from '@shared/utils/redaction'
 
 import { chunkArray } from './chunkArray'
 import { resolveCreateModelEndpointTypes, toCreateModelDto } from './modelSync'
+
+const SECRET_MASK = '••••'
 
 interface PersistProviderModelsOptions {
   provider: Provider
@@ -67,16 +69,33 @@ export async function persistProviderModels({
   return uniqueSelectedModels.map((model) => persistedModels.get(model.id) as Model)
 }
 
+const AUTH_SCHEME_VALUE = /^[A-Za-z][\w-]*\s+(\S+)$/
+
+/**
+ * Every credential literal a provider request carries: the API keys plus the custom header values
+ * (`extraHeaders` may still hold non-string values migrated from v1). A sensitive header written as
+ * `<scheme> <credential>` also yields the bare credential, which a gateway may echo without its scheme.
+ */
+export function providerRequestSecrets(apiKeys: Iterable<string>, extraHeaders: object | undefined): string[] {
+  const headerValues = Object.entries(extraHeaders ?? {}).flatMap(([name, value]) => {
+    if (typeof value !== 'string') return []
+    const credential = isSensitiveKey(name) ? AUTH_SCHEME_VALUE.exec(value.trim())?.[1] : undefined
+    return credential ? [value, credential] : [value]
+  })
+  return [...apiKeys, ...headerValues].map((secret) => secret.trim()).filter(Boolean)
+}
+
+/**
+ * `diagnostic` is the serialized failure with every known key literal masked;
+ * hand it, never the raw error, to error detail surfaces.
+ */
 export function getProviderSetupErrorDetails(error: unknown, secrets: Iterable<string>) {
   const serializedError = serializeHealthCheckError(error)
   const classification = classifyError(serializedError)
-  let summary = healthCheckErrorToDisplayString(serializedError)
-  for (const secret of secrets) {
-    const normalizedSecret = secret.trim()
-    if (normalizedSecret) summary = summary.replaceAll(normalizedSecret, '••••')
-  }
+  const knownSecrets = [...secrets].map((secret) => secret.trim()).filter(Boolean)
+  const diagnostic = redactSecretLiterals(serializedError, knownSecrets, SECRET_MASK)
   return {
     i18nKey: classification.category === 'unknown' ? null : classification.i18nKey,
-    summary
+    diagnostic
   }
 }

@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { formatTaskCardTime } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
@@ -19,6 +21,12 @@ import type { HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/
 import { extractHttpStatus } from '@shared/utils/errorCategory'
 
 const logger = loggerService.withContext('HeartbeatTasksPage')
+
+type HeartbeatFault = {
+  cause: unknown
+  summaryKey: string
+  operation: 'heartbeat.load' | 'heartbeat.save' | 'heartbeat.run'
+}
 
 const runResultKeys: Record<HeartbeatRunResult, string> = {
   started: 'agent.tasks.runTriggered',
@@ -60,7 +68,7 @@ export function HeartbeatTasksPage({
   const { t } = useTranslation()
   const [document, setDocument] = useState<HeartbeatDocument | null>(null)
   const [content, setContent] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [fault, setFault] = useState<HeartbeatFault | null>(null)
   const [busy, setBusy] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [runNotice, setRunNotice] = useState<HeartbeatRunResult | null>(null)
@@ -76,7 +84,7 @@ export function HeartbeatTasksPage({
     let cancelled = false
     setDocument(null)
     setContent('')
-    setError(null)
+    setFault(null)
     setRunNotice(null)
     void ipcApi
       .request('ai.agent.heartbeat.read', { agentId })
@@ -88,7 +96,7 @@ export function HeartbeatTasksPage({
       .catch((cause) => {
         if (cancelled) return
         logger.warn('Failed to read heartbeat tasks', { cause })
-        setError('agent.heartbeat.load_failed')
+        setFault({ cause, summaryKey: 'agent.heartbeat.load_failed', operation: 'heartbeat.load' })
       })
     return () => {
       cancelled = true
@@ -100,7 +108,12 @@ export function HeartbeatTasksPage({
   const baseline = document && (hasHeartbeatTasks(document.content) ? document.content : '')
   const dirty = document !== null && content !== baseline
   const result = latest?.output as { result?: string } | undefined
-  const runError = latest?.error ? describeRunError(latest.error.message) : null
+  // A cancelled run stores its cancellation reason as an error, so the status picks the summary.
+  const runError = latest?.error && latest.status !== 'cancelled' ? describeRunError(latest.error.message) : null
+  const latestOutcome =
+    latest?.status === 'cancelled'
+      ? 'agent.tasks.logs.runCancelled'
+      : (runError?.diagnosisKey ?? 'agent.tasks.logs.runFailed')
 
   useImperativeHandle(ref, () => ({
     confirmLeave: async () => {
@@ -118,8 +131,9 @@ export function HeartbeatTasksPage({
   async function save(run: boolean) {
     if (!document || busy) return
     setBusy(true)
-    setError(null)
+    setFault(null)
     setRunNotice(null)
+    let operation: HeartbeatFault['operation'] = 'heartbeat.save'
     try {
       if (dirty) {
         const saved = await ipcApi.request('ai.agent.heartbeat.write', { agentId, ...document, content })
@@ -127,6 +141,7 @@ export function HeartbeatTasksPage({
         setContent(hasHeartbeatTasks(saved.content) ? saved.content : '')
       }
       if (run) {
+        operation = 'heartbeat.run'
         const outcome = await ipcApi.request('ai.agent.heartbeat.run', { agentId })
         setRunNotice(outcome)
         void refetch()
@@ -135,11 +150,14 @@ export function HeartbeatTasksPage({
       }
     } catch (cause) {
       logger.warn('Failed to save or run heartbeat tasks', { cause })
-      setError(
-        cause instanceof IpcError && cause.code === fileErrorCodes.STALE_VERSION
-          ? 'agent.heartbeat.conflict'
-          : 'agent.heartbeat.action_failed'
-      )
+      setFault({
+        cause,
+        summaryKey:
+          cause instanceof IpcError && cause.code === fileErrorCodes.STALE_VERSION
+            ? 'agent.heartbeat.conflict'
+            : 'agent.heartbeat.action_failed',
+        operation
+      })
     } finally {
       setBusy(false)
     }
@@ -165,39 +183,66 @@ export function HeartbeatTasksPage({
             ? t('agent.heartbeat.empty')
             : t('agent.heartbeat.saved_next_run')}
       </p>
-      {error ? (
-        <div role="alert" className="space-y-2 text-destructive text-sm">
-          <p>{t(error)}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => setReloadKey((key) => key + 1)}>
-            {t('agent.heartbeat.reload')}
-          </Button>
-        </div>
+      {fault ? (
+        <ErrorNotice
+          variant="inline"
+          title={t(fault.summaryKey)}
+          action={{
+            label: t('agent.heartbeat.reload'),
+            disabled: busy,
+            onClick: () => setReloadKey((key) => key + 1)
+          }}
+          detail={
+            <ErrorDetailAction
+              error={fault.cause}
+              message={t(fault.summaryKey)}
+              source="agent.heartbeat"
+              operation={fault.operation}
+              recordId={agentId}
+            />
+          }
+        />
       ) : null}
       <div className="space-y-1 border-t border-border-subtle pt-3 text-sm" aria-live="polite">
         <p className="font-medium">{t('agent.tasks.lastRun')}</p>
         {statusError ? (
-          <p role="alert">{t('agent.tasks.logs.loadError')}</p>
+          <ErrorNotice
+            variant="inline"
+            title={t('agent.tasks.logs.loadError')}
+            detail={
+              <ErrorDetailAction
+                error={statusError}
+                message={t('agent.tasks.logs.loadError')}
+                source="agent.heartbeat"
+                operation="heartbeat.status"
+                recordId={agentId}
+              />
+            }
+          />
         ) : latest ? (
           <>
             <p>
               {running ? t('agent.tasks.logs.running') : t(`agent.tasks.logs.${latest.status}`)} ·{' '}
               {formatTaskCardTime(latest.createdAt)}
             </p>
-            {runError?.diagnosisKey ? <p className="text-destructive">{t(runError.diagnosisKey)}</p> : null}
-            {runError ? (
-              <p
-                className={
-                  runError.diagnosisKey
-                    ? 'wrap-anywhere text-muted-foreground text-xs'
-                    : 'wrap-anywhere text-destructive'
-                }>
-                {runError.detail}
-              </p>
+            {latest.error ? (
+              <ErrorNotice
+                variant="inline"
+                role="group"
+                title={t(latestOutcome)}
+                detail={
+                  <ErrorDetailAction
+                    error={latest.error}
+                    message={t(latestOutcome)}
+                    source="agent.heartbeat"
+                    operation="heartbeat.run"
+                    recordId={latest.id}
+                  />
+                }
+              />
+            ) : null}
+            {runError?.diagnosisKey ? (
+              <p className="wrap-anywhere text-muted-foreground text-xs">{runError.detail}</p>
             ) : null}
             {result?.result ? (
               <p className="wrap-anywhere max-h-28 overflow-auto whitespace-pre-wrap text-muted-foreground">

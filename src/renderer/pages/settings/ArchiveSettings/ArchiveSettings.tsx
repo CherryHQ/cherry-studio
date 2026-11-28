@@ -18,6 +18,8 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import {
   SettingGroup,
   SettingRow,
@@ -111,7 +113,7 @@ const PURGE_INVALIDATE_PATHS = [
 
 type FileReferencePreview =
   | { status: 'idle' | 'loading' }
-  | { status: 'error' }
+  | { status: 'error'; error: unknown }
   | {
       status: 'ready'
       referencedFiles: number
@@ -230,7 +232,7 @@ const ArchiveSettings: FC = () => {
     } catch (error) {
       if (referenceRequestToken.current !== token) return
       logger.error('file reference preview failed', error as Error)
-      setFileReferencePreview({ status: 'error' })
+      setFileReferencePreview({ status: 'error', error })
     }
   }, [])
 
@@ -311,15 +313,22 @@ const ArchiveSettings: FC = () => {
         <span className="text-muted-foreground">{t('settings.data.trash.file_refs.loading')}</span>
       )}
       {fileReferencePreview.status === 'error' && (
-        <div className="flex items-center gap-2">
-          <span className="text-error-subtle-foreground">{t('settings.data.trash.file_refs.error')}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => pendingDelete?.fileEntryIds && loadFileReferencePreview(pendingDelete.fileEntryIds)}>
-            {t('settings.data.trash.file_refs.retry')}
-          </Button>
-        </div>
+        <ErrorNotice
+          variant="inline"
+          title={t('settings.data.trash.file_refs.error')}
+          action={{
+            label: t('settings.data.trash.file_refs.retry'),
+            onClick: () => pendingDelete?.fileEntryIds && loadFileReferencePreview(pendingDelete.fileEntryIds)
+          }}
+          detail={
+            <ErrorDetailAction
+              error={fileReferencePreview.error}
+              message={t('settings.data.trash.file_refs.error')}
+              source="settings.archive"
+              operation="archive.file_refs"
+            />
+          }
+        />
       )}
       {fileReferencePreview.status === 'ready' && fileReferencePreview.referencedFiles > 0 && (
         <div className="max-h-[50vh] space-y-3 overflow-y-auto break-words">

@@ -6,11 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 
 import { ComputerUseSettings } from '../ComputerUseSettings'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+const { openErrorDetail } = vi.hoisted(() => ({ openErrorDetail: vi.fn().mockResolvedValue('opened') }))
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetail }
+}))
 const platform = vi.hoisted(() => ({ current: 'linux' }))
 vi.mock('@renderer/utils/platform', () => ({
   get isLinux() {
@@ -93,6 +99,22 @@ describe('Computer Use permission settings', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
     await waitFor(() => expect(screen.queryByText('com.example.editor')).not.toBeInTheDocument())
     expect(screen.getByText('com.example.mail')).toBeVisible()
+    expect(screen.queryByText(i18n.t('settings.computerUse.controlError'))).not.toBeInTheDocument()
+  })
+
+  it('keeps the cause of a failed approval revocation in its details', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.computer_use.approved_apps', ['com.example.editor'])
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'computer_use.revoke_approval') throw new Error('approval store locked')
+      return { permissions: [] }
+    })
+    showSettings()
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(await screen.findByText(i18n.t('settings.computerUse.controlError'))).toBeVisible()
+
+    await userEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
+    await waitFor(() => expect(openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(openErrorDetail.mock.calls[0][0].context.message).toBe('approval store locked')
   })
 
   it('requests only on a click, keeps an unconfirmed result, and refreshes after returning from settings', async () => {

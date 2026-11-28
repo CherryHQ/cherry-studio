@@ -15,9 +15,11 @@ import {
   ModelCheckCredentialsError
 } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
+import { providerRequestSecrets } from '@renderer/pages/settings/ProviderSettings/utils/providerModelSetup'
 import { toast } from '@renderer/services/toast'
 import { LocalizedToastError } from '@renderer/utils/errorToast'
 import type { Model } from '@shared/data/types/model'
+import { redactSecretLiterals } from '@shared/utils/redaction'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
 import { ModelCheckCredentialsSaveError, type ModelCheckCredentialsState } from './useModelCheckCredentials'
@@ -96,8 +98,18 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
         const credentials = await prepareCredentials(keySelection, controller.signal)
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
 
-        const keyResults = await checkModelWithMultipleKeys(model, credentials, 15000, controller.signal)
+        const rawKeyResults = await checkModelWithMultipleKeys(model, credentials, 15000, controller.signal)
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
+        // Providers may echo a credential with no recognizable prefix; mask what was sent before any result leaves here.
+        const sentSecrets = providerRequestSecrets(
+          credentials.map((credential) => (credential.kind === 'api-key' ? credential.entry.key : '')),
+          provider.settings?.extraHeaders
+        )
+        const keyResults = rawKeyResults.map((keyResult) =>
+          keyResult.kind === 'failed'
+            ? { ...keyResult, error: redactSecretLiterals(keyResult.error, sentSecrets) }
+            : keyResult
+        )
 
         const analysis = aggregateApiKeyResults(keyResults)
         const result: ModelWithStatus =
@@ -194,6 +206,7 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
 
   return {
     models,
+    extraHeaders: provider?.settings?.extraHeaders,
     isSingleModelChecking,
     singleModelResult,
     resetSingleModelResult,

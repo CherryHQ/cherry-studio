@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -18,11 +19,13 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
-import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
+import { buildGithubSkillResult, SkillSearchFailedError } from '@shared/utils/skillMarketplace'
 
 import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
 
@@ -44,17 +47,26 @@ const SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX = 64
 
 export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const { t } = useTranslation()
-  const { results, searching, error, search, clear } = useSkillSearch()
+  const { results, searching, error, cause, search, clear } = useSkillSearch()
   const { install, isInstalling } = useSkillInstall()
   const [query, setQuery] = useState('')
   const [submittedUrl, setSubmittedUrl] = useState('')
   const [activeSource, setActiveSource] = useState<SkillSearchSource>(DEFAULT_SEARCH_SOURCE)
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
   const [searchDebouncing, setSearchDebouncing] = useState(false)
+  // The modal traps focus, so each failed install keeps its Details inside it rather than in a toast.
+  const [installFailures, setInstallFailures] = useState<
+    Array<{
+      message: string
+      cause: unknown
+      installSource: string
+    }>
+  >([])
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const urlErrorId = useId()
   const isGithubSource = activeSource === 'github'
+  const selectedSourceCause = cause instanceof SkillSearchFailedError ? (cause.failures[activeSource] ?? cause) : cause
 
   const clearPendingSearch = useCallback(() => {
     if (!searchDebounceRef.current) return
@@ -69,6 +81,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
     setSubmittedUrl('')
     setActiveSource(DEFAULT_SEARCH_SOURCE)
     setInstalledSources(new Set())
+    setInstallFailures([])
     setSearchDebouncing(false)
     pendingInstallSourcesRef.current.clear()
     clear()
@@ -144,11 +157,18 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
       }
 
       pendingInstallSourcesRef.current.add(result.installSource)
+      setInstallFailures((current) => current.filter((failure) => failure.installSource !== result.installSource))
       try {
-        const { skill, error: installError } = await install(result.installSource)
+        const { skill, cause } = await install(result.installSource)
         if (!skill) {
-          const message = t('settings.skills.installFailed', { name: result.name })
-          toast.error(installError ? `${message}: ${installError}` : message)
+          setInstallFailures((current) => [
+            ...current,
+            {
+              message: t('settings.skills.installFailed', { name: result.name }),
+              cause,
+              installSource: result.installSource
+            }
+          ])
           return
         }
 
@@ -229,6 +249,35 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
           </div>
         </div>
 
+        {installFailures.length > 0 ? (
+          // Bounded so accumulated failures scroll instead of squeezing out the results list.
+          <ScrollArea className="max-h-32 shrink-0" contentProps={{ className: 'flex flex-col gap-2 px-6 pt-3' }}>
+            {installFailures.map((failure) => (
+              <ErrorNotice
+                key={failure.installSource}
+                variant="inline"
+                title={failure.message}
+                onDismiss={() =>
+                  setInstallFailures((current) =>
+                    current.filter((item) => item.installSource !== failure.installSource)
+                  )
+                }
+                detail={
+                  failure.cause !== undefined ? (
+                    <ErrorDetailAction
+                      error={failure.cause}
+                      message={failure.message}
+                      source="skills"
+                      operation="skill.install"
+                      recordId={failure.installSource}
+                    />
+                  ) : undefined
+                }
+              />
+            ))}
+          </ScrollArea>
+        ) : null}
+
         <div className="flex min-h-0 flex-1 flex-col">
           <SkillSearchBody
             query={isGithubSource ? (githubResult ? submittedUrl : '') : query}
@@ -241,6 +290,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
                 : 'library.skill_marketplace.empty_description'
             )}
             error={isGithubSource ? null : error}
+            cause={isGithubSource ? null : (selectedSourceCause ?? null)}
             searching={!isGithubSource && (searching || searchDebouncing)}
             results={visibleResults}
             installedSources={installedSources}
@@ -258,6 +308,7 @@ function SkillSearchBody({
   emptyTitle,
   emptyDescription,
   error,
+  cause,
   searching,
   results,
   installedSources,
@@ -268,6 +319,7 @@ function SkillSearchBody({
   emptyTitle: string
   emptyDescription: string
   error: string | null
+  cause: unknown
   searching: boolean
   results: SkillSearchResult[]
   installedSources: Set<string>
@@ -296,12 +348,17 @@ function SkillSearchBody({
   }
 
   if (error) {
+    const summary = t('library.skill_marketplace.search_failed_description')
     return (
-      <EmptyState
-        title={t('common.error')}
-        description={t('library.skill_marketplace.search_failed_description')}
-        className="min-h-0 flex-1"
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <EmptyState
+          title={summary}
+          className="min-h-0 flex-1"
+          detail={
+            <ErrorDetailAction error={cause ?? error} message={summary} source="skills/search" operation="search" />
+          }
+        />
+      </div>
     )
   }
 

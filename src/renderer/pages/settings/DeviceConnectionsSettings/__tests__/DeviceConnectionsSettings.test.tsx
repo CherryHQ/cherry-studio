@@ -516,9 +516,17 @@ describe('DeviceConnectionsSettings', () => {
   })
 
   it('lets the user retry a failed automatic invitation without retrying on its own', async () => {
-    invitationMock.mockRejectedValueOnce(new Error('Unavailable'))
+    const failure = new Error('Unavailable')
+    invitationMock.mockRejectedValueOnce(failure)
     render(<DeviceConnectionsSettings />)
     const refresh = await screen.findByRole('button', { name: 'Refresh' })
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Failed to create pairing code',
+        cause: failure,
+        data: expect.objectContaining({ errorContext: expect.objectContaining({ operation: 'device.pairing.invite' }) })
+      })
+    )
     expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
     expect(invitationMock).toHaveBeenCalledTimes(1)
     invitationMock.mockResolvedValueOnce(createInvitation('retried'))
@@ -793,7 +801,8 @@ describe('DeviceConnectionsSettings', () => {
 
   it('retries an unavailable LAN listener and keeps recovery available after failure', async () => {
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
-    requestMock.mockRejectedValueOnce(new Error('disk full'))
+    const failure = new Error('disk full')
+    requestMock.mockRejectedValueOnce(failure)
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
@@ -801,7 +810,13 @@ describe('DeviceConnectionsSettings', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled: true }]])
-    expect(toast.error).toHaveBeenCalledWith('Failed to change network access: disk full')
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Failed to change network access',
+        cause: failure,
+        data: expect.objectContaining({ errorContext: expect.objectContaining({ operation: 'device.lan' }) })
+      })
+    )
     expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
   })
 

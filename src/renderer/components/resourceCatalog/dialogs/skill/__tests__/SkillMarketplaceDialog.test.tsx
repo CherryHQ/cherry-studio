@@ -6,6 +6,7 @@ import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SkillSearchResult } from '@shared/types/skill'
+import { SkillSearchFailedError } from '@shared/utils/skillMarketplace'
 
 import { SkillMarketplaceDialog } from '../SkillMarketplaceDialog'
 
@@ -13,10 +14,16 @@ const searchMock = vi.fn()
 const clearMock = vi.fn()
 const installMock = vi.fn()
 const isInstallingMock = vi.fn()
-const { toastSuccess, toastError, virtualRowKeysMock } = vi.hoisted(() => ({
+const { openDetail, toastSuccess, toastError, virtualRowKeysMock } = vi.hoisted(() => ({
+  openDetail: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   virtualRowKeysMock: vi.fn()
+}))
+
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => openDetail(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -53,10 +60,12 @@ let skillSearchState: {
   results: SkillSearchResult[]
   searching: boolean
   error: string | null
+  cause: unknown
 } = {
   results: resultsFixture,
   searching: false,
-  error: null
+  error: null,
+  cause: null
 }
 
 vi.mock('react-i18next', () => ({
@@ -78,6 +87,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ children, role }: { children?: ReactNode; role?: string }) => <div role={role ?? 'alert'}>{children}</div>,
   Button: ({
     children,
     loading,
@@ -114,13 +124,15 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
   DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
-  EmptyState: ({ description, title }: { description?: string; title?: string }) => (
+  EmptyState: ({ description, detail, title }: { description?: string; detail?: ReactNode; title?: string }) => (
     <div data-testid="empty-state">
       {title ? <div>{title}</div> : null}
       {description ? <div>{description}</div> : null}
+      {detail}
     </div>
   ),
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
+  ScrollArea: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   // Radix Select stubbed as a native select: same combobox role and value semantics, no portal.
   Select: ({
     children,
@@ -186,7 +198,8 @@ beforeEach(() => {
   skillSearchState = {
     results: resultsFixture,
     searching: false,
-    error: null
+    error: null,
+    cause: null
   }
   installMock.mockResolvedValue({ skill: { id: 'skill-1', name: 'Installed Skill' } })
   isInstallingMock.mockReturnValue(false)
@@ -400,13 +413,34 @@ describe('SkillMarketplaceDialog', () => {
   it('shows a localized marketplace error message when search fails', async () => {
     skillSearchState.results = []
     skillSearchState.error = 'Search failed'
+    skillSearchState.cause = new Error('registry timeout')
     renderDialog()
 
     typeSearchQuery('react')
 
-    expect(screen.getByText('common.error')).toBeInTheDocument()
+    expect(screen.queryByText('common.error')).not.toBeInTheDocument()
     expect(screen.getByText('library.skill_marketplace.search_failed_description')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
+    expect(screen.queryByText('registry timeout')).not.toBeInTheDocument()
+  })
+
+  it('opens the selected registry cause when every registry failed', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = []
+    skillSearchState.error = 'Search failed'
+    skillSearchState.cause = new SkillSearchFailedError({
+      'skills.sh': new Error('HTTP 429'),
+      'clawhub.ai': new Error('HTTP 503')
+    })
+    renderDialog()
+
+    typeSearchQuery('react')
+    await user.selectOptions(sourceSelect(), 'clawhub.ai')
+    await user.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(openDetail).toHaveBeenCalledTimes(1))
+    expect(openDetail.mock.calls[0][0].context.message).toBe('HTTP 503')
   })
 
   it('installs a marketplace skill and keeps the dialog open', async () => {
@@ -499,18 +533,79 @@ describe('SkillMarketplaceDialog', () => {
     })
   })
 
-  it('shows an error toast when marketplace install fails without closing', async () => {
+  // The modal traps focus, so a Details entry that only lives in the global toast is unreachable by keyboard.
+  it('keeps a failed marketplace install in the dialog with keyboard-reachable Details', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
-    installMock.mockResolvedValueOnce({ skill: null, error: 'clone failed' })
+    const cause = new Error('clone failed')
+    installMock.mockResolvedValueOnce({ skill: null, error: 'clone failed', cause })
     renderDialog({ onOpenChange })
 
     typeSearchQuery('code')
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
 
-    await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('settings.skills.installFailed:React Skill: clone failed')
-    })
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('settings.skills.installFailed:React Skill')
+    within(dialog).getByRole('button', { name: 'common.detail' }).focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(openDetail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          localizedErrorMessage: 'settings.skills.installFailed:React Skill',
+          context: expect.objectContaining({
+            message: 'clone failed',
+            source: 'skills',
+            operation: 'skill.install',
+            recordId: 'skills.sh:vercel/skills/react-skill'
+          })
+        })
+      )
+    )
+    expect(toastError).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps each failed install and its Details until that failure is dismissed or retried', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = [
+      resultsFixture[0],
+      { ...resultsFixture[0], slug: 'converter', name: 'Converter', installSource: 'claude-plugins:a/skills/converter' }
+    ]
+    installMock.mockImplementation(async (installSource: string) => ({
+      skill: null,
+      cause: new Error(`clone failed for ${installSource}`)
+    }))
+    renderDialog()
+
+    await user.selectOptions(sourceSelect(), 'claude-plugins.dev')
+    typeSearchQuery('code')
+    const [firstInstall, secondInstall] = screen.getAllByRole('button', { name: /settings.skills.install/ })
+    await user.click(firstInstall)
+    await user.click(secondInstall)
+
+    const dialog = screen.getByRole('dialog')
+    await waitFor(() => expect(within(dialog).getAllByRole('alert')).toHaveLength(2))
+    const firstNotice = within(dialog).getByText('settings.skills.installFailed:Code Review').closest('[role="alert"]')!
+    await user.click(within(firstNotice as HTMLElement).getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(openDetail).toHaveBeenCalledTimes(1))
+    expect(openDetail.mock.calls[0][0].context).toMatchObject({
+      message: 'clone failed for claude-plugins:anthropic/skills/code-review',
+      recordId: 'claude-plugins:anthropic/skills/code-review'
+    })
+
+    await user.click(within(firstNotice as HTMLElement).getByRole('button', { name: 'common.close' }))
+    expect(within(dialog).getAllByRole('alert')).toHaveLength(1)
+    const secondNotice = within(dialog).getByRole('alert')
+    expect(secondNotice).toHaveTextContent('settings.skills.installFailed:Converter')
+    await user.click(within(secondNotice).getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(openDetail).toHaveBeenCalledTimes(2))
+    expect(openDetail.mock.calls[1][0].context).toMatchObject({
+      message: 'clone failed for claude-plugins:a/skills/converter',
+      recordId: 'claude-plugins:a/skills/converter'
+    })
+
+    installMock.mockResolvedValueOnce({ skill: { id: 'skill-2', name: 'Converter' } })
+    await user.click(screen.getAllByRole('button', { name: /settings.skills.install/ })[1])
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument())
   })
 })

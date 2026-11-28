@@ -1,13 +1,16 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 
 const importMocks = vi.hoisted(() => ({
   importAssistant: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   toastError: vi.fn(),
+  toastInlineError: vi.fn(),
   toastSuccess: vi.fn()
 }))
 
@@ -26,11 +29,17 @@ vi.mock('@renderer/hooks/resourceCatalog/assistantAdapter', () => ({
   useImportAssistantMutation: () => ({ importAssistant: importMocks.importAssistant })
 }))
 
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: importMocks.openErrorDetail }
+}))
+
 vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: importMocks.toastError,
     success: importMocks.toastSuccess
-  }
+  },
+  toastInlineError: importMocks.toastInlineError
 }))
 
 import { ImportAssistantDialog } from '../ImportAssistantDialog'
@@ -98,5 +107,49 @@ describe('ImportAssistantDialog', () => {
       2,
       expect.objectContaining({ name: 'Second', groupName: 'work' })
     )
+  })
+
+  // A second Details entry in the toast would be a separate occurrence that Doctor analysis cannot share.
+  it('reports a failed import by its translated summary and keeps the raw reason behind its only Details', async () => {
+    const user = userEvent.setup()
+    const cause = new Error('UNIQUE constraint failed: assistant.name')
+    importMocks.importAssistant.mockRejectedValue(cause)
+    render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'library.import_dialog.tab.clipboard' }))
+    fireEvent.change(await screen.findByPlaceholderText('library.import_dialog.clipboard.placeholder'), {
+      target: { value: JSON.stringify([{ name: 'First', prompt: 'first prompt' }]) }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'library.import_dialog.clipboard.button' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('library.import_dialog.failure')
+    expect(alert).not.toHaveTextContent(cause.message)
+    await user.click(within(alert).getByRole('button', { name: /common\.detail/ }))
+    await waitFor(() => expect(importMocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(importMocks.openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      message: cause.message,
+      operation: 'assistant.import'
+    })
+    expect(importMocks.toastInlineError).toHaveBeenCalledWith('library.import_dialog.failure')
+    expect(importMocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it.each([404, 429])('keeps the HTTP %s status of a failed URL fetch in its Details', async (status) => {
+    const user = userEvent.setup()
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status }))
+    render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'library.import_dialog.tab.url' }))
+    fireEvent.change(await screen.findByPlaceholderText('https://gist.github.com/...'), {
+      target: { value: 'https://gist.githubusercontent.com/someone/assistant.json' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'library.import_dialog.url.button' }))
+
+    const alert = await screen.findByRole('alert')
+    await user.click(within(alert).getByRole('button', { name: /common\.detail/ }))
+    await waitFor(() => expect(importMocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(importMocks.openErrorDetail.mock.calls[0][0].context.statusCode).toBe(status)
+    fetchMock.mockRestore()
   })
 })

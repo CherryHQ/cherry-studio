@@ -49,6 +49,7 @@ import {
   BinaryInstallingHint,
   type BinaryOperationError
 } from '@renderer/components/BinaryInstallErrorDialog'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { SettingsPageHeader } from '@renderer/components/SettingsPrimitives'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -919,7 +920,7 @@ function AddToolDialog({
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Array<{ name: string; tool: string }>>([])
   const [searching, setSearching] = useState(false)
-  const [searchError, setSearchError] = useState(false)
+  const [searchError, setSearchError] = useState<unknown>(null)
   const [selectedName, setSelectedName] = useState('')
   const [selectedTool, setSelectedTool] = useState('')
   const [version, setVersion] = useState('')
@@ -946,21 +947,21 @@ function AddToolDialog({
       searchIdRef.current++
       setResults([])
       setSearching(false)
-      setSearchError(false)
+      setSearchError(null)
       return
     }
 
     const id = ++searchIdRef.current
     const timer = setTimeout(async () => {
       setSearching(true)
-      setSearchError(false)
+      setSearchError(null)
       try {
         const res = await ipcApi.request('binary.search_registry', query.trim())
         if (id === searchIdRef.current) setResults(res)
-      } catch {
+      } catch (cause) {
         if (id === searchIdRef.current) {
           setResults([])
-          setSearchError(true)
+          setSearchError(cause)
         }
       } finally {
         if (id === searchIdRef.current) setSearching(false)
@@ -1032,7 +1033,17 @@ function AddToolDialog({
                 ))}
               </div>
             )}
-            {searchError && <p className="mt-1 text-xs text-destructive">{t('settings.dependencies.searchFailed')}</p>}
+            {searchError != null && (
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-destructive">
+                <span>{t('settings.dependencies.searchFailed')}</span>
+                <ErrorDetailAction
+                  error={searchError}
+                  message={t('settings.dependencies.searchFailed')}
+                  operation="binary.search_registry"
+                  source="settings.dependencies"
+                />
+              </p>
+            )}
           </div>
           {selectedName && (
             <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">

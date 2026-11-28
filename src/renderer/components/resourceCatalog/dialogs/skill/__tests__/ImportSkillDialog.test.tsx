@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -140,7 +140,7 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.skills.installFromZip' })).toBeEnabled())
   })
 
-  it('展示主进程返回的本地化 ZIP 原因', async () => {
+  it('shows a failed ZIP install by its translated summary and keeps the reason behind Details', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     const originalError = '未找到可安装的技能。技能 ZIP 压缩包必须在根目录或某个子目录里包含 SKILL.md。'
@@ -150,11 +150,11 @@ describe('ImportSkillDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
 
-    expect(await screen.findByText(`settings.skills.installFailed:broken.zip: ${originalError}`)).toBeInTheDocument()
-    expect(screen.getByText(`settings.skills.installFailed:broken.zip: ${originalError}`)).toHaveAttribute(
-      'title',
-      `settings.skills.installFailed:broken.zip: ${originalError}`
-    )
+    expect(await screen.findByText('settings.skills.installFailed:broken.zip')).toBeInTheDocument()
+    expect(screen.queryByText(originalError, { exact: false })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('skill-import-results')).getByRole('button', { name: /common\.detail/ })
+    ).toBeVisible()
     expect(screen.getByTestId('skill-import-results')).not.toHaveTextContent(
       /skill-install|zip[-_]install[-_]|[\\/]tmp[\\/]|[\\/]Temp[\\/]/
     )
@@ -163,7 +163,7 @@ describe('ImportSkillDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('展示主进程返回的本地化目录原因', async () => {
+  it('shows a failed directory install by its translated summary and keeps the reason behind Details', async () => {
     const user = userEvent.setup()
     const originalError = '未在所选文件夹中找到 SKILL.md。请选择直接包含 SKILL.md 的文件夹。'
     vi.mocked(window.api.file.select).mockResolvedValue([{ name: 'broken-skill', path: '/tmp/broken-skill' }] as any)
@@ -173,11 +173,11 @@ describe('ImportSkillDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.skills.installFromDirectory' }))
 
-    expect(await screen.findByText(`settings.skills.installFailed:broken-skill: ${originalError}`)).toBeInTheDocument()
-    expect(screen.getByText(`settings.skills.installFailed:broken-skill: ${originalError}`)).toHaveAttribute(
-      'title',
-      `settings.skills.installFailed:broken-skill: ${originalError}`
-    )
+    expect(await screen.findByText('settings.skills.installFailed:broken-skill')).toBeInTheDocument()
+    expect(screen.queryByText(originalError, { exact: false })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('skill-import-results')).getByRole('button', { name: /common\.detail/ })
+    ).toBeVisible()
     expect(screen.getByTestId('skill-import-results')).not.toHaveTextContent(
       /skill-install|zip[-_]install[-_]|[\\/]tmp[\\/]|[\\/]Temp[\\/]/
     )

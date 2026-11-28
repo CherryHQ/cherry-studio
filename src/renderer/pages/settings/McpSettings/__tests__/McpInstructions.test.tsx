@@ -46,7 +46,8 @@ describe('MCP instructions panel', () => {
   it('can retry a failed read rather than reporting an empty catalog', async () => {
     request.mockRejectedValueOnce(new Error('IPC disconnected')).mockResolvedValueOnce(undefined)
     render(panel())
-    expect(await screen.findByText(en['common.error'])).toBeVisible()
+    expect(await screen.findByText(en['settings.mcp.instructions.load_failed'])).toBeVisible()
+    expect(screen.queryByText(/IPC disconnected/)).not.toBeInTheDocument()
     await userEvent.setup().click(screen.getByRole('button', { name: en['common.refresh'] }))
     expect(await screen.findByText(en['settings.mcp.instructions.empty'])).toBeVisible()
   })

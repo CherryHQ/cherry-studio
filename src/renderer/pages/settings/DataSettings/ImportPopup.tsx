@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { Alert, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { importService } from '@renderer/services/import'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -62,11 +65,14 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
   const [selecting, setSelecting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
+  // The dialog traps focus, so a failure it survives keeps its Details inside it rather than in a toast.
+  const [failureCause, setFailureCause] = useState<unknown>(null)
   const { t } = useTranslation()
   const config = IMPORT_CONFIG[source]
   const translations = config.translations
 
   const onOk = async () => {
+    setFailureCause(null)
     setSelecting(true)
     try {
       // Select conversation JSON file
@@ -99,11 +105,14 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
         )
         resolve({})
       } else {
-        toast.error(result.error || t(translations.unknownError))
+        setFailureCause(result.error?.trim() || result)
       }
     } catch (error) {
       logger.error(`${config.loggerName} import failed:`, error as Error)
-      toast.error(t(translations.unknownError))
+      toastAppError(t(translations.unknownError), error, {
+        source: 'settings.import',
+        operation: `import.${source}`
+      })
       resolve({})
     } finally {
       setSelecting(false)
@@ -160,6 +169,20 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
               showIcon
             />
           )}
+          {failureCause ? (
+            <ErrorNotice
+              variant="inline"
+              title={t(translations.unknownError)}
+              detail={
+                <ErrorDetailAction
+                  error={failureCause}
+                  message={t(translations.unknownError)}
+                  source="settings.import"
+                  operation={`import.${source}`}
+                />
+              }
+            />
+          ) : null}
         </div>
         <DialogFooter>
           <Button variant="outline" disabled={selecting || importing} onClick={onCancel}>

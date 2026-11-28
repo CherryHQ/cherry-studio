@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@renderer/i18n/locales/en-us.json'
 import { ipcApi } from '@renderer/ipc'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { ContentHashSchema } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -13,6 +14,15 @@ import type { HeartbeatDocument } from '@shared/ipc/schemas/ai'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: unknown) => input
+}))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
+}))
 vi.mock('@renderer/components/PromptEditorField', () => ({
   PromptEditorIconButton: ({ label, onClick }: { label: string; onClick: () => void }) => (
     <button type="button" onClick={onClick}>
@@ -100,9 +110,10 @@ describe('HeartbeatTasksPage', () => {
 
   it('keeps the draft and never runs when an external edit conflicts with saving', async () => {
     const user = userEvent.setup()
+    const cause = new IpcError(fileErrorCodes.STALE_VERSION, 'Changed externally')
     vi.mocked(ipcApi.request).mockImplementation((async (route: string) => {
       if (route.endsWith('.read')) return original
-      throw new IpcError(fileErrorCodes.STALE_VERSION, 'Changed externally')
+      throw cause
     }) as typeof ipcApi.request)
     render(<HeartbeatTasksPage agentId="a1" enabled />)
     const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
@@ -112,6 +123,102 @@ describe('HeartbeatTasksPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(en['agent.heartbeat.conflict'])
     expect(editor).toHaveValue('Keep this draft')
     expect(ipcApi.request).not.toHaveBeenCalledWith('ai.agent.heartbeat.run', expect.anything())
+    expect(screen.getByRole('button', { name: en['agent.heartbeat.reload'] })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: cause,
+          message: en['agent.heartbeat.conflict'],
+          source: 'agent.heartbeat',
+          operation: 'heartbeat.save',
+          recordId: 'a1'
+        })
+      )
+    )
+  })
+
+  it('preserves a failed load and a failed latest run', async () => {
+    const user = userEvent.setup()
+    const loadCause = new Error('heartbeat file missing')
+    vi.mocked(ipcApi.request).mockRejectedValue(loadCause)
+    render(<HeartbeatTasksPage agentId="a1" enabled />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(en['agent.heartbeat.load_failed'])
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: loadCause,
+          message: en['agent.heartbeat.load_failed'],
+          operation: 'heartbeat.load',
+          recordId: 'a1'
+        })
+      )
+    )
+  })
+
+  it('shows a failed latest run by its translated summary and keeps the status query error', async () => {
+    const user = userEvent.setup()
+    const runError = { code: 'failed', message: 'runner exploded', retryable: false }
+    MockUseDataApiUtils.mockQueryData('/agents/:agentId/heartbeat', {
+      scheduleEnabled: true,
+      latestRun: {
+        id: 'run-9',
+        status: 'failed',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        error: runError
+      } as JobSnapshot
+    })
+    const { rerender } = render(<HeartbeatTasksPage agentId="a1" enabled />)
+    expect(await screen.findByText(en['agent.tasks.logs.runFailed'])).toBeInTheDocument()
+    expect(screen.queryByText('runner exploded')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: runError,
+          message: en['agent.tasks.logs.runFailed'],
+          source: 'agent.heartbeat',
+          operation: 'heartbeat.run',
+          recordId: 'run-9'
+        })
+      )
+    )
+    const statusCause = new Error('status unavailable')
+    MockUseDataApiUtils.mockQueryError('/agents/:agentId/heartbeat', statusCause)
+    rerender(<HeartbeatTasksPage agentId="a1" enabled />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(en['agent.tasks.logs.loadError'])
+    detailMocks.open.mockClear()
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: statusCause,
+          message: en['agent.tasks.logs.loadError'],
+          operation: 'heartbeat.status',
+          recordId: 'a1'
+        })
+      )
+    )
+  })
+
+  it('summarizes a cancelled latest run by its status and keeps the reason behind Details', async () => {
+    const user = userEvent.setup()
+    const reason = { code: 'cancelled', message: 'stopped by the user', retryable: false }
+    MockUseDataApiUtils.mockQueryData('/agents/:agentId/heartbeat', {
+      scheduleEnabled: true,
+      latestRun: {
+        id: 'run-10',
+        status: 'cancelled',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        error: reason
+      } as JobSnapshot
+    })
+    render(<HeartbeatTasksPage agentId="a1" enabled />)
+    expect(await screen.findByText(en['agent.tasks.logs.runCancelled'])).toBeInTheDocument()
+    expect(screen.queryByText(en['agent.tasks.logs.runFailed'])).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalledWith(expect.objectContaining({ error: reason })))
   })
 
   it('explains a failed last run instead of showing the raw provider error', async () => {

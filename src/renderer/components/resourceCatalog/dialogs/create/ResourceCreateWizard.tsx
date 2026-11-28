@@ -7,6 +7,8 @@ import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { toAgentChannelDraft } from '@renderer/components/channel/channelDraft'
 import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -139,6 +141,38 @@ function applyAutoConfigDraft(
   }
 }
 
+/** The form's root error, with Details when a failed create left its cause. */
+function RootErrorNotice({
+  message,
+  submitFault,
+  kind
+}: {
+  message: string | undefined
+  submitFault: unknown
+  kind: ResourceCreateWizardKind
+}) {
+  if (!message) return null
+  return (
+    <div className="shrink-0 px-6 pb-3">
+      <ErrorNotice
+        variant="inline"
+        title={message}
+        detail={
+          submitFault != null ? (
+            <ErrorDetailAction
+              error={submitFault}
+              message={message}
+              source="library.resource"
+              operation="resource.create"
+              recordId={kind}
+            />
+          ) : undefined
+        }
+      />
+    </div>
+  )
+}
+
 type AutoConfigure = Pick<ReturnType<typeof useResourceAutoConfigure>, 'generate' | 'installFeaturedMcpServers'>
 
 /**
@@ -150,6 +184,7 @@ function EntryFooter({
   form,
   isSubmitting,
   imagePending,
+  submitFault,
   onManual,
   onAuto
 }: {
@@ -157,6 +192,7 @@ function EntryFooter({
   form: UseFormReturn<ResourceCreateWizardFormValues>
   isSubmitting: boolean
   imagePending: boolean
+  submitFault: unknown
   onManual: () => void
   onAuto: (autoConfigure: AutoConfigure) => void
 }) {
@@ -168,25 +204,23 @@ function EntryFooter({
   const canAuto = (name?.trim().length ?? 0) > 0 && Boolean(modelId) && catalogsReady
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2 px-6 pb-5">
-      {rootError ? (
-        <span role="alert" className="mr-auto text-destructive text-xs">
-          {rootError}
-        </span>
-      ) : null}
-      <Button type="button" variant="outline" disabled={busy} onClick={onManual}>
-        {t('library.config.dialogs.create.auto.manual')}
-      </Button>
-      <Button
-        type="button"
-        variant="emphasis"
-        loading={busy}
-        disabled={!canAuto}
-        onClick={() => onAuto({ generate, installFeaturedMcpServers })}>
-        {busy ? null : <Sparkles className="size-3.5" />}
-        {busy ? t('library.config.dialogs.create.auto.configuring') : t('library.config.dialogs.create.auto.submit')}
-      </Button>
-    </div>
+    <>
+      <RootErrorNotice message={rootError} submitFault={submitFault} kind={kind} />
+      <div className="flex shrink-0 items-center justify-end gap-2 px-6 pb-5">
+        <Button type="button" variant="outline" disabled={busy} onClick={onManual}>
+          {t('library.config.dialogs.create.auto.manual')}
+        </Button>
+        <Button
+          type="button"
+          variant="emphasis"
+          loading={busy}
+          disabled={!canAuto}
+          onClick={() => onAuto({ generate, installFeaturedMcpServers })}>
+          {busy ? null : <Sparkles className="size-3.5" />}
+          {busy ? t('library.config.dialogs.create.auto.configuring') : t('library.config.dialogs.create.auto.submit')}
+        </Button>
+      </div>
+    </>
   )
 }
 
@@ -205,7 +239,9 @@ function WizardFooter({
   onCancel,
   onBack,
   onNext,
-  onCreate
+  onCreate,
+  submitFault,
+  kind
 }: {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   stepId: StepId
@@ -218,6 +254,8 @@ function WizardFooter({
   onBack: () => void
   onNext: () => void
   onCreate: () => void
+  submitFault: unknown
+  kind: ResourceCreateWizardKind
 }) {
   const { t } = useTranslation()
   const [name, modelId, channels] = useWatch({ control: form.control, name: ['name', 'modelId', 'channels'] })
@@ -229,37 +267,44 @@ function WizardFooter({
   const canProceed = (stepIndex !== 0 || basicValid) && (stepId !== 'channels' || channelsValid)
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
-      {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
-      <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
-        {t('common.cancel')}
-      </Button>
-      {stepIndex > 0 ? (
+    <>
+      <RootErrorNotice message={rootError} submitFault={submitFault} kind={kind} />
+      <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
         <Button
           type="button"
-          variant="outline"
-          disabled={submitting || imagePending || mcpInstallPending}
-          onClick={onBack}>
-          {t('library.config.dialogs.create.back')}
+          variant="ghost"
+          disabled={submitting}
+          className="text-muted-foreground"
+          onClick={onCancel}>
+          {t('common.cancel')}
         </Button>
-      ) : null}
-      {isLast ? (
-        <Button
-          type="button"
-          loading={submitting}
-          disabled={!basicValid || !channelsValid || imagePending || mcpInstallPending}
-          onClick={onCreate}>
-          {t('library.config.dialogs.create.submit')}
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          disabled={!canProceed || submitting || imagePending || mcpInstallPending}
-          onClick={onNext}>
-          {t('library.config.dialogs.create.next')}
-        </Button>
-      )}
-    </div>
+        {stepIndex > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={submitting || imagePending || mcpInstallPending}
+            onClick={onBack}>
+            {t('library.config.dialogs.create.back')}
+          </Button>
+        ) : null}
+        {isLast ? (
+          <Button
+            type="button"
+            loading={submitting}
+            disabled={!basicValid || !channelsValid || imagePending || mcpInstallPending}
+            onClick={onCreate}>
+            {t('library.config.dialogs.create.submit')}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            disabled={!canProceed || submitting || imagePending || mcpInstallPending}
+            onClick={onNext}>
+            {t('library.config.dialogs.create.next')}
+          </Button>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -328,6 +373,7 @@ export function ResourceCreateWizard({
   const [autoProgress, setAutoProgress] = useState<AutoConfigProgressView | null>(null)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
+  const [submitFault, setSubmitFault] = useState<unknown>(null)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
 
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
@@ -378,6 +424,7 @@ export function ResourceCreateWizard({
     autoSelectedDefaultModelIdRef.current = null
     form.reset(getDefaultValues(kind, initialName, initialValues))
     form.clearErrors()
+    setSubmitFault(null)
     setMcpInstallPending(false)
     setStepIndex(0)
     setView(getInitialView(initialValues))
@@ -510,6 +557,7 @@ export function ResourceCreateWizard({
   const submitValues = async (values: ResourceCreateWizardFormValues, generated = false): Promise<boolean> => {
     if (!values.modelId) return false
     form.clearErrors('root')
+    setSubmitFault(null)
     const channels = values.channels.map((channel) => toAgentChannelDraft(channel, values.channels))
     if (channels.some((channel) => channel === null)) {
       form.setError('root', { message: t('library.config.dialogs.create.channels.invalid') })
@@ -552,9 +600,8 @@ export function ResourceCreateWizard({
       setView('result')
       return true
     } catch (error) {
-      const message =
-        error instanceof Error && error.message ? error.message : t('library.config.dialogs.create.submit_failed')
-      form.setError('root', { message })
+      setSubmitFault(error)
+      form.setError('root', { message: t('library.config.dialogs.create.submit_failed') })
       return false
     }
   }
@@ -575,6 +622,7 @@ export function ResourceCreateWizard({
   const handleAutoCreate = async ({ generate, installFeaturedMcpServers }: AutoConfigure) => {
     const values = form.getValues()
     if (!values.modelId || !values.name.trim()) return
+    setSubmitFault(null)
     if (!defaultModel && !isDefaultModelLoading) {
       form.setError('root', { message: t('library.config.prompt.no_default_model') })
       return
@@ -727,6 +775,7 @@ export function ResourceCreateWizard({
                     form={form}
                     isSubmitting={isSubmitting}
                     imagePending={imagePending}
+                    submitFault={submitFault}
                     onManual={() => {
                       form.clearErrors('root')
                       const { description, prompt } = form.getValues()
@@ -839,6 +888,8 @@ export function ResourceCreateWizard({
                     onBack={goBack}
                     onNext={goNext}
                     onCreate={() => void handleCreate()}
+                    submitFault={submitFault}
+                    kind={kind}
                   />
                 </>
               )}

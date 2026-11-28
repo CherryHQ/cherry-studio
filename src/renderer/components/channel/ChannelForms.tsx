@@ -22,6 +22,8 @@ import {
   Switch,
   HelpTooltip
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 
@@ -29,6 +31,8 @@ import { ChannelPermissionMode } from './ChannelPermissionMode'
 import type { ChannelFormProps } from './channelTypes'
 import { DingTalkForm } from './DingTalkForm'
 import { WeComForm } from './WeComForm'
+
+type QrLoginFault = { channelId: string; status: 'error' }
 
 // --------------- Form types ---------------
 
@@ -221,11 +225,13 @@ export const FeishuForm: FC<ChannelFormProps> = (props) => {
   const hasCredentials = !!(cfg.app_id && cfg.app_secret)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<FeishuStatus>(hasCredentials ? 'confirmed' : 'idle')
+  const [loginFault, setLoginFault] = useState<QrLoginFault | null>(null)
   const [draftSetup, setDraftSetup] = useState<'qr' | 'manual'>(hasCredentials ? 'manual' : 'qr')
   const qrSetup = draft && draftSetup === 'qr'
 
   useIpcOn('channel.feishu.qr_login', (data) => {
     if (data.channelId !== channel.id) return
+    setLoginFault(data.status === 'error' ? { channelId: data.channelId, status: 'error' } : null)
     if (data.status === 'confirmed') {
       setQrUrl(null)
       setStatus('confirmed')
@@ -271,10 +277,22 @@ export const FeishuForm: FC<ChannelFormProps> = (props) => {
             </>
           )}
           {status === 'error' && (
-            <>
-              <span className="inline-block h-2 w-2 rounded-full bg-error" />
-              <span className="text-xs text-error">{t('agent.channels.error')}</span>
-            </>
+            <ErrorNotice
+              variant="inline"
+              className="flex-1"
+              title={t('agent.channels.error')}
+              detail={
+                loginFault != null ? (
+                  <ErrorDetailAction
+                    error={loginFault}
+                    message={t('agent.channels.error')}
+                    source="settings.channels"
+                    operation="channel.feishu.login"
+                    recordId={channel.id}
+                  />
+                ) : undefined
+              }
+            />
           )}
           {status === 'idle' && <span className="text-xs text-info">{t('agent.channels.feishu.loginHint')}</span>}
         </div>
@@ -458,6 +476,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ o
   const [status, setStatus] = useState<WeChatStatus>('idle')
   const [loginUserId, setLoginUserId] = useState<string | null>(null)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [loginFault, setLoginFault] = useState<QrLoginFault | null>(null)
 
   useEffect(() => {
     if (draft) return
@@ -471,6 +490,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ o
 
   useIpcOn('channel.wechat.qr_login', (data) => {
     if (data.channelId !== channel.id) return
+    setLoginFault(data.status === 'error' ? { channelId: data.channelId, status: 'error' } : null)
     if (data.status === 'confirmed') {
       setQrUrl(null)
       setStatus('confirmed')
@@ -522,10 +542,22 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ o
             </>
           )}
           {status === 'error' && (
-            <>
-              <span className="inline-block h-2 w-2 rounded-full bg-error" />
-              <span className="text-xs text-error">{t('agent.channels.error')}</span>
-            </>
+            <ErrorNotice
+              variant="inline"
+              className="flex-1"
+              title={t('agent.channels.error')}
+              detail={
+                loginFault != null ? (
+                  <ErrorDetailAction
+                    error={loginFault}
+                    message={t('agent.channels.error')}
+                    source="settings.channels"
+                    operation="channel.wechat.login"
+                    recordId={channel.id}
+                  />
+                ) : undefined
+              }
+            />
           )}
           {(status === 'idle' || status === 'pending') && (
             <span className="text-xs text-info">{t('agent.channels.wechat.loginHint')}</span>

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AutoConfigProgressView } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentType } from '@shared/data/types/agent'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -57,6 +58,15 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: unknown) =>
       options && typeof options === 'object' ? `${key}:${Object.values(options).join('/')}` : key
   })
+}))
+
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: unknown) => input
+}))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -490,7 +500,7 @@ describe('ResourceCreateWizard', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(onOpenChange).not.toHaveBeenCalled()
     await act(async () => fail(new Error('upload failed')))
-    expect(screen.getByText('upload failed')).toBeInTheDocument()
+    expect(screen.getByText('library.config.dialogs.create.submit_failed')).toBeInTheDocument()
     await user.click(create)
     expect(onSubmit).toHaveBeenCalledTimes(2)
     expect(onSubmit.mock.calls[1][0]).toMatchObject({ name: 'My Resource', avatarImage: new Uint8Array([7, 8, 9]) })
@@ -811,10 +821,37 @@ describe('ResourceCreateWizard', () => {
     )
   })
 
-  it('surfaces the actionable submit error and leaves the dialog closable after failure', async () => {
+  it('keeps the raw text of a rejected request behind Details under the translated summary', async () => {
+    const user = userEvent.setup()
+    const rejection = DataApiErrorFactory.conflict('An assistant named My Resource exists')
+    const onSubmit = vi.fn().mockRejectedValue(rejection)
+
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(await screen.findByText('library.config.dialogs.create.submit_failed')).toBeInTheDocument()
+    expect(screen.queryByText('An assistant named My Resource exists')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalledWith(expect.objectContaining({ error: rejection })))
+  })
+
+  it('reports an unexpected submit fault with Details and leaves the dialog closable', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
-    const onSubmit = vi.fn().mockRejectedValue(new Error('Selected skill no longer exists'))
+    const cause = new Error('Selected skill no longer exists')
+    const onSubmit = vi.fn().mockRejectedValue(cause)
 
     render(
       <ResourceCreateWizard
@@ -825,6 +862,7 @@ describe('ResourceCreateWizard', () => {
         onSubmit={onSubmit}
       />
     )
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: MANUAL }))
@@ -832,7 +870,20 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
-    expect(await screen.findByText('Selected skill no longer exists')).toBeInTheDocument()
+    expect(await screen.findByText('library.config.dialogs.create.submit_failed')).toBeInTheDocument()
+    expect(screen.queryByText(cause.message)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: cause,
+          message: 'library.config.dialogs.create.submit_failed',
+          source: 'library.resource',
+          operation: 'resource.create',
+          recordId: 'assistant'
+        })
+      )
+    )
     expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.assistant_title' })).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalled()
 
@@ -1464,7 +1515,9 @@ describe('ResourceCreateWizard auto create', () => {
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Network down')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('library.config.dialogs.create.submit_failed')
+    expect(alert).not.toHaveTextContent('Network down')
     expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('PR Reviewer')
     expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('Review my GitHub PRs')
 

@@ -5,9 +5,11 @@ import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Flex, Form, ScrollArea, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
+import { Button, Flex, Form, ScrollArea, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import {
   buildMcpSchema,
@@ -29,11 +31,13 @@ import { useMcpServer, useMcpServerMutations } from '@renderer/hooks/useMcpServe
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import type { McpTool } from '@renderer/types/tool'
-import { formatMcpError } from '@renderer/utils/error'
+import { classifyError } from '@renderer/utils/errorClassifier'
+import { serializeToastError } from '@renderer/utils/errorToast'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
@@ -284,7 +288,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           await ipcApi.request('mcp.server.restart', { serverId: server.id })
           toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
-        } catch (error: any) {
+        } catch (error: unknown) {
           toast.errorFromException(error, { category: 'mcp', mcpServer: server })
         }
       } else {
@@ -314,9 +318,19 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       toast.success(t('settings.mcp.deleteSuccess'))
       void navigate({ to: '/settings/mcp' })
     } catch (error: any) {
-      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+      toastAppError(t('settings.mcp.deleteError'), error, {
+        source: 'mcp',
+        operation: 'mcp.delete',
+        recordId: server.id
+      })
     }
-  }, [removeMcpServer, t, navigate])
+  }, [removeMcpServer, t, navigate, server.id])
+
+  // The popup body is a localized reason; the raw MCP error stays behind its detail entry.
+  const localizedMcpFailure = (error: unknown, fallbackKey: string) => {
+    const { category, i18nKey } = classifyError(serializeToastError(error))
+    return t(category !== 'unknown' ? i18nKey : fallbackKey)
+  }
 
   const onToggleActive = async (active: boolean) => {
     if (!server) return
@@ -365,8 +379,10 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         } catch (error: any) {
           void popup.error({
             title: t('settings.mcp.startError'),
-            content: formatMcpError(error as { message: string }),
-            centered: true
+            content: localizedMcpFailure(error, 'error.diagnosis.mcp'),
+            centered: true,
+            cause: error,
+            data: { source: 'mcp', operation: 'mcp.activate', recordId: serverForUpdate.id }
           })
         }
       } else {
@@ -381,8 +397,10 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     } catch (error: any) {
       void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
-        content: formatMcpError(error as { message: string }),
-        centered: true
+        content: localizedMcpFailure(error, active ? 'error.diagnosis.mcp' : 'toast.error.unexpected'),
+        centered: true,
+        cause: error,
+        data: { source: 'mcp', operation: active ? 'mcp.activate' : 'mcp.deactivate', recordId: server.id }
       })
     } finally {
       setLoadingServer(null)
@@ -519,14 +537,24 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
       children: (
         <>
-          {runtimeError && tools.length === 0 ? (
-            <Alert
-              type="error"
-              showIcon
-              message={t('settings.mcp.runtimeStatus.unavailable', 'Server unavailable')}
-              description={runtimeError}
+          {runtimeError ? (
+            <ErrorNotice
+              variant="inline"
+              className="mb-3"
+              title={t('settings.mcp.runtimeStatus.unavailable', 'Server unavailable')}
+              detail={
+                <ErrorDetailAction
+                  error={runtimeError}
+                  message={t('settings.mcp.runtimeStatus.unavailable', 'Server unavailable')}
+                  source="mcp"
+                  operation="mcp.runtime"
+                  recordId={server.id}
+                />
+              }
             />
-          ) : (
+          ) : null}
+          {/* Cached tools stay listed after a later runtime failure. */}
+          {!runtimeError || tools.length > 0 ? (
             <McpToolsSection
               tools={tools}
               server={server}
@@ -534,7 +562,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               onToggleTool={handleToggleTool}
               onToggleAutoApprove={handleToggleAutoApprove}
             />
-          )}
+          ) : null}
         </>
       )
     })
