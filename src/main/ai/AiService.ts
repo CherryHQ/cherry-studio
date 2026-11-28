@@ -52,6 +52,7 @@ import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isCodexProviderId } from '@shared/data/presets/codex'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
@@ -1081,7 +1082,11 @@ export class AiService extends BaseService {
       agent.generate(
         request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] },
         signal,
-        mode === 'stream' && model.supportsStreaming === false ? 'generate' : mode,
+        isCodexProviderId(provider.id)
+          ? 'stream'
+          : mode === 'stream' && model.supportsStreaming === false
+            ? 'generate'
+            : mode,
         onTextDelta
       )
     )
