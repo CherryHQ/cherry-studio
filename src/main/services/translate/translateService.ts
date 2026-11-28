@@ -115,6 +115,7 @@ export class TranslateService {
     streamManager.streamPrompt({
       streamId: req.streamId,
       uniqueModelId,
+      utilityTask: true,
       prompt: content,
       listener: wcListener,
       reasoningEffort,

@@ -81,7 +81,16 @@ describe('persistent compaction overflow', () => {
       contextSettings: DEFAULT_CONTEXT_SETTINGS,
       compressionModel: { languageModel: compressor, contextWindow: 16_000 }
     })
-    const model = { id: createUniqueModelId('test', 'chat'), providerId: 'test', contextWindow: 4000 } as Model
+    const model: Model = {
+      id: createUniqueModelId('test', 'chat'),
+      providerId: 'test',
+      name: 'chat',
+      contextWindow: 4000,
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }
     const provider = new PersistentChatContextProvider()
     const result = await provider['resolveCompactedHistory']('u2', 'topic', [model], undefined)
 

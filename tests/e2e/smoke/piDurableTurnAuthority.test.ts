@@ -4,6 +4,7 @@ import { once } from 'node:events'
 import { type ElectronApplication, type Page, type TestInfo } from '@playwright/test'
 
 import { terminateExactProcess } from '../../../scripts/e2e/regression/process'
+import type {} from '../../../src/renderer/data/utils/dataApiDevtools'
 import { AgentEntitySchema } from '../../../src/shared/data/api/schemas/agents'
 import { AgentSessionMessageEntitySchema } from '../../../src/shared/data/api/schemas/agentSessionMessages'
 import { AgentSessionEntitySchema } from '../../../src/shared/data/api/schemas/agentSessions'
@@ -224,6 +225,84 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 }
 
 test.describe('Pi Durable turn authority in Electron', () => {
+  test('appends and settles a streamed reply without reloading older Agent history', async ({ mainWindow: page }) => {
+    test.setTimeout(180_000)
+    const server = await startMockChatServer()
+    const route = routeRequests(server)
+    try {
+      const session = await createSession(page, server)
+      const chat = await openSession(page, session)
+
+      // Twenty-six turns put the first reply beyond the 50-message first page.
+      for (let index = 0; index < 26; index++) {
+        const prompt = `HISTORY_PROMPT_${index}_END`
+        const answer = `HISTORY_REPLY_${index}_END`
+        await chat.send(prompt)
+        const request = await route.next(prompt)
+        request.complete(answer)
+        await expect(chat.message(answer)).toBeVisible()
+      }
+
+      const scroller = chat.view.locator('[data-message-virtual-list-scroller]:visible').first()
+      await scroller.hover()
+      await expect
+        .poll(async () => {
+          await page.mouse.wheel(0, -10_000)
+          return chat.message('HISTORY_REPLY_0_END').isVisible()
+        })
+        .toBe(true)
+      await page.mouse.wheel(0, 10_000)
+      await expect(chat.message('HISTORY_REPLY_25_END')).toBeVisible()
+
+      await page.evaluate(() => {
+        if (!window.__CHERRY_DATA_API_DEVTOOLS__) throw new Error('DataApi request recorder is unavailable')
+        window.__CHERRY_DATA_API_DEVTOOLS__.setOptions({ capturePayloads: true })
+        window.__CHERRY_DATA_API_DEVTOOLS__.clear()
+      })
+      await chat.send('HANDOFF_REGRESSION_PROMPT')
+      const reply = await route.next('HANDOFF_REGRESSION_PROMPT')
+      reply.sendText('HANDOFF_PARTIAL ')
+      await expect(chat.message('HANDOFF_PARTIAL')).toBeVisible()
+      const listPath = `/agent-sessions/${session.sessionId}/messages`
+      const appendedReads = await page.evaluate(
+        (path) =>
+          window
+            .__CHERRY_DATA_API_DEVTOOLS__!.snapshot()
+            .filter((event) => event.method === 'GET' && event.path === path)
+            .map(({ query }) => query),
+        listPath
+      )
+      expect(appendedReads).toEqual([expect.objectContaining({ limit: 50 })])
+      expect(appendedReads[0]).not.toHaveProperty('cursor', expect.any(String))
+      await page.evaluate(() => window.__CHERRY_DATA_API_DEVTOOLS__!.clear())
+
+      reply.complete('HANDOFF_FINAL')
+      await expect(chat.message('HANDOFF_FINAL')).toBeVisible()
+      await expect
+        .poll(async () => (await rows(page, session.sessionId)).at(-1))
+        .toMatchObject({
+          status: 'success',
+          text: has('HANDOFF_FINAL')
+        })
+
+      const historyGets = () =>
+        page.evaluate(
+          (path) =>
+            window
+              .__CHERRY_DATA_API_DEVTOOLS__!.snapshotSummary()
+              .filter((event) => event.method === 'GET' && (event.path === path || event.path.startsWith(path + '/')))
+              .map((event) => event.path),
+          listPath
+        )
+      await expect.poll(async () => (await historyGets()).some((path) => path.startsWith(listPath + '/'))).toBe(true)
+      expect(await historyGets(), 'Settling a reply must not reload the loaded message pages').not.toContain(listPath)
+      expect(route.unclaimed()).toEqual([])
+    } finally {
+      route.close()
+      await server.close()
+    }
+  })
+
   test('queues a message sent during a turn in Durable and answers it in its own reply', async ({
     mainWindow: page
   }, testInfo) => {
@@ -239,10 +318,16 @@ test.describe('Pi Durable turn authority in Electron', () => {
       await expect(chat.message('FIRST_PARTIAL')).toBeVisible()
 
       await chat.send('QUEUED_QUESTION')
-      await expect(chat.view.getByRole('button', { name: /^Queued \(/ })).toHaveCount(0)
-      await expect(chat.message('QUEUED_QUESTION')).toBeVisible()
+      const queuedPanel = chat.view.getByRole('button', { name: 'Queued (1)', exact: true })
+      await expect(queuedPanel).toBeVisible()
+      await queuedPanel.click()
+      await expect(chat.view.getByText('QUEUED_QUESTION', { exact: true })).toBeVisible()
+      await expect(chat.message('QUEUED_QUESTION')).toHaveCount(0)
+      await capture(page, testInfo, 'queued-waiting')
       first.complete('FIRST_ANSWER')
       const queued = await route.next('QUEUED_QUESTION')
+      await expect(queuedPanel).toBeHidden()
+      await expect(chat.message('QUEUED_QUESTION')).toHaveCount(1)
       queued.complete('QUEUED_ANSWER')
 
       await expect(chat.message('QUEUED_ANSWER')).toBeVisible()
@@ -266,7 +351,7 @@ test.describe('Pi Durable turn authority in Electron', () => {
     }
   })
 
-  test('steers a running turn and continues in a new reply', async ({ mainWindow: page }, testInfo) => {
+  test('steers a running turn while preserving the original reply owner', async ({ mainWindow: page }, testInfo) => {
     test.setTimeout(180_000)
     const server = await startMockChatServer()
     const route = routeRequests(server)
@@ -279,12 +364,18 @@ test.describe('Pi Durable turn authority in Electron', () => {
       await expect(chat.message('SOURCE_PARTIAL')).toBeVisible()
 
       await chat.steer('STEER_INPUT')
-      await expect(chat.message('STEER_INPUT')).toBeVisible()
+      const waiting = chat.message('STEER_INPUT').getByRole('status').filter({ hasText: 'Waiting for the model…' })
+      await expect(waiting).toBeVisible()
       // Durable places a steer before the next model call, so the run needs one more step.
       source.completeToolCall({ id: 'call-read', name: 'read', arguments: { path: 'steer-probe.txt' } })
       // The steer must wait through the approval and land on the call after it.
-      await page.getByRole('button', { name: /^Allow/ }).click()
+      const allow = page.getByRole('button', { name: /^Allow/ })
+      await expect(allow).toBeVisible()
+      await expect(waiting).toBeVisible()
+      await capture(page, testInfo, 'steer-waiting')
+      await allow.click()
       const steered = await route.next('STEER_INPUT')
+      await expect(waiting).toHaveCount(0)
       steered.complete('STEER_ANSWER')
 
       await expect(chat.message('STEER_ANSWER')).toBeVisible()
@@ -294,9 +385,8 @@ test.describe('Pi Durable turn authority in Electron', () => {
         )
         .toMatchObject([
           { role: 'user', text: has('STEER_SOURCE') },
-          { role: 'assistant', status: 'success', text: has('SOURCE_PARTIAL') },
-          { role: 'user', text: has('STEER_INPUT') },
-          { role: 'assistant', status: 'success', text: has('STEER_ANSWER') }
+          { role: 'assistant', status: 'success', text: expect.stringMatching(/SOURCE_PARTIAL.*STEER_ANSWER/) },
+          { role: 'user', text: has('STEER_INPUT') }
         ])
       await expectNoErrorCard(page, session.sessionId)
       expect(route.unclaimed()).toEqual([])
@@ -389,11 +479,8 @@ test.describe('Pi Durable turn authority in Electron', () => {
       held.sendText('CRASH_PARTIAL ')
       await expect(chat.message('CRASH_PARTIAL')).toBeVisible()
       await chat.send('CRASH_QUEUED')
-      await expect
-        .poll(async () => (await rows(first.page, session.sessionId)).some((row) => row.text.includes('CRASH_QUEUED')))
-        .toBe(true)
-      // Main saves the user row, then submits it; give the native submission time to commit.
-      await first.page.waitForTimeout(2_000)
+      await expect(chat.view.getByRole('button', { name: 'Queued (1)', exact: true })).toBeVisible()
+      await expect(chat.message('CRASH_QUEUED')).toHaveCount(0)
 
       await test.step('Crash the owned Electron application', async () => {
         const child = first.app.process()
@@ -420,8 +507,11 @@ test.describe('Pi Durable turn authority in Electron', () => {
       running = second.app
       const reopened = await openSession(second.page, session)
       const resumed = await route.next('CRASH_QUESTION')
+      await expect(reopened.view.getByRole('button', { name: 'Queued (1)', exact: true })).toBeVisible()
+      await expect(reopened.message('CRASH_QUEUED')).toHaveCount(0)
       resumed.complete('CRASH_ANSWER')
       const queued = await route.next('CRASH_QUEUED')
+      await expect(reopened.message('CRASH_QUEUED')).toHaveCount(1)
       queued.complete('CRASH_QUEUED_ANSWER')
 
       await expect(reopened.message('CRASH_QUEUED_ANSWER')).toBeVisible()
