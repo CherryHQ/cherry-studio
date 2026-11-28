@@ -1,0 +1,276 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "uf-003-detail-row.v1.13.json",
+ "title": "003 日报明细表 · 单行契约 v1.13（只约束 T0 之后的新行）",
+ "description": "字段名即 003 明细表列名。工作项键 是『一条反馈』的身份、可跨行重复；行键 才是单行身份。",
+ "x-contract-version": "v1.13",
+ "type": "object",
+ "required": [
+  "工作项键",
+  "日报键",
+  "来源渠道",
+  "来源事件标识",
+  "证据",
+  "事件序号",
+  "事件类型",
+  "明细行键",
+  "身份档"
+ ],
+ "additionalProperties": true,
+ "properties": {
+  "工作项键": {
+   "type": "string",
+   "minLength": 1,
+   "description": "一条反馈的身份，可跨多行（初报/补证/复查/阻塞）。PM 幂等身份 = uf:{工作项键}。不是单行唯一键。"
+  },
+  "日报键": {
+   "type": "string",
+   "pattern": "^user-feedback-[0-9]{8}$",
+   "description": "批次键，= 首次见于哪份日报。同日多轮用 run_id 区分，不用日报键。"
+  },
+  "来源渠道": {
+   "type": "string",
+   "enum": [
+    "企微",
+    "QQ",
+    "Discord",
+    "Telegram",
+    "内部飞书",
+    "支持邮箱",
+    "其它",
+    "企业微信",
+    "待映射"
+   ],
+   "description": "写源值；企业微信 为兼容别名（PM 侧归一为 企微）；空值/表外值写 待映射，不许降级成 其它。"
+  },
+  "来源事件标识": {
+   "type": "string",
+   "minLength": 1,
+   "description": "原始消息 id，必须与来源渠道同族。能拿到真实 id 就写真实 id，即使渠道是 其它/待映射；真的取不到才写 unknown:<批次键>#<轮次>:<该轮内行号>（必须带 4 位轮次，否则同日多轮会撞）。",
+   "channel_family_patterns": {
+    "企微": "^(wc:[A-Za-z0-9_-]{1,64}:[1-9][0-9]{0,11}|wecom:[A-Za-z0-9_-]{1,64}:[0-9]{1,20}:[0-9]{1,20}|wecom:[A-Za-z0-9_-]{1,64}:[0-9]{1,20}|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "内部飞书": "^(om_[A-Za-z0-9_-]+|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "企业微信": "^(wc:[A-Za-z0-9_-]{1,64}:[1-9][0-9]{0,11}|wecom:[A-Za-z0-9_-]{1,64}:[0-9]{1,20}:[0-9]{1,20}|wecom:[A-Za-z0-9_-]{1,64}:[0-9]{1,20}|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "QQ": "^(qq:[A-Za-z0-9_-]{1,64}:ROBOT1\\.[0-9A-Za-z_.!\\-]{1,200}|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "Telegram": "^(tg:-?[0-9]+:[0-9]+|telegram:-?[0-9]+:[0-9]+|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "Discord": "^(discord:[0-9]{1,20}|dc:[0-9]+:[0-9]+:[0-9]+|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "支持邮箱": "^(mail:[^@\\s]+@[^\\s]+|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "其它": "^(?!\\s*$)[\\s\\S]+\\Z",
+    "待映射": "^(?!\\s*$)[\\s\\S]+\\Z"
+   }
+  },
+  "证据": {
+   "type": "string",
+   "minLength": 1,
+   "description": "每一行都是完整 http(s) URL（主机必填，路径可省），首行为原始来源且不得以空行开头；说明文字写 说明 列，日报关联不写进本列。取不到 URL 时整列只写 无公开链接。"
+  },
+  "事件序号": {
+   "type": "integer",
+   "minimum": 1,
+   "description": "作用域 =(工作项键, 事件类型)，在该作用域内按 明细行键 字典序从 1 编号（1-based，不依赖输入顺序）；规范化行完全相同的行共用同一 明细行键 与同一序号。同作用域内序号须为 1..n 连续且与 明细行键 字典序一致，重号/跳号即 seq_bad。序号由 明细行键 推导、不进行键：只改序号不改行键。写前分配、写后不变、重跑复用。"
+  },
+  "事件类型": {
+   "type": "string",
+   "enum": [
+    "初报",
+    "补证",
+    "复查",
+    "阻塞",
+    "重复"
+   ],
+   "description": "序号的作用域维度。",
+   "x-source-column": "类型"
+  },
+  "身份档": {
+   "type": "string",
+   "enum": [
+    "verified",
+    "unverified",
+    "unknown"
+   ],
+   "description": "来源事件标识 为 unknown: / 证据 为空或 无公开链接 → 必须 unverified；只有真实 ID + 真实 URL 才可为 verified。",
+   "x-source-column": "身份状态",
+   "x-derived": "identity_tier"
+  },
+  "说明": {
+   "type": "string",
+   "description": "可选。放 GitHub issue 链接、conv_id/seq、原文说明等不可点开的上下文；不参与自动判定。"
+  },
+  "明细行键": {
+   "type": "string",
+   "pattern": "^[0-9a-f]{64}$",
+   "description": "行键 = 单行身份：hex64(sha256(规范化行的紧凑 JSON 的 UTF-8 字节))。紧凑 JSON = ensure_ascii=false、separators=[\",\", \":\"]、无空白。规范化行 = [[列名, 规范化值], …]，列名用中文字段名原文；列序 = 本件 properties 声明序在前、x-row-key.normalized_row.appended_columns 声明序在后（不按行对象键插入序）；不参与列见 x-row-key.normalized_row.exclude_columns。值规范化：str→NFC；null→空串；bool→true/false；int→十进制文本；容器/浮点→键排序紧凑 JSON 再 NFC；缺列→空串。占位行（来源事件标识 以 unknown: 开头或为空串）的 来源事件标识 记空串后参与哈希。事件序号 不进行键（改序号不改键）。旧式 sha256(工作项键 + 事件类型 + 事件序号) 自 v1.12 废止：判定器按本规则独立复算（不 import 生成器实现），不等即 row_key_bad。机器可读定义见 x-row-key。"
+  },
+  "placeholder": {
+   "type": "boolean",
+   "description": "占位标记（JSON 布尔，不写字符串）：来源事件标识 以 unknown: 开头或为空串 → true；真实标识 → false。由 来源事件标识 派生，不参与规范化行（见 x-row-key.normalized_row.exclude_columns）。"
+  }
+ },
+ "x-row-key": {
+  "version": "v1.12",
+  "rule": "明细行键 = hex64(sha256(规范化行的紧凑 JSON 的 UTF-8 字节))；旧式 sha256(工作项键 + 事件类型 + 事件序号) 自 v1.12 废止",
+  "conformance_rule": "row_key_bad",
+  "normalized_row": {
+   "shape": "[[列名, 规范化值], …]（二维数组；列名=中文字段名原文；规范化值一律字符串）",
+   "column_order": "properties 声明序在前（只取参与列），appended_columns 声明序在后（只取参与列）；不得按行对象键插入序",
+   "columns": [
+    "来源渠道",
+    "来源事件标识",
+    "证据",
+    "事件类型",
+    "日期",
+    "profile",
+    "工作项",
+    "类型",
+    "对象",
+    "输入",
+    "输出",
+    "状态",
+    "tokens",
+    "调用数",
+    "工具摘要",
+    "委派次数（含 Codex）",
+    "飞书次数",
+    "GitHub次数",
+    "置信度",
+    "需人判断",
+    "待决事项",
+    "失败原因",
+    "置信度分",
+    "置信度理由",
+    "查重次数",
+    "重复命中数",
+    "原始消息ID",
+    "PM 工作项",
+    "身份状态",
+    "身份原因",
+    "身份对账"
+   ],
+   "appended_columns": [
+    "日期",
+    "profile",
+    "工作项",
+    "类型",
+    "对象",
+    "输入",
+    "输出",
+    "状态",
+    "tokens",
+    "调用数",
+    "工具摘要",
+    "委派次数（含 Codex）",
+    "飞书次数",
+    "GitHub次数",
+    "置信度",
+    "需人判断",
+    "待决事项",
+    "失败原因",
+    "置信度分",
+    "置信度理由",
+    "查重次数",
+    "重复命中数",
+    "原始消息ID",
+    "PM 工作项",
+    "身份状态",
+    "身份原因",
+    "身份对账"
+   ],
+   "exclude_columns": [
+    "工作项键",
+    "明细行键",
+    "事件序号",
+    "日报键",
+    "placeholder",
+    "record_id"
+   ],
+   "declared_but_not_output_columns": [
+    "身份档",
+    "说明"
+   ],
+   "missing_column_value": ""
+  },
+  "compact_json": {
+   "ensure_ascii": false,
+   "separators": [
+    ",",
+    ":"
+   ],
+   "sort_keys": false,
+   "encoding": "UTF-8"
+  },
+  "value_normalization": {
+   "str": "NFC",
+   "None": "",
+   "bool": "true|false",
+   "int": "十进制文本",
+   "container_or_float": "键排序紧凑 JSON（sort_keys=true, ensure_ascii=false, separators=(',',':')）再 NFC",
+   "missing": ""
+  },
+  "placeholder_row": {
+   "when": "来源事件标识 以 unknown: 开头，或为空串（含缺列 / null / 非字符串）",
+   "column": "来源事件标识",
+   "unknown_prefix": "unknown:",
+   "normalized_value": ""
+  },
+  "event_sequence": {
+   "conformance_rule": "seq_bad",
+   "scope": [
+    "工作项键",
+    "事件类型"
+   ],
+   "order_by": "明细行键 字典序",
+   "base": 1,
+   "same_row_key_shares_sequence": true,
+   "contiguous_1_to_n": true
+  }
+ },
+ "x-value-map": {
+  "version": "v1.13b",
+  "rule": "物理列原值 → 语义列值，只做一层：① list 解包（list_unwrap）② 查 semantic.<语义列>.map ③ 命中 map 或该语义列 enum 才填语义名；未命中落 unknown 档（只计数、不加违规、不填语义名，既有 missing_field 照报）。map 目标值与 unknown.value 必须是该语义列 enum 成员，否则契约自相矛盾 → 拒判 rc=3。本键缺失 = 不做任何值域映射 / list 解包 / unknown 分档（代码不持副本）。",
+  "list_unwrap": {
+   "shape": "飞书多选列导出为数组；单元素数组 = 单值（真表 类型 / 来源渠道 775/775 行均为数组，当前全部单值）",
+   "len_1": "first_element",
+   "len_0": "missing",
+   "len_gt_1": "不解包、不 join、不排序：该列声明了 multi_rule 则只计数（不阻断、不填语义名），未声明则保持原值走既有 type_error",
+   "columns": {
+    "类型": {
+     "multi_rule": "event_type_multi"
+    },
+    "来源渠道": {}
+   }
+  },
+  "semantic": {
+   "事件类型": {
+    "source_column": "类型",
+    "map": {
+     "历史反馈复查": "复查",
+     "反馈补证": "补证",
+     "提交阻塞": "阻塞",
+     "关联重复反馈": "重复"
+    },
+    "unknown": {
+     "count": "event_type_unknown",
+     "blocking": false,
+     "declared": [
+      "收集",
+      "调查",
+      "开发",
+      "评审",
+      "测试",
+      "同步"
+     ],
+     "note": "工作项型（declared）与任何其它未列举值都落本档：只计数、不加违规、不填 事件类型（既有 missing_field 照报）；declared 不得与 事件类型.enum 或 map 键重叠。关联重复反馈 → 重复 是『重复命中』证据，走 map 进枚举，不落本档。"
+    }
+   },
+   "身份档": {
+    "source_column": "身份状态",
+    "unknown": {
+     "count": "identity_unknown",
+     "blocking": false,
+     "value": "unknown",
+     "note": "合法第三档（enum 成员），由 x-derived=identity_tier 派生填入 身份档 并另计 count；不加违规、不豁免 identity_link_bad；空值仍按未判定（既有 missing_field），不报 identity_bad；有值且不在 enum 才 identity_bad。"
+    }
+   }
+  }
+ }
+}

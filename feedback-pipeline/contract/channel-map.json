@@ -1,0 +1,70 @@
+{
+  "version": "1.1",
+  "target_enum_mode": "explicit",
+  "note": "003 侧写源值（source），PM 侧落目标枚举（target）。003 侧只负责写 source 原值，不做改名；企业微信 是兼容别名，PM 侧归一到 企微。",
+  "rules": [
+    {
+      "source": "企微",
+      "target": "企微",
+      "kind": "同名"
+    },
+    {
+      "source": "企业微信",
+      "target": "企微",
+      "kind": "兼容别名"
+    },
+    {
+      "source": "QQ",
+      "target": "QQ",
+      "kind": "同名"
+    },
+    {
+      "source": "Discord",
+      "target": "Discord",
+      "kind": "同名"
+    },
+    {
+      "source": "Telegram",
+      "target": "Telegram",
+      "kind": "同名"
+    },
+    {
+      "source": "内部飞书",
+      "target": "内部飞书",
+      "kind": "同名"
+    },
+    {
+      "source": "支持邮箱",
+      "target": "支持邮箱",
+      "kind": "改名映射"
+    },
+    {
+      "source": "其它",
+      "target": "其它",
+      "kind": "改名映射"
+    }
+  ],
+  "fallback": {
+    "source": "待映射",
+    "target": "待映射",
+    "when": [
+      "空值",
+      "表外值"
+    ],
+    "forbidden": [
+      "静默降级为 其它/其他"
+    ],
+    "must_emit_count": true,
+    "note": "待映射 是 PM 侧待处理状态，不在最终入库枚举里，但必须出现在目标集合中以便计数与告警"
+  },
+  "target_enum": [
+    "企微",
+    "QQ",
+    "Discord",
+    "Telegram",
+    "内部飞书",
+    "支持邮箱",
+    "其它",
+    "待映射"
+  ]
+}

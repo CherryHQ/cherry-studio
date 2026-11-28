@@ -1,0 +1,100 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "uf-003-detail-row.v1.2.json",
+ "title": "003 日报明细表 · 单行契约 v1.2（只约束 T0 之后的新行）",
+ "description": "字段名即 003 明细表列名。工作项键 是『一条反馈』的身份、可跨行重复；行键 才是单行身份。",
+ "x-contract-version": "v1.11",
+ "type": "object",
+ "required": [
+  "工作项键",
+  "日报键",
+  "来源渠道",
+  "来源事件标识",
+  "证据",
+  "事件序号",
+  "事件类型",
+  "明细行键",
+  "身份档"
+ ],
+ "additionalProperties": true,
+ "properties": {
+  "工作项键": {
+   "type": "string",
+   "minLength": 1,
+   "description": "一条反馈的身份，可跨多行（初报/补证/复查/阻塞）。PM 幂等身份 = uf:{工作项键}。不是单行唯一键。"
+  },
+  "日报键": {
+   "type": "string",
+   "pattern": "^user-feedback-[0-9]{8}$",
+   "description": "批次键，= 首次见于哪份日报。同日多轮用 run_id 区分，不用日报键。"
+  },
+  "来源渠道": {
+   "type": "string",
+   "enum": [
+    "企微",
+    "QQ",
+    "Discord",
+    "Telegram",
+    "内部飞书",
+    "支持邮箱",
+    "其它",
+    "企业微信",
+    "待映射"
+   ],
+   "description": "写源值；企业微信 为兼容别名（PM 侧归一为 企微）；空值/表外值写 待映射，不许降级成 其它。"
+  },
+  "来源事件标识": {
+   "type": "string",
+   "minLength": 1,
+   "description": "原始消息 id，必须与来源渠道同族。能拿到真实 id 就写真实 id，即使渠道是 其它/待映射；真的取不到才写 unknown:<批次键>#<轮次>:<该轮内行号>（必须带 4 位轮次，否则同日多轮会撞）。",
+   "channel_family_patterns": {
+    "企微": "^(wc:[A-Za-z0-9_-]{1,64}:[1-9][0-9]{0,11}|wecom:[A-Za-z0-9_-]{1,64}:[0-9]{1,20}:[0-9]{1,20}|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "内部飞书": "^(om_[A-Za-z0-9_-]+|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "企业微信": "^(wc:[A-Za-z0-9_-]{1,64}:[1-9][0-9]{0,11}|wecom:[A-Za-z0-9_-]{1,64}:[0-9]{1,20}:[0-9]{1,20}|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "QQ": "^(qq:[A-Za-z0-9_-]{1,64}:ROBOT1\\.[0-9A-Za-z_.!\\-]{1,200}|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "Telegram": "^(tg:-?[0-9]+:[0-9]+|telegram:-?[0-9]+:[0-9]+|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "Discord": "^(dc:[0-9]+:[0-9]+:[0-9]+|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "支持邮箱": "^(mail:[^@\\s]+@[^\\s]+|unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+)\\Z",
+    "其它": "^(?!\\s*$)[\\s\\S]+\\Z",
+    "待映射": "^(?!\\s*$)[\\s\\S]+\\Z"
+   }
+  },
+  "证据": {
+   "type": "string",
+   "minLength": 1,
+   "description": "每一行都是完整 http(s) URL（主机必填，路径可省），首行为原始来源且不得以空行开头；说明文字写 说明 列，日报关联不写进本列。取不到 URL 时整列只写 无公开链接。"
+  },
+  "事件序号": {
+   "type": "integer",
+   "minimum": 1,
+   "description": "作用域 =(工作项键, 事件类型)，从 1 连续递增、不跳号；写前分配、写后不变、重跑复用。"
+  },
+  "事件类型": {
+   "type": "string",
+   "enum": [
+    "初报",
+    "补证",
+    "复查",
+    "阻塞"
+   ],
+   "description": "序号的作用域维度。"
+  },
+  "身份档": {
+   "type": "string",
+   "enum": [
+    "verified",
+    "unverified"
+   ],
+   "description": "来源事件标识 为 unknown: / 证据 为空或 无公开链接 → 必须 unverified；只有真实 ID + 真实 URL 才可为 verified。"
+  },
+  "说明": {
+   "type": "string",
+   "description": "可选。放 GitHub issue 链接、conv_id/seq、原文说明等不可点开的上下文；不参与自动判定。"
+  },
+  "明细行键": {
+   "type": "string",
+   "pattern": "^[0-9a-f]{64}$",
+   "description": "sha256(工作项键 + 事件类型 + 事件序号) 的 64 位小写十六进制；沿用表里已有的「明细行键」列，不新增同名列。"
+  }
+ }
+}

@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""ID 族正则的唯一真源（U2.3）：生成器 uf003_identity.py 与判定器 tools/conformance.py 只从这里取。
+
+口径说明（改动须同时改这里与本段）：
+- QQ：qq:<group_openid>:ROBOT1.<ver>_<载荷>。ver 必须 ≥1 位数字（ROBOT1.fake 拒）；载荷非空。
+  长度区间取 [1, 200] 闭区间：契约 v1.10 QQ 段写作 {1,200}（上界含），生成器旧口径同为 {1,200}，
+  V3 负例取 201；故 199 过、200 过、201 拒。长度只数 `_` 之后的载荷——v1.10 schema 段把 `0_`
+  一并计入（{1,200} 自 ROBOT1. 之后起算），载荷 199 即被判超长（实测 rc=2），与生成器不一致；
+  真实语料 ROBOT1.0_ 全长最长 161，不触及边界。版本数值不另设下限：语料 1188 条全是 ROBOT1.0_。
+- 日报键 / 明细行键：一律 \\A…\\Z，不用 $（$ 会放过尾随 \\n）。
+- 两版已发出的 schema QQ 段（sha256 冻结）已知有缺陷，调用方对这两段按本文件判；
+  PM 重发后的其它段以契约原文为准（reviewer 第 6 轮：契约收紧后旧 id 不得被永久放过）。
+- fail-closed（r8 E1）：schema QQ 段指纹不在 SHIPPED_QQ_FAMILY_SHA256 → 判定器与生成器都直接拒判
+  （rc≠0、单行点名「QQ 段指纹漂移」+ 冻结/实际 sha256），不得回落 schema 正则；契约改了 QQ 段须先同步改本文件。
+- 指纹绑版本（r9 C）：冻结表每条哈希只属于一个版本。require_shipped_qq 同时核「哈希在表内」与「哈希属于所在契约
+  版本」：`--contract v1.10` 配 v1.9 的 QQ 段 → 「QQ 段版本不符」单行拒判（rc=3）。v1.9 段对真实 id 命中 0，
+  两版整段互换曾经零提示地改变口径（判定器 rc=0、673 行、violations 0）。
+- 版本不可判定 fail-closed（r10）：require_shipped_qq 不再接受 version=None（r9 生成侧在主件与所有兄弟件都不逐字相同时
+  退回「只核哈希」，主件 QQ 段换成另一版原文仍 rc=0、写出 10 行）。version=None 一律抛 ContractVersionUnresolved
+  （QQSegmentDrift 子类，两侧同样 rc=3），单行点名「CONTRACT_VERSION_UNRESOLVED」。确实只要哈希的旧调用走
+  qq_segment_is_shipped()（函数名把「不核版本」写明）。
+  生成侧所在版本的两条独立线索分开记录、互不覆盖：sibling_version（目录里的 detail-row.<版本>.schema.json 与主件
+  整件逐字相同，否则 QQ 段逐字相同且唯一）/ declared_version（显式 UF003_CONTRACT_VERSION）与 qq_hash_tag（本文件
+  冻结表）。两者都存在且相等才过门；内存契约此后换段 → 当前标签与记录不符 → 拒，不靠标签自比自。
+"""
+from __future__ import annotations
+
+import hashlib
+import re
+
+QQ_GROUP = r"[A-Za-z0-9_-]{1,64}"
+QQ_VERSION = r"[0-9]+"
+PAYLOAD_MAX = 200
+QQ_ID_BODY = r"[A-Za-z0-9._!-]{1,%d}" % PAYLOAD_MAX
+QQ_MSG_ID = r"ROBOT1\." + QQ_VERSION + "_" + QQ_ID_BODY            # 裸消息 id，调用方 fullmatch
+QQ_EVENT_ID_BODY = r"qq:" + QQ_GROUP + ":ROBOT1\." + QQ_VERSION + "_" + QQ_ID_BODY
+UNKNOWN_ID = r"unknown:user-feedback-[0-9]{8}#[0-9]{4}:[0-9]+"
+QQ_FAMILY = r"\A(?:" + QQ_EVENT_ID_BODY + "|" + UNKNOWN_ID + r")\Z"
+BATCH_KEY_BODY = r"[0-9]{8}"
+BATCH_KEY = r"\Auser-feedback-(" + BATCH_KEY_BODY + r")\Z"
+ROW_KEY = r"\A[0-9a-f]{64}\Z"
+
+QQ_MSG_ID_RE = re.compile(QQ_MSG_ID)
+QQ_EVENT_ID_RE = re.compile(r"\A" + QQ_EVENT_ID_BODY + r"\Z")
+QQ_FAMILY_RE = re.compile(QQ_FAMILY)
+BATCH_KEY_RE = re.compile(BATCH_KEY)
+ROW_KEY_RE = re.compile(ROW_KEY)
+
+# 已发出且有缺陷的 schema QQ 段指纹：v1.9（双重转义 + {1,80}，受签语料命中 0/1188）、
+# v1.10（长度起算点含 `0_`，载荷 ≥199 即拒）。
+SHIPPED_QQ_FAMILY_SHA256 = {
+    "8940745dd06881c9e66c91685b60e7836b6f701f742475dc37b35627257594c4": "v1.9",
+    "6094df77179a7b214b2f16839f8f8e8f4d7a6435710707bf2f018887748c60a7": "v1.10",
+}
+
+# 沿用声明（U2.8-CV）：某版本**原样沿用**某已发出段的 QQ 段时，逐条显式登记，不是按版本名开口子。
+# 依据：v1.11 = v1.10 + 企微/企业微信/Telegram 备选，QQ 段字节未动（diff 只有 4 行）。
+# 防线不变：没登记在这个 sha 名下的版本仍拒判（r9 C 的 v1.10 换入 v1.9 段照旧拒）。
+# v1.12：契约 QQ 段字节 = v1.10 原样沿用（业主 2026-11-28 有条件授权，out_of_range_authorized=id_patterns QQ v1.12 单点）。
+SHIPPED_QQ_CARRY_OVER = {
+    "6094df77179a7b214b2f16839f8f8e8f4d7a6435710707bf2f018887748c60a7": ("v1.10", ("v1.11", "v1.12", "v1.13")),
+}
+
+
+QQ_DRIFT_TAG = "QQ 段指纹漂移"
+QQ_VERSION_TAG = "QQ 段版本不符"
+CONTRACT_VERSION_UNRESOLVED_TAG = "CONTRACT_VERSION_UNRESOLVED"
+
+
+class QQSegmentDrift(Exception):
+    """schema QQ 段指纹不在冻结表、或与所在契约版本不符：两侧都必须拒判（不得回落 schema 正则）。"""
+
+
+class ContractVersionUnresolved(QQSegmentDrift):
+    """所在契约版本没有独立线索（version=None），或线索互相矛盾：不得退回「只核哈希」。
+
+    是 QQSegmentDrift 的子类：凡把 QQSegmentDrift 当 rc=3 处理的调用方，对它同样 rc=3、单行、不出结论。"""
+
+
+def qq_segment_sha256(pattern) -> str:
+    return hashlib.sha256(pattern.encode("utf-8")).hexdigest() if isinstance(pattern, str) else ""
+
+
+def qq_segment_tag(pattern) -> str | None:
+    """QQ 段指纹在冻结表里对应的版本；不在冻结表（或缺失/非字符串）→ None。"""
+    return SHIPPED_QQ_FAMILY_SHA256.get(qq_segment_sha256(pattern))
+
+
+def frozen_versions() -> list[str]:
+    """冻结表里出现过的版本标签（去重，按冻结表顺序）：显式声明版本的合法取值。"""
+    out: list[str] = []
+    for v in SHIPPED_QQ_FAMILY_SHA256.values():
+        if v not in out:
+            out.append(v)
+    for _sha, (_origin, carried) in SHIPPED_QQ_CARRY_OVER.items():
+        for v in carried:
+            if v not in out:
+                out.append(v)
+    return out
+
+
+def _at(where: str) -> str:
+    return "（%s）" % where if where else ""
+
+
+def _frozen() -> str:
+    base = " ".join("%s=%s" % (v, h) for h, v in SHIPPED_QQ_FAMILY_SHA256.items())
+    extra = " ".join("%s=%s(沿用 %s)" % (v, h, origin)
+                     for h, (origin, carried) in SHIPPED_QQ_CARRY_OVER.items() for v in carried)
+    return base + (" " + extra if extra else "")
+
+
+def drift_message(actual: str, where: str = "") -> str:
+    return ("%s%s：冻结 sha256 %s；实际 %s。拒绝判定/入表（不回落 schema 正则），核对后同步更新 tools/id_patterns.py"
+            % (QQ_DRIFT_TAG, _at(where), _frozen(), actual or "缺失/非字符串"))
+
+
+def version_mismatch_message(actual: str, tag: str, want, where: str = "") -> str:
+    return ("%s%s：QQ 段 sha256 %s 是 %s 冻结值，与所在契约 %s 不符（冻结 sha256 %s）。"
+            "拒绝判定/入表：两版 QQ 段整段互换会静默改变口径，核对后同步更新 tools/id_patterns.py"
+            % (QQ_VERSION_TAG, _at(where), actual, tag, norm_version(want), _frozen()))
+
+
+def unresolved_message(actual: str, tag: str, where: str = "") -> str:
+    return ("%s%s：QQ 段 sha256 %s 是 %s 冻结值，但所在契约版本没有独立线索（version=None），不得只核哈希放行。"
+            "拒绝判定/入表：补齐 detail-row.<版本>.schema.json（与主件整件或 QQ 段逐字相同且唯一），"
+            "或显式 UF003_CONTRACT_VERSION=%s（须与哈希标签一致）"
+            % (CONTRACT_VERSION_UNRESOLVED_TAG, _at(where), actual, tag, "/".join(frozen_versions())))
+
+
+def norm_version(version) -> str | None:
+    """'v1.9' / '1.9' / ' V1.10 ' → 'v1.9' / 'v1.9' / 'v1.10'；None 保持 None（调用方确无独立版本信息）。"""
+    if version is None:
+        return None
+    s = str(version).strip()
+    return s if s[:1] == "v" else "v" + s
+
+
+def require_shipped_qq(pattern, where: str = "", version=None) -> str:
+    """QQ 段指纹必须命中冻结值，且属于所在契约版本（返回版本标签）；否则抛 QQSegmentDrift（消息恒为单行）。
+
+    version 给定时（判定器 = --contract；生成器 = 契约所在文件），哈希属于别的版本也算不符：
+    v1.9 的 QQ 段只能在 v1.9 契约里成立，v1.10 的只能在 v1.10。
+    version=None（r10）不再「只核哈希」：哈希在冻结表也抛 ContractVersionUnresolved（点名 CONTRACT_VERSION_UNRESOLVED）。
+    r9 生成侧正是靠 version=None 放行了「主件 QQ 段换成另一版原文」；没有独立版本线索时，任一版本都能自洽，
+    整段互换零提示。确实只要哈希的调用方走 qq_segment_is_shipped()。
+    """
+    actual = qq_segment_sha256(pattern)
+    tag = SHIPPED_QQ_FAMILY_SHA256.get(actual)
+    if not tag:
+        raise QQSegmentDrift(drift_message(actual, where))
+    if version is None:
+        raise ContractVersionUnresolved(unresolved_message(actual, tag, where))
+    want = norm_version(version)
+    allowed = {tag}
+    if actual in SHIPPED_QQ_CARRY_OVER:
+        allowed |= set(SHIPPED_QQ_CARRY_OVER[actual][1])
+    if want not in allowed:
+        raise QQSegmentDrift(version_mismatch_message(actual, tag, want, where))
+    return want
+
+
+def qq_segment_is_shipped(pattern) -> bool:
+    """schema 里的 QQ 族规则是否是已发出的原文：**只核哈希、不核版本**（r10 起包内无调用方，保留给确实只要哈希的场合；
+    它不是门——过不了 require_shipped_qq 的契约在这里照样可能得 True）。要绑版本的调用方（生成器/判定器的门）走
+    require_shipped_qq(…, version=…)，且 version=None 会被拒。"""
+    return isinstance(pattern, str) and hashlib.sha256(pattern.encode("utf-8")).hexdigest() in SHIPPED_QQ_FAMILY_SHA256
