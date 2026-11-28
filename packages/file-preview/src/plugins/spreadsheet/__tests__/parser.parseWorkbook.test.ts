@@ -342,6 +342,13 @@ describe('parseWorkbook — formulas: three states', () => {
     ws.getCell('A4').value = { formula: 'A1*A2' }
     // an evaluator-unfriendly / unknown function should remain unevaluated
     ws.getCell('A5').value = { formula: 'NOTAREALFUNCTION(A1)' }
+    ws.getCell('B1').value = { formula: '_xlfn.XLOOKUP(20,A1:A2,A1:A2)' }
+    ws.getCell('C1').value = { formula: 'B1*2' }
+    ws.getCell('C2').value = 3
+    ws.getCell('D1').value = { formula: 'SUM(C1:C2)' }
+    ws.getCell('D2').value = { formula: 'SUM(B2:C2)' }
+    ws.getCell('E1').value = { formula: 'IF(TRUE,42,B1)' }
+    ws.getCell('E2').value = { formula: 'IFERROR(B1,9)' }
 
     const buffer = await toArrayBuffer(wb)
     model = await parseWorkbook(buffer, 'formulas.xlsx')
@@ -352,6 +359,16 @@ describe('parseWorkbook — formulas: three states', () => {
     expect(cell.formula).toBe('A1+A2')
     expect(cell.formulaState).toBe('cached')
     expect(cell.text).toBe('30')
+  })
+
+  it('keeps dependent formulas unevaluated while a genuine blank still contributes zero', () => {
+    const { cells } = model.sheets[0]
+    expect(cells['1:2'].formulaState).toBe('unevaluated')
+    expect(cells['1:3'].text).toBe('=B1*2')
+    expect(cells['1:4'].text).toBe('=SUM(C1:C2)')
+    expect(cells['2:4'].text).toBe('3')
+    expect(cells['1:5'].text).toBe('42')
+    expect(cells['2:5'].text).toBe('=IFERROR(B1,9)')
   })
 
   it('formula without cache: a supported multiplication evaluates to its computed result', () => {

@@ -932,12 +932,12 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         const refKey = `${ref.sheet.toLowerCase()}!${ref.row}:${ref.col}`
         const pending = pendingByKey.get(refKey)
         if (pending) {
-          // Memoization makes completed cells O(1). Cycles/failures are classified by the evaluator as unevaluated -> null.
           const outcome = evaluator.evaluate(pending.formula, { sheet: pending.sheetName, row: ref.row, col: ref.col })
           if (outcome.state === 'evaluated') {
             return outcome.value ?? null
           }
-          return null
+          // The parser treats null as a blank cell and may silently count it as zero.
+          throw new Error(`Cannot evaluate referenced formula at ${refKey}`)
         }
         return readParsedCellValue(ref.sheet, ref.row, ref.col)
       }
