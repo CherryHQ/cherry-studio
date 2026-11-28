@@ -4,7 +4,7 @@ import { defangSystemReminderTags } from './untrustedContent'
  * Wrap a steer message — one the user sent while the assistant was already working — so the model
  * treats it as a mid-task redirect rather than a fresh prompt (invariant 7). Mirrors opencode's
  * `insertReminders`. Shared by both runtimes: chat wraps it into the rebuilt model history; the
- * claudeCode driver wraps it as it pushes into the live streaming-input queue.
+ * claudeCode driver wraps it on a native mid-turn submission.
  */
 const SYSTEM_REMINDER_OPEN = '<system-reminder>'
 const SYSTEM_REMINDER_CLOSE = '</system-reminder>'
@@ -18,8 +18,10 @@ export function wrapSteerReminder(text: string): string {
     SYSTEM_REMINDER_OPEN,
     'The user sent the following message:',
     safe,
-    '',
-    'Please address this message and continue with your tasks.',
+    'This message arrived while you were already working. It is a new instruction from the user, not a continuation of the current task.',
+    'Finish the step already in flight if it cannot be interrupted. Before any further work and before ending this turn, you must write one short user-visible sentence that restates what the user asked for.',
+    'Then either act on the message or state when it will be handled. Do not silently defer it to a later turn.',
+    "Where it conflicts with the remainder of your current plan, the user's message takes priority.",
     SYSTEM_REMINDER_CLOSE
   ].join('\n')
 }

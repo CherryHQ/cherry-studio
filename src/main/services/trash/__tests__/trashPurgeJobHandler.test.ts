@@ -1,6 +1,6 @@
 // Registers MessageService in the data-service registry (topic purge resolves it).
 import '@data/services/MessageService'
-import { rootRow, setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, rootRow, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
@@ -209,7 +209,8 @@ describe('trashPurgeJobHandler', () => {
         deletedAt: RECENT
       }
     ])
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
+      parentId: seedSessionRoot(dbh.db, 'session-expired'),
       id: 'asm-expired',
       sessionId: 'session-expired',
       role: 'user',
@@ -359,10 +360,14 @@ describe('trashPurgeJobHandler', () => {
       { endpoint: '/topics/:topicId/tree' },
       { endpoint: '/messages/:id' }
     ])
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
-      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' }
-    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
+        { endpoint: '/agent-sessions/:sessionId/messages/:messageId' },
+        { endpoint: '/ai-usage-records/local', kind: 'membership' },
+        { endpoint: '/agent-sessions/:sessionId/cost', routeParams: { sessionId: 'session-expired' } }
+      ])
+    )
   })
 
   it('purges domains in RFC §6 order: topic → session → agent → assistant → painting → file entry', async () => {

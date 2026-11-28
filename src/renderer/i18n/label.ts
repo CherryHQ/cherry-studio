@@ -73,6 +73,7 @@ const providerKeyMap = {
   qwencloud: 'provider.qwencloud',
   qwenlm: 'provider.qwenlm',
   'radeon-cloud': 'provider.radeon-cloud',
+  'rapid-mlx': 'provider.rapid-mlx',
   silicon: 'provider.silicon',
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
@@ -209,7 +210,8 @@ const sidebarIconKeyMap = {
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title'
+  notes: 'notes.title',
+  api_gateway: 'code.api_gateway.title'
 } as const
 
 export const getSidebarIconLabelKey = (key: string): string => {

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { UtilityProcessHandlerContext } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
 
@@ -23,9 +23,25 @@ const bootstrap = 'globalThis.call = async (input) => JSON.parse(await __hostCal
 afterEach(() => {
   for (const kernel of kernels) kernel.dispose()
   kernels.clear()
+  vi.restoreAllMocks()
 })
 
 describe('persistent automation kernel', () => {
+  it('resumes guest code after a human approval wait longer than the execution budget', async () => {
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const result = await createKernel().execute(
+      { bootstrap, code: 'await call({}); "resumed"' },
+      context(async () => {
+        now += 90_000
+        return { approvalWaitMs: 90_000, ok: true }
+      })
+    )
+    expect(result.isError).not.toBe(true)
+    expect(result.context.state).toBe('retained')
+    expect(result.text).toContain('resumed')
+  })
+
   it('discards old proxies and bindings when the API bootstrap changes without replaying actions', async () => {
     const kernel = createKernel()
     let effects = 0
@@ -79,6 +95,45 @@ describe('persistent automation kernel', () => {
     )
     expect(JSON.parse(failure.text)).toEqual({ code: 'STALE_SNAPSHOT', effect: 'none' })
     expect(text).toBe('128*37+456')
+  })
+
+  it('keeps browser proxies bound to their acquired tab when another tab is opened or selected', async () => {
+    const kernel = createKernel()
+    const titles = new Map([
+      ['one', 'Docs'],
+      ['two', 'Preview']
+    ])
+    let selected = 'one'
+    const host = context(async (domain, input) => {
+      const request = input as { name: string; args: { url?: string }; target?: string }
+      if (domain !== 'browser') throw new Error('Unexpected domain')
+      if (request.name === 'listTabs')
+        return { ok: true, value: { tabs: [...titles].map(([tabId, title]) => ({ tabId, title })) } }
+      if (request.name === 'newTab') {
+        selected = 'three'
+        titles.set(selected, request.args.url!)
+        return { ok: true, value: { tabId: selected } }
+      }
+      const target = request.target ?? selected
+      if (!titles.has(target)) return { ok: false, error: { code: 'not_found', message: 'Page closed' } }
+      if (request.name === 'getTab') return { ok: true, value: { tabId: target } }
+      return { ok: true, value: { title: titles.get(target) } }
+    })
+    const bootstrap = automationBootstrap()
+    const initial = await kernel.execute(
+      {
+        bootstrap,
+        code: 'var first = await browser.getTab(); var pages = await browser.listTabs(); var second = await browser.getTab({tabId: pages[1].tabId}); var third = await browser.newTab("https://example.com/"); [(await first.getAXState()).title, (await second.getAXState()).title, (await third.getAXState()).title]'
+      },
+      host
+    )
+    expect(JSON.parse(initial.text)).toEqual(['Docs', 'Preview', 'https://example.com/'])
+    titles.delete('one')
+    const closed = await kernel.execute({ bootstrap, code: 'await first.getAXState()' }, host)
+    expect(closed).toMatchObject({ isError: true })
+    expect(closed.text).toContain('Page closed')
+    const remaining = await kernel.execute({ bootstrap, code: '(await second.getAXState()).title' }, host)
+    expect(remaining.text.trim()).toBe('Preview')
   })
 
   it('retains bindings and functions across awaited cells without replaying earlier host calls', async () => {

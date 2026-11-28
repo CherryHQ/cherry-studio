@@ -28,7 +28,7 @@ function ChatCitationSupRenderer(props: MarkdownRendererProps<'sup'>) {
 function getCodeFilePath({ text, language, isIncomplete }: ReturnType<typeof useMarkdownCode>) {
   if (isIncomplete || (language !== null && language !== 'text')) return null
   const path = normalizeInlineFilePath(text)
-  return path && (isKnownNavigationPath(path) || (!isWin && isInlineFilePath(text))) ? path : null
+  return path && (isKnownNavigationPath(path) || isInlineFilePath(text, isWin ? 'windows' : 'posix')) ? path : null
 }
 
 function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
@@ -38,7 +38,7 @@ function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
   // Keep growing fences as code until Streamdown finishes rebuilding their animated spans.
   const path = getCodeFilePath(code)
   if (path && isKnownNavigationPath(path)) return <NavigateToolInline input={{ path }} />
-  if (path) return <ClickableFilePath path={path} />
+  if (path) return <ClickableFilePath path={code.text} />
 
   return (
     <CodeBlock

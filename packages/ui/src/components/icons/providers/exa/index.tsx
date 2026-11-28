@@ -9,7 +9,7 @@ const Exa = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const ExaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Exa, {
   Avatar: ExaAvatar,
-  colorPrimary: '#1F40ED'
+  colorPrimary: '#3155FF'
 })
 
 export default ExaIcon

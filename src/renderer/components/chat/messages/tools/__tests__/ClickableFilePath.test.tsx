@@ -155,6 +155,17 @@ describe('ClickableFilePath', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent(expectedPath)
   })
 
+  it('opens a structured source location without putting the line number into the file path', async () => {
+    renderWithProvider(<ClickableFilePath path="/tmp/中文 项目/report.ts" line={42} />, {
+      openArtifactFile: mockOpenArtifactFile
+    })
+    const link = screen.getByRole('link', { name: /report\.ts\s*:42/ })
+    await userEvent.click(link)
+    expect(mockOpenArtifactFile).toHaveBeenLastCalledWith('/tmp/中文 项目/report.ts', { line: 42 })
+    await userEvent.keyboard('{Enter}')
+    expect(mockOpenArtifactFile).toHaveBeenCalledTimes(2)
+  })
+
   it('should open relative paths directly', async () => {
     renderWithProvider(<ClickableFilePath path="src/renderer/index.tsx" />, {
       openArtifactFile: mockOpenArtifactFile
@@ -232,7 +243,7 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should strip line suffixes before opening', async () => {
+  it('separates line and column from the filesystem path', async () => {
     renderWithProvider(<ClickableFilePath path="src/renderer/src/index.tsx:42:5" />, {
       openArtifactFile: mockOpenArtifactFile
     })
@@ -240,7 +251,7 @@ describe('ClickableFilePath', () => {
     fireEvent.click(screen.getByRole('link', { name: 'src/renderer/src/index.tsx' }))
 
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/src/index.tsx')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/src/index.tsx', { line: 42, column: 5 })
     })
   })
 
@@ -254,7 +265,7 @@ describe('ClickableFilePath', () => {
     fireEvent.click(screen.getByRole('link', { name: path }))
 
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/tmp/report(final)[v2].ts')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/tmp/report(final)[v2].ts', { line: 42, column: 5 })
     })
   })
 

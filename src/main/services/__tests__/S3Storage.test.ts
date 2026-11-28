@@ -1,7 +1,9 @@
 import { DeleteObjectCommand, ListObjectsV2Command, type S3Client } from '@aws-sdk/client-s3'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { S3Config } from '@shared/types/backup'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import S3Storage from '../S3Storage'
 
@@ -18,6 +20,23 @@ const config: S3Config = {
 }
 
 describe('S3Storage', () => {
+  it('keeps SDK authentication failures local and preserves their original error', async () => {
+    const storage = new S3Storage(config)
+    const client = Reflect.get(storage, 'client') as S3Client
+    Object.assign(client.config.requestHandler, {
+      handle: async () => ({
+        response: { statusCode: 403, headers: {}, body: Buffer.from('') }
+      })
+    })
+    await expect(storage.checkConnection()).rejects.toMatchObject({
+      $metadata: { httpStatusCode: 403 },
+      reportingHandled: true
+    })
+    const entry = mockMainLoggerService.error.mock.calls.at(-1)![1]
+    expect(getSentryLogContext(entry)).toBeUndefined()
+    expect(entry.failure.reason).toBe('storage_remote_unavailable')
+  })
+
   it.each(['https://s3.cn-east-1.qiniucs.com', 'https://backups.s3.cn-east-1.qiniucs.com'])(
     'addresses a Qiniu bucket exactly once with endpoint %s',
     async (endpoint) => {

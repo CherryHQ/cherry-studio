@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as Ui from '@cherrystudio/ui'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 import MessageGroupMenuBar from '../MessageGroupMenuBar'
@@ -12,17 +13,10 @@ const mocks = vi.hoisted(() => ({
   t: vi.fn((...args: [key: string, options?: unknown]) => args[0])
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  RowFlex: ({ children, className }: ComponentPropsWithoutRef<'div'>) => <div className={className}>{children}</div>,
-  Tooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
-    <span data-tooltip-content={typeof content === 'string' ? content : undefined}>{children}</span>
-  )
-}))
+vi.mock('@cherrystudio/ui', async (original) => {
+  const actual = await original<typeof Ui>()
+  return { Button: actual.Button, RowFlex: actual.RowFlex, Tooltip: actual.Tooltip }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -35,7 +29,10 @@ vi.mock('../../blocks/MessagePartsContext', () => ({
 }))
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageListActions: () => mocks.actions
+  useMessageListActions: () => mocks.actions,
+  useMessageRenderConfig: () => ({
+    multiModelFoldDisplayMode: 'expanded'
+  })
 }))
 
 vi.mock('../MessageGroupModelList', () => ({
@@ -171,7 +168,7 @@ describe('MessageGroupMenuBar', () => {
       />
     )
 
-    expect(document.querySelector('[data-tooltip-content="message.group.retry_failed"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'message.group.retry_failed' })).not.toBeInTheDocument()
   })
 
   it('retries at most one failed reply per model with deterministic selection', async () => {
@@ -225,5 +222,46 @@ describe('MessageGroupMenuBar', () => {
     expect(regenerateMessage.mock.calls).toEqual([['gpt-selected-old'], ['claude-new']])
     expect(notifyInfo).toHaveBeenCalledWith('message.group.retry_skipped_same_model')
     expect(mocks.t).toHaveBeenCalledWith('message.group.retry_skipped_same_model', { count: 2 })
+  })
+
+  it('retries each failed model with that reply own model', async () => {
+    const user = userEvent.setup()
+    const regenerateMessage = vi.fn().mockResolvedValue(undefined)
+    const regenerateMessageUsingModel = vi.fn().mockResolvedValue(undefined)
+    mocks.actions = { regenerateMessage, regenerateMessageUsingModel, notifyInfo: vi.fn() }
+    const failedMessages = [
+      {
+        ...messages[0],
+        id: 'gpt-selected-old',
+        status: 'error',
+        modelId: 'openai::gpt-4o',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        ...messages[0],
+        id: 'claude-new',
+        status: 'error',
+        modelId: 'anthropic::claude-sonnet',
+        createdAt: '2026-01-01T00:00:01.000Z'
+      }
+    ] as MessageListItem[]
+
+    render(
+      <MessageGroupMenuBar
+        multiModelMessageStyle="horizontal"
+        setMultiModelMessageStyle={vi.fn()}
+        messages={failedMessages}
+        selectMessageId="gpt-selected-old"
+        setSelectedMessage={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'message.group.retry_failed' }))
+
+    expect(regenerateMessageUsingModel.mock.calls).toEqual([
+      ['gpt-selected-old', 'openai::gpt-4o'],
+      ['claude-new', 'anthropic::claude-sonnet']
+    ])
+    expect(regenerateMessage).not.toHaveBeenCalled()
   })
 })

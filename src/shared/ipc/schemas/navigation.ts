@@ -26,6 +26,7 @@ const conversationDraftSchema: z.ZodType<ConversationDraft> = z.object({
       label: z.string(),
       icon: z.string().optional(),
       description: z.string().optional(),
+      sourceMessageId: z.string().optional(),
       promptText: z.string().optional(),
       payload: z.unknown().optional(),
       index: z.number(),

@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { FilePenLine, PinIcon, Archive } from 'lucide-react'
+import { FilePenLine, PinIcon } from 'lucide-react'
 import type { RefObject } from 'react'
 import { memo, useCallback, useMemo, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,7 @@ import type {
   TopicExportMenuOptions,
   TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { useTopicMenuActions } from '@renderer/components/chat/actions/useTopicMenuActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   CONVERSATION_ROW_STATUS_TITLE_CLASS,
@@ -27,7 +28,6 @@ import {
   subscribeChatDraftCache
 } from '@renderer/components/composer/variants/chat/chatDraftCache'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import type { Topic } from '@renderer/types/topic'
 import type { TopicDisplayMode } from '@renderer/utils/chat/topicsHelpers'
@@ -292,7 +292,6 @@ const TopicRow = memo(function TopicRow({
   const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time'
-  const canDeleteTopic = !topic.pinned
   const isArchiveBlocked = isTopicStreamPending || isTopicAwaitingApproval
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
@@ -325,7 +324,6 @@ const TopicRow = memo(function TopicRow({
     topic,
     topicsLength
   })
-  const deleteAction = useMemo(() => getMenuActions().find((action) => action.id === 'topic.delete'), [getMenuActions])
 
   const row = (
     <ResourceList.Item
@@ -387,21 +385,6 @@ const TopicRow = memo(function TopicRow({
                 void onPinTopic(topic)
               }}>
               <PinIcon size={14} className={cn('size-3.5!', topic.pinned && 'fill-current')} />
-            </ResourceList.ItemAction>
-          </Tooltip>
-        )}
-        {canDeleteTopic && (
-          <Tooltip
-            title={isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : t('common.archive')}
-            delay={500}>
-            <ResourceList.ItemAction
-              aria-label={t('common.archive')}
-              disabled={isArchiveBlocked}
-              onClick={(event) => {
-                event.stopPropagation()
-                if (deleteAction) void handleMenuAction(deleteAction)
-              }}>
-              <Archive size={14} className="size-3.5!" />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

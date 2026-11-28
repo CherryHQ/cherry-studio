@@ -5,6 +5,18 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { buildToolResponseFromPart } from '../toolResponse'
 
 describe('toolResponse adapter', () => {
+  it('preserves ACP tool identity and details instead of classifying native tools as MCP', () => {
+    const input = { localAcpTool: { title: 'Edit example', kind: 'edit', locations: [{ path: '/example', line: 2 }] } }
+    const response = buildToolResponseFromPart({
+      type: 'dynamic-tool',
+      toolCallId: 'acp-edit',
+      toolName: 'ACP: Edit example',
+      state: 'input-available',
+      input
+    })
+    expect(response).toMatchObject({ tool: { name: 'ACP: Edit example', type: 'provider' }, arguments: input })
+  })
+
   it('keeps preliminary tool output visible as running until the final result arrives', () => {
     const part: CherryMessagePart = {
       type: 'dynamic-tool',
@@ -384,6 +396,7 @@ describe('toolResponse adapter', () => {
       output: { content: [{ type: 'text', text: 'Success' }] },
       callProviderMetadata: { cherry: { transport: 'pi-agent' } }
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(input)
     expect(buildToolResponseFromPart(part)?.arguments).toMatchObject(expected)
     expect(part.input).toEqual(original)
@@ -422,6 +435,7 @@ describe('toolResponse adapter', () => {
       output: { content: [{ type: 'text', text: 'Success' }] },
       callProviderMetadata: { cherry: { transport: 'pi-agent' } }
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(input)
     const response = buildToolResponseFromPart(part)
     expect(response?.tool.name).toBe('MultiEdit')

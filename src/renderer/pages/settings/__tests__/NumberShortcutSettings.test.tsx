@@ -49,3 +49,46 @@ it('selects a single mode and updates the two shortcut roles together', async ()
     /(Alt\+|⌃) 1–9 for conversations; (Ctrl\+|⌘) 1–9 for tabs/
   )
 })
+
+it('selects Off and shows its description', async () => {
+  const i18n = createInstance()
+  await i18n.init({
+    lng: 'en',
+    keySeparator: false,
+    resources: {
+      en: {
+        translation: {
+          'settings.shortcuts.number_keys.title': 'Number shortcuts',
+          'settings.shortcuts.number_keys.off': 'Off',
+          'settings.shortcuts.number_keys.off_description': 'Number shortcuts are turned off.'
+        }
+      }
+    }
+  })
+  const onChange = vi.fn()
+  function Settings() {
+    const [mode, setMode] = useState<NumberShortcutMode>('conversation')
+    return (
+      <I18nextProvider i18n={i18n}>
+        <NumberShortcutSettings
+          mode={mode}
+          saving={false}
+          onChange={(value) => {
+            onChange(value)
+            setMode(value)
+          }}
+        />
+      </I18nextProvider>
+    )
+  }
+  Element.prototype.scrollIntoView = vi.fn()
+  const user = userEvent.setup()
+  render(<Settings />)
+  screen.getByRole('combobox', { name: 'Number shortcuts' }).focus()
+  await user.keyboard('{ArrowUp}')
+  await screen.findByRole('option', { name: 'Off' })
+  await user.keyboard('{End}{Enter}')
+  expect(onChange).toHaveBeenCalledWith('off')
+  expect(screen.getByRole('combobox', { name: 'Number shortcuts' })).toHaveTextContent('Off')
+  expect(screen.getByText('Number shortcuts are turned off.')).toBeInTheDocument()
+})

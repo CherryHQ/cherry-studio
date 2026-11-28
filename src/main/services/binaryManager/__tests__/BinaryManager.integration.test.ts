@@ -13,6 +13,7 @@ import { application } from '@application'
 import { CLI_INSTALL_TOOL_NAME, registerCliTools } from '@main/ai/mcp/servers/cherryCliTools'
 import { BaseService } from '@main/core/lifecycle'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
+import { LOCAL_CLI_AGENT_PRESETS } from '@shared/ai/localAgent'
 
 import { BinaryManager } from '../BinaryManager'
 
@@ -25,6 +26,7 @@ vi.mock('@main/utils/shellEnv', async (importOriginal) => {
   const getSandboxEnv = async () => ({ ...shellEnvRef.current })
   return {
     ...actual,
+    getInteractiveShellEnv: vi.fn(getSandboxEnv),
     getRawShellEnv: vi.fn(getSandboxEnv),
     getShellEnv: vi.fn(getSandboxEnv),
     refreshShellEnv: vi.fn(getSandboxEnv)
@@ -126,6 +128,33 @@ if (command === 'use') {
     return service
   }
 
+  it('skips a PATH symlink into the old managed installation and finds the next system command', async () => {
+    const legacy = path.join(tempDir, 'legacy')
+    const aliasDir = path.join(tempDir, 'bin')
+    const systemDir = path.join(tempDir, 'system')
+    fs.mkdirSync(legacy)
+    fs.mkdirSync(systemDir)
+    const commands = LOCAL_CLI_AGENT_PRESETS.map((preset) => preset.executable)
+    for (const name of commands) {
+      const managed = path.join(legacy, name)
+      fs.writeFileSync(managed, '', { mode: 0o755 })
+      fs.writeFileSync(path.join(systemDir, name), '', { mode: 0o755 })
+      fs.symlinkSync(managed, path.join(aliasDir, name))
+    }
+    shellEnvRef.current = { PATH: [`${aliasDir}${path.sep}`, systemDir].join(path.delimiter) }
+    vi.mocked(application.getPath).mockImplementation((key, filename) =>
+      path.join(key === 'feature.binary.data' ? legacy : path.join(tempDir, key), filename ?? '')
+    )
+    const service = new BinaryManager()
+    const installed = await service.getToolSnapshots(commands)
+    for (const name of commands) {
+      expect(installed[name].availability).toEqual({ source: 'system', path: path.join(systemDir, name) })
+    }
+    fs.rmSync(systemDir, { recursive: true })
+    const removed = await service.getToolSnapshots(commands)
+    for (const name of commands) expect(removed[name].availability).toEqual({ source: 'none' })
+  })
+
   it('returns a real MCP tool error for an unmet bundled target and recovers on a name-only request', async () => {
     const bundledDir = path.join(tempDir, 'bundled')
     fs.mkdirSync(bundledDir)
@@ -184,28 +213,28 @@ if (command === 'use') {
   it('installs, snapshots, and removes through the production process runner', async () => {
     const service = createService()
 
-    await expect(service.installByName({ name: 'opencode' })).resolves.toBeUndefined()
+    await expect(service.installByName({ name: 'fd' })).resolves.toBeUndefined()
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([])
-    await expect(service.getToolSnapshots(['opencode'])).resolves.toEqual({
-      opencode: {
-        name: 'opencode',
+    await expect(service.getToolSnapshots(['fd'])).resolves.toEqual({
+      fd: {
+        name: 'fd',
         availability: {
           source: 'mise',
-          path: path.join(tempDir, 'shims', 'opencode'),
+          path: path.join(tempDir, 'shims', 'fd'),
           version: '1.2.3'
         },
         application: { status: 'applied', version: '1.2.3' }
       }
     })
 
-    await expect(service.installByName({ name: 'opencode', targetVersion: '2.0.0' })).resolves.toBeUndefined()
+    await expect(service.installByName({ name: 'fd', targetVersion: '2.0.0' })).resolves.toBeUndefined()
     expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'fake-installed-tools.json'), 'utf8'))).toEqual({
-      opencode: [{ version: '2.0.0', active: true }]
+      fd: [{ version: '2.0.0', active: true }]
     })
 
-    await expect(service.removeTool({ name: 'opencode' })).resolves.toEqual({ status: 'removed' })
+    await expect(service.removeTool({ name: 'fd' })).resolves.toEqual({ status: 'removed' })
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([])
-    expect(fs.existsSync(path.join(tempDir, 'shims', 'opencode'))).toBe(false)
+    expect(fs.existsSync(path.join(tempDir, 'shims', 'fd'))).toBe(false)
 
     const shimsDir = path.join(tempDir, 'shims')
     fs.mkdirSync(shimsDir, { recursive: true })

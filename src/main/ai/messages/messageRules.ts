@@ -11,6 +11,7 @@ import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, 
 
 import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 
+import { isSignedGeminiWhitespace } from './geminiTextSignature'
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
@@ -338,7 +339,8 @@ export async function toModelMessages(
   messages: UIMessage[],
   caps?: MediaCapabilities,
   tools?: ToolSet,
-  toolResultCaps?: MediaCapabilities
+  toolResultCaps?: MediaCapabilities,
+  options: { preserveEmptyAnthropicThinking?: boolean; preserveSignedGeminiWhitespace?: boolean } = {}
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
@@ -346,15 +348,23 @@ export async function toModelMessages(
       dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
     )
   )
-  // Anthropic serializes signed reasoning even when blank, which Bedrock rejects.
-  // Redacted thinking has redactedData instead of a signature and must survive.
+  // Anthropic Messages needs signed blocks even without display text. Keep the existing
+  // blank-reasoning filter for other adapters, which can reject those blocks.
   const replayable = shaped.map((message) => {
-    const parts = message.parts.filter(
-      (part) =>
-        part.type !== 'reasoning' ||
-        part.text.trim().length > 0 ||
+    const parts = message.parts.filter((part) => {
+      if (message.role === 'assistant' && part.type === 'text') {
+        return (
+          part.text.trim().length > 0 ||
+          (options.preserveSignedGeminiWhitespace && isSignedGeminiWhitespace(part.text, part.providerMetadata))
+        )
+      }
+      if (part.type !== 'reasoning' || part.text.trim().length > 0) return true
+      return (
+        options.preserveEmptyAnthropicThinking ||
+        typeof part.providerMetadata?.cherry?.replayRouteId === 'string' ||
         typeof part.providerMetadata?.anthropic?.signature !== 'string'
-    )
+      )
+    })
     return parts.length === message.parts.length ? message : { ...message, parts }
   })
   const model = await convertToModelMessages(renderEditedReasoningAsThinkText(replayable), {

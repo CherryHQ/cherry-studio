@@ -526,7 +526,7 @@ describe('CommandContextMenu', () => {
       location: 'webcontents.context'
     })
     render(<input aria-label="external-target" />)
-    const external = screen.getByLabelText('external-target') as HTMLInputElement
+    const external = screen.getByLabelText<HTMLInputElement>('external-target')
     external.focus()
 
     const content = screen.getByTestId('menu-content')
@@ -947,6 +947,38 @@ describe('CommandContextMenu', () => {
       expect(showNativePopupMenuMock).toHaveBeenCalled()
       expect(onOpenChange).toHaveBeenLastCalledWith(false)
     })
+  })
+
+  it('runs an immediate popup item synchronously without scheduling a frame', () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    const onSelect = vi.fn()
+    const onOpenChange = vi.fn()
+    const frame = vi.spyOn(window, 'requestAnimationFrame')
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandPopupMenu
+            location="webcontents.context"
+            onOpenChange={onOpenChange}
+            deferActionsUntilClosed
+            extraItems={[{ type: 'item', id: 'instant', label: 'Instant', executeImmediately: true, onSelect }]}>
+            <button type="button">trigger-popup</button>
+          </CommandPopupMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
+    frame.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Instant' }))
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(onSelect.mock.invocationCallOrder[0]).toBeLessThan(onOpenChange.mock.invocationCallOrder.at(-1)!)
+    expect(frame).not.toHaveBeenCalled()
+    const close = screen.getByTestId('dropdown-menu-close-complete')
+    expect(fireEvent.click(close)).toBe(false)
+    expect(fireEvent.click(close)).toBe(true)
+    expect(frame).not.toHaveBeenCalled()
+    frame.mockRestore()
   })
 
   it('runs deferred cherry popup actions after the close lifecycle finishes', () => {

@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import type { MiniAppActivityListing } from '@shared/types/miniAppActivity'
@@ -18,8 +18,8 @@ export async function miniAppActivityLog(app: RegressionApp, page: Page, testInf
   const archives = join(app.paths.fixtures, 'archives')
   await mkdir(archives, { recursive: true })
   const packagePath = join(archives, `${appId}.miniapp`)
-  const archive = new AdmZip()
-  archive.addFile(
+  const archive = new JSZip()
+  archive.file(
     'manifest.json',
     Buffer.from(
       JSON.stringify({
@@ -34,8 +34,8 @@ export async function miniAppActivityLog(app: RegressionApp, page: Page, testInf
       })
     )
   )
-  archive.addFile('index.html', Buffer.from('<!doctype html><html><body><h1>Activity log probe</h1></body></html>'))
-  await writeFile(packagePath, archive.toBuffer())
+  archive.file('index.html', Buffer.from('<!doctype html><html><body><h1>Activity log probe</h1></body></html>'))
+  await writeFile(packagePath, await archive.generateAsync({ type: 'nodebuffer' }))
   const screenshot = async (label: string) => {
     const path = testInfo.outputPath(`${label}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))

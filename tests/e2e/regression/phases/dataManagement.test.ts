@@ -13,12 +13,13 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { readOwnedRecord } from '../../../../scripts/e2e/regression/lifecycle'
+import { waitForExit } from '../../../../scripts/e2e/regression/process'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile, dismissNativeMessageBox } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { test, expect } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
-import { selectSidebarApp } from '../helpers/navigation'
+import { selectSidebarApp, showConversationSidebar } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import { revealVirtualized } from '../helpers/virtualList'
 import { applicationDataMigration } from '../scenarios/applicationDataMigration'
@@ -115,7 +116,7 @@ test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) =>
     await selectSidebarApp(page, 'Chat')
     const group = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await group.hover()
-    await group.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await group.getByRole('button', { name: 'New Chat', exact: true }).press('Enter')
     await Promise.all([
       sendChatMarker(page, 'MP115 preserve this conversation in the backup.', 'MP115 backup history ready.'),
       server.nextRequest().then((request) => request.complete('MP115 backup history ready.'))
@@ -322,6 +323,13 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     expect(await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))).toBe(true)
     await page.getByRole('button', { name: 'Restore from Local', exact: true }).click()
     const manager = page.getByRole('dialog', { name: 'Local Backup Manager', exact: true })
+    const dismissRestoreFailure = async () => {
+      const error = page.getByRole('dialog', { name: 'Restore failed', exact: true })
+      if (await error.isVisible()) {
+        await error.getByRole('button', { name: 'Confirm', exact: true }).click()
+        await expect(error).toBeHidden()
+      }
+    }
     const confirmRestore = async (fileName: string) => {
       await manager
         .getByRole('row')
@@ -346,6 +354,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     ).toBeVisible()
     expect((await readTopic()).status).toBe(404)
     await attachScreenshot('MP-116 newer backup rejected')
+    await dismissRestoreFailure()
 
     await (await confirmRestore('MP-116-broken.zip')).getByRole('button', { name: 'Confirm', exact: true }).click()
     await attachScreenshot('MP-116 restore failure response')
@@ -356,6 +365,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     ).toBeVisible()
     expect((await readTopic()).status).toBe(404)
     await attachScreenshot('MP-116 restore failure reason')
+    await dismissRestoreFailure()
 
     const confirmation = await confirmRestore('MP-116-valid.zip')
     await attachScreenshot('MP-116 overwrite confirmation')
@@ -410,12 +420,14 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
       await Promise.all([closed, acknowledged])
     }
     if (app.record.mode === 'branch') {
-      const { runnerPid: runner, platform } = app.record
+      const { runnerPid: runner, electronPid, platform } = app.record
+      expect(await waitForExit(electronPid, 30_000), 'Restore must close the original Electron process').toBe(true)
       const promotion = app.restart().then(
         () => undefined,
         (error: unknown) => error
       )
-      await expect.poll(() => readOwnedRecord(app.paths).runnerPid, { timeout: 30_000 }).not.toBe(runner)
+      // Wait for the previous process group to drain before looking for the promotion dialog.
+      await expect.poll(() => readOwnedRecord(app.paths).runnerPid, { timeout: 60_000 }).not.toBe(runner)
       await dismissNativeMessageBox(platform, app.paths, 'Manual Restart Required')
       const result = await promotion
       expect(result, 'Restore promotion exits before opening the main window').toBeInstanceOf(Error)
@@ -431,7 +443,8 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     expect(restored.status).toBe(200)
     expect(TopicSchema.parse(restored.data)).toMatchObject({ id: topicId, name: topicName, assistantId })
     expect(await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))).toBe(false)
-    const header = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    const topics = await showConversationSidebar(page.locator('[data-ui~="chat.view"]:visible').first())
+    const header = topics.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await header.hover()
     const expand = header.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()

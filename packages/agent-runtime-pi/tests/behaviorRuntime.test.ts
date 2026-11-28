@@ -2,9 +2,9 @@ import { join } from 'node:path'
 
 import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { obj } from '@earendil-works/pi-schema'
-import { expect, it, onTestFinished } from 'vitest'
+import { expect, it, onTestFinished, vi } from 'vitest'
 
-import { createScriptedHost, type HostPorts } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
   type ObservationPayload,
@@ -13,6 +13,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type PiSessionOptions, type PiObservation } from '../src'
+import * as piHarness from '../src/behavior/harness'
 import { assistantReply, createTestBinding, MODEL, respondingModel, tempDir, type TestStream } from './sessionSupport'
 import { gate, subagentCall, toolCallPart } from './subagentSupport'
 
@@ -21,10 +22,9 @@ function confirmed<T>(result: OperationResult<T>): T {
   return result.value
 }
 
-const draft = (text: string, whenBusy: 'reject' | 'steer' | 'follow-up' = 'reject') => ({
+const draft = (text: string) => ({
   inputId: runtimeId<'input'>(text),
-  text,
-  whenBusy
+  text
 })
 
 async function observe(handle: ThreadHandle) {
@@ -43,6 +43,7 @@ const inputs = (events: ObservationPayload[], id: string) =>
 async function setup(stream: TestStream, options: Partial<PiSessionOptions> = {}) {
   const cwd = tempDir('behavior-runtime')
   const errors: unknown[] = []
+  const errorReports: unknown[][] = []
   const host = createScriptedHost({
     settings: {
       goalDefaults: { maxGoalRounds: 3, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
@@ -67,15 +68,16 @@ async function setup(stream: TestStream, options: Partial<PiSessionOptions> = {}
     await createPiRuntime({
       backendId: runtimeId('pi'),
       load: async (ref) => (ref.id === config.sessionManager?.getSessionId() ? config : undefined),
-      onError: (error) => {
-        errors.push(error)
+      onError: (...report) => {
+        errors.push(report[0])
+        errorReports.push(report)
       }
     })
   )
   onTestFinished(async () => {
     await runtime.shutdown()
   })
-  return { runtime, config, host, errors }
+  return { runtime, config, host, errors, errorReports }
 }
 
 // Catches bypassing the adapter for native inputs, and losing correlation through native preflight and queues.
@@ -95,12 +97,15 @@ it('preserves command preflight, busy admission and input settlement with behavi
   })
   const root = confirmed(await runtime.create(config))
   const events = await observe(root)
-  expect(await root.input.submit(draft('start'))).toMatchObject({ status: 'acknowledged', facts: ['dispatch-started'] })
+  expect(await root.input.submit!(draft('start'))).toMatchObject({
+    status: 'acknowledged',
+    facts: ['dispatch-started']
+  })
   await held.reached
   for (const text of ['/local', 'handled'])
-    expect(await root.input.submit(draft(text))).toMatchObject({ status: 'acknowledged', facts: ['locally-handled'] })
-  expect(await root.input.submit(draft('busy'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
-  expect(await root.input.submit(draft('follow', 'follow-up'))).toMatchObject({
+    expect(await root.input.submit!(draft(text))).toMatchObject({ status: 'acknowledged', facts: ['locally-handled'] })
+  expect(await root.input.submit!(draft('busy'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+  expect(await root.input.followUp!.submit(draft('follow'))).toMatchObject({
     status: 'acknowledged',
     facts: ['queued']
   })
@@ -133,7 +138,7 @@ it('cancels an input stopped during preflight before its first model request', a
     ]
   })
   const root = confirmed(await runtime.create(config))
-  const pending = root.input.submit(draft('pending'))
+  const pending = root.input.submit!(draft('pending'))
   await held.reached
   confirmed(await root.interrupt!())
   held.open()
@@ -157,9 +162,9 @@ it('stops the run containing a placed steering input', async () => {
   const { runtime, config } = await setup(provider.model)
   const root = confirmed(await runtime.create(config))
   const events = await observe(root)
-  await root.input.submit(draft('start'))
+  await root.input.submit!(draft('start'))
   await first.reached
-  await root.input.submit(draft('steer', 'steer'))
+  await root.input.steer.submit(draft('steer'))
   first.open()
   await second.reached
   confirmed(await root.interrupt!())
@@ -205,11 +210,14 @@ it('keeps each native background result owned until its parent notification has 
   )
   const pending = () => batches.at(-1)?.backgroundResults
   for (const [index, call] of ['spawn', 'continue'].entries()) {
-    await root.input.submit(draft(index === 0 ? 'delegate' : 'continue-child'))
+    await root.input.submit!(draft(index === 0 ? 'delegate' : 'continue-child'))
     await childGates[index].reached
     await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { pending: [call] } })
     await expect.poll(() => batches.filter((batch) => batch.settled).length).toBe(index * 2 + 1)
-    const relation = batches.flatMap((batch) => batch.events).find((event) => event.type === 'subagent.upsert')
+    const relation = batches
+      .map((batch) => batch.events)
+      .flat()
+      .find((event) => event.type === 'subagent.upsert')
     if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
     childId = relation.subagent.child.id
     const beforeNotification = batches.length
@@ -255,7 +263,7 @@ it('correlates a steer placed in an already running child', async () => {
   const root = confirmed(await runtime.create(config))
   rootId = root.thread.id
   const parentEvents = await observe(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await held.reached
   const relation = parentEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child')
@@ -266,7 +274,7 @@ it('correlates a steer placed in an already running child', async () => {
   const task = initial.messages.find((message) => message.role === 'user')
   expect(task?.parts).toEqual([{ type: 'text', text: expect.stringContaining('task'), state: 'done' }])
   expect(child.pi.archive().messages.find((message) => message.id === task?.id)).toEqual(task)
-  const submitted = child.input.submit(draft('steer child', 'steer'))
+  const submitted = child.input.steer.submit(draft('steer child'))
   await expect
     .poll(() =>
       root.pi.history().some((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-steer')
@@ -319,7 +327,7 @@ it('continues the discovered child in place, streams to shared handles and deliv
   const root = confirmed(await runtime.create(config))
   rootId = root.thread.id
   const rootEvents = await observe(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await expect.poll(() => inputs(rootEvents, 'delegate').at(-1)?.outcome).toBe('completed')
   const relation = rootEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child was published')
@@ -328,12 +336,12 @@ it('continues the discovered child in place, streams to shared handles and deliv
   const second = confirmed(await runtime.open(child.thread))
   const childEvents = await observe(child)
   const secondEvents = await observe(second)
-  expect(await child.input.submit(draft('continue child', 'steer'))).toMatchObject({
+  expect(await child.input.steer.submit(draft('continue child'))).toMatchObject({
     status: 'acknowledged',
     facts: ['dispatch-started']
   })
   await childFinish.reached
-  await root.input.submit(draft('parent waits'))
+  await root.input.submit!(draft('parent waits'))
   await parentFinish.reached
   confirmed(await root.interrupt!())
   await child.release()
@@ -344,7 +352,9 @@ it('continues the discovered child in place, streams to shared handles and deliv
   expect(childRequests[1]).toContain('first child result')
   expect(childRequests[1]).toContain('continue child')
   expect(
-    secondEvents.some((event) => event.type === 'message.upsert' && event.message.metadata?.completeness === 'partial')
+    secondEvents.some(
+      (event) => event.type === 'message.reconcile' && event.message.metadata?.completeness === 'partial'
+    )
   ).toBe(true)
   await expect
     .poll(
@@ -384,7 +394,7 @@ it.each([false, true])('opens an admitted child after configuration settles (fai
   const root = confirmed(await runtime.create(config))
   rootId = root.thread.id
   expect(await root.pi.openChild('unknown')).toMatchObject({ status: 'rejected', error: { code: 'unknown-call' } })
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await configuring.reached
   const pending = root.pi.openChild('spawn')
   const concurrent = root.pi.openChild('spawn')
@@ -423,7 +433,7 @@ it('settles child access waits before shutdown joins blocked configuration', asy
   const { runtime, config, host } = await setup(provider.model)
   config.behavior = { host, configureChild: () => configuring.wait({}) }
   const root = confirmed(await runtime.create(config))
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await configuring.reached
   const pending = root.pi.openChild('spawn')
   const closed = runtime.shutdown()
@@ -448,14 +458,14 @@ it('routes a foreground child interrupt through behavior and leaves later parent
   const root = confirmed(await runtime.create(config))
   rootId = root.thread.id
   const events = await observe(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await held.reached
   const relation = events.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child')
   const child = confirmed(await runtime.open(relation.subagent.child))
   confirmed(await child.interrupt!())
   await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('aborted')
-  await root.input.submit(draft('next'))
+  await root.input.submit!(draft('next'))
   confirmed(await child.interrupt!())
   await expect.poll(() => inputs(events, 'next').at(-1)?.outcome).toBe('completed')
   expect(root.pi.history().some((entry) => entry.type === 'custom' && entry.customType === 'cherry.turn-stop')).toBe(
@@ -473,7 +483,7 @@ it('handles goal commands locally and runs the goal only after permission change
     goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 }
   })
   const root = confirmed(await runtime.create(config))
-  expect(await root.input.submit(draft('/goal test goal'))).toMatchObject({ facts: ['locally-handled'] })
+  expect(await root.input.submit!(draft('/goal test goal'))).toMatchObject({ facts: ['locally-handled'] })
   expect(provider.calls).toHaveLength(0)
   expect(host.emitted.some((event) => event.type === 'goal-notice' && event.notice.text === 'Goal created.')).toBe(true)
   host.setSettings({ permissionMode: 'auto' })
@@ -482,40 +492,20 @@ it('handles goal commands locally and runs the goal only after permission change
   confirmed(await root.interrupt!())
 })
 
-// Catches bypassing the shared summary acceptance or dropping a caller's compaction instructions.
-it('routes manual compaction to the host and preserves the native identity on reopen', async () => {
-  const provider = respondingModel(() => assistantReply('answer'))
-  const { runtime, config, host, errors } = await setup(provider.model)
-  const requests: Parameters<HostPorts['summarizer']['summarize']>[0][] = []
-  const behavior = config.behavior
-  const root = confirmed(
-    await runtime.create({
-      ...config,
-      behavior: {
-        ...behavior,
-        host: {
-          ...host,
-          summarizer: {
-            summarize: async (request) => {
-              requests.push(request)
-              return 'summary from the shared behavior'
-            }
-          }
-        }
-      }
-    })
-  )
+// Catches lost manual instructions, native history or session identity on reopen.
+it('uses native manual compaction and preserves identity on reopen', async () => {
+  const provider = respondingModel((_call, n) => assistantReply(n === 1 ? 'answer' : 'native summary'))
+  const { runtime, config, errors } = await setup(provider.model)
+  const root = confirmed(await runtime.create(config))
   const events = await observe(root)
-  await root.input.submit(draft('question'))
+  await root.input.submit!(draft('question'))
   await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
-  confirmed(await root.pi.compact('keep paths'))
-  expect(requests[0]).toMatchObject({ thread: root.thread.id, instructions: 'keep paths' })
+  confirmed(await root.compact!('keep paths'))
+  expect(JSON.stringify(provider.calls[1].messages)).toContain('keep paths')
   expect(
-    root.pi
-      .history()
-      .some((entry) => entry.type === 'compaction' && entry.summary === 'summary from the shared behavior')
+    root.pi.history().some((entry) => entry.type === 'compaction' && entry.summary.includes('native summary'))
   ).toBe(true)
-  expect(provider.calls).toHaveLength(1)
+  expect(provider.calls).toHaveLength(2)
   confirmed(await runtime.shutdown())
   const reopened = confirmed(await createPiRuntime({ backendId: root.thread.backendId, load: async () => config }))
   onTestFinished(async () => {
@@ -524,49 +514,33 @@ it('routes manual compaction to the host and preserves the native identity on re
   const handle = confirmed(await reopened.open(root.thread))
   expect(handle.thread).toEqual(root.thread)
   expect(handle.pi.history().some((entry) => entry.type === 'compaction')).toBe(true)
-  expect(provider.calls).toHaveLength(1)
+  expect(provider.calls).toHaveLength(2)
   expect(errors).toEqual([])
 })
 
 // Catches manual compaction surviving Stop or blocking shutdown before native cancellation.
 it.each(['interrupt', 'shutdown'] as const)('cancels a standalone manual compaction on %s', async (action) => {
-  const provider = respondingModel(() => assistantReply('answer'))
-  const { runtime, config, host } = await setup(provider.model)
   let started!: (signal: AbortSignal) => void
   const summaryStarted = new Promise<AbortSignal>((resolve) => {
     started = resolve
   })
   const summary = gate()
-  const root = confirmed(
-    await runtime.create({
-      ...config,
-      behavior: {
-        ...config.behavior,
-        host: {
-          ...host,
-          summarizer: {
-            summarize: (_request, signal) => {
-              started(signal)
-              signal.addEventListener('abort', summary.open, { once: true })
-              return summary.wait('')
-            }
-          }
-        }
-      }
-    })
-  )
+  const provider = respondingModel((call, n) => {
+    if (n === 1) return assistantReply('answer')
+    started(call.signal!)
+    return summary.wait(assistantReply('summary'))
+  })
+  const { runtime, config } = await setup(provider.model)
+  const root = confirmed(await runtime.create(config))
   const events = await observe(root)
-  await root.input.submit(draft('question'))
+  await root.input.submit!(draft('question'))
   await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
-  const compacting = root.pi.compact()
+  const compacting = root.compact!()
   const signal = await summaryStarted
   try {
     const stopping = action === 'interrupt' ? root.interrupt!() : runtime.shutdown()
     await expect.poll(() => signal.aborted).toBe(true)
-    expect(await stopping).toMatchObject({
-      status: 'confirmed',
-      value: undefined
-    })
+    expect(await stopping).toMatchObject({ status: 'confirmed', value: undefined })
     expect((await compacting).status).not.toBe('confirmed')
     expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
   } finally {
@@ -575,18 +549,71 @@ it.each(['interrupt', 'shutdown'] as const)('cancels a standalone manual compact
   }
 })
 
-// Catches reporting a declined compaction as successful, or falling back to the native model for its summary.
-it('rejects an empty host summary without changing native history', async () => {
-  const provider = respondingModel(() => assistantReply('answer'))
-  const { runtime, config, host } = await setup(provider.model)
+// Catches a failed native summary being reported as a successful compaction.
+it('rejects an empty native summary without changing the compacted history', async () => {
+  const provider = respondingModel((_call, n) => assistantReply(n === 1 ? 'answer' : ' '))
+  const { runtime, config } = await setup(provider.model)
   const root = confirmed(await runtime.create(config))
   const events = await observe(root)
-  await root.input.submit(draft('question'))
+  await root.input.submit!(draft('question'))
   await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
-  host.giveSummary(' ')
-  expect(await root.pi.compact()).toMatchObject({ status: 'rejected', error: { code: 'declined' } })
+  expect((await root.compact!()).status).not.toBe('confirmed')
   expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
-  expect(provider.calls).toHaveLength(1)
+  expect(provider.calls).toHaveLength(2)
+})
+
+it('associates a failed native compaction with its exact owner and original error', async () => {
+  const provider = respondingModel((_call, index) =>
+    index === 1 ? assistantReply('answer') : { ...assistantReply([], 'error'), errorMessage: 'insufficient balance' }
+  )
+  const { runtime, config, errorReports } = await setup(provider.model)
+  const root = confirmed(await runtime.create(config))
+  const events = await observe(root)
+  await root.input.submit!(draft('question'))
+  await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
+  expect((await root.compact!()).status).not.toBe('confirmed')
+  expect(errorReports).toHaveLength(1)
+  expect(errorReports[0]).toEqual([
+    expect.any(Error),
+    {
+      operation: 'compact',
+      thread: root.thread,
+      compactionFailure: { aborted: false, errorMessage: expect.stringContaining('insufficient balance') }
+    }
+  ])
+  expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
+})
+
+it('keeps an unexpected onCompacted failure distinct from a failed native compaction', async () => {
+  const failure = new TypeError('Unexpected post-compaction callback failure')
+  const createBehavior = piHarness.createPiBehavior
+  const creatingBehavior = vi.spyOn(piHarness, 'createPiBehavior').mockImplementation((options) =>
+    createBehavior({
+      ...options,
+      install: (ports) => {
+        const register = ports.lifecycle.register
+        ports.lifecycle.register = (handlers) =>
+          register({
+            ...handlers,
+            onCompacted: async (...args) => {
+              await handlers.onCompacted(...args)
+              throw failure
+            }
+          })
+        options.install(ports)
+      }
+    })
+  )
+  onTestFinished(() => creatingBehavior.mockRestore())
+  const provider = respondingModel((_call, index) => assistantReply(index === 1 ? 'answer' : 'native summary'))
+  const { runtime, config, errorReports } = await setup(provider.model)
+  const root = confirmed(await runtime.create(config))
+  const events = await observe(root)
+  await root.input.submit!(draft('question'))
+  await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
+  expect((await root.compact!()).status).not.toBe('confirmed')
+  expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(true)
+  expect(errorReports).toEqual([[failure, { operation: 'compact', thread: root.thread }]])
 })
 
 // Catches a missing tool gate (the denied write runs) or a question result never reaching the native model context.
@@ -650,7 +677,7 @@ it('uses host approvals and question answers through the shared behavior tools',
     })
   )
   const events = await observe(root)
-  await root.input.submit(draft('help choose'))
+  await root.input.submit!(draft('help choose'))
   await expect.poll(() => inputs(events, 'help choose').at(-1)?.outcome).toBe('completed')
   expect(writes).toEqual([])
   expect(JSON.stringify(provider.calls[1].messages)).toContain('Leave the file alone')
@@ -682,7 +709,7 @@ it('cancels a native question and ignores its late answer', async () => {
   const { runtime, config, host, errors } = await setup(provider.model)
   const root = confirmed(await runtime.create(config))
   const events = await observe(root)
-  await root.input.submit(draft('help choose'))
+  await root.input.submit!(draft('help choose'))
   await expect.poll(() => host.asked.questions).toBe(1)
   confirmed(await root.interrupt!())
   await root.pi.settled()
@@ -708,7 +735,7 @@ it('restores Todo output from its native file without submitting input', async (
   const { runtime, config, errors } = await setup(provider.model)
   const manager = SessionManager.create(config.cwd, join(config.cwd, 'sessions'))
   const root = confirmed(await runtime.create({ ...config, sessionManager: manager }))
-  await root.input.submit(draft('record the task'))
+  await root.input.submit!(draft('record the task'))
   await root.pi.settled()
   confirmed(await runtime.shutdown())
   const reopened = confirmed(
@@ -752,13 +779,13 @@ it('withdraws a pending child input and closes the native graph on shutdown', as
   const root = confirmed(await runtime.create(config))
   rootId = root.thread.id
   const events = await observe(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await held.reached
   const relation = events.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child')
   const child = confirmed(await runtime.open(relation.subagent.child))
   const childEvents = await observe(child)
-  const submitted = child.input.submit(draft('pending child steer', 'steer'))
+  const submitted = child.input.steer.submit(draft('pending child steer'))
   await expect
     .poll(() =>
       root.pi.history().some((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-steer')
@@ -767,7 +794,7 @@ it('withdraws a pending child input and closes the native graph on shutdown', as
   expect(await runtime.shutdown()).toMatchObject({ status: 'confirmed', value: undefined })
   expect(await submitted).toMatchObject({ status: 'rejected' })
   await expect.poll(() => childEvents.at(-1)).toMatchObject({ type: 'closed', reason: 'shutdown' })
-  expect(await child.input.submit(draft('too late', 'steer'))).toMatchObject({
+  expect(await child.input.steer.submit(draft('too late'))).toMatchObject({
     status: 'rejected',
     error: { code: 'closed' }
   })
@@ -786,7 +813,7 @@ it('restores child relations on reopen and refuses a child without its live owne
   const root = confirmed(await runtime.create(config))
   rootId = root.thread.id
   const events = await observe(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('completed')
   const relation = events.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child')
@@ -855,7 +882,7 @@ it('isolates child restore failures and recovers the same child after its model 
   }
   const root = confirmed(await runtime.create(config))
   const events = await observe(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('completed')
   expect(childIds.size).toBe(2)
   const childRef = { backendId: root.thread.backendId, id: runtimeId<'thread'>(childIds.get('test/alternate')!) }
@@ -863,6 +890,7 @@ it('isolates child restore failures and recovers the same child after its model 
   const archive = child.pi.archive()
   const runs = () =>
     manager.getBranch().filter((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-run')
+  // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
   const completedRuns = structuredClone(runs())
   confirmed(await runtime.shutdown())
   unavailable = true
@@ -903,7 +931,7 @@ it('isolates child restore failures and recovers the same child after its model 
   expect(
     rootAgain.pi.history().filter((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-run')
   ).toEqual(completedRuns)
-  await rootAgain.input.submit(draft('continue parent'))
+  await rootAgain.input.submit!(draft('continue parent'))
   await expect.poll(() => inputs(restored, 'continue parent').at(-1)?.outcome).toBe('completed')
   expect(errors).toHaveLength(1)
   expect(errors[0]).toEqual(new Error('Unknown subagent model: test/alternate'))
@@ -915,6 +943,37 @@ it('isolates child restore failures and recovers the same child after its model 
   const sameChild = confirmed(await recovered.open(childRef))
   expect(sameChild.pi.archive().messages).toEqual(archive.messages)
   const continued = await observe(sameChild)
-  expect(await sameChild.input.submit(draft('continue child', 'steer'))).toMatchObject({ status: 'acknowledged' })
+  expect(await sameChild.input.steer.submit(draft('continue child'))).toMatchObject({ status: 'acknowledged' })
   await expect.poll(() => inputs(continued, 'continue child').at(-1)?.outcome).toBe('completed')
+})
+
+it('predicts from native context without appending history or executing a tool response', async () => {
+  const provider = respondingModel((_call, n) =>
+    n <= 2
+      ? assistantReply('Fixed the original issue.')
+      : n === 3
+        ? assistantReply('run the tests')
+        : assistantReply([toolCallPart('prediction-tool', 'bash', { command: 'echo forbidden' })], 'toolUse')
+  )
+  const { runtime, config } = await setup(provider.model)
+  const root = confirmed(await runtime.create(config))
+  expect((await root.input.submit!(draft('Fix the original issue'))).status).toBe('acknowledged')
+  await root.pi.settled()
+  expect(await root.pi.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  expect(provider.calls).toHaveLength(1)
+  await root.input.submit!(draft('Check the fix'))
+  await root.pi.settled()
+  const before = root.pi.history()
+  expect(await root.pi.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe(
+    'run the tests'
+  )
+  expect(provider.calls[2].messages).toEqual(
+    expect.arrayContaining([expect.objectContaining({ role: 'user', content: 'exact prediction instruction' })])
+  )
+  expect(JSON.stringify(provider.calls[2].messages)).toContain('Fix the original issue')
+  expect(provider.calls[2].tools).toEqual(provider.calls[1].tools)
+  expect(root.pi.history()).toEqual(before)
+  expect(await root.pi.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  expect(root.pi.history()).toEqual(before)
+  expect(provider.calls).toHaveLength(4)
 })

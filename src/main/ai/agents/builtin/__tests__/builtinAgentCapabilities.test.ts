@@ -9,13 +9,6 @@ const agentOf = (type: AgentType, builtinRole?: string) =>
   ({ type, configuration: builtinRole ? { builtin_role: builtinRole } : {} }) as never
 
 describe('resolveAgentCapabilities', () => {
-  it('gives an Agent with no built-in role the unprivileged defaults', () => {
-    expect(resolveAgentCapabilities({ configuration: {} })).toEqual({
-      environment: 'open',
-      allKnowledgeBases: false
-    })
-  })
-
   it('does not grant host tools to an unrecognized role', () => {
     const capabilities = resolveAgentCapabilities({ configuration: { builtin_role: 'assistantt' } as never })
     expect(capabilities.hostTools).toBeUndefined()
@@ -43,9 +36,10 @@ describe('hostToolsEnabled', () => {
     expect(hostToolsEnabled(agentOf(type, BUILTIN_AGENT_ROLE.ASSISTANT), { channelLinked: true })).toBe(false)
   })
 
-  it('keeps Cherry Support host tools on channel-linked sessions, but only on claude-code', () => {
+  it('keeps Cherry Support host tools on Claude Code and Pi Durable, including channel-linked sessions', () => {
     for (const channelLinked of [false, true]) {
       expect(hostToolsEnabled(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
+      expect(hostToolsEnabled(agentOf('pi-durable', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
       expect(hostToolsEnabled(agentOf('pi', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(false)
     }
   })

@@ -1,4 +1,5 @@
-import type * as DndKitUtilities from '@dnd-kit/utilities'
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
+import { dragRow, dropRow, hoverRow, startRowDrag } from '@test-mocks/dndDriver'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Activity, type ComponentProps, type HTMLAttributes, type ReactNode } from 'react'
@@ -7,12 +8,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type * as AgentHooks from '@renderer/hooks/agent/useAgent'
 import type * as TabHooks from '@renderer/hooks/tab'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
@@ -48,6 +51,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
+    DragDropRoot: (await import('@test-mocks/dndDriver')).withManagerProbe(actual.DragDropRoot),
     ContextMenu: ({ children, onOpenChange }: { children?: ReactNode; onOpenChange?: (open: boolean) => void }) => (
       <ContextMenuContext value={{ onOpenChange }}>
         <div data-testid="context-menu">{children}</div>
@@ -106,42 +110,17 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
       return <div {...triggerProps}>{children}</div>
     },
-    DropdownMenu: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    DropdownMenuContent: ({ children, ...props }: { children?: ReactNode }) => (
-      <div data-slot="dropdown-menu-content" {...props}>
-        {children}
-      </div>
-    ),
-    DropdownMenuItem: ({ children, disabled, onSelect, variant, ...props }: any) => (
-      <button
-        data-disabled={disabled ? '' : undefined}
-        data-slot="dropdown-menu-item"
-        disabled={disabled || undefined}
-        role="menuitem"
-        type="button"
-        variant={variant}
-        onClick={(event) => {
-          if (!disabled) onSelect?.(event)
-        }}
-        {...props}>
-        {children}
-      </button>
-    ),
-    DropdownMenuSeparator: (props: any) => <hr data-testid="dropdown-menu-separator" {...props} />,
-    DropdownMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    DropdownMenuSubContent: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
-    DropdownMenuSubTrigger: ({ children, disabled, ...props }: any) => (
-      <button
-        data-disabled={disabled ? '' : undefined}
-        data-slot="dropdown-menu-sub-trigger"
-        disabled={disabled || undefined}
-        role="menuitem"
-        type="button"
-        {...props}>
-        {children}
-      </button>
-    ),
-    DropdownMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>
+    DropdownMenu: actual.DropdownMenu,
+    DropdownMenuContent: actual.DropdownMenuContent,
+    DropdownMenuItem: actual.DropdownMenuItem,
+    DropdownMenuPortal: actual.DropdownMenuPortal,
+    DropdownMenuRadioGroup: actual.DropdownMenuRadioGroup,
+    DropdownMenuRadioItem: actual.DropdownMenuRadioItem,
+    DropdownMenuSeparator: actual.DropdownMenuSeparator,
+    DropdownMenuSub: actual.DropdownMenuSub,
+    DropdownMenuSubContent: actual.DropdownMenuSubContent,
+    DropdownMenuSubTrigger: actual.DropdownMenuSubTrigger,
+    DropdownMenuTrigger: actual.DropdownMenuTrigger
   }
 })
 
@@ -172,88 +151,11 @@ const virtualMocks = vi.hoisted(() => ({
   scrollToIndex: vi.fn()
 }))
 
-const dndMocks = vi.hoisted(() => ({
-  droppableData: new Map<string, unknown>(),
-  onDragCancel: undefined as undefined | ((event: any) => void),
-  onDragEnd: undefined as undefined | ((event: any) => void),
-  onDragOver: undefined as undefined | ((event: any) => void),
-  onDragStart: undefined as undefined | ((event: any) => void),
-  sortableData: new Map<string, unknown>()
-}))
-
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: virtualMocks.useVirtualizer,
   defaultRangeExtractor: vi.fn((range) =>
     Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => range.startIndex + i)
   )
-}))
-
-vi.mock('@dnd-kit/core', () => {
-  const React = require('react')
-  return {
-    DndContext: ({
-      children,
-      onDragCancel,
-      onDragEnd,
-      onDragOver,
-      onDragStart
-    }: {
-      children: ReactNode
-      onDragCancel?: any
-      onDragEnd?: any
-      onDragOver?: any
-      onDragStart?: any
-    }) => {
-      dndMocks.onDragCancel = onDragCancel
-      dndMocks.onDragEnd = onDragEnd
-      dndMocks.onDragOver = onDragOver
-      dndMocks.onDragStart = onDragStart
-      return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
-    },
-    DragOverlay: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'drag-overlay' }, children),
-    KeyboardSensor: vi.fn(),
-    PointerSensor: vi.fn(),
-    useDroppable: ({ data, id }: { data: unknown; id: string }) => {
-      dndMocks.droppableData.set(id, data)
-      return { isOver: false, setNodeRef: vi.fn() }
-    },
-    useSensor: vi.fn((sensor, options) => ({ sensor, options })),
-    useSensors: vi.fn((...sensors) => sensors)
-  }
-})
-
-vi.mock('@dnd-kit/sortable', () => {
-  const React = require('react')
-  return {
-    SortableContext: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'sortable-context' }, children),
-    useSortable: ({ data, id }: { data?: unknown; id: string }) => {
-      if (data) {
-        dndMocks.sortableData.set(id, data)
-      }
-
-      return {
-        attributes: { 'data-sortable-id': id },
-        listeners: {},
-        setActivatorNodeRef: vi.fn(),
-        setNodeRef: vi.fn(),
-        transform: null,
-        transition: undefined,
-        isDragging: false
-      }
-    },
-    verticalListSortingStrategy: {}
-  }
-})
-
-vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
-  ...(await importOriginal<typeof DndKitUtilities>()),
-  CSS: {
-    Transform: {
-      toString: () => undefined
-    }
-  }
 }))
 
 const sessionDataMocks = vi.hoisted(() => ({
@@ -313,6 +215,7 @@ const tabsContextMocks = vi.hoisted(() => ({
 const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
 
 const dataApiMocks = vi.hoisted(() => ({
+  agentRows: undefined as AgentEntity[] | undefined,
   dataChangeSubscriptions: [] as Array<{ endpoints: string[]; listener: () => void }>,
   deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
@@ -506,7 +409,8 @@ vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
   }
 })
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
+vi.mock('@renderer/data/hooks/useCache', async () => ({
+  ...(await import('@test-mocks/renderer/useCache')).MockUseCache,
   // Mirrors the real seeding: a window-scoped key falls back to the initValue
   // (the persisted value) until an explicit write lands in the local tier.
   useCache: (key: string, initValue?: unknown) => [
@@ -551,7 +455,9 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     }
 
     if (path === '/agents') {
-      const agentResult = agentDataMocks.useAgents()
+      const agentResult = dataApiMocks.agentRows
+        ? { agents: dataApiMocks.agentRows, isLoading: false, error: undefined }
+        : agentDataMocks.useAgents()
       return {
         data: {
           items: agentResult.agents,
@@ -637,7 +543,6 @@ vi.mock('@renderer/hooks/usePins', () => ({
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
     `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`,
   getChannelTypeIcon: vi.fn(() => undefined)
 }))
 
@@ -653,7 +558,8 @@ vi.mock('react-i18next', () => ({
         'agent.add.title': 'Add Agent',
         'agent.session.display.agent': 'Agent',
         'agent.session.display.time': 'Time',
-        'agent.session.display.title': 'Display mode',
+        'agent.session.display.title': 'Group by',
+        'chat.list.options': 'List options',
         'agent.session.display.workdir': 'Work directory',
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
         'agent.session.empty.title': 'No tasks',
@@ -861,38 +767,6 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   }
 }
 
-function sortableData(id: string) {
-  const data = dndMocks.sortableData.get(id)
-  if (!data) {
-    throw new Error(`Expected sortable data for ${id}`)
-  }
-  return { current: data }
-}
-
-function startDraggingSession(id: string) {
-  act(() => {
-    dndMocks.onDragStart?.({
-      active: {
-        data: sortableData(`item:${id}`),
-        id: `item:${id}`,
-        rect: { current: { initial: { height: 32, width: 240 }, translated: null } }
-      }
-    })
-  })
-}
-
-function startDraggingGroup(groupId: string) {
-  act(() => {
-    dndMocks.onDragStart?.({
-      active: {
-        data: sortableData(`group:${groupId}`),
-        id: `group:${groupId}`,
-        rect: { current: { initial: { height: 32, width: 240 }, translated: null } }
-      }
-    })
-  })
-}
-
 function expectSessionBlocked(name: string) {
   expect(screen.getByText(name).closest('[data-drop-blocked="true"]')).toBeInTheDocument()
 }
@@ -901,10 +775,11 @@ function expectGroupBlocked(name: string) {
   expect(screen.getByRole('button', { name }).closest('[data-drop-blocked="true"]')).toBeInTheDocument()
 }
 
-function openSessionListOptions() {
-  fireEvent.click(screen.getByLabelText('Display mode'))
-  const title = screen.getByText('Display mode')
-  return title.closest('[data-radix-popper-content-wrapper]') ?? title.parentElement
+async function openSessionListOptions() {
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'List options' }))
+  await user.click(screen.getByRole('menuitem', { name: /^Group by/ }))
+  return screen.findByRole('menu', { name: /^Group by/ })
 }
 
 function deleteSessionRow(row: HTMLElement) {
@@ -963,10 +838,14 @@ function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
 }
 
 describe('Sessions', () => {
+  beforeAll(installDndDomStubs)
+
   beforeEach(() => {
+    dataApiMocks.agentRows = undefined
     preferenceMocks.values.clear()
     cacheMocks.values.clear()
     imageCaptureTargetsMock.targets = undefined
+    preferenceMocks.values.set('agent.session.sort', { by: 'orderKey' })
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('agent.icon_type', 'emoji')
     preferenceMocks.values.set('agent.session.position', 'left')
@@ -1125,8 +1004,6 @@ describe('Sessions', () => {
   })
 
   afterEach(() => {
-    dndMocks.droppableData.clear()
-    dndMocks.sortableData.clear()
     virtualMocks.scrollToIndex.mockClear()
     vi.useRealTimers()
   })
@@ -1530,7 +1407,7 @@ describe('Sessions', () => {
 
     const emptyWorkspaceGroup = screen.getByRole('button', { name: 'Empty Workspace' }).closest('div')
     expect(emptyWorkspaceGroup).not.toBeNull()
-    fireEvent.pointerDown(within(emptyWorkspaceGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(emptyWorkspaceGroup as HTMLElement).getByRole('button', { name: 'More' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete work directory' }))
 
     await vi.waitFor(() =>
@@ -1741,7 +1618,7 @@ describe('Sessions', () => {
     // selected row gets anywhere else in the list.
   })
 
-  it('clears session selection while agent management is active', () => {
+  it('clears session selection while agent management is active', async () => {
     cacheMocks.state.activeSessionId = 'session-a'
     const onSelectResourceView = vi.fn()
     setupSessions({
@@ -1750,8 +1627,8 @@ describe('Sessions', () => {
 
     render(<SessionsForTest manageAgentsActive onManageAgents={onSelectResourceView} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Manage Agents' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Manage Agents' }))
     expect(onSelectResourceView).toHaveBeenCalled()
     expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
   })
@@ -2096,16 +1973,7 @@ describe('Sessions', () => {
     })
     render(<SessionsForTest />)
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-c'),
-          id: 'item:session-c',
-          rect: { current: { initial: null, translated: { top: 0, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 100, height: 20 } }
-      })
-    })
+    await dragRow({ source: 'item:session-c', target: 'item:session-b', side: 'before' })
     await vi.waitFor(() =>
       expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-c', { before: 'session-b' })
     )
@@ -3443,9 +3311,9 @@ describe('Sessions', () => {
   it('persists display mode selection from the header menu', async () => {
     render(<SessionsForTest />)
 
-    const displayModeContent = openSessionListOptions()
+    const displayModeContent = await openSessionListOptions()
 
-    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Agent' }))
+    fireEvent.click(within(displayModeContent).getByRole('menuitemradio', { name: 'Agent' }))
 
     await vi.waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'agent')
@@ -3483,24 +3351,18 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    startDraggingSession('session-a')
+    await startRowDrag('item:session-a')
 
     expectGroupBlocked('Pinned')
     expectSessionBlocked('Gamma session')
-    expect(screen.getByRole('button', { name: 'Project A Workspace' }).closest('[data-drop-blocked="true"]')).toBeNull()
+    // The draggable group row and its header button share the group's name.
+    for (const header of screen.getAllByRole('button', { name: 'Project A Workspace' })) {
+      expect(header.closest('[data-drop-blocked="true"]')).toBeNull()
+    }
     expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
-      })
-    })
+    await hoverRow('item:session-b', 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
@@ -3527,22 +3389,13 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    startDraggingSession('session-a')
+    await startRowDrag('item:session-a')
 
     expectSessionBlocked('Gamma session')
     expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
-      })
-    })
+    await hoverRow('item:session-b', 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
@@ -3571,22 +3424,10 @@ describe('Sessions', () => {
     })
 
     render(<SessionsForTest />)
-    startDraggingSession('session-pinned-a')
+    await startRowDrag('item:session-pinned-a')
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-pinned-a'),
-          id: 'item:session-pinned-a',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: {
-          data: sortableData('item:session-pinned-b'),
-          id: 'item:session-pinned-b',
-          rect: { top: 10, height: 20 }
-        }
-      })
-    })
+    await hoverRow('item:session-pinned-b', 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(dataApiMocks.reorderPin).toHaveBeenCalledWith({ params: { id: 'pin-a' }, body: { after: 'pin-b' } })
@@ -3596,7 +3437,7 @@ describe('Sessions', () => {
 
   // Would catch: dragging across the pinned boundary, which would silently pin or
   // unpin a task — pin state must only change through the star button.
-  it('rejects dragging a pinned session onto an unpinned one', () => {
+  it('rejects dragging a pinned session onto an unpinned one', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
@@ -3612,22 +3453,10 @@ describe('Sessions', () => {
     })
 
     render(<SessionsForTest />)
-    startDraggingSession('session-pinned')
+    await startRowDrag('item:session-pinned')
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-pinned'),
-          id: 'item:session-pinned',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: {
-          data: sortableData('item:session-plain'),
-          id: 'item:session-plain',
-          rect: { top: 10, height: 20 }
-        }
-      })
-    })
+    await hoverRow('item:session-plain', 'after')
+    await dropRow()
 
     expect(dataApiMocks.reorderPin).not.toHaveBeenCalled()
     expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
@@ -3658,20 +3487,10 @@ describe('Sessions', () => {
 
     const projectAGroupId = 'session:workspace:ws-a'
     const projectBGroupId = 'session:workspace:ws-b'
-    startDraggingGroup(projectAGroupId)
+    await startRowDrag(`group:${projectAGroupId}`)
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData(`group:${projectAGroupId}`),
-          id: `group:${projectAGroupId}`
-        },
-        over: {
-          data: sortableData(`group:${projectBGroupId}`),
-          id: `group:${projectBGroupId}`
-        }
-      })
-    })
+    await hoverRow(`group:${projectBGroupId}`, 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(dataApiMocks.reorderWorkspace).toHaveBeenCalledWith({
@@ -3704,20 +3523,10 @@ describe('Sessions', () => {
 
     const alphaGroupId = 'session:agent:agent-a'
     const betaGroupId = 'session:agent:agent-b'
-    startDraggingGroup(alphaGroupId)
+    await startRowDrag(`group:${alphaGroupId}`)
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData(`group:${alphaGroupId}`),
-          id: `group:${alphaGroupId}`
-        },
-        over: {
-          data: sortableData(`group:${betaGroupId}`),
-          id: `group:${betaGroupId}`
-        }
-      })
-    })
+    await hoverRow(`group:${betaGroupId}`, 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(dataApiMocks.reorderAgent).toHaveBeenCalledWith({
@@ -3738,7 +3547,7 @@ describe('Sessions', () => {
     const workdirGroup = workdirGroupButton.closest('div')
     expect(workdirGroup).not.toBeNull()
 
-    fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
     expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in Files' }))
 
@@ -3769,8 +3578,8 @@ describe('Sessions', () => {
 
     expect(screen.getByText('Workspace session 1')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Collapse all' }))
     await vi.waitFor(() => {
       expect(getSessionGroupExpansionCache().workdir).toContain('session:workspace:ws-a')
     })
@@ -3785,7 +3594,7 @@ describe('Sessions', () => {
     )
     await vi.waitFor(() => expect(screen.queryByText('Workspace session 1')).not.toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
   })
 
   it('renames a workspace group through the workspace update endpoint', async () => {
@@ -3796,7 +3605,7 @@ describe('Sessions', () => {
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
-    fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename work directory' }))
 
     const dialog = await screen.findByRole('dialog')
@@ -3862,8 +3671,8 @@ describe('Sessions', () => {
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
-    fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const deleteWorkspaceButton = within(workdirGroup as HTMLElement).getByRole('menuitem', {
+    await userEvent.setup().click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    const deleteWorkspaceButton = screen.getByRole('menuitem', {
       name: 'Delete work directory'
     })
     fireEvent.click(deleteWorkspaceButton)
@@ -3964,7 +3773,7 @@ describe('Sessions', () => {
     // Real agent rows carry no tooltip — only the unlinked-agent pseudo group needs explaining.
 
     const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })
-    fireEvent.pointerDown(moreButton)
+    await userEvent.setup().click(moreButton)
     const editMenuItem = (await screen.findAllByRole('menuitem', { name: 'Edit Agent' })).find(
       (button) => button.getAttribute('data-slot') === 'dropdown-menu-item'
     )
@@ -3979,7 +3788,7 @@ describe('Sessions', () => {
       expect.anything()
     )
 
-    fireEvent.pointerDown(moreButton)
+    await userEvent.setup().click(moreButton)
     const pinMenuItem = screen
       .getAllByRole('menuitem', { name: 'Pin Agent' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
@@ -3989,11 +3798,12 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(toggleAgentPin).toHaveBeenCalledWith('agent-a'))
     await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
 
-    fireEvent.pointerDown(moreButton)
+    await userEvent.setup().click(moreButton)
     const iconMenuItem = screen
       .getAllByRole('menuitem', { name: 'Agent icon' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-sub-trigger')
     expect(iconMenuItem).toBeDefined()
+    await userEvent.setup().click(iconMenuItem as HTMLElement)
     const modelIconMenuItem = screen
       .getAllByRole('menuitem', { name: 'Model' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
@@ -4001,6 +3811,66 @@ describe('Sessions', () => {
     fireEvent.click(modelIconMenuItem as HTMLElement)
 
     await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.icon_type', 'model'))
+  })
+
+  it('shows local agents only while enabled in Agent Services', async () => {
+    const { useAgents } = await vi.importActual<typeof AgentHooks>('@renderer/hooks/agent/useAgent')
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({ sessions: [] })
+    const openCode: AgentEntity = {
+      createdAt: '2026-11-05T00:00:00.000Z',
+      updatedAt: '2026-11-05T00:00:00.000Z',
+      orderKey: 'a',
+      model: null,
+      modelName: null,
+      id: 'opencode',
+      type: 'local',
+      name: 'OpenCode',
+      localRuntime: { providerId: 'opencode-provider', presetId: 'opencode', enabled: false, args: [], env: {} }
+    }
+    dataApiMocks.agentRows = [
+      openCode,
+      { ...openCode, id: 'agent-a', name: 'Regular Agent', type: 'pi', localRuntime: undefined }
+    ]
+    agentDataMocks.useAgents.mockImplementation(useAgents)
+    const { rerender } = render(<SessionsForTest />)
+    expect(screen.queryByRole('button', { name: /^OpenCode/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Regular Agent' })).toBeInTheDocument()
+
+    dataApiMocks.agentRows = [
+      { ...openCode, localRuntime: { ...openCode.localRuntime!, enabled: true } },
+      dataApiMocks.agentRows[1]
+    ]
+    rerender(<SessionsForTest key="enabled" />)
+    expect(screen.getByRole('button', { name: /^OpenCode/ })).toBeInTheDocument()
+
+    dataApiMocks.agentRows = [openCode, dataApiMocks.agentRows[1]]
+    rerender(<SessionsForTest key="disabled" />)
+    expect(screen.queryByRole('button', { name: /^OpenCode/ })).not.toBeInTheDocument()
+  })
+
+  it('hides icon settings for local agents in group menus', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        {
+          id: 'agent-a',
+          name: 'Pi',
+          localRuntime: { providerId: 'pi-provider', presetId: 'pi-acp', enabled: true, args: [], env: {} }
+        }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({ sessions: [createSession({ id: 'session-a', agentId: 'agent-a', orderKey: 'a' })] })
+    render(<SessionsForTest />)
+    const group = screen.getByRole('button', { name: 'Pi' }).closest('div')!
+    await userEvent.setup().click(within(group).getByRole('button', { name: 'More' }))
+    expect(await screen.findAllByRole('menuitem', { name: 'Edit Agent' })).not.toHaveLength(0)
+    expect(screen.queryByRole('menuitem', { name: 'Agent icon' })).not.toBeInTheDocument()
+    fireEvent.contextMenu(group)
+    expect(screen.queryByRole('menuitem', { name: 'Agent icon' })).not.toBeInTheDocument()
   })
 
   it('pins an agent to the sidebar from the agent group menu', async () => {
@@ -4019,7 +3889,7 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
-    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const pinMenuItem = screen
       .getAllByRole('menuitem', { name: 'Add to sidebar' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
@@ -4050,7 +3920,7 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
-    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const unpinMenuItem = screen
       .getAllByRole('menuitem', { name: 'Remove from sidebar' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
@@ -4084,7 +3954,7 @@ describe('Sessions', () => {
 
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     expect(agentGroup).not.toBeNull()
-    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const deleteAgentMenuItem = screen
       .getAllByRole('menuitem', { name: 'Archive' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
@@ -4165,7 +4035,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onActiveAgentDeleted={onActiveAgentDeleted} />)
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
-    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     fireEvent.click(
       screen
         .getAllByRole('menuitem', { name: 'Archive' })
@@ -4191,12 +4061,8 @@ describe('Sessions', () => {
   async function clickAgentMenuItem(agentName: string, itemName: string | RegExp) {
     const group = screen.getByRole('button', { name: agentName }).closest('div') as HTMLElement
     const more = within(group).getByRole('button', { name: 'More' })
-    fireEvent.pointerDown(more)
-    const menu = more.closest('[data-testid="context-menu"]') ?? more.parentElement ?? group
-    const item = within(menu as HTMLElement)
-      .getAllByRole('menuitem', { name: itemName })
-      .find((candidate) => candidate.getAttribute('data-slot') === 'dropdown-menu-item')
-    if (!item) throw new Error(`missing menu item ${String(itemName)} for ${agentName}`)
+    await userEvent.setup().click(more)
+    const item = screen.getByRole('menuitem', { name: itemName })
     const showCalls = permanentDeletePopupMocks.show.mock.calls.length
     fireEvent.click(item)
     await vi.waitFor(() => expect(permanentDeletePopupMocks.show.mock.calls.length).toBeGreaterThan(showCalls))
@@ -4415,20 +4281,12 @@ describe('Sessions', () => {
 
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div') as HTMLElement
     const more = within(agentGroup).getByRole('button', { name: 'More' })
-    fireEvent.pointerDown(more)
-    const menu = more.closest('[data-testid="context-menu"]') ?? more.parentElement ?? agentGroup
-    const deleteAgentMenuItem = within(menu as HTMLElement)
-      .getAllByRole('menuitem', { name: 'Archive' })
-      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
-    fireEvent.click(deleteAgentMenuItem as HTMLElement)
+    await userEvent.setup().click(more)
+    await userEvent.setup().click(screen.getByRole('menuitem', { name: 'Archive' }))
 
     await vi.waitFor(() => expect(dataApiMocks.deleteAgent).toHaveBeenCalled())
-    await vi.waitFor(() => {
-      const disabledItem = within(menu as HTMLElement)
-        .getAllByRole('menuitem', { name: 'Archive' })
-        .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
-      expect(disabledItem).toBeDisabled()
-    })
+    await userEvent.setup().click(more)
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toHaveAttribute('aria-disabled', 'true')
     await act(async () => {
       resolveReload?.()
       await reloadFinished
@@ -4475,7 +4333,7 @@ describe('Sessions', () => {
 
     const agentGroup = screen.getByRole('button', { name }).closest('div')
     expect(agentGroup).not.toBeNull()
-    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const deleteSessionsMenuItem = screen
       .getAllByRole('menuitem', { name: 'Archive all conversations' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
@@ -4496,10 +4354,12 @@ describe('Sessions', () => {
       expect.objectContaining({ agentName: name, sessionCount: 1 })
     )
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
-    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
-      itemCount: 2,
-      onUndo: expect.any(Function)
-    })
+    await vi.waitFor(() =>
+      expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+        itemCount: 2,
+        onUndo: expect.any(Function)
+      })
+    )
 
     sessionDataMocks.restoreSession.mockRejectedValueOnce(
       new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
@@ -4534,7 +4394,7 @@ describe('Sessions', () => {
       archiveSessionsPopupMocks.show.mockResolvedValueOnce(false)
       render(<SessionsForTest />)
       const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
-      fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+      await userEvent.setup().click(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
       const item = screen
         .getAllByRole('menuitem', { name: 'Archive all conversations' })
         .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
@@ -4599,8 +4459,8 @@ describe('Sessions', () => {
 
     expect(screen.getByText('Agent session 1')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Collapse all' }))
     await vi.waitFor(() => {
       expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-a')
     })
@@ -4618,7 +4478,7 @@ describe('Sessions', () => {
     )
     await vi.waitFor(() => expect(screen.queryByText('Agent session 1')).not.toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
   })
 
   it('opens the agent group more menu from the group header context menu', async () => {
@@ -4703,7 +4563,7 @@ describe('Sessions', () => {
 
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     expect(agentGroup).not.toBeNull()
-    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
 
     expect(await screen.findByRole('menuitem', { name: 'Unpin Agent' })).toHaveAttribute('data-disabled')
   })

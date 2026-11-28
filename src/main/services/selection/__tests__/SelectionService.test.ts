@@ -428,10 +428,10 @@ describe('SelectionService macOS action window', () => {
         showActionWindow(actionWindow: unknown, isFullScreen: boolean): void
       }
       svc.nativePanel = {
-        moveToActiveSpace: (actualHandle) => {
+        moveToActiveSpace: vi.fn((actualHandle) => {
           expect(actualHandle).toBe(handle)
           panelSpace = activeSpace
-        }
+        })
       }
       const show = () => {
         activeSpace = panelSpace
@@ -442,16 +442,43 @@ describe('SelectionService macOS action window', () => {
         setPosition: vi.fn(),
         setBounds: vi.fn(),
         setFocusable: vi.fn(),
-        setAlwaysOnTop: vi.fn(),
-        show,
-        showInactive: show,
+        alwaysOnTop: false,
+        isAlwaysOnTop: () => actionWindow.alwaysOnTop,
+        setAlwaysOnTop: vi.fn((value: boolean) => {
+          actionWindow.alwaysOnTop = value
+        }),
+        show: vi.fn(show),
+        showInactive: vi.fn(show),
         isDestroyed: () => false,
         focus: vi.fn()
       }
 
       svc.showActionWindow(actionWindow, fullScreen)
+
+      expect(actionWindow.setAlwaysOnTop.mock.calls).toEqual(fullScreen ? [[true]] : [[true], [false]])
+      const moveToActiveSpace = vi.mocked(svc.nativePanel.moveToActiveSpace)
+      expect(actionWindow.setAlwaysOnTop.mock.invocationCallOrder[0]).toBeLessThan(
+        moveToActiveSpace.mock.invocationCallOrder[0]
+      )
+      const showWindow = fullScreen ? actionWindow.showInactive : actionWindow.show
+      expect(moveToActiveSpace.mock.invocationCallOrder[0]).toBeLessThan(showWindow.mock.invocationCallOrder[0])
+      if (!fullScreen) {
+        expect(showWindow.mock.invocationCallOrder[0]).toBeLessThan(
+          actionWindow.setAlwaysOnTop.mock.invocationCallOrder[1]
+        )
+        expect(actionWindow.isAlwaysOnTop()).toBe(false)
+      }
+      expect(fullScreen ? actionWindow.show : actionWindow.showInactive).not.toHaveBeenCalled()
+      expect(actionWindow.setFocusable.mock.calls).toEqual(fullScreen ? [[false]] : [])
+      expect(actionWindow.focus).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(49)
+      expect(actionWindow.setAlwaysOnTop.mock.calls).toEqual(fullScreen ? [[true]] : [[true], [false]])
       vi.runAllTimers()
 
+      expect(actionWindow.setAlwaysOnTop.mock.calls).toEqual([[true], [false]])
+      expect(actionWindow.isAlwaysOnTop()).toBe(false)
+      expect(actionWindow.setFocusable.mock.calls).toEqual(fullScreen ? [[false], [true]] : [])
+      expect(actionWindow.focus).toHaveBeenCalledTimes(fullScreen ? 1 : 0)
       expect(visible).toBe(true)
       expect(activeSpace).toBe('invoking-space')
       expect(panelSpace).toBe('invoking-space')

@@ -34,6 +34,7 @@ describe('appendInternalAgentContinuation', () => {
 
   it('appends a user continuation after a text-only assistant message without mutating the input', () => {
     const messages = [userMessage, assistantTextMessage]
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(messages)
 
     const result = appendInternalAgentContinuation(messages)
@@ -109,6 +110,7 @@ describe('appendInternalAgentContinuation', () => {
           ]
         }
       ]
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const snapshot = structuredClone(messages)
 
       const result = appendInternalAgentContinuation(messages)
@@ -205,6 +207,7 @@ describe('appendInternalAgentContinuation', () => {
     }
   ] satisfies Array<{ label: string; parts: CherryUIMessage['parts'] }>)('leaves $label unchanged', ({ parts }) => {
     const messages: CherryUIMessage[] = [userMessage, { id: 'assistant-2', role: 'assistant', parts }]
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(messages)
 
     expect(appendInternalAgentContinuation(messages)).toBe(messages)
@@ -244,6 +247,7 @@ describe('appendInternalAgentContinuation', () => {
     'appends once after $label and preserves the original parts',
     ({ parts, expectedParts }) => {
       const messages: CherryUIMessage[] = [userMessage, { id: 'assistant-2', role: 'assistant', parts }]
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const snapshot = structuredClone(messages)
 
       const result = appendInternalAgentContinuation(messages)

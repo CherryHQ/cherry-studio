@@ -4,6 +4,7 @@ import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '.
 import type { ServiceTierSelection, UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
+import type { ExecutionId } from '../executionIdentity'
 
 export const aiStreamAdmissionReasons = {
   SINGLE_MODEL_REQUIRED: 'SINGLE_MODEL_REQUIRED',
@@ -31,6 +32,8 @@ export interface AiChatRequestBody extends AssistantTurnOptions {
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+  /** Agent sessions: a busy session answers this input after its current work instead of steering it. */
+  followUp?: boolean
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -39,7 +42,7 @@ export interface AiChatRequestBody extends AssistantTurnOptions {
 export interface StreamChunkPayload {
   topicId: string
   /** Multi-model: source model that produced this chunk. Frontend demuxes by this plus anchorMessageId. */
-  executionId?: UniqueModelId
+  executionId?: ExecutionId
   /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
   attemptId?: number
   /** Last source chunk covered by this payload, monotonic within a managed execution attempt. */
@@ -75,7 +78,7 @@ export type TopicStreamStatus =
  * a row (temporary topic).
  */
 export interface ActiveExecution {
-  executionId: UniqueModelId
+  executionId: ExecutionId
   /** Unique runtime attempt, monotonic within the Main-process lifetime; newer attempts have larger values. */
   attemptId: number
   anchorMessageId?: string
@@ -153,7 +156,7 @@ export interface StreamDonePayload {
   topicId: string
   /** Submitted Agent user row that owns this execution, including queued follow-ups. */
   userMessageId?: string
-  executionId?: UniqueModelId
+  executionId?: ExecutionId
   attemptId?: number
   /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
   topicAttemptWatermark?: number
@@ -168,7 +171,7 @@ export interface StreamErrorPayload {
   /** Submitted Agent user row that owns this execution, including queued follow-ups. */
   userMessageId?: string
   /** Multi-model: which model's execution errored. */
-  executionId?: UniqueModelId
+  executionId?: ExecutionId
   attemptId?: number
   /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
   topicAttemptWatermark?: number
@@ -214,6 +217,10 @@ export type AiStreamOpenRequest = {
       serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
+      /** Agent sessions: a busy session answers this input after its current work instead of steering it. */
+      followUp?: boolean
+      /** Agent sessions: replace this paused user input when the new attempt is saved. */
+      resendUnsentMessageId?: string
     }
   | ({
       /** Re-run the assistant under an existing user msg. */
@@ -249,7 +256,9 @@ export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   anchorId?: string
 }
 
-export type AiToolApprovalRespondResponse = { ok: true } | { ok: false; reason: 'undelivered' | 'rejected' }
+export type AiToolApprovalRespondResponse =
+  | { ok: true; approved?: false }
+  | { ok: false; reason: 'undelivered' | 'rejected' }
 
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {
@@ -266,24 +275,25 @@ export interface AiStreamAbortRequest {
   topicId: string
 }
 
-/** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */
-export interface AiToolResultRequest {
+/** Read the latest accepted tool result for an explicit consumer. */
+export type AiToolResultReadOptions =
+  | { purpose: 'preview' }
+  | { purpose: 'text-range'; cursor?: number }
+  | { purpose: 'full' }
+
+export type AiToolResultRequest = {
   topicId: string
   messageId: string
   toolCallId: string
-}
+  partId?: string
+} & AiToolResultReadOptions
 
-export type AiToolResultResponse = { found: true; output: unknown } | { found: false }
-
-/** Prewarm the next Claude Agent SDK query for an agent session. */
-export interface AiAgentSessionWarmRequest {
-  sessionId: string
-}
-
-/** Close any unused warm query for an agent session. */
-export interface AiAgentSessionWarmCloseRequest {
-  sessionId: string
-}
+export type AiToolResultResponse =
+  | { status: 'ready'; purpose: 'preview'; output: unknown; truncated: boolean }
+  | { status: 'ready'; purpose: 'text-range'; text: string; nextCursor?: number }
+  | { status: 'ready'; purpose: 'full'; output: unknown }
+  | { status: 'pending' }
+  | { status: 'unavailable' }
 
 /** Result of an attach attempt.
  *

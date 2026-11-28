@@ -1,6 +1,8 @@
 /** Coarse data matching for loaded messages outside the virtualized DOM. */
+
 import { findTextMatches } from '@renderer/utils/contentSearch'
 import { markdownToPlainText } from '@renderer/utils/markdown'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { type PartEntry, projectCompletedMessageParts } from '../blocks/messagePartLayouts'
@@ -8,6 +10,7 @@ import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import type { MessageListItem } from '../types'
 import { groupMessageListItems } from '../utils/messageGroupKey'
 import { isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
+import { getMessageListPartId } from '../utils/messageListItem'
 
 interface MessageSearchDocument {
   messageId: string
@@ -76,7 +79,7 @@ function getTopLevelPartEntries(parts: readonly CherryMessagePart[]): PartEntry[
 
 function projectMessageSearchDocuments(
   messages: readonly MessageListItem[],
-  partsByMessageId: Readonly<Record<string, CherryMessagePart[]>>,
+  partsByMessageId: MessagePartRows,
   options: MessageSearchOptions
 ): MessageSearchDocument[] {
   return messages.flatMap((message) => {
@@ -84,12 +87,12 @@ function projectMessageSearchDocuments(
     if (message.role !== 'assistant' && !(options.includeUser && message.role === 'user')) return []
     if (message.role === 'assistant' && message.status === 'pending') return []
 
-    const entries = getTopLevelPartEntries(partsByMessageId[message.id] ?? [])
+    const entries = getTopLevelPartEntries(messagePartsAt(partsByMessageId, message.id) ?? [])
     const searchableEntries =
       message.role === 'assistant'
         ? projectCompletedMessageParts(entries, {
             keepIntermediateAssistantText: options.keepIntermediateAssistantText
-          }).resultEntries
+          }).items.flatMap((item) => (item.kind === 'part' ? [item.entry] : []))
         : entries
 
     return searchableEntries.flatMap((entry): MessageSearchDocument[] => {
@@ -98,7 +101,7 @@ function projectMessageSearchDocuments(
       return [
         {
           messageId: message.id,
-          partId: `${message.id}-part-${entry.index}`,
+          partId: getMessageListPartId(message, entry.index),
           role: message.role,
           text: getPartSearchText(entry.part, message.role === 'assistant' || options.renderUserTextAsMarkdown),
           sourcePart: entry.part
@@ -124,7 +127,7 @@ function getMatchCount(
 
 export function computeMessageSearchMatches(
   messages: readonly MessageListItem[],
-  partsByMessageId: Readonly<Record<string, CherryMessagePart[]>>,
+  partsByMessageId: MessagePartRows,
   searchText: string,
   options: MessageSearchOptions
 ): MessageSearchMatch[] {

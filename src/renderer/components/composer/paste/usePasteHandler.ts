@@ -9,6 +9,7 @@ export interface UsePasteHandlerOptions {
   supportedExts: string[]
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void
   onResize?: () => void
+  onFolderPathPasted?: (path: string) => void
   pasteLongTextAsFile?: boolean
   pasteLongTextThreshold?: number
   t: TFunction
@@ -44,7 +45,8 @@ export function usePasteHandler(options: UsePasteHandlerOptions) {
         options.pasteLongTextAsFile,
         options.pasteLongTextThreshold,
         options.onResize ?? (() => {}),
-        options.t
+        options.t,
+        options.onFolderPathPasted
       )
     },
     [options]

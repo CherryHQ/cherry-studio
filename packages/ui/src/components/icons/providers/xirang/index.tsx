@@ -9,7 +9,7 @@ const Xirang = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const XirangIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Xirang, {
   Avatar: XirangAvatar,
-  colorPrimary: '#DF0428'
+  colorPrimary: '#fce8ec'
 })
 
 export default XirangIcon

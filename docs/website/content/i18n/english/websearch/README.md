@@ -23,10 +23,18 @@ Click the 🌐 **globe** icon in the toolbar of the chat input box to turn on we
 
 ## Configured Service or the Model's Own Search
 
-Which route web search takes is decided by the **"Prefer model-native web tools"** switch at the bottom of `Settings → Web Search`, which is **off by default**:
+Which route web search takes is decided by the **"Prefer model-native web tools"** switch at the bottom of `Settings → Web Search`, which is **on by default**:
 
-* **Off (default)**: clicking 🌐 uses the service configured in `Settings → Web Search` — initially the key-free Exa MCP.
-* **On**: if the model itself has **native search** (a small globe icon 🌐 next to the model name), the model handles web search on its own.
+* **Off**: clicking 🌐 uses the service configured in `Settings → Web Search` — initially the key-free Exa MCP.
+* **On (default)**: if the model itself has **native search** (a small globe icon 🌐 next to the model name), the model handles web search on its own.
+
+{% hint style="info" %}
+This switch determines which route is used for **web search from the chat input box (🌐)**.
+
+**Agent conversations** (Claude Code, pi, pi durable) currently **always** use the search and URL fetch services you configure in `Settings → Web Search`, so they still consume the corresponding providers' quotas.
+
+There are two reasons. Agent sessions that forward model requests through the local gateway (pi, pi durable, and Claude Code on an API key) get no provider-side native web tool declarations from the gateway, and their runtimes have no path for injecting those tools. Subscription-backed Claude Code sessions do not go through the gateway at all: their native `WebSearch` / `WebFetch` tools are disabled for that runtime separately.
+{% endhint %}
 
 Rely on the 🌐 icon next to the model name to tell whether native search is supported, rather than a fixed list of models. Common cases today include:
 

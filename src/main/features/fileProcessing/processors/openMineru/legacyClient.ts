@@ -27,7 +27,7 @@ export async function parseLegacyDocument(context: PreparedOpenMineruContext): P
 
   const contentType = response.headers.get('content-type')
 
-  if (contentType !== 'application/zip') {
+  if (contentType?.split(';')[0].trim().toLowerCase() !== 'application/zip') {
     throw new Error(`Open MinerU returned unexpected content-type: ${contentType}`)
   }
 

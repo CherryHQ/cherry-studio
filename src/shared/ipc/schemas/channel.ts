@@ -24,7 +24,11 @@ const channelLogEntry = z.object({
   message: z.string(),
   channelId: z.string()
 })
+const qrLoginRequest = z.strictObject({ channelId: z.string().min(1), requestId: z.uuid() })
+
 export const channelRequestSchemas = {
+  'channel.qr_login.begin': defineRoute({ input: qrLoginRequest, output: z.boolean() }),
+  'channel.qr_login.cancel': defineRoute({ input: qrLoginRequest, output: z.void() }),
   'channel.registration.begin': defineRoute({
     input: z.strictObject({ channelId: z.string().min(1), requestId: z.uuid() }),
     output: z.object({ requestId: z.uuid(), url: z.string(), expiresAt: z.number() })
@@ -53,20 +57,21 @@ export const channelRequestSchemas = {
   'channel.get_logs': defineRoute({ input: z.string(), output: z.array(channelLogEntry) })
 }
 
-type QrStatus = 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
+export type ChannelQrStatus = 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
 
 export type ChannelEventSchemas = {
+  'channel.qr_login.status': { channelId: string; requestId: string; url: string; status: ChannelQrStatus }
   'channel.log': { timestamp: number; level: 'debug' | 'info' | 'warn' | 'error'; message: string; channelId: string }
   'channel.wechat.qr_login': {
     channelId: string
     url: string
-    status: QrStatus
+    status: ChannelQrStatus
     userId?: string
   }
   'channel.feishu.qr_login': {
     channelId: string
     url: string
-    status: QrStatus
+    status: ChannelQrStatus
     appId?: string
     appSecret?: string
   }
