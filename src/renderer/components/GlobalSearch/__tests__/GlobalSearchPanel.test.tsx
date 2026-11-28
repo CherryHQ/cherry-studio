@@ -733,6 +733,26 @@ describe('GlobalSearchPanel', () => {
     )
   })
 
+  it('reports a typed search closed without a pick as not found, and an opened result by its group', async () => {
+    const searchEvents = () =>
+      vi
+        .mocked(window.api.ipcApi.request)
+        .mock.calls.filter(([route]) => route === 'analytics.track')
+        .map(([, event]) => event)
+    vi.mocked(window.api.ipcApi.request).mockClear()
+    const user = userEvent.setup()
+    const abandoned = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.type(screen.getByRole('combobox', { name: /Search conversations/ }), 'needle')
+    abandoned.unmount()
+    expect(searchEvents()).toEqual([{ event: 'global_search_used', found: false }])
+
+    vi.mocked(window.api.ipcApi.request).mockClear()
+    const picked = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.click(screen.getByRole('option', { name: /Topic recent/ }))
+    picked.unmount()
+    expect(searchEvents()).toEqual([{ event: 'global_search_used', found: true, group: 'recent' }])
+  })
+
   it('autofocuses the search input when opened', async () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 

@@ -825,7 +825,9 @@ describe('NotesPage print payloads', () => {
 
     fireEvent.click(newNote)
     await waitFor(() =>
-      expect(analyticsEvents()).toEqual([{ event: 'feature_used', feature: 'notes', action: 'note_created' }])
+      expect(analyticsEvents()).toEqual([
+        { event: 'feature_used', feature: 'notes', action: 'note_created', trigger: 'page' }
+      ])
     )
   })
 

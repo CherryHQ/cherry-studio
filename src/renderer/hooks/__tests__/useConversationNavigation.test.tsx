@@ -38,6 +38,8 @@ beforeEach(() => {
   ipcMock.request.mockClear()
 })
 
+const detachCalls = () => ipcMock.request.mock.calls.filter(([route]) => route === 'tab.detach')
+
 describe('useConversationNavigation', () => {
   it('openConversationTab opens a forceNew tab on the conversation url when none exists', () => {
     const ctx = makeCtx([])
@@ -109,8 +111,9 @@ describe('useConversationNavigation', () => {
 
     result.current.openConversationWindow('t1', 'Topic 1')
 
-    expect(ipcMock.request).toHaveBeenCalledTimes(1)
-    const [channel, payload] = ipcMock.request.mock.calls[0] as [string, Record<string, unknown>]
+    expect(detachCalls()).toHaveLength(1)
+    expect(ipcMock.request).toHaveBeenCalledWith('analytics.track', { event: 'window_opened', kind: 'topic' })
+    const [channel, payload] = detachCalls()[0] as [string, Record<string, unknown>]
     expect(channel).toBe('tab.detach')
     expect(payload).toMatchObject({
       url: '/app/chat?topicId=t1',
@@ -146,8 +149,8 @@ describe('useConversationNavigation', () => {
 
     result.current.openConversation('s1', 'Session 1')
 
-    expect(ipcMock.request).toHaveBeenCalledTimes(1)
-    expect(ipcMock.request.mock.calls[0][1]).toMatchObject({
+    expect(detachCalls()).toHaveLength(1)
+    expect(detachCalls()[0][1]).toMatchObject({
       url: '/app/agents?sessionId=s1',
       title: 'Session 1',
       type: 'route'
@@ -171,7 +174,7 @@ describe('useConversationNavigation', () => {
 
     result.current.openConversation('s1')
 
-    expect(ipcMock.request).toHaveBeenCalledTimes(1)
-    expect(ipcMock.request.mock.calls[0][1]).toMatchObject({ url: '/app/agents?sessionId=s1' })
+    expect(detachCalls()).toHaveLength(1)
+    expect(detachCalls()[0][1]).toMatchObject({ url: '/app/agents?sessionId=s1' })
   })
 })

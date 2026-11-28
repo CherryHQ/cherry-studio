@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   appIsPackaged: false,
   broadcast: vi.fn(),
   trackEvent: vi.fn(),
+  trackProductEvent: vi.fn(),
   setProductAccount: vi.fn(),
   gatewayStart: vi.fn(),
   loopbackOpen: vi.fn(),
@@ -88,7 +89,11 @@ vi.mock('@application', async () => {
     IpcApiService: { broadcast: mocks.broadcast },
     MainWindowService: { showMainWindow: mocks.showMainWindow },
     WindowManager: { getWindow: mocks.windowLookup },
-    AnalyticsService: { trackEvent: mocks.trackEvent, setProductAccount: mocks.setProductAccount }
+    AnalyticsService: {
+      trackEvent: mocks.trackEvent,
+      trackProductEvent: mocks.trackProductEvent,
+      setProductAccount: mocks.setProductAccount
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -715,6 +720,18 @@ describe('CherryCloudService', () => {
     expect(mocks.setProductAccount).toHaveBeenLastCalledWith(null)
   })
 
+  it('reports a sign-in result and a user sign-out by outcome only', async () => {
+    mocks.trackProductEvent.mockClear()
+    const service = await createSignedInService()
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+
+    expect(mocks.trackProductEvent.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'account_sign_in_result', result: 'signed_in' },
+      { event: 'account_signed_out', reason: 'user' }
+    ])
+  })
+
   it('reuses the device key after logout and a service restart', async () => {
     const service = await createSignedInService()
     const firstDevicePublicKey = mocks.savedDevice?.publicKey
@@ -1094,6 +1111,7 @@ describe('CherryCloudService', () => {
 
     expect(requestSignal?.aborted).toBe(true)
     await expect(login).resolves.toMatchObject({ outcome: 'cancelled', status: { phase: 'signed-out' } })
+    expect(mocks.trackProductEvent).toHaveBeenCalledWith({ event: 'account_sign_in_result', result: 'cancelled' })
     await expect(cancellation).resolves.toMatchObject({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.loopbackReceiver.dispose).toHaveBeenCalled()
 
@@ -2990,6 +3008,7 @@ describe('CherryCloudService', () => {
     await service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{"model":"deepseek-go","messages":[]}' })
 
     expect((await service.getStatus()).phase).toBe('signed-out')
+    expect(mocks.trackProductEvent).toHaveBeenLastCalledWith({ event: 'account_signed_out', reason: 'disabled' })
     expect(publish).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'cherry-cloud-account',

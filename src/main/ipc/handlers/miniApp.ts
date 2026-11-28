@@ -21,6 +21,7 @@ import {
   snoozePendingAdditions
 } from '@main/features/miniApp/management'
 import { setMiniAppLogo } from '@main/services/entityLogo'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import type { miniAppRequestSchemas } from '@shared/ipc/schemas/miniApp'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 
@@ -49,8 +50,18 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
   'mini_app.install.preview_file': ({ filePath }, ctx) => previewFileForInstall(filePath, ctx.senderId),
   'mini_app.install.preview_url': async ({ manifestUrl }, ctx) => previewUrlForInstall(manifestUrl, ctx.senderId),
   'mini_app.install.preview_builtin': ({ appId }, ctx) => previewBuiltinForInstall(appId, ctx.senderId),
-  'mini_app.install.confirm': ({ installToken, grantedOptional, reinstall }, ctx) =>
-    confirmPendingInstall(installToken, ctx.senderId, grantedOptional, reinstall),
+  'mini_app.install.confirm': async ({ installToken, grantedOptional, reinstall }, ctx) => {
+    const report = (status: 'success' | 'error') =>
+      trackMainProductEvent({ event: 'feature_used', feature: 'mini_app', action: 'app_installed', status })
+    try {
+      const installed = await confirmPendingInstall(installToken, ctx.senderId, grantedOptional, reinstall)
+      report('success')
+      return installed
+    } catch (error) {
+      report('error')
+      throw error
+    }
+  },
   'mini_app.install.cancel_preview': async ({ installToken }, ctx) => cancelPending(installToken, ctx.senderId),
   'mini_app.uninstall': ({ appId }) => uninstallMiniApp(appId),
   'mini_app.runtime.prepare': async ({ appId }) => {

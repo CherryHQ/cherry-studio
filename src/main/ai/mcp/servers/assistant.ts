@@ -24,6 +24,7 @@ import {
   UpdateAgentToolInputSchema
 } from '@main/ai/agents/agentConfigToolSchemas'
 import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
+import { reportDiagnosticsRun } from '@main/services/productAnalytics'
 import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
 import { AgentConfigToolOutputSchema, AssistantCreateToolOutputSchema } from '@shared/ai/agentConfigToolOutput'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -439,7 +440,9 @@ async function diagnoseHealth(providerId: string, signal: AbortSignal): Promise<
 
 /** The System Doctor report in its `upload` projection: nothing local-only reaches the model. */
 async function diagnoseDoctor(tier: DoctorRunTier): Promise<CallToolResult> {
-  const outcome = await application.get('DoctorService').run({ tier, subject: { kind: 'global' } })
+  const outcome = await reportDiagnosticsRun(tier, 'agent_tool', () =>
+    application.get('DoctorService').run({ tier, subject: { kind: 'global' } })
+  )
   if (outcome.status !== 'completed') return jsonResult(outcome)
   return jsonResult(projectDoctorReport(outcome.report, 'upload'))
 }

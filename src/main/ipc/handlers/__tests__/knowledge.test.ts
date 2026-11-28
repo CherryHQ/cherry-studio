@@ -121,7 +121,11 @@ describe('knowledgeHandlers', () => {
       expect(reported()).toEqual([{ event: 'feature_used', feature: 'knowledge', action: 'base_created' }])
     })
 
-    it('counts added items only when the add commits, not when it stops at conflicts', async () => {
+    it('counts added items by type only when the add commits, not when it stops at conflicts', async () => {
+      const url = {
+        type: 'url' as const,
+        data: { source: 'https://private.example/x', url: 'https://private.example/x' }
+      }
       knowledgeService.addItems.mockResolvedValueOnce({ status: 'conflicts', conflicts: [] })
       knowledgeService.addItems.mockResolvedValueOnce({ status: 'added' })
       await knowledgeHandlers['knowledge.add_items'](
@@ -129,10 +133,13 @@ describe('knowledgeHandlers', () => {
         ctx
       )
       await knowledgeHandlers['knowledge.add_items'](
-        { baseId: 'base-1', items: [note, note], conflictStrategy: 'rename' },
+        { baseId: 'base-1', items: [note, url, note], conflictStrategy: 'rename' },
         ctx
       )
-      expect(reported()).toEqual([{ event: 'feature_used', feature: 'knowledge', action: 'items_added', count: 2 }])
+      expect(reported()).toEqual([
+        { event: 'feature_used', feature: 'knowledge', action: 'items_added', target: 'note', count: 2, origin: 'ui' },
+        { event: 'feature_used', feature: 'knowledge', action: 'items_added', target: 'url', count: 1, origin: 'ui' }
+      ])
     })
 
     it('counts same-name items in one batch once when the user chooses Replace', async () => {
@@ -141,7 +148,9 @@ describe('knowledgeHandlers', () => {
         { baseId: 'base-1', items: [note, note], conflictStrategy: 'replace' },
         ctx
       )
-      expect(reported()).toEqual([{ event: 'feature_used', feature: 'knowledge', action: 'items_added', count: 1 }])
+      expect(reported()).toEqual([
+        { event: 'feature_used', feature: 'knowledge', action: 'items_added', target: 'note', count: 1, origin: 'ui' }
+      ])
     })
 
     it('reports each search outcome without the query and still surfaces the failure', async () => {
@@ -152,8 +161,8 @@ describe('knowledgeHandlers', () => {
         knowledgeHandlers['knowledge.search']({ baseId: 'base-1', query: 'secret query' }, ctx)
       ).rejects.toThrow('embedding failed')
       expect(reported()).toEqual([
-        { event: 'feature_used', feature: 'knowledge', action: 'searched', status: 'success' },
-        { event: 'feature_used', feature: 'knowledge', action: 'searched', status: 'error' }
+        { event: 'feature_used', feature: 'knowledge', action: 'searched', status: 'success', trigger: 'page' },
+        { event: 'feature_used', feature: 'knowledge', action: 'searched', status: 'error', trigger: 'page' }
       ])
     })
   })

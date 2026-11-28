@@ -10,6 +10,15 @@ import { useNotesEditing } from '../hooks/useNotesEditing'
 vi.mock('@renderer/utils/aiGeneration', () => ({ fetchNoteSummary: vi.fn() }))
 vi.mock('@renderer/services/toast', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+const ipcRequest = vi.hoisted(() =>
+  vi.fn<(route: string, payload?: unknown) => Promise<undefined>>(async () => undefined)
+)
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest } }))
+const aiTitleStatuses = () =>
+  ipcRequest.mock.calls
+    .map(([, event]) => event as { action?: string; status?: string })
+    .filter((event) => event.action === 'ai_titled')
+    .map((event) => event.status)
 
 const note: NotesTreeNode = {
   id: '/notes/original.md',
@@ -64,6 +73,7 @@ describe('useNotesEditing outcomes', () => {
     expect(toast.success).toHaveBeenCalledTimes(success ? 1 : 0)
     if (success) expect(toast.success).toHaveBeenCalledWith('notes.auto_rename.success')
     expect(toast.error).not.toHaveBeenCalled()
+    expect(aiTitleStatuses()).toEqual([outcome.ok ? 'success' : 'error'])
   })
 
   it('keeps the action pending through generation before rename begins', async () => {
@@ -97,6 +107,7 @@ describe('useNotesEditing outcomes', () => {
     })
     expect(onRenameNode).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
+    expect(aiTitleStatuses()).toEqual(failure === 'empty source' ? [] : ['error'])
     if (failure === 'empty source') {
       expect(toast.warning).toHaveBeenCalledExactlyOnceWith('notes.auto_rename.empty_note')
       expect(fetchNoteSummary).not.toHaveBeenCalled()

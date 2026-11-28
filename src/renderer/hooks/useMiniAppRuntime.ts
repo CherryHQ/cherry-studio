@@ -5,7 +5,7 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useOptionalTabsContext, useTabs } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'
-import { trackProductEvent } from '@renderer/services/productAnalytics'
+import { takeMiniAppOpenTrigger, trackProductEvent } from '@renderer/services/productAnalytics'
 import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
 import { toTransientMiniApp } from '@renderer/utils/miniAppDescriptor'
 import {
@@ -157,11 +157,13 @@ export function useMiniAppRuntimeBinding(): void {
     for (const request of requests) {
       // A guest the runtime is about to create, i.e. the app was not already open in this window.
       if (!request.visible || !request.source || resources.some((resource) => resource.key === request.key)) continue
-      const presetId = byId.get(miniAppIdFromResourceKey(request.key))?.presetMiniAppId
+      const appId = miniAppIdFromResourceKey(request.key)
+      const presetId = byId.get(appId)?.presetMiniAppId
       trackProductEvent({
         event: 'feature_used',
         feature: 'mini_app',
         action: 'opened',
+        trigger: takeMiniAppOpenTrigger(appId),
         ...(presetId && BUILTIN_MINI_APP_TARGETS.has(presetId) && { target: presetId })
       })
     }

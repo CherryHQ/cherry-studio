@@ -17,6 +17,7 @@ import {
   useConversationNavigationOwner
 } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
@@ -699,7 +700,10 @@ export function TabsProvider({
 
       void ipcApi
         .request('tab.detach', tab)
-        .then(() => closeTabs([tabId], activateId))
+        .then(() => {
+          trackProductEvent({ event: 'window_opened', kind: 'tab_detached' })
+          closeTabs([tabId], activateId)
+        })
         .catch((error) => logger.error('Tab detach failed', error))
     },
     [tabs, closeTabs]

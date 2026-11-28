@@ -1753,6 +1753,17 @@ describe('AiService', () => {
       ])
     })
 
+    it('reports an edit or remix apart from a fresh generation', async () => {
+      const service = createService()
+      vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [{ id: 'file-1' }] as never })
+
+      await service.runImageRequest('request-6', { ...imagePayload, mode: 'generate' })
+      await service.runImageRequest('request-7', { ...imagePayload, mode: 'edit' })
+      await service.runImageRequest('request-8', { ...imagePayload, mode: 'remix' })
+
+      expect(trackedEvents().map((event) => event.action)).toEqual(['image_generated', 'image_edited', 'image_edited'])
+    })
+
     it('names a system provider as the target, never a user-chosen custom provider id', async () => {
       const service = createService()
       vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [{ id: 'file-1' }] as never })
@@ -1789,7 +1800,7 @@ describe('AiService', () => {
       ])
     })
 
-    it('stays silent when the user cancels the generation', async () => {
+    it('reports a generation the user stopped as cancelled', async () => {
       const service = createService()
       vi.spyOn(service, 'generateImage').mockImplementation(
         (request) =>
@@ -1802,7 +1813,10 @@ describe('AiService', () => {
       service.abortRequest('request-3')
 
       await expect(pending).rejects.toThrow('aborted')
-      expect(trackedEvents()).toEqual([])
+      expect(trackedEvents()).toEqual([
+        expect.objectContaining({ feature: 'paintings', status: 'cancelled', modelSource: 'cherry_free' })
+      ])
+      expect(trackedEvents()[0]).not.toHaveProperty('errorReason')
     })
   })
 

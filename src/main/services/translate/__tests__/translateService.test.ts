@@ -211,6 +211,7 @@ describe('translateService.open', () => {
       .listener as Array<{
       id: string
       onDone: (result: unknown) => void
+      onPaused: () => void
       onError: (result: { error: { message: string; statusCode?: number } }) => void
       isAlive: () => boolean
     }>
@@ -218,6 +219,7 @@ describe('translateService.open', () => {
 
     analytics.onDone(translated('Hello'))
     analytics.onDone(translated('  \n'))
+    analytics.onPaused()
     analytics.onError({ error: { message: 'quota exceeded for secret text', statusCode: 402 } })
 
     const base = {
@@ -230,6 +232,7 @@ describe('translateService.open', () => {
     expect(trackProductEventMock.mock.calls.map(([event]) => event)).toEqual([
       { ...base, status: 'success', target: 'en-us' },
       { ...base, status: 'error', target: 'en-us' },
+      { ...base, status: 'cancelled', target: 'en-us' },
       { ...base, status: 'error', errorReason: 'quota', target: 'en-us' }
     ])
     sender.alive = false

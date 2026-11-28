@@ -1,8 +1,12 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { JobSettledEvent } from '@main/core/job/types'
 import type { LoggerService } from '@main/core/logger/LoggerService'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_ITEM_ERROR_EMPTY_INDEXABLE_TEXT,
+  KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
+} from '@shared/data/types/knowledge'
 
 export async function markKnowledgeItemFailedOnSettled(
   event: JobSettledEvent<{ itemId: string }>,
@@ -26,6 +30,19 @@ export async function markKnowledgeItemFailedOnSettled(
     if (item.status === 'deleting') return
 
     knowledgeItemService.updateStatus(itemId, 'failed', { error: reason })
+    trackMainProductEvent({
+      event: 'feature_used',
+      feature: 'knowledge',
+      action: 'item_processed',
+      target: item.type,
+      status: event.status === 'cancelled' ? 'cancelled' : 'error',
+      errorReason:
+        event.status === 'cancelled'
+          ? 'indexing_interrupted'
+          : reason === KNOWLEDGE_ITEM_ERROR_EMPTY_INDEXABLE_TEXT
+            ? 'empty_indexable_text'
+            : 'other'
+    })
   } catch (error) {
     if (isDataApiNotFoundError(error)) return
     logger.error(logMessage, error instanceof Error ? error : new Error(String(error)), {

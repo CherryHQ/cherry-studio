@@ -15,4 +15,6 @@ export interface UiSourceTransform {
   code: string
   descriptors: UiNodeDescriptor[]
   map: SourceMap | null
+  /** `data-analytics` names this file's controls received. */
+  analyticsNames: string[]
 }

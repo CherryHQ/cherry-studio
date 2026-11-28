@@ -4,6 +4,7 @@ import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
+import { markMiniAppOpenTrigger } from '@renderer/services/productAnalytics'
 import type { MiniAppInput } from '@renderer/utils/miniAppDescriptor'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { fileUrlToPath } from '@shared/utils/file'
@@ -28,7 +29,13 @@ export const useMiniAppPopup = () => {
   const tabs = useOptionalTabsContext()
   const openTab = tabs?.openTab
   const [, setSplit] = useCache('mini_app.split')
-  const openMiniAppInSplit = useCallback((app: MiniApp) => setSplit({ appId: app.appId }), [setSplit])
+  const openMiniAppInSplit = useCallback(
+    (app: MiniApp) => {
+      markMiniAppOpenTrigger(app.appId, 'split')
+      setSplit({ appId: app.appId })
+    },
+    [setSplit]
+  )
   const openSmartMiniApp = useCallback(
     (config: MiniAppInput) => {
       if (!openTab) return openExternalMiniAppUrl(config.url)

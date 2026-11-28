@@ -7,6 +7,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
 import type { SelectionAction } from '@shared/types/selection'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 const { getApplicationIdMock } = vi.hoisted(() => ({
   getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
@@ -313,6 +314,7 @@ describe('SelectionService macOS toolbar', () => {
       calculateToolbarPosition: () => { x: number; y: number }
       getToolbarRealSize: () => { toolbarWidth: number; toolbarHeight: number }
       showToolbarAtPosition: (point: { x: number; y: number }, orientation: string, programName: string) => void
+      flushToolbarShown: () => void
     }
     access.toolbarWindow = toolbarWindow
     vi.spyOn(access, 'calculateToolbarPosition').mockReturnValue({ x: 10, y: 20 })
@@ -356,6 +358,30 @@ describe('SelectionService macOS toolbar', () => {
       skipTransformProcessType: true
     })
     expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
+  })
+
+  it('reports consented toolbar shows as one hourly count, never per show or with the app name', () => {
+    const { access } = createToolbarHarness()
+    const track = vi.mocked(application.get('AnalyticsService').trackProductEvent)
+    const privacy: Record<string, unknown> = {
+      'app.privacy.data_collection.enabled': false,
+      'app.privacy.policy_version': LATEST_PRIVACY_POLICY_VERSION
+    }
+    vi.spyOn(application.get('PreferenceService') as { get: (key: string) => unknown }, 'get').mockImplementation(
+      (key) => privacy[key]
+    )
+
+    // Shows while collection is off never reach the batch, even once it is turned on.
+    for (let i = 0; i < 2; i++) access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', 'com.example.Private')
+    privacy['app.privacy.data_collection.enabled'] = true
+    for (let i = 0; i < 3; i++) access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', 'com.example.Private')
+    expect(track).not.toHaveBeenCalled()
+    access.flushToolbarShown()
+    access.flushToolbarShown()
+
+    expect(track.mock.calls).toEqual([
+      [{ event: 'feature_used', feature: 'selection', action: 'toolbar_shown', count: 3 }]
+    ])
   })
 })
 

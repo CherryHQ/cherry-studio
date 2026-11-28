@@ -78,4 +78,29 @@ describe('analytics.track schema', () => {
         .success
     ).toBe(false)
   })
+
+  it('accepts feature outcomes with a classified reason and rejects free-text errors or names', () => {
+    const ok = (event: object) => schema.safeParse(event).success
+    expect(
+      ok({
+        event: 'feature_used',
+        feature: 'knowledge',
+        action: 'item_processed',
+        target: 'file',
+        status: 'cancelled',
+        errorReason: 'indexing_interrupted'
+      })
+    ).toBe(true)
+    expect(ok({ event: 'feature_used', feature: 'mini_app', action: 'opened', trigger: 'launchpad' })).toBe(true)
+    expect(
+      ok({ event: 'feature_used', feature: 'translate', action: 'document_translated', errorReason: 'ENOENT: /tmp/a' })
+    ).toBe(false)
+    expect(ok({ event: 'data_imported', source: 'chatgpt', status: 'success', count: 3 })).toBe(true)
+    expect(ok({ event: 'data_imported', source: 'gemini', status: 'success' })).toBe(false)
+    expect(ok({ event: 'global_search_used', found: true, group: 'knowledge-base' })).toBe(true)
+    expect(ok({ event: 'global_search_used', found: false, query: 'secret' })).toBe(false)
+    expect(ok({ event: 'window_opened', kind: 'tab_detached' })).toBe(true)
+    expect(ok({ event: 'translate_history_used', action: 'starred' })).toBe(true)
+    expect(ok({ event: 'announcement_action', action: 'link_clicked', url: 'https://x.y' })).toBe(false)
+  })
 })

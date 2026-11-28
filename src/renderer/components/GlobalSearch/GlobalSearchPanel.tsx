@@ -33,6 +33,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { emitResourceListReveal } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -314,6 +315,16 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const messageListRef = useRef<DynamicVirtualListRef>(null)
   const searchListRef = useRef<DynamicVirtualListRef>(null)
   const [query, setQuery] = useState('')
+  // A typed search that closes without opening a result reports once as not found.
+  const searchOutcomeRef = useRef({ query: '', opened: false })
+  searchOutcomeRef.current.query = query.trim()
+  useEffect(
+    () => () => {
+      const { query: lastQuery, opened } = searchOutcomeRef.current
+      if (lastQuery && !opened) trackProductEvent({ event: 'global_search_used', found: false })
+    },
+    []
+  )
   const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
@@ -732,6 +743,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         if (item.kind === 'footer') {
           openGlobalSearchFooter(item.footer)
           return
+        }
+        if (item.kind === 'message' || item.kind === 'recent' || 'result' in item) {
+          searchOutcomeRef.current.opened = true
+          const group = item.kind === 'message' || item.kind === 'recent' ? item.kind : item.result.type
+          trackProductEvent({ event: 'global_search_used', found: true, group })
         }
 
         if (item.kind === 'message') {

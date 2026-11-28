@@ -5,6 +5,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { t } from '@main/i18n'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -138,10 +139,19 @@ export function createIndexDocumentsJobHandler(
 
     async onSettled(event) {
       await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge item to failed in onSettled')
-      if (event.status !== 'completed' || !(event.output as { embedded?: boolean } | undefined)?.embedded) return
+      // No output means the item changed under the job and nothing was written.
+      if (event.status !== 'completed' || !event.output) return
       try {
         const item = knowledgeItemService.getById(event.input.itemId)
         if (item.status === 'deleting') return
+        trackMainProductEvent({
+          event: 'feature_used',
+          feature: 'knowledge',
+          action: 'item_processed',
+          target: item.type,
+          status: 'success'
+        })
+        if (!(event.output as { embedded?: boolean }).embedded) return
         const base = knowledgeBaseService.getById(event.input.baseId)
         await application.get('NotificationService').publish(
           {

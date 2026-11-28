@@ -123,7 +123,7 @@ export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }
     { description: KNOWLEDGE_SEARCH_DESCRIPTION, inputSchema: kbSearchInputSchema },
     async ({ query, baseIds }) =>
       modelOutputToMcpResult(
-        knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, allowedIds(KB_SEARCH_TOOL_NAME)))
+        knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, allowedIds(KB_SEARCH_TOOL_NAME), 'agent'))
       )
   )
   // kb_read has two modes (read the document / grep it for `pattern`); readOrGrepConcept routes by `pattern`.

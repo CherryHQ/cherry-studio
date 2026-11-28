@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { trackMainProductEvent } from '@main/services/productAnalytics'
+import { analyticsModelSource, trackMainProductEvent } from '@main/services/productAnalytics'
 import type { codeCliRequestSchemas } from '@shared/ipc/schemas/codeCli'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -19,7 +19,8 @@ export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
         feature: 'code',
         action: 'cli_launched',
         status: launched ? 'success' : 'error',
-        target: input.cliTool
+        target: input.cliTool,
+        ...(input.mode === 'normal' && { modelSource: analyticsModelSource(input.providerId) })
       })
     }
   },

@@ -12,8 +12,55 @@ export interface UiContractPluginOptions {
 
 const RESOLVED_RUNTIME_MODULE_ID = `\0${UI_CONTRACT_RUNTIME_MODULE_ID}`
 
+/** Build artifact listing every named control, so analytics can find controls nobody clicked. */
+export const ANALYTICS_INVENTORY_FILE = 'analytics-inventory.json'
+
+// Source directories mapped to the analytics page enum; anything shared counts as `other`.
+const SOURCE_PAGES: Record<string, string> = {
+  agents: 'agents',
+  browser: 'browser',
+  code: 'code',
+  filePreview: 'files',
+  files: 'files',
+  home: 'chat',
+  knowledge: 'knowledge',
+  launchpad: 'launchpad',
+  marketplace: 'marketplace',
+  miniApps: 'mini_app',
+  notes: 'notes',
+  paintings: 'paintings',
+  releaseNotes: 'release_notes',
+  settings: 'settings',
+  translate: 'translate',
+  quickAssistant: 'quick_assistant',
+  selection: 'selection'
+}
+
+function analyticsPageOfSource(sourceFile: string): string {
+  const match = /^src\/renderer\/(?:pages|windows)\/([^/]+)\//.exec(sourceFile)
+  return (match && SOURCE_PAGES[match[1]]) ?? 'other'
+}
+
+function buildAnalyticsInventory(namesBySource: ReadonlyMap<string, readonly string[]>): {
+  pages: Record<string, string[]>
+} {
+  const pages: Record<string, Set<string>> = {}
+  for (const [sourceFile, names] of namesBySource) {
+    const page = analyticsPageOfSource(sourceFile)
+    for (const name of names) (pages[page] ??= new Set()).add(name)
+  }
+  return {
+    pages: Object.fromEntries(
+      Object.keys(pages)
+        .sort()
+        .map((page) => [page, [...pages[page]].sort()])
+    )
+  }
+}
+
 export function uiContractPlugin(options: UiContractPluginOptions = {}): Plugin {
   const root = resolve(options.root ?? process.cwd())
+  const analyticsNamesBySource = new Map<string, string[]>()
 
   return {
     name: 'cherry-ui-contract',
@@ -42,7 +89,15 @@ export { UiDataSlot } from ${JSON.stringify(slotPath)}
         injectDataUi: true,
         sourceFile
       })
+      analyticsNamesBySource.set(sourceFile, result.analyticsNames)
       return { code: result.code, map: result.map }
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: ANALYTICS_INVENTORY_FILE,
+        source: `${JSON.stringify(buildAnalyticsInventory(analyticsNamesBySource), null, 2)}\n`
+      })
     },
     transformIndexHtml: {
       order: 'pre',

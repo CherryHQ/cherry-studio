@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid'
 import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import type { ConversationAppId } from '@renderer/types/conversation'
 import { getSidebarApp } from '@renderer/utils/sidebar'
 
@@ -39,6 +40,7 @@ function openConversationTabImpl(
 function openConversationWindowImpl(appId: ConversationAppId, key: string, title?: string): void {
   const app = getSidebarApp(appId)
   if (!app?.conversationRoute) return
+  trackProductEvent({ event: 'window_opened', kind: appId === 'agents' ? 'session' : 'topic' })
   // Mirrors TabsContext.detachTab's tab.detach payload, but with a fresh tab id and
   // without closing any current-window tab — this is "open elsewhere", not "move".
   void ipcApi.request('tab.detach', {

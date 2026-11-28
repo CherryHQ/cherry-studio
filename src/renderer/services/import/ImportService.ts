@@ -2,16 +2,31 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import { isTrashTargetNotFoundError } from '@shared/ipc/errors/trash'
+import type { FeatureErrorReason } from '@shared/ipc/schemas/analytics'
 
 import { AnthropicImporter } from './importers/AnthropicImporter'
 import { ChatgptImporter } from './importers/ChatgptImporter'
 import type { ConversationImporter, ImportMessageNode, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
+
+/** `errorReason` absent means success; imports from unknown sources stay silent. */
+function reportImport(source: string | undefined, errorReason?: FeatureErrorReason, count?: number): void {
+  const name = source?.toLowerCase()
+  if (name !== 'chatgpt' && name !== 'claude') return
+  trackProductEvent({
+    event: 'data_imported',
+    source: name,
+    status: errorReason ? 'error' : 'success',
+    ...(errorReason && { errorReason }),
+    ...(count !== undefined && { count })
+  })
+}
 
 type ImportProgressCallback = (percent: number) => void
 
@@ -70,17 +85,17 @@ class ImportService {
     importerName?: string,
     onProgress?: ImportProgressCallback
   ): Promise<ImportResponse> {
+    // Parse JSON first to validate format
+    let importer: ConversationImporter | null = null
     try {
       logger.info('Starting import...')
       onProgress?.(0)
-
-      // Parse JSON first to validate format
-      let importer: ConversationImporter | null = null
 
       if (importerName) {
         // Use specified importer
         const foundImporter = this.getImporter(importerName)
         if (!foundImporter) {
+          reportImport(importerName, 'unsupported_format')
           return {
             success: false,
             topicsCount: 0,
@@ -104,6 +119,7 @@ class ImportService {
 
       // Validate format
       if (!importer.validate(fileContent)) {
+        reportImport(importer.name, 'invalid_format')
         return {
           success: false,
           topicsCount: 0,
@@ -143,6 +159,7 @@ class ImportService {
           `Import completed: ${result.conversations.length} conversations, ${messagesCount} messages imported`
         )
 
+        reportImport(importer.name, undefined, result.conversations.length)
         return {
           success: true,
           assistant,
@@ -155,6 +172,7 @@ class ImportService {
       }
     } catch (error) {
       logger.error('Import failed:', error as Error)
+      reportImport(importer?.name ?? importerName, 'other')
       return {
         success: false,
         topicsCount: 0,

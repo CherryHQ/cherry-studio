@@ -354,6 +354,22 @@ describe('TranslateHistory', () => {
     await waitFor(() => expect(updateMock).toHaveBeenCalledWith('1', { star: true }))
   })
 
+  it('reports starring an entry, but not unstarring one', async () => {
+    renderHistory()
+    const starOf = (text: string) =>
+      within(screen.getByText(text).closest('[role="button"]') as HTMLElement).getByRole('button', {
+        name: 'translate.history.star'
+      })
+
+    fireEvent.click(starOf('bye'))
+    fireEvent.click(starOf('hello'))
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(2))
+    expect(fileMocks.ipcRequest.mock.calls.filter(([route]) => route === 'analytics.track')).toEqual([
+      ['analytics.track', { event: 'translate_history_used', action: 'starred' }]
+    ])
+  })
+
   // The row star toggles that row's favourite state, so its name must stay the action's name
   // (not the list filter's) and stay stable across states — the state itself is `aria-pressed`.
   it('names the row star action after the favourite action and exposes its state via aria-pressed', () => {
@@ -446,6 +462,10 @@ describe('TranslateHistory', () => {
     })
 
     expect(clearMock).toHaveBeenCalledTimes(1)
+    expect(fileMocks.ipcRequest).toHaveBeenCalledWith('analytics.track', {
+      event: 'translate_history_used',
+      action: 'cleared'
+    })
   })
 
   it('keeps the action bar visible when star-filter is active but its results are empty', () => {

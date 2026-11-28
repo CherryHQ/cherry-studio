@@ -78,6 +78,10 @@ describe('importService.importConversations', () => {
     const response = await importService.importConversations(chatgptExport(), undefined, onProgress)
 
     expect(response.success).toBe(true)
+    const { ipcApi } = await import('@renderer/ipc')
+    expect(vi.mocked(ipcApi.request).mock.calls.map(([, event]) => event)).toEqual([
+      { event: 'data_imported', source: 'chatgpt', status: 'success', count: response.topicsCount }
+    ])
     expect(response.assistant?.id).toBe('asst_1')
     expect(response.topicsCount).toBe(2)
     // 2 turns in "Greeting" + 1 in "Solo"
@@ -245,6 +249,12 @@ describe('importService.importConversations', () => {
     expect(emptyClaudeResponse.success).toBe(false)
     expect(emptyChatgptResponse.success).toBe(false)
     expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()
+    // Undetectable content has no known source, so only the two named imports report.
+    const { ipcApi } = await import('@renderer/ipc')
+    expect(vi.mocked(ipcApi.request).mock.calls.map(([, event]) => event)).toEqual([
+      { event: 'data_imported', source: 'claude', status: 'error', errorReason: 'invalid_format' },
+      { event: 'data_imported', source: 'chatgpt', status: 'error', errorReason: 'invalid_format' }
+    ])
   })
 
   it('rejects an empty export at validate stage in both importers, keeping the entry points symmetric', async () => {
@@ -295,7 +305,9 @@ describe('importService.importConversations', () => {
 
     expect(response).toMatchObject({ success: false, topicsCount: 0, messagesCount: 0 })
     expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()
-    expect(vi.mocked(ipcApi.request)).not.toHaveBeenCalled()
+    expect(vi.mocked(ipcApi.request).mock.calls).toEqual([
+      ['analytics.track', { event: 'data_imported', source: 'chatgpt', status: 'error', errorReason: 'other' }]
+    ])
   })
 
   it('keeps rolling back remaining objects when an imported topic was already deleted elsewhere', async () => {
@@ -404,6 +416,7 @@ describe('importService.importConversations', () => {
       error: 'database unavailable'
     })
     expect(vi.mocked(dataApiService.post)).toHaveBeenCalledOnce()
-    expect(vi.mocked(ipcApi.request)).not.toHaveBeenCalled()
+    // Only the outcome report; no trash or rollback request.
+    expect(vi.mocked(ipcApi.request).mock.calls.map(([route]) => route)).toEqual(['analytics.track'])
   })
 })

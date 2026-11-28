@@ -20,6 +20,7 @@ import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useLanguages, useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
 import { ipcApi } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -108,6 +109,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   const handleClear = useCallback(async () => {
     try {
       await clearHistory()
+      trackProductEvent({ event: 'translate_history_used', action: 'cleared' })
       setSelectedId(null)
     } catch {
       // `useTranslateHistory` already handles toast/log feedback; swallow to keep ConfirmDialog close flow.
@@ -294,6 +296,7 @@ const HistoryRow: FC<{
   const handleStar = async () => {
     try {
       await onUpdate(item.id, { star: !item.star })
+      if (!item.star) trackProductEvent({ event: 'translate_history_used', action: 'starred' })
     } catch {
       // `useTranslateHistory` already reports mutation errors.
     }
@@ -365,6 +368,7 @@ const HistoryDetail: FC<{
   const handleStar = async () => {
     try {
       await updateHistory(item.id, { star: !item.star })
+      if (!item.star) trackProductEvent({ event: 'translate_history_used', action: 'starred' })
     } catch {
       // `useTranslateHistory` already reports mutation errors.
     }

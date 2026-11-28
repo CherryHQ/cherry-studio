@@ -4,10 +4,11 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { knowledgeSearchMock, addItemsMock, createBaseMock } = vi.hoisted(() => ({
+const { knowledgeSearchMock, addItemsMock, createBaseMock, trackProductEvent } = vi.hoisted(() => ({
   knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>(),
   addItemsMock: vi.fn<() => Promise<unknown>>(),
-  createBaseMock: vi.fn<() => Promise<unknown>>()
+  createBaseMock: vi.fn<() => Promise<unknown>>(),
+  trackProductEvent: vi.fn()
 }))
 vi.mock('@application', () => ({
   application: {
@@ -15,6 +16,7 @@ vi.mock('@application', () => ({
       if (name === 'KnowledgeService') {
         return { search: knowledgeSearchMock, addItems: addItemsMock, createBase: createBaseMock }
       }
+      if (name === 'AnalyticsService') return { trackProductEvent }
       throw new Error(`Unexpected application.get(${name})`)
     }
   }
@@ -28,7 +30,11 @@ import {
   searchKnowledge
 } from '../knowledgeLookup'
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  trackProductEvent.mockReset()
+})
+const reported = () => trackProductEvent.mock.calls.map(([event]) => event)
 
 describe('searchKnowledge', () => {
   it('tags each hit with the base it came from', async () => {
@@ -42,7 +48,7 @@ describe('searchKnowledge', () => {
         { pageContent: 'from B', score: 0.8, conceptId: 'README.md', title: 'README', metadata: { itemType: 'file' } }
       ])
 
-    const output = (await searchKnowledge('query', ['base1', 'base2'], [])) as Array<{
+    const output = (await searchKnowledge('query', ['base1', 'base2'], [], 'chat')) as Array<{
       baseId: string
       conceptId: string
     }>
@@ -50,6 +56,18 @@ describe('searchKnowledge', () => {
     expect(output.map((r) => [r.baseId, r.conceptId])).toEqual([
       ['base1', 'README.md'],
       ['base2', 'README.md']
+    ])
+  })
+
+  it('reports one search per call with its trigger, as an error only when every base failed', async () => {
+    knowledgeSearchMock.mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce([])
+    await searchKnowledge('secret query', ['base1', 'base2'], [], 'agent')
+    knowledgeSearchMock.mockRejectedValueOnce(new Error('down'))
+    await searchKnowledge('secret query', ['base1'], [], 'chat')
+
+    expect(reported()).toEqual([
+      { event: 'feature_used', feature: 'knowledge', action: 'searched', status: 'success', trigger: 'agent' },
+      { event: 'feature_used', feature: 'knowledge', action: 'searched', status: 'error', trigger: 'chat' }
     ])
   })
 })
@@ -178,6 +196,24 @@ describe('manageKnowledge batch add via items', () => {
       { type: 'url', data: { source: 'https://example.com/a', url: 'https://example.com/a' } }
     ])
     expect(result).toEqual({ action: 'add', added: ['first note', 'https://example.com/a'] })
+    expect(reported()).toEqual([
+      {
+        event: 'feature_used',
+        feature: 'knowledge',
+        action: 'items_added',
+        target: 'note',
+        count: 1,
+        origin: 'agent_tool'
+      },
+      {
+        event: 'feature_used',
+        feature: 'knowledge',
+        action: 'items_added',
+        target: 'url',
+        count: 1,
+        origin: 'agent_tool'
+      }
+    ])
   })
 
   it('rejects the mixed form (items + single-source fields) without calling the service', async () => {

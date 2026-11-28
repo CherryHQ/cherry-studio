@@ -308,6 +308,12 @@ describe('NotificationCenter reading', () => {
     await waitFor(() => expect(item).toHaveAttribute('aria-expanded', 'false'))
     expect(item).toHaveAttribute('aria-expanded', 'false')
     expect(within(item).getByText(previewText, { normalizer: (text) => text })).toBeVisible()
+    // The same announcement re-rendered in this window counts as shown only once (first case).
+    const actions = vi
+      .mocked(window.api.ipcApi.request)
+      .mock.calls.filter(([route]) => route === 'analytics.track')
+      .map(([, event]) => (event as { action: string }).action)
+    expect(actions).toEqual(readAt === null ? ['shown', 'expanded', 'link_clicked'] : ['expanded', 'link_clicked'])
     await user.click(item)
     expect(await screen.findByText(content, { normalizer: (text) => text })).toBeVisible()
     expect(record.readAt).not.toBeNull()

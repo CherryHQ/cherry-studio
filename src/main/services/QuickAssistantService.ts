@@ -31,6 +31,7 @@ import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePha
 import { isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
@@ -360,7 +361,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     return window
   }
 
-  public showQuickAssistant() {
+  public showQuickAssistant(trigger: 'shortcut' | 'tray' | 'menu') {
     // Activation state is the single source of truth: when the feature preference is
     // enabled, the service is activated and the window exists; when disabled, we simply
     // bail. The preference subscription in onInit keeps these in lockstep.
@@ -368,6 +369,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
     const window = this.getQuickAssistant()
     if (!window) return
+    trackMainProductEvent({ event: 'feature_used', feature: 'quick_assistant', action: 'opened', trigger })
 
     this.proceedShow()
   }
@@ -460,13 +462,13 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.getQuickAssistant()?.hide()
   }
 
-  public toggleQuickAssistant() {
+  public toggleQuickAssistant(trigger: 'shortcut' | 'tray' | 'menu') {
     const window = this.getQuickAssistant()
     if (window?.isVisible()) {
       this.hideQuickAssistant()
       return
     }
-    this.showQuickAssistant()
+    this.showQuickAssistant(trigger)
   }
 
   public setPinQuickAssistant(isPinned: boolean) {

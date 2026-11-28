@@ -36,7 +36,7 @@ const kbSearchTool = tool({
   outputSchema: knowledgeSearchResultSchema,
   execute: async ({ query, baseIds }, options) => {
     const { request } = getToolCallContext(options)
-    return searchKnowledge(query, baseIds, request.knowledgeBaseIds ?? [])
+    return searchKnowledge(query, baseIds, request.knowledgeBaseIds ?? [], 'chat')
   },
   toModelOutput: ({ output }) => knowledgeSearchModelOutput(output)
 })

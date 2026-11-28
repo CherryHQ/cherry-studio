@@ -12,6 +12,7 @@ import { isDeepStrictEqual } from 'node:util'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { reportDiagnosticsFix } from '@main/services/productAnalytics'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { DoctorFixResult } from '@shared/types/doctor'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
@@ -218,7 +219,9 @@ export async function applyWrite(write: DoctorAgentWrite): Promise<AppliedWrite>
       return { before, after: value, undoable: true }
     }
     case 'doctor_fix': {
-      const fix = await application.get('DoctorService').fix(write.request)
+      const fix = await reportDiagnosticsFix(write.request, 'agent_tool', () =>
+        application.get('DoctorService').fix(write.request)
+      )
       if (fix.status === 'failed') throw new Error(fix.message)
       if (fix.status === 'stale') throw new Error(`Fix is stale: ${fix.reason}`)
       return { before: null, after: null, undoable: false, fix }

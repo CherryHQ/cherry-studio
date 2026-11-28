@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { resolveKnowledgeAddConflicts } from '@main/features/knowledge'
 import { t } from '@main/i18n'
-import { trackMainProductEvent } from '@main/services/productAnalytics'
+import { trackKnowledgeItemsAdded, trackMainProductEvent } from '@main/services/productAnalytics'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
@@ -36,7 +36,10 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     if (result.status === 'added') {
       // Replace keeps only the last of same-name items in one batch.
       const added = conflictStrategy === 'replace' ? resolveKnowledgeAddConflicts(items, []).keptInputs : items
-      trackMainProductEvent({ event: 'feature_used', feature: 'knowledge', action: 'items_added', count: added.length })
+      trackKnowledgeItemsAdded(
+        added.map((item) => item.type),
+        'ui'
+      )
     }
     return result
   },
@@ -50,7 +53,13 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     application.get('KnowledgeService').enableEmbeddingModel(baseId, patch),
   'knowledge.search': async ({ baseId, query }) => {
     const report = (status: 'success' | 'error') =>
-      trackMainProductEvent({ event: 'feature_used', feature: 'knowledge', action: 'searched', status })
+      trackMainProductEvent({
+        event: 'feature_used',
+        feature: 'knowledge',
+        action: 'searched',
+        status,
+        trigger: 'page'
+      })
     try {
       const results = await application.get('KnowledgeService').search(baseId, query)
       report('success')

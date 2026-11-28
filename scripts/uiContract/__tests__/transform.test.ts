@@ -406,6 +406,19 @@ describe('analytics control names', () => {
     return [...code.matchAll(/data-analytics="([^"]+)"/g)].map((match) => match[1])
   }
 
+  it('lists exactly the names it writes, leaving authored names to their author', () => {
+    const source = `const MessageMenuBar = () => (
+      <div>
+        <button onClick={handleCopy}><CopyIcon /></button>
+        <button data-analytics="message.copy-raw" onClick={handleRaw}>Raw</button>
+      </div>
+    )`
+    const result = transformJsx(source, { injectDataUi: true, sourceFile: options.sourceFile })
+
+    expect(result.analyticsNames).toEqual(analyticsNames(source).filter((name) => name !== 'message.copy-raw'))
+    expect(result.analyticsNames).toHaveLength(1)
+  })
+
   it('tells sibling controls of one component apart by their named handlers', () => {
     const names = analyticsNames(
       `const MessageMenuBar = () => (

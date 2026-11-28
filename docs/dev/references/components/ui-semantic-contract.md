@@ -119,6 +119,11 @@ component's `domain.component` prefix plus the control's label i18n key, else it
 value, and an authored or spread `data-analytics` wins. Code inside `packages/ui` is never named; call sites name its
 controls.
 
+A production renderer build also writes `out/renderer/analytics-inventory.json`: every injected name grouped by the
+analytics page of its source directory (`src/renderer/pages/<dir>` or `src/renderer/windows/<dir>`, shared code under
+`other`), so click data can be compared against controls that exist. Authored names are dynamic expressions and are not
+listed. The file is excluded from the packaged app.
+
 During source work, resolve a semantic prefix without building the app:
 
 ```bash

@@ -15,6 +15,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniAppRuntime } from '@renderer/hooks/useMiniAppRuntime'
 import MiniAppPane from '@renderer/pages/miniApps/components/MiniAppPane'
+import { markMiniAppOpenTrigger } from '@renderer/services/productAnalytics'
 import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
@@ -472,8 +473,18 @@ describe('MiniApp open analytics', () => {
     await user.click(screen.getByText('Show A'))
 
     expect(openedEvents()).toEqual([
-      { event: 'feature_used', feature: 'mini_app', action: 'opened', target: 'openai' },
-      { event: 'feature_used', feature: 'mini_app', action: 'opened' }
+      { event: 'feature_used', feature: 'mini_app', action: 'opened', trigger: 'other', target: 'openai' },
+      { event: 'feature_used', feature: 'mini_app', action: 'opened', trigger: 'other' }
     ])
+  })
+
+  it('names the entry point that opened the app, once', async () => {
+    const user = userEvent.setup()
+    mount()
+
+    markMiniAppOpenTrigger('a', 'sidebar')
+    await user.click(screen.getByText('Open A'))
+
+    expect(openedEvents()).toMatchObject([{ action: 'opened', trigger: 'sidebar' }])
   })
 })
