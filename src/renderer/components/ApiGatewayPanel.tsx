@@ -38,15 +38,16 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch,
-  Tooltip
+  Switch
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import CopyButton from '@renderer/components/CopyButton'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import ModelListRow from '@renderer/components/ModelListRow'
+import { SettingsContentColumn, SettingsPageHeader } from '@renderer/components/SettingsPrimitives'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
@@ -56,8 +57,9 @@ import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 const PORT_MIN = 1000
 const PORT_MAX = 65535
 const MODEL_ROW_HEIGHT = 48
-const MODEL_LIST_HEIGHT = MODEL_ROW_HEIGHT * 4
+const MODEL_LIST_MAX_ROWS = 4
 const connectionRow = 'grid min-w-0 items-center gap-x-4 gap-y-1.5 py-1 @min-[29rem]:grid-cols-[9rem_minmax(0,1fr)]'
+
 const gatewayNode = 'absolute grid size-7 place-items-center rounded-md border bg-card text-success [&>svg]:size-3.5'
 
 function GatewayIllustration({ running, sharing }: { running: boolean; sharing: boolean }) {
@@ -96,6 +98,38 @@ function GatewayIllustration({ running, sharing }: { running: boolean; sharing: 
   )
 }
 
+export function ApiGatewayContent({
+  title,
+  className,
+  innerClassName
+}: {
+  title: string
+  className?: string
+  innerClassName?: string
+}) {
+  const { t } = useTranslation()
+  const { theme } = useTheme()
+  return (
+    <SettingsContentColumn theme={theme} className={className} innerClassName={cn('pb-6', innerClassName)}>
+      <ApiGatewayPanel
+        renderHeader={(controls) => (
+          <SettingsPageHeader
+            title={
+              <>
+                <GatewayIcon width={16} height={16} />
+                {title}
+              </>
+            }
+            help={t('apiGateway.description')}
+            action={controls}
+            className="mb-0"
+          />
+        )}
+      />
+    </SettingsContentColumn>
+  )
+}
+
 function GatewayEndpoints({ origin }: { origin: string }) {
   const { t } = useTranslation()
   const endpoints = [
@@ -106,27 +140,29 @@ function GatewayEndpoints({ origin }: { origin: string }) {
   ] as const
 
   return (
-    <div>
+    <dl className="divide-y divide-border-subtle">
       {endpoints.map(([label, path]) => {
         const url = origin + path
+        const isBaseUrl = path === '/v1'
         return (
           <div key={path} className={connectionRow}>
-            <span className="text-sm font-medium">{label}</span>
-            <div className="flex min-h-9 min-w-0 items-center justify-between gap-2 rounded-md border bg-muted/40 ps-2.5 pe-0.5">
-              <code className="min-w-0 select-text py-1 font-mono text-sm wrap-anywhere">{url}</code>
-              <Button variant="ghost" size="sm" className="shrink-0" asChild>
-                <CopyButton
-                  textToCopy={url}
-                  label={t('common.copy')}
-                  aria-label={`${t('common.copy')} · ${label}`}
-                  successFeedback="icon"
-                />
+            <dt className={cn('min-w-0 text-sm wrap-anywhere', isBaseUrl ? 'font-medium' : 'text-muted-foreground')}>
+              {label}
+            </dt>
+            <dd className="flex min-h-8 min-w-0 items-center justify-between gap-2">
+              <code className={cn('min-w-0 font-mono text-xs select-text wrap-anywhere', isBaseUrl && 'font-medium')}>
+                {origin}
+                <wbr />
+                {path}
+              </code>
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground" asChild>
+                <CopyButton textToCopy={url} aria-label={`${t('common.copy')} · ${label}`} successFeedback="icon" />
               </Button>
-            </div>
+            </dd>
           </div>
         )
       })}
-    </div>
+    </dl>
   )
 }
 
@@ -140,8 +176,8 @@ function GatewayModels() {
     data?.filter(({ id, name, owned_by }) => `${name} ${id} ${owned_by}`.toLowerCase().includes(query)) ?? []
 
   return (
-    <section aria-label={t('common.models')} className="flex min-w-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <section aria-label={t('common.models')} className="min-w-0 rounded-xl border border-border-subtle bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-4 py-2">
         <h2 className="text-sm font-semibold">{t('common.models')}</h2>
         <InputGroup
           size="sm"
@@ -161,17 +197,17 @@ function GatewayModels() {
           />
         </InputGroup>
       </div>
-      <div style={{ height: MODEL_LIST_HEIGHT }}>
-        {error ? (
-          <p role="alert" className="py-3 text-sm text-destructive">
-            {t('apiGateway.connections.models_failed')}
-          </p>
-        ) : models.length ? (
+      {error ? (
+        <p role="alert" className="px-4 py-3 text-sm text-destructive">
+          {t('apiGateway.connections.models_failed')}
+        </p>
+      ) : models.length ? (
+        <div style={{ height: MODEL_ROW_HEIGHT * Math.min(models.length, MODEL_LIST_MAX_ROWS) }}>
           <DynamicVirtualList
             ref={listRef}
             list={models}
             role="list"
-            className="overscroll-contain"
+            autoHideScrollbar
             estimateSize={() => MODEL_ROW_HEIGHT}
             itemContainerStyle={{ height: MODEL_ROW_HEIGHT }}
             getItemKey={(index) => models[index].id}
@@ -184,28 +220,21 @@ function GatewayModels() {
                   <ModelListRow
                     model={model}
                     detail={owned_by}
-                    className="h-full rounded-md px-2.5 hover:bg-accent/50 focus-within:bg-accent/50">
-                    <Tooltip asChild content={id} placement="top-end" className="max-w-xs font-mono wrap-anywhere">
-                      <Button variant="ghost" size="sm" asChild>
-                        <CopyButton
-                          textToCopy={id}
-                          label={t('common.copy')}
-                          aria-label={`${t('common.copy')} · ${id}`}
-                          successFeedback="icon"
-                        />
-                      </Button>
-                    </Tooltip>
+                    className="relative h-full px-4 after:pointer-events-none after:absolute after:inset-x-4 after:bottom-0 after:border-b after:border-border-subtle">
+                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground" asChild>
+                      <CopyButton textToCopy={id} aria-label={`${t('common.copy')} · ${id}`} successFeedback="icon" />
+                    </Button>
                   </ModelListRow>
                 </div>
               )
             }}
           </DynamicVirtualList>
-        ) : (
-          <p role="status" className="py-3 text-sm text-muted-foreground">
-            {t(isLoading ? 'common.loading' : data?.length ? 'common.no_results' : 'models.no_matches')}
-          </p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <p role="status" className="px-4 py-3 text-sm text-muted-foreground">
+          {t(isLoading ? 'common.loading' : data?.length ? 'common.no_results' : 'models.no_matches')}
+        </p>
+      )}
     </section>
   )
 }
@@ -238,6 +267,7 @@ function GatewayCredential({
           {!running && (
             <InputGroupButton
               size="icon-xs"
+              className="text-muted-foreground"
               aria-label={t('apiGateway.actions.regenerate')}
               title={t('apiGateway.actions.regenerate')}
               onClick={regenerate}>
@@ -246,16 +276,17 @@ function GatewayCredential({
           )}
           <InputGroupButton
             size="icon-xs"
+            className="text-muted-foreground"
             aria-label={visibilityLabel}
             title={visibilityLabel}
             onClick={() => setVisible(!visible)}
             disabled={!apiKey}>
             {visible ? <EyeOff /> : <Eye />}
           </InputGroupButton>
-          <InputGroupButton size="icon-xs" asChild>
+          <InputGroupButton size="icon-xs" className="text-muted-foreground" asChild>
             <CopyButton
               textToCopy={apiKey}
-              tooltip={t('apiGateway.fields.apiKey.copyTooltip')}
+              aria-label={t('apiGateway.fields.apiKey.copyTooltip')}
               successFeedback="icon"
               disabled={!apiKey}
             />
@@ -357,6 +388,7 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
           <Button
             size="sm"
             variant="outline"
+            className="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
             loading={apiGatewayLoading && !restarting}
             disabled={lanUpdating || restarting}
             onClick={stopApiGateway}>
@@ -369,6 +401,7 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
                 <Button
                   size="icon-sm"
                   variant="outline"
+                  className="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
                   aria-label={t('common.more')}
                   loading={restarting}
                   disabled={apiGatewayLoading || lanUpdating || restarting}>
@@ -394,86 +427,100 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
   )
 
   return (
-    <div data-ui="api-gateway.panel" className="@container flex flex-col gap-6">
+    <div data-ui="api-gateway.panel" className="@container flex flex-col gap-4">
       <div className="flex min-w-0 flex-col gap-3">
         {renderHeader ? renderHeader(controls) : controls}
         <GatewayIllustration running={apiGatewayRunning} sharing={lanRunning} />
       </div>
 
-      <section aria-label={t('apiGateway.connections.local')} className="min-w-0">
-        <h2 className="mb-1 text-sm font-semibold">{t('apiGateway.connections.local')}</h2>
-        <GatewayEndpoints origin={localOrigin} />
-      </section>
+      <div className="min-w-0 rounded-xl border border-border-subtle bg-card">
+        <section aria-label={t('apiGateway.connections.local')} className="min-w-0 px-4 pt-2 pb-1">
+          <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <h2 className="text-sm font-semibold">{t('apiGateway.connections.local')}</h2>
+            {apiGatewayRunning && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={() => void openExternalWebsite(`${localOrigin}/openapi`)}>
+                <ExternalLink size={13} />
+                {t('apiGateway.documentation.title')}
+              </Button>
+            )}
+          </div>
+          <GatewayEndpoints origin={localOrigin} />
+        </section>
+
+        <section
+          aria-label={t('apiGateway.connections.lan')}
+          className="min-w-0 rounded-b-xl border-t border-border-subtle bg-background-subtle px-4">
+          <div className="flex min-h-12 items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold">{t('apiGateway.connections.lan')}</h2>
+            <Switch
+              aria-label={t('apiGateway.connections.lan')}
+              checked={Boolean(lanEnabled)}
+              disabled={apiGatewayLoading || lanUpdating || (!apiGatewayRunning && !lanEnabled)}
+              loading={lanUpdating}
+              onCheckedChange={setLanAccess}
+            />
+          </div>
+          {lanError && (
+            <p role="alert" className="text-sm text-destructive">
+              {t('deviceConnections.lan.error')}
+              {lanError}
+            </p>
+          )}
+          {lanEnabled && (
+            <div className="flex min-w-0 flex-col gap-2 pb-4">
+              {lanRunning ? (
+                lanOrigin ? (
+                  <>
+                    {!!lanAddresses && lanAddresses.length > 1 && (
+                      <Select value={lanOrigin} onValueChange={setSelectedAddress}>
+                        <SelectTrigger aria-label={t('apiGateway.connections.lan')} className="max-w-md">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {lanAddresses.map((address) => (
+                            <SelectItem key={address} value={address}>
+                              {address}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <GatewayEndpoints origin={lanOrigin} />
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {t(
+                      addressesLoading
+                        ? 'common.loading'
+                        : addressesError
+                          ? 'apiGateway.connections.addresses_failed'
+                          : 'apiGateway.connections.no_address'
+                    )}
+                  </p>
+                )
+              ) : (
+                <p className="text-sm text-muted-foreground">{t('apiGateway.messages.notEnabled')}</p>
+              )}
+              {credential}
+              <p className="text-xs text-muted-foreground">{t('apiGateway.connections.lan_http')}</p>
+            </div>
+          )}
+        </section>
+      </div>
 
       <GatewayModels />
 
-      <section aria-label={t('apiGateway.connections.lan')} className="flex min-w-0 flex-col">
-        <div className="flex min-h-14 items-center justify-between gap-4">
-          <h2 className="text-sm font-semibold">{t('apiGateway.connections.lan')}</h2>
-          <Switch
-            aria-label={t('apiGateway.connections.lan')}
-            checked={Boolean(lanEnabled)}
-            disabled={apiGatewayLoading || lanUpdating || (!apiGatewayRunning && !lanEnabled)}
-            loading={lanUpdating}
-            onCheckedChange={setLanAccess}
-          />
-        </div>
-        {lanError && (
-          <p role="alert" className="text-sm text-destructive">
-            {t('deviceConnections.lan.error')}
-            {lanError}
-          </p>
-        )}
-        {lanEnabled && (
-          <div className="flex min-w-0 flex-col gap-2 pb-4">
-            {lanRunning ? (
-              lanOrigin ? (
-                <>
-                  {!!lanAddresses && lanAddresses.length > 1 && (
-                    <Select value={lanOrigin} onValueChange={setSelectedAddress}>
-                      <SelectTrigger
-                        aria-label={t('apiGateway.connections.lan')}
-                        className="max-w-md @min-[29rem]:ms-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {lanAddresses.map((address) => (
-                          <SelectItem key={address} value={address}>
-                            {address}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  <GatewayEndpoints origin={lanOrigin} />
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {t(
-                    addressesLoading
-                      ? 'common.loading'
-                      : addressesError
-                        ? 'apiGateway.connections.addresses_failed'
-                        : 'apiGateway.connections.no_address'
-                  )}
-                </p>
-              )
-            ) : (
-              <p className="text-sm text-muted-foreground">{t('apiGateway.messages.notEnabled')}</p>
-            )}
-            {credential}
-            <p className="text-xs text-muted-foreground">{t('apiGateway.connections.lan_http')}</p>
-          </div>
-        )}
-      </section>
-
-      <Accordion type="single" collapsible className="-mt-3">
+      <Accordion type="single" collapsible className="rounded-xl border border-border-subtle bg-card">
         <AccordionItem value="advanced" className="first:border-t-0">
-          <AccordionTrigger className="w-fit flex-none justify-start gap-2 py-2 text-xs font-medium text-muted-foreground">
+          <AccordionTrigger className="min-h-11 items-center rounded-xl px-4 py-2 text-sm font-medium">
             {t('common.advanced_settings')}
           </AccordionTrigger>
-          <AccordionContent className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-3">
+          <AccordionContent className="flex flex-col px-4">
+            <div className={connectionRow}>
               <span className="text-sm font-medium">{t('apiGateway.fields.port.label')}</span>
               <InputNumber
                 className="w-32 font-mono text-xs tabular-nums"
@@ -485,15 +532,6 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
               />
             </div>
             {!lanEnabled && credential}
-            {apiGatewayRunning && (
-              <Button
-                variant="outline"
-                className="self-start"
-                onClick={() => void openExternalWebsite(`${localOrigin}/openapi`)}>
-                <ExternalLink size={13} />
-                {t('apiGateway.documentation.title')}
-              </Button>
-            )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>

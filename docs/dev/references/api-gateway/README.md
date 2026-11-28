@@ -1,5 +1,5 @@
 ---
-description: API gateway purpose, start and stop controls, automatic startup, and HTTP protocol reference
+description: Unified Gateway purpose, start and stop controls, automatic startup, and HTTP protocol reference
 sources:
   - src/main/features/apiGateway
   - src/main/ai/runtime/agentApiGateway.ts
@@ -13,9 +13,9 @@ sources:
   - src/renderer/pages/settings/DeviceConnectionsSettings
 ---
 
-# API Gateway Reference
+# Unified Gateway Reference
 
-The **API Gateway** exposes Cherry Studio's AI capabilities over a local HTTP
+The **Unified Gateway** exposes Cherry Studio's AI capabilities over a local HTTP
 server that speaks the **OpenAI**, **Anthropic**, and **Gemini** wire protocols,
 plus Cherry REST and Streamable HTTP MCP endpoints. Compatible clients can point at
 `http://127.0.0.1:23333` and drive whatever provider/model the desktop app has
@@ -99,7 +99,7 @@ to enable it. It is disabled by default.
 
 1. Configure a working provider and model in **Settings → Model Provider** for
    model requests. Keep Cherry Studio running while the client uses the gateway.
-2. Open **Unified Gateway** from the Launchpad apps grid, or open **Settings → API Gateway** (also linked from **Settings → Device Connections**). Right-click the Launchpad tile to pin it to the sidebar. While stopped, choose an available port
+2. Open **Unified Gateway** from the Launchpad apps grid, or open **Settings → Unified Gateway** (also linked from **Settings → Device Connections**). Right-click the Launchpad tile to pin it to the sidebar. While stopped, choose an available port
    between `1000` and `65535` if the default `23333` is already in use.
 3. Click **Start** and wait for **Running**.
 4. Under **Connect on this computer**, copy the Base URL (`/v1`) or the full
@@ -114,7 +114,7 @@ work without the key.
 
 ### Stop the gateway and automatic startup
 
-Open **Unified Gateway** from the Launchpad or **Settings → API Gateway** and click **Stop**. This clears the saved
+Open **Unified Gateway** from the Launchpad or **Settings → Unified Gateway** and click **Stop**. This clears the saved
 startup setting and closes remote-device sessions. LAN API sharing remains configured for the next start.
 Gateway-dependent clients and Agent routes need the gateway again before they can
 be used. Ordinary chats can continue without it.
@@ -129,14 +129,14 @@ temporary tasks.
 
 ### Understand why it starts automatically
 
-- Clicking **Start**, or accepting an Agent's **Enable the API Gateway?** prompt,
+- Clicking **Start**, or accepting an Agent's **Enable the Unified Gateway?** prompt,
   saves the enabled setting. The gateway then starts on future Cherry Studio
   launches until you click **Stop**.
 - PDF translation uses the gateway temporarily without changing that saved
   setting. If it was disabled, it stops again after the last translation task;
   if you had enabled it, it stays running.
 - Upgrading from v1 preserves a previously enabled API Server setting. Check
-  **Settings → API Gateway** and click **Stop** if you no longer use it.
+  **Settings → Unified Gateway** and click **Stop** if you no longer use it.
 
 ## Where the code lives
 
@@ -542,7 +542,7 @@ protocol URLs based on the listening port, model IDs from the gateway catalog, a
 advanced port and credential controls.
 
 `DeviceConnectionsSettings` owns device pairing and access revocation. When
-the gateway is stopped, it links to API Gateway settings.
+the gateway is stopped, it links to Unified Gateway settings.
 The pairing section uses the same gateway-required guidance. If LAN intent is
 enabled but its listener is down, the page offers Retry alongside Disable LAN
 access so recovery does not require toggling the preference off first.
