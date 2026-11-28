@@ -138,6 +138,36 @@ describe('custom provider creation', () => {
     })
   })
 
+  it('stores completePath only for endpoints that opted in', () => {
+    const payload = buildCustomProviderCreationPayload({
+      endpointUrls: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: ' https://api.example.com/v1/chat/completions# ',
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'https://anthropic.example.com/v1/messages'
+      },
+      completePathEndpoints: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: true
+      }
+    })
+
+    expect(payload.endpointConfigs).toEqual({
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://api.example.com/v1/chat/completions#',
+        completePath: true
+      },
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://anthropic.example.com/v1/messages' }
+    })
+  })
+
+  it('previews the configured URL as-is when completePath is enabled', () => {
+    expect(
+      buildCustomProviderEndpointPreview(
+        ' https://api.example.com/custom/generate?key=1# ',
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        true
+      )
+    ).toBe('https://api.example.com/custom/generate?key=1')
+  })
+
   it('accepts valid optional endpoint URLs', () => {
     expect(
       findInvalidCustomProviderCreationUrl({
