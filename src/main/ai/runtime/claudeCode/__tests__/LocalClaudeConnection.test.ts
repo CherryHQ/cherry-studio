@@ -9,6 +9,7 @@ import type {
   ClaudeObservationSink,
   ClaudeThreadHandle
 } from '@cherrystudio/agent-runtime-claude-code'
+import type * as ClaudeRuntimeModule from '@cherrystudio/agent-runtime-claude-code'
 import { createClaudeCodeRuntime } from '@cherrystudio/agent-runtime-claude-code'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -22,15 +23,16 @@ import type * as BrowserBridgeModule from '../../../mcp/localAgentBrowserBridge'
 import { localLaunch } from '../../__tests__/fixtures/localLaunch'
 import type { AgentRuntimeEvent } from '../../types'
 import { LocalClaudeConnection } from '../LocalClaudeConnection'
+import type * as ClaudeLaunchModule from '../localClaudeLaunch'
 import { resolveClaudeLaunch } from '../localClaudeLaunch'
 
 vi.mock('@cherrystudio/agent-runtime-claude-code', async (load) => ({
-  ...(await load<typeof import('@cherrystudio/agent-runtime-claude-code')>()),
+  ...(await load<typeof ClaudeRuntimeModule>()),
   createClaudeCodeRuntime: vi.fn()
 }))
 
 vi.mock('../localClaudeLaunch', async (load) => ({
-  ...(await load<typeof import('../localClaudeLaunch')>()),
+  ...(await load<typeof ClaudeLaunchModule>()),
   resolveClaudeLaunch: vi.fn()
 }))
 
