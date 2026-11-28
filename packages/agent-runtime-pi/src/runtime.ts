@@ -30,6 +30,7 @@ import {
 
 import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
+import { resolveSessionCompaction } from './compaction'
 import { readContextUsage } from './contextUsage'
 import { PiProjection, type PiObservation } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
@@ -41,8 +42,8 @@ export interface PiRuntimeBehavior {
     readonly thread: Thread
     readonly modelKey: string
   }):
-    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>
-    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>>
+    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime' | 'compaction'>>
+    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime' | 'compaction'>>>
 }
 
 interface PiRuntimeErrorContext {
@@ -60,7 +61,7 @@ export interface PiRuntimeOptions {
 export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
   behavior: PiRuntimeBehavior
   compactionPercent?: number
-  compaction?: Omit<NonNullable<AgentRuntimeSessionOptions['compaction']>, 'summarize'>
+  compaction?: NonNullable<AgentRuntimeSessionOptions['compaction']>
 }
 export interface PiThreadHandle extends ThreadHandle {
   readonly input: ThreadInput & Required<Pick<ThreadInput, 'steer'>>
@@ -202,17 +203,29 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: {
-              ...settings,
-              ...config.compaction,
-              ...(!child &&
-                config.compactionPercent !== undefined && {
-                  reserveTokens: Math.max(
-                    settings.reserveTokens,
-                    Math.ceil((model.contextWindow * (100 - config.compactionPercent)) / 100)
-                  )
-                })
-            },
+            // A child binding may carry its own compaction: its summarizer's model is registered
+            // in this session's runtime, while the inherited (root) summarizer's may not be.
+            compaction: (() => {
+              const inherited = (child ? configured?.compaction : undefined) ?? config.compaction
+              // The percentage pin sits on top of the effective model-aware reserve, never
+              // below it: an 80% trigger on a 128k window derives a 25.6k reserve, but the
+              // model still needs its output cap plus tail (45,568 for 32,768 max tokens),
+              // and a lower reserve would fire the native trigger past the real ceiling.
+              // resolveSessionCompaction applies the retained-tail feasibility cap afterward.
+              const effective = resolveSessionCompaction({ inherited, nativeBudgets: settings, model })
+              return resolveSessionCompaction({
+                inherited,
+                nativeBudgets: settings,
+                model,
+                ...(!child &&
+                  config.compactionPercent !== undefined && {
+                    reserveTokens: Math.max(
+                      effective.reserveTokens,
+                      Math.ceil((model.contextWindow * (100 - config.compactionPercent)) / 100)
+                    )
+                  })
+              })
+            })(),
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {

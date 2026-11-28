@@ -5,6 +5,7 @@ import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 
 import type { CompactionSummarizer, CompactionSummaryRequest } from '../src/compaction'
+import { compactionBudgetsFitModel, resolveSessionCompaction } from '../src/compaction'
 import { readContextUsage } from '../src/contextUsage'
 import type { ModelCall } from './sessionSupport'
 import { respondingModel } from './sessionSupport'
@@ -295,6 +296,40 @@ describe('host summarizer', () => {
     expect(sessionIds).toEqual([session.sessionId])
   })
 
+  it('supplies the session stream, read lazily so a meter wrapped after creation still meters the summary', async () => {
+    const seen: string[] = []
+    let captured: CompactionSummaryRequest | undefined
+    const { model } = scriptedModel([assistantReply([{ type: 'text', text: 'Noted.' }])])
+    const host = hostStore()
+    const runtime = await createTestSession({
+      stream: model,
+      compaction: {
+        reserveTokens: 16_384,
+        keepRecentTokens: 1,
+        summarize: async (request) => {
+          captured = request
+          const output = await request.stream(request.model, { messages: [] } as never, {})
+          await output.result()
+          return 'METERED-SUMMARY'
+        }
+      },
+      onEvent: host.onEvent
+    })
+    await runtime.prompt('My name is Li')
+    // A meter (behavior meterRequests) wraps session.agent.streamFunction in place after creation.
+    runtime.session.agent.streamFunction = (() => {
+      seen.push('metered')
+      return { result: async () => assistantReply([{ type: 'text', text: 'unused' }], 'stop', 1, 1) }
+    }) as never
+    await runtime.compact()
+
+    expect(captured?.stream).toBeDefined()
+    expect(seen).toEqual(['metered'])
+    expect(host.entries.flatMap((entry) => (entry.type === 'compaction' ? [entry.summary] : []))).toEqual([
+      'METERED-SUMMARY'
+    ])
+  })
+
   it('hands the native summarizer replayable messages, even after a reply that failed mid tool call', async () => {
     const { model } = scriptedModel([
       {
@@ -366,7 +401,78 @@ describe('host summarizer', () => {
         type: 'compaction-end',
         reason: 'threshold',
         error: 'compression model unavailable',
-        aborted: true
+        // Pi reports the cancel as aborted; a recorded summary failure must still surface as failed.
+        aborted: false
       })
   })
+})
+
+describe('resolveSessionCompaction', () => {
+  const nativeBudgets = { reserveTokens: 100, keepRecentTokens: 50 }
+
+  it('returns the native budgets when nothing is inherited', () => {
+    expect(resolveSessionCompaction({ nativeBudgets, model: { contextWindow: 1000 } })).toBe(nativeBudgets)
+  })
+
+  it("prefers a child binding's own summarizer over the inherited root config", () => {
+    const childSummarize: CompactionSummarizer = async () => 'child summary'
+    const resolved = resolveSessionCompaction({
+      inherited: { enabled: true, reserveTokens: 10, keepRecentTokens: 5, summarize: childSummarize },
+      nativeBudgets,
+      model: { contextWindow: 1000 }
+    })
+    expect(resolved).toMatchObject({ reserveTokens: 10, keepRecentTokens: 5, summarize: childSummarize })
+  })
+
+  it('keeps the summarizer but falls back to native budgets when inherited budgets exceed the window', () => {
+    const summarize: CompactionSummarizer = async () => 'summary'
+    const resolved = resolveSessionCompaction({
+      inherited: { enabled: true, reserveTokens: 800, keepRecentTokens: 500, summarize },
+      nativeBudgets,
+      model: { contextWindow: 1000 }
+    })
+    expect(resolved).toMatchObject({ reserveTokens: 100, keepRecentTokens: 50, summarize })
+  })
+})
+
+describe('compactionBudgetsFitModel', () => {
+  it('accepts budgets derived for the session model and rejects budgets that exceed its window', () => {
+    // Root-derived budgets fit the root window they were computed from.
+    expect(
+      compactionBudgetsFitModel({ reserveTokens: 113_050, keepRecentTokens: 209_715 }, { contextWindow: 1_048_576 })
+    ).toBe(true)
+    // The same budgets on a 49,152-token child would push the threshold negative and retain more
+    // than the window, so the session falls back to its per-model native budgets.
+    expect(
+      compactionBudgetsFitModel({ reserveTokens: 113_050, keepRecentTokens: 209_715 }, { contextWindow: 49_152 })
+    ).toBe(false)
+    expect(compactionBudgetsFitModel({ reserveTokens: 16_384, keepRecentTokens: 1 }, { contextWindow: 32_000 })).toBe(
+      true
+    )
+    expect(compactionBudgetsFitModel({ reserveTokens: 32_000, keepRecentTokens: 0 }, { contextWindow: 32_000 })).toBe(
+      false
+    )
+  })
+})
+
+it('caps a pinned reserve so the retained tail still fits a small window', () => {
+  const resolved = resolveSessionCompaction({
+    inherited: undefined,
+    nativeBudgets: { reserveTokens: 16_384, keepRecentTokens: 5_000 },
+    model: { contextWindow: 20_000 },
+    reserveTokens: 16_384
+  })
+  expect(resolved.reserveTokens).toBe(14_999)
+  expect(resolved.reserveTokens + resolved.keepRecentTokens).toBeLessThan(20_000)
+})
+
+it('keeps a feasible pinned reserve instead of halving it (30% trigger on a 100k window)', () => {
+  const resolved = resolveSessionCompaction({
+    inherited: undefined,
+    nativeBudgets: { reserveTokens: 16_384, keepRecentTokens: 20_000 },
+    model: { contextWindow: 100_000 },
+    reserveTokens: 70_000
+  })
+  expect(resolved.reserveTokens).toBe(70_000)
+  expect(100_000 - resolved.reserveTokens).toBe(30_000)
 })

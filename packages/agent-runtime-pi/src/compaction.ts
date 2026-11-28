@@ -1,6 +1,11 @@
 import type { Api, Message, Model, Usage } from '@earendil-works/pi-ai'
 import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
-import { type CompactionSettings, convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import {
+  type AgentSession,
+  type CompactionSettings,
+  convertToLlm,
+  type ExtensionFactory
+} from '@earendil-works/pi-coding-agent'
 
 import type { CompactionReason } from './sessionEvents'
 
@@ -15,6 +20,12 @@ export interface CompactionSummaryRequest {
   /** Focus given to a manual compaction (`session.compact(instructions)`). */
   instructions?: string
   signal: AbortSignal
+  /**
+   * The session's metered stream, read lazily at summarize time: every summary attempt goes through
+   * admission, the run's request cap and summary-usage accounting. Never bypass it with a direct
+   * model-runtime call.
+   */
+  stream: AgentSession['agent']['streamFunction']
 }
 
 /**
@@ -34,9 +45,62 @@ export interface AgentRuntimeCompaction
   summarize?: CompactionSummarizer
 }
 
+/**
+ * True when compaction budgets fit a session model's window. Budgets derived for another (larger)
+ * model can exceed it: the compaction threshold (contextWindow - reserveTokens) goes negative and
+ * the retained tail can outsize the window. Sessions fall back to their per-model native budgets.
+ */
+export function compactionBudgetsFitModel(
+  compaction: Pick<AgentRuntimeCompaction, 'reserveTokens' | 'keepRecentTokens'>,
+  model: { contextWindow: number }
+): boolean {
+  return compaction.reserveTokens + compaction.keepRecentTokens < model.contextWindow
+}
+
+/**
+ * Picks a session's effective compaction config. A child binding may carry its own config — its
+ * summarizer's model is registered in its own runtime — and then wins over the inherited (root)
+ * config. Budgets derived for a different (larger) model must not shrink this session model's
+ * threshold below zero, so an ill-fitting config falls back to the per-model native budgets while
+ * keeping the summarizer.
+ */
+export function resolveSessionCompaction<S extends { reserveTokens: number; keepRecentTokens: number }>(options: {
+  inherited?: AgentRuntimeCompaction
+  nativeBudgets: S
+  model: { contextWindow: number }
+  /** A caller-pinned reserve (e.g. a compaction-percent trigger) wins over both budgets and config. */
+  reserveTokens?: number
+}): S | (S & AgentRuntimeCompaction) {
+  const { inherited, nativeBudgets, model, reserveTokens } = options
+  // Cap a pinned reserve against the FINAL retained-tail budget, not a fixed half window: the
+  // threshold (window - reserve) must still leave room for the kept tail, but a feasible pinned
+  // trigger (e.g. 30% of a 100k window with a 20k tail) must keep taking effect. A window too
+  // small for any tail falls back to half the window.
+  const finalKeepRecent =
+    inherited && compactionBudgetsFitModel(inherited, model)
+      ? inherited.keepRecentTokens
+      : nativeBudgets.keepRecentTokens
+  const room = model.contextWindow - finalKeepRecent - 1
+  const reserveCeiling = room > 0 ? room : Math.floor(model.contextWindow / 2)
+  const capped = reserveTokens === undefined ? undefined : Math.min(reserveCeiling, reserveTokens)
+  const pinned = capped === undefined ? {} : { reserveTokens: capped }
+  if (!inherited) return capped === undefined ? nativeBudgets : { ...nativeBudgets, reserveTokens: capped }
+  return {
+    ...nativeBudgets,
+    ...inherited,
+    ...(!compactionBudgetsFitModel(inherited, model)
+      ? { reserveTokens: nativeBudgets.reserveTokens, keepRecentTokens: nativeBudgets.keepRecentTokens }
+      : {}),
+    ...pinned
+  }
+}
+
+/** The request the extension builds from Pi's compaction event; the session wrapper adds the metered stream. */
+export type CompactionSummaryEventRequest = Omit<CompactionSummaryRequest, 'stream'>
+
 /** Routes Pi's `session_before_compact` to the host summarizer; `onFailure` gets the reason a summary failed. */
 export function compactionSummaryExtension(
-  summarize: CompactionSummarizer,
+  summarize: (request: CompactionSummaryEventRequest) => ReturnType<CompactionSummarizer>,
   onFailure: (message: string) => void
 ): ExtensionFactory {
   return (pi) => {

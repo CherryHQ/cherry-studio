@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
+import { defineTool, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished, vi } from 'vitest'
 
@@ -976,4 +976,21 @@ it('predicts from native context without appending history or executing a tool r
   expect(await root.pi.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
   expect(root.pi.history()).toEqual(before)
   expect(provider.calls).toHaveLength(4)
+})
+
+it('keeps the model-aware reserve when a reused root pins an 80 percent trigger', async () => {
+  const inMemory = SettingsManager.inMemory
+  const nativeBudgets: Array<{ reserveTokens?: number }> = []
+  const spy = vi.spyOn(SettingsManager, 'inMemory').mockImplementation((settings, options) => {
+    if (settings?.compaction) nativeBudgets.push(settings.compaction)
+    return inMemory(settings, options)
+  })
+  onTestFinished(() => spy.mockRestore())
+  const { runtime, config } = await setup(respondingModel(() => assistantReply('ready')).model, {
+    model: { ...MODEL, contextWindow: 128_000, maxTokens: 32_768 },
+    compaction: { enabled: true, reserveTokens: 45_568, keepRecentTokens: 20_000 },
+    compactionPercent: 80
+  })
+  confirmed(await runtime.create(config))
+  expect(nativeBudgets.at(-1)?.reserveTokens).toBe(45_568)
 })
