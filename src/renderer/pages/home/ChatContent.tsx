@@ -33,6 +33,7 @@ import { normalizeMaxMessages, resolveMaxMessages } from '@shared/utils/contextS
 
 import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
+import { useHandoffContextPercentage } from './hooks/useHandoffContextPercentage'
 import { useTopicBranchActions } from './hooks/useTopicBranchActions'
 import { findContextWindowBoundary } from './messages/contextWindowBoundary'
 import { ContextWindowDivider } from './messages/ContextWindowDivider'
@@ -271,9 +272,21 @@ const ChatContentInner: FC<InnerProps> = ({
     ([route, input]) => ipcApi.request(route, input),
     { shouldRetryOnError: false, keepPreviousData: false }
   )
+  const multiModelHandoff = !composerModelId && (composerModelCandidates?.length ?? 0) > 1
+  const { percentage: multiModelHandoffPercentage, refresh: refreshHandoffEstimate } = useHandoffContextPercentage({
+    enabled: canPreviewContextWindow && multiModelHandoff,
+    topicId: topic.id,
+    anchorId: parentAnchorId,
+    fillsAnchor: nextTurnFillsActiveNode,
+    candidates: composerModelCandidates,
+    revision: [maxMessages, assistant?.updatedAt, contextRevision]
+  })
   useDataChange(
     '/topics/:topicId/messages',
     () => {
+      if (canPreviewContextWindow && parentAnchorId && multiModelHandoff) {
+        void refreshHandoffEstimate(undefined, { revalidate: true }).catch(() => undefined)
+      }
       if (canPreviewContextWindow && parentAnchorId && composerModelId) {
         void mutateContextEstimate(undefined, { revalidate: true }).catch(() => undefined)
       }
@@ -408,9 +421,11 @@ const ChatContentInner: FC<InnerProps> = ({
               modelCandidates={composerModelCandidates}
               hasMessages={Boolean(topic.activeNodeId)}
               percentage={
-                contextUsage && handoffUsageModel?.contextWindow
-                  ? (contextUsage.contextTokens / handoffUsageModel.contextWindow) * 100
-                  : null
+                multiModelHandoff
+                  ? multiModelHandoffPercentage
+                  : contextUsage && handoffUsageModel?.contextWindow
+                    ? (contextUsage.contextTokens / handoffUsageModel.contextWindow) * 100
+                    : null
               }
             />
             <ConversationStageCenter placement={placement} main={main} composer={composer} />
