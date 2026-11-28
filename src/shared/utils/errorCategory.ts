@@ -193,12 +193,12 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'auth'
   }
 
-  // Model or provider not found (404)
+  // Model or local provider not found (404 / local DataApiError without HTTP status)
   if (
     status === 404 ||
     msg.includes('model_not_found') ||
     /model\b.{0,80}(?:not found|does not exist|unavailable|no access)/.test(msg) ||
-    /\bprovider with id '[^']+' not found\b/.test(msg)
+    (status === undefined && /\bprovider with id '.+?' not found\b/s.test(msg))
   ) {
     return 'model'
   }

@@ -113,6 +113,14 @@ export function getLocalModelResolutionFailure(
   error?: SerializedError
 ): { providerId?: string; modelId?: string } | null {
   const message = typeof error?.message === 'string' ? error.message : ''
+  const status = error ? getErrorHttpStatus(error) : undefined
+  if (
+    error?.name === 'AI_APICallError' ||
+    (error && isSerializedAiSdkRetryError(error)) ||
+    (status !== undefined && !(error?.name === 'DataApiError' && status === 404))
+  ) {
+    return null
+  }
 
   // AiService cannot supply an identifier when neither the request nor assistant has a model.
   // Keep the local failure recognizable without treating the word "not" as a model ID.

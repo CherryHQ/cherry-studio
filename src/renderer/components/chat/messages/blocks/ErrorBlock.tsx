@@ -184,7 +184,10 @@ const MessageErrorInfo: React.FC<{
         })
       }
       if (failedProviderId) {
-        return t('error.diagnosis.provider_unavailable', { provider: failedProviderId })
+        const labelKey = getProviderLabelKey(failedProviderId, '')
+        return t('error.diagnosis.provider_unavailable', {
+          provider: labelKey ? t(labelKey) : failedProviderId
+        })
       }
       return t('code.select_provider_model')
     }

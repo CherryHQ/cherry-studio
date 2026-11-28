@@ -604,13 +604,23 @@ describe('local provider resolution failures (#25414)', () => {
     "Provider with id 'custom-provider-1' not found",
     "Provider with id 'my-network-provider' not found",
     "Provider with id 'stream-proxy-1' not found",
-    "Provider with id 'billing-group' not found"
-  ])('classifies %s as model even without an HTTP status', (text) => {
+    "Provider with id 'billing-group' not found",
+    "Provider with id 'team's-relay' not found",
+    "Provider with id 'team\nrelay' not found"
+  ])('classifies %s as model when no HTTP status is present', (text) => {
     expect(classifyErrorCategory({ text })).toBe('model')
   })
 
-  it('preserves HTTP 5xx and 401 precedence over missing-provider text', () => {
-    expect(classifyErrorCategory({ text: "Provider with id 'custom-1' not found", status: 503 })).toBe('server')
-    expect(classifyErrorCategory({ text: "Provider with id 'custom-1' not found", status: 401 })).toBe('auth')
-  })
+  it.each([
+    [401, 'auth'],
+    [402, 'quota'],
+    [403, 'permission'],
+    [429, 'rate_limit'],
+    [503, 'server']
+  ] as const)(
+    'preserves HTTP %i diagnosis when an upstream gateway reports missing-provider text',
+    (status, expected) => {
+      expect(classifyErrorCategory({ text: "Provider with id 'custom-1' not found", status })).toBe(expected)
+    }
+  )
 })
