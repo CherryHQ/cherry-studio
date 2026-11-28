@@ -1324,8 +1324,8 @@ export class AgentSessionService {
   private recordWorkspaceEventTx(
     tx: DbOrTx,
     sessionId: string,
-    previous: AgentWorkspaceRow,
-    next: AgentWorkspaceRow
+    previous: Pick<AgentWorkspaceRow, 'id' | 'path'>,
+    next: Pick<AgentWorkspaceRow, 'id' | 'path'>
   ): void {
     // Recorded in the same transaction as the repoint: the event is the durable
     // evidence that the workspace change was deliberate.
@@ -1354,6 +1354,21 @@ export class AgentSessionService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return row
+  }
+
+  private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): void {
+    const [message] = tx
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), sql`${agentSessionMessageTable.role} != 'root'`))
+      .limit(1)
+      .all()
+    if (message) {
+      throw DataApiErrorFactory.invalidOperation(
+        'update session workspace',
+        'workspace cannot be changed after messages are sent'
+      )
+    }
   }
 
   private insertTx(
