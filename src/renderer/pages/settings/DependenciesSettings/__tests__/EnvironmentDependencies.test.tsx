@@ -893,7 +893,8 @@ describe('EnvironmentDependencies', () => {
     })
   })
 
-  it('drops an add rejection that settles after the dialog was dismissed', async () => {
+  // Cancel does not abort the write, so a late rejection must still reach the user, just not the next dialog.
+  it('reports an add rejection that settles after dismissal on the page, not in the reopened dialog', async () => {
     let rejectAdd!: (error: Error) => void
     ipcMocks.addCustomTool.mockImplementationOnce(
       () =>
@@ -914,6 +915,14 @@ describe('EnvironmentDependencies', () => {
     fireEvent.click(screen.getByTestId('dialog-close'))
     await act(async () => rejectAdd(new Error('registry refused')))
 
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledTimes(1))
+    expect(toastMock.error.mock.calls[0][0]).toMatchObject({ title: 'settings.dependencies.addFailed' })
+    expect(reportedFailure('late-add')).toMatchObject({
+      message: 'registry refused',
+      operation: 'binary.add_custom_tool',
+      recordId: 'jq',
+      source: 'settings.dependencies'
+    })
     fireEvent.click(screen.getByText('settings.dependencies.addTool'))
     expect(screen.getByRole('dialog')).not.toHaveTextContent('settings.dependencies.addFailed')
   })

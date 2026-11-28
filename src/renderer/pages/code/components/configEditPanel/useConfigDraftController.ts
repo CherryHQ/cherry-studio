@@ -15,7 +15,7 @@ import {
   updateCliConfigDraftConfig,
   validateCliConfigDraftForWrite
 } from '@renderer/pages/code/cliConfig'
-import { toastAppError } from '@renderer/services/AppErrorDetailService'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
@@ -51,6 +51,8 @@ interface ConfigDraftController {
   claudeModelMode: ClaudeModelMode
   isForeignDraft: boolean
   submitting: boolean
+  /** The last failed save, shown in the dialog while it stays open for a retry. */
+  saveFailure: InlineErrorDetailInput | null
   canSave: boolean
   onModelSelect: (nextModelId: UniqueModelId | undefined) => void
   onConfigChange: (nextConfig: Record<string, unknown>) => void
@@ -82,6 +84,8 @@ export function useConfigDraftController({
   const [draft, setDraft] = useState<ConfigDraft>(initialDraftSeed)
   const [claudeModelMode, setClaudeModelMode] = useState<ClaudeModelMode>(initialClaudeModelMode)
   const [submitting, setSubmitting] = useState(false)
+  // In the dialog, not a toast: the dialog traps focus, so a toast's Details is out of keyboard reach.
+  const [saveFailure, setSaveFailure] = useState<InlineErrorDetailInput | null>(null)
   const [isDirty, setIsDirty] = useState(false)
 
   const draftRef = useRef<ConfigDraft>(initialDraftSeed)
@@ -366,6 +370,7 @@ export function useConfigDraftController({
   const handleSubmit = useCallback(async () => {
     if (!canSave) return
     const current = draftRef.current
+    setSaveFailure(null)
     try {
       setSubmitting(true)
       if (current.mode === 'foreign') {
@@ -406,7 +411,12 @@ export function useConfigDraftController({
     } catch (err) {
       // Keep the dialog open so the user's edits survive a failed apply.
       logger.error('Failed to save CLI provider config', err as Error)
-      toastAppError(t('code.apply_failed'), err, { source: 'code.config', operation: 'code_cli.save_provider_config' })
+      setSaveFailure({
+        error: err,
+        message: t('code.apply_failed'),
+        source: 'code.config',
+        operation: 'code_cli.save_provider_config'
+      })
     } finally {
       setSubmitting(false)
     }
@@ -429,6 +439,7 @@ export function useConfigDraftController({
     claudeModelMode,
     isForeignDraft,
     submitting,
+    saveFailure,
     canSave,
     onModelSelect: handleModelSelect,
     onConfigChange: handleConfigChange,

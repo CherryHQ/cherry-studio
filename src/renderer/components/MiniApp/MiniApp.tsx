@@ -15,7 +15,7 @@ import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { ipcApi } from '@renderer/ipc'
-import { toastAppError } from '@renderer/services/AppErrorDetailService'
+import { type InlineErrorDetailInput, toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppStatus } from '@shared/data/types/miniApp'
@@ -91,6 +91,8 @@ const MiniApp: FC<Props> = ({
   const update = useMiniAppUpdate(app.appId, { name: app.name })
   const [pendingOpen, setPendingOpen] = useState(false)
   const [pendingBusy, setPendingBusy] = useState(false)
+  // In the dialog, not a toast: the dialog traps focus, so a toast's Details is out of keyboard reach.
+  const [pendingFailure, setPendingFailure] = useState<InlineErrorDetailInput | null>(null)
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
@@ -133,11 +135,17 @@ const MiniApp: FC<Props> = ({
     } else {
       logger.error('mutation failed', err as Error)
     }
-    if (e.isClientError) {
+    // A stale tile (deleted in another window) is not a validation slip: name it and keep Details.
+    const stale = e.code === ErrorCode.NOT_FOUND
+    if (e.isClientError && !stale) {
       toast.error({ title: t(fallbackKey), description: e.message, data: { suppressDetail: true } })
       return
     }
-    toastAppError(t(fallbackKey), e, { source: 'miniapp', operation: 'miniapp.update_status', recordId: app.appId })
+    toastAppError(t(stale ? 'miniApp.error.not_found' : fallbackKey), e, {
+      source: 'miniapp',
+      operation: 'miniapp.update_status',
+      recordId: app.appId
+    })
   }
 
   const togglePinLabel = isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')
@@ -181,11 +189,14 @@ const MiniApp: FC<Props> = ({
 
   const answerPending = async (route: 'mini_app.grant.approve_pending' | 'mini_app.grant.snooze_pending') => {
     setPendingBusy(true)
+    setPendingFailure(null)
     try {
       await ipcApi.request(route, { appId: app.appId })
       setPendingOpen(false)
     } catch (error) {
-      toastAppError(t('miniApp.detail.action_failed'), error, {
+      setPendingFailure({
+        error,
+        message: t('miniApp.detail.action_failed'),
         source: 'miniapp',
         operation:
           route === 'mini_app.grant.approve_pending' ? 'miniapp.grant.approve_pending' : 'miniapp.grant.snooze_pending',
@@ -399,7 +410,11 @@ const MiniApp: FC<Props> = ({
           leaves={pendingLeaves}
           open={currentPendingLeaves !== null}
           busy={pendingBusy}
-          onCancel={() => setPendingOpen(false)}
+          failure={pendingFailure}
+          onCancel={() => {
+            setPendingOpen(false)
+            setPendingFailure(null)
+          }}
           onGrant={() => void answerPending('mini_app.grant.approve_pending')}
           onSnooze={() => void answerPending('mini_app.grant.snooze_pending')}
         />

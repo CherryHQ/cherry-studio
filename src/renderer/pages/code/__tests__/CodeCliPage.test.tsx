@@ -1,12 +1,13 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { addSidebarShortcut, normalizeSidebarShortcutItems } from '@renderer/utils/sidebar'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
@@ -259,6 +260,12 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 
 vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastErrorMock }
+}))
+
+const openErrorDetailMock = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetailMock }
 }))
 
 vi.mock('../cliConfig/claudeModels', () => ({
@@ -1217,6 +1224,29 @@ describe('CodeCliPage', () => {
     render(<CodeCliPage />)
 
     expect(screen.queryByText('show error')).not.toBeInTheDocument()
+  })
+
+  // The label is display copy; Details must record the stable executable so the tool matches across surfaces.
+  it('records the CLI executable, not its display label, on install Details', async () => {
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.CLAUDE_CODE]: { operation: { status: 'failed', action: 'install', error: 'install boom' } }
+      })
+    )
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('show error'))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('settings.dependencies.installError: Claude Code')
+    fireEvent.click(within(dialog).getByRole('button', { name: /common\.detail/ }))
+
+    await waitFor(() => expect(openErrorDetailMock).toHaveBeenCalledTimes(1))
+    expect(openErrorDetailMock.mock.calls[0][0].context).toMatchObject({
+      message: 'install boom',
+      operation: 'binary.install',
+      recordId: 'claude',
+      source: 'code.dependencies'
+    })
   })
 
   it('does not auto-reopen the install-error dialog after switching tools and back', () => {

@@ -351,7 +351,7 @@ export default defineConfig({
     },
     optimizeDeps: {
       exclude: ['pyodide'],
-      include: ['pdfjs-dist/build/pdf.worker.mjs'],
+      include: ['@plantuml/mcp-js/engine.js', 'pdfjs-dist/build/pdf.worker.mjs'],
       rolldownOptions: {
         transform: {
           target: 'esnext' // for dev

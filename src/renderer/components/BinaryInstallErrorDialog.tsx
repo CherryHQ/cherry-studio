@@ -45,7 +45,10 @@ export const BinaryInstallingHint: FC = () => {
 }
 
 export interface BinaryOperationError {
+  /** Stable tool identity, recorded as the Details `recordId`. */
   name: string
+  /** Display name when it differs from `name`. */
+  label?: string
   message: string
   action: 'install' | 'remove'
 }
@@ -72,7 +75,7 @@ export const BinaryInstallErrorDialog: FC<{
   const failure = lastError.current
   const summary = `${t(
     failure.action === 'remove' ? 'settings.dependencies.removeError' : 'settings.dependencies.installError'
-  )}: ${failure.name}`
+  )}: ${failure.label ?? failure.name}`
   const detailError = useMemo(() => ({ message: failure.message }), [failure.message])
 
   useEffect(() => {

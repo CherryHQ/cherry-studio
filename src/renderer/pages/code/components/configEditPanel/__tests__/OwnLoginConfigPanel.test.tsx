@@ -1,16 +1,24 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { CodeCli } from '@shared/types/codeCli'
 
 import { OwnLoginConfigPanel } from '../OwnLoginConfigPanel'
 
-const { readOwnLoginCliConfigDraftMock, toastErrorMock } = vi.hoisted(() => ({
+const { readOwnLoginCliConfigDraftMock, toastErrorMock, openErrorDetailMock } = vi.hoisted(() => ({
   readOwnLoginCliConfigDraftMock: vi.fn(),
-  toastErrorMock: vi.fn()
+  toastErrorMock: vi.fn(),
+  openErrorDetailMock: vi.fn()
+}))
+
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetailMock }
 }))
 
 const previewFiles: CliConfigFileDraft[] = [
@@ -30,6 +38,7 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ children, role }: { children: ReactNode; role?: string }) => <div role={role ?? 'alert'}>{children}</div>,
   Button: ({
     children,
     loading,
@@ -166,32 +175,39 @@ describe('OwnLoginConfigPanel', () => {
     )
   })
 
-  it('keeps the dialog open and toasts when the submit fails', async () => {
-    const { onClose } = renderPanel(vi.fn().mockRejectedValue(new Error('write failed')))
+  // The dialog traps focus, so a Details entry that only lives in the window-level toast is unreachable by keyboard.
+  it('keeps a failed save inside the dialog with keyboard-reachable Details and clears it on retry', async () => {
+    const onSubmit = vi.fn().mockRejectedValueOnce(new Error('write failed')).mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const { onClose } = renderPanel(onSubmit)
     await waitFor(() => expect(readOwnLoginCliConfigDraftMock).toHaveBeenCalled())
 
     fireEvent.click(screen.getByText('change config'))
     const saveButton = screen.getByText('common.save')
     await waitFor(() => expect(saveButton).not.toBeDisabled())
-
     fireEvent.click(saveButton)
 
-    await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'code.apply_failed',
-          data: expect.objectContaining({
-            errorContext: expect.objectContaining({
-              message: 'write failed',
-              operation: 'code_cli.save_own_login_config'
-            })
-          })
-        })
-      )
-    )
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('code.apply_failed')
+    expect(alert).not.toHaveTextContent('write failed')
+    expect(toastErrorMock).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+
+    const details = within(alert).getByRole('button', { name: /common\.detail/ })
+    for (let step = 0; step < 20 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(openErrorDetailMock).toHaveBeenCalledTimes(1))
+    expect(openErrorDetailMock.mock.calls[0][0].context).toMatchObject({
+      message: 'write failed',
+      operation: 'code_cli.save_own_login_config',
+      source: 'code.config'
+    })
+
     // The user's edits survive: the panel is still savable for a retry.
-    expect(saveButton).not.toBeDisabled()
+    await user.click(saveButton)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('prefills from the saved own-login config so an unchanged panel cannot be saved', async () => {

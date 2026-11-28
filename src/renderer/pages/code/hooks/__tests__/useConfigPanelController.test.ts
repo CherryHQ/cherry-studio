@@ -505,6 +505,27 @@ describe('useConfigPanelController', () => {
       expectApplyFailure('settings write failed', 'code_cli.toggle_own_login')
     })
 
+    // The preference write follows the config write; Details must name the step that failed.
+    it('names the selection write in Details when the config wrote but the selection did not persist', async () => {
+      const options = {
+        ...baseOptions(),
+        currentProviderId: null,
+        setCurrentProvider: vi.fn().mockRejectedValue(new Error('preference write failed'))
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      mocks.writeCliConfigDraft.mockReset()
+      mocks.writeCliConfigDraft.mockResolvedValue(undefined)
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent({ id: 'p2' } as Provider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalled()
+      expectApplyFailure('preference write failed', 'code_cli.select_provider')
+    })
+
     // Reviewer: a failed config injection on panel save must reject (not be swallowed) so the
     // submitting dialog treats the save as failed, keeps the user's draft, and stays open.
     it('propagates a config-write failure and restores the previous provider preference', async () => {
@@ -795,7 +816,7 @@ describe('useConfigPanelController', () => {
       // Never wrote a config against a dead port, never flipped the active selection.
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
-      expectApplyFailure('API gateway failed to start', 'code_cli.write_config')
+      expectApplyFailure('API gateway failed to start', 'api_gateway.ensure_running')
     })
   })
 })

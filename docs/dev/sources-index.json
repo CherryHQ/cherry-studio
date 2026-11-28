@@ -211,7 +211,7 @@
     },
     {
       "path": "docs/dev/references/components/image-preview.md",
-      "sources": ["packages/ui/src/lib/mermaid","src/renderer/components/Preview","src/renderer/services/MermaidRenderService.ts","src/renderer/workers/mermaid.worker.ts"]
+      "sources": ["packages/ui/src/lib/mermaid","src/renderer/components/Preview","src/renderer/services/MermaidRenderService.ts","src/renderer/services/PlantUmlRenderService.ts","src/renderer/workers/mermaid.worker.ts","src/renderer/workers/plantUml.worker.ts"]
     },
     {
       "path": "docs/dev/references/components/README.md",

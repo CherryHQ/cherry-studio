@@ -339,12 +339,15 @@ export function useConfigPanelController({
 
         // Inject first; only mark as current on success so the UI never shows a
         // provider as active while its CLI config file failed to write.
+        // The step in flight, so Details tells gateway startup and the selection write apart from the config write.
+        let operation = 'api_gateway.ensure_running'
         try {
           // Gateway: ensure it's running (generating the key on first start) before injecting.
           // Gated on the id so the real-provider path stays synchronous (no extra await tick).
           const gateway = isApiGatewayProviderId(provider.id)
             ? await resolveGatewayWriteContext(provider.id)
             : undefined
+          operation = 'code_cli.write_config'
           await writeCliConfigDraft({
             cliTool: selectedCliTool,
             modelId: cliConfigContext.modelId,
@@ -352,6 +355,7 @@ export function useConfigPanelController({
             writePrimaryModel: cliConfigContext.writePrimaryModel,
             gateway
           })
+          operation = 'code_cli.select_provider'
           await setCurrentProvider(provider.id)
           setCurrentCliConfigConnection(null)
           if (gateway) toast.info(t('code.api_gateway.requires_running'))
@@ -359,7 +363,7 @@ export function useConfigPanelController({
           logger.error('Failed to inject CLI config on enable:', err as Error)
           toastAppError(t('code.apply_failed'), err, {
             source: 'code.config',
-            operation: 'code_cli.write_config',
+            operation,
             recordId: provider.id
           })
         }
