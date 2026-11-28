@@ -16,6 +16,7 @@ import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN } from '@main/ai/constants'
 import { resolveCompactionBudgets } from '@main/ai/contextBuild/resolveCompactionBudgets'
+import { resolveSummarizeBudget } from '@main/ai/contextBuild/resolveSummarizeBudget'
 import { resolveAttachmentBudget } from '@main/ai/messages/attachmentBudget'
 import { collectFileAttachments, prepareChatMessagesForEstimate } from '@main/ai/messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from '@main/ai/messages/messageCapabilities'
@@ -1057,7 +1058,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       inputRoom,
       trigger,
       keepBudget,
-      estimate,
       safetyMargin: COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
     })
 
