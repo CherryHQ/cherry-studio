@@ -31,7 +31,6 @@ import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import {
   type AgentSessionMessageRow,
-  type AgentSessionMessageRow as SessionMessageRow,
   type AgentSessionMessageStoredData,
   agentSessionMessagePartTable as sessionMessagePartsTable,
   agentSessionMessageTable as sessionMessagesTable,
