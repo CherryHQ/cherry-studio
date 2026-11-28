@@ -285,9 +285,17 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         })
       : base
     let retryActive = false
+    let lastRetryEvent: RetryPartData | undefined
+    let lastActivityEmit = 0
+    let trailingActivity: ReturnType<typeof setTimeout> | undefined
+    const activityIntervalMs = bufferedActivityIntervalMs(options.idleTimeoutMs)
     const settleRetryStatus = () => {
       if (!retryActive) return
       retryActive = false
+      if (trailingActivity) clearTimeout(trailingActivity)
+      trailingActivity = undefined
+      // A settled badge must not be replayed by a late buffered-activity heartbeat.
+      lastRetryEvent = undefined
       options.onRetryEvent?.({ state: 'settled' })
     }
     const wrapApiKeyFallback: WrapLanguageModel | undefined = sameModelRetries.length
