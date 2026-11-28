@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-11-live-note-references.md
+2026-11-11-live-note-references.md: 1d91260638e750052f792fcafcac39a283cc1d75
+2026-11-11-live-note-references.zh.md: 39626761f79f87ac0232c0b27b1e67db8ee9fe4a
