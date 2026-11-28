@@ -6,6 +6,7 @@ import { Alert, Button, SearchInput } from '@cherrystudio/ui'
 import { BinaryInstallErrorDialog } from '@renderer/components/BinaryInstallErrorDialog'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -140,7 +141,12 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
         <BinaryInstallErrorDialog
           error={
             showInstallError && installError
-              ? { name: activeMeta.label, message: installError, action: 'install' }
+              ? {
+                  name: CODE_CLI_TOOL_PRESET_MAP[activeMeta.id].executable,
+                  label: activeMeta.label,
+                  message: installError,
+                  action: 'install'
+                }
               : null
           }
           onOpenChange={(open) => !open && setShowInstallError(false)}
