@@ -7,7 +7,7 @@ import { OFFICE_ZIP_LIMITS } from '../../../officeZipPreflight'
 import { MAX_COLS, MAX_MERGED_RANGES, MAX_ROWS } from '../gridLayout'
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
 import { loadExcelJsWorkbook, parseWorkbook } from '../worker/parseWorkbook'
-import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
+import { buildChartWorkbookArrayBuffer, buildChartWorkbookZip } from './xlsxTestPackages'
 
 async function toArrayBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
   const buf = await workbook.xlsx.writeBuffer()
@@ -385,6 +385,8 @@ describe('parseWorkbook — formulas: forward references evaluate recursively', 
     // A2 references a formula cell on a later sheet.
     ws1.getCell('A2').value = { formula: 'S2!A1+1' }
     ws2.getCell('A1').value = { formula: '5*2' }
+    ws2.getCell('A2').value = 7
+    ws1.getCell('A3').value = { formula: "SUM('s2'!A1:A2)" }
     // Mutual reference cycle: must not hang, and both cells should remain unevaluated.
     ws1.getCell('A5').value = { formula: 'A6' }
     ws1.getCell('A6').value = { formula: 'A5' }
@@ -409,6 +411,10 @@ describe('parseWorkbook — formulas: forward references evaluate recursively', 
     expect(model.sheets[0].cells['5:1'].formulaState).toBe('unevaluated')
     expect(model.sheets[0].cells['6:1'].formulaState).toBe('unevaluated')
     expect(model.warnings).toContain('formula-unevaluated')
+  })
+
+  it('resolves a mixed-case sheet reference to both formula and literal cells', () => {
+    expect(model.sheets[0].cells['3:1'].text).toBe('17')
   })
 })
 
@@ -754,6 +760,16 @@ describe('parseWorkbook — ZIP preflight rejects decompression bombs', () => {
 })
 
 describe('parseWorkbook — openpyxl default-namespace chart drawings must not crash ExcelJS', () => {
+  it('reads uncached chart values with a mixed-case sheet reference', async () => {
+    const zip = await buildChartWorkbookZip('no-cache')
+    const chartPath = 'xl/charts/chart1.xml'
+    const chart = await zip.file(chartPath)!.async('string')
+    zip.file(chartPath, chart.replaceAll('Data', 'DATA'))
+
+    const model = await parseWorkbook(await zip.generateAsync({ type: 'arraybuffer' }), 'chart.xlsx')
+    expect(model.sheets[0].charts[0].series[0].values).toEqual([10, 20, 30, 40])
+  })
+
   // openpyxl-style drawings use <wsDr xmlns=...> without an xdr: prefix; without
   // normalization ExcelJS crashes during reconcile.
   it.each([
