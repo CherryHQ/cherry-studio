@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -54,6 +54,8 @@ describe('checkClaudeCodeSandboxAvailability', () => {
   let cli: string
   let record: string
   let bwrapRecord: string
+  let workspace: string
+  let leftover: string
   const status = (fields: Record<string, unknown> = {}) =>
     JSON.stringify({ statusVersion: 3, supported: true, enabled: true, unavailableReason: null, ...fields })
 
@@ -68,10 +70,21 @@ describe('checkClaudeCodeSandboxAvailability', () => {
         '#!/usr/bin/env node',
         "const fs = require('fs'), path = require('path')",
         'const dir = process.env.CLAUDE_CONFIG_DIR',
-        "fs.writeFileSync(process.env.FAKE_RECORD, JSON.stringify({ args: process.argv.slice(2), dir, settings: fs.readFileSync(path.join(dir, 'settings.json'), 'utf8') }))",
+        "fs.writeFileSync(process.env.FAKE_RECORD, JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd(), dir, settings: fs.readFileSync(path.join(dir, 'settings.json'), 'utf8') }))",
         "if (process.env.FAKE_MODE === 'exit') process.exit(1)",
-        "if (process.env.FAKE_MODE === 'hang') setTimeout(() => {}, 60_000)",
-        "else process.stdout.write(process.env.FAKE_OUTPUT + '\\n')"
+        "if (process.env.FAKE_MODE === 'hang') {",
+        "  process.on('SIGTERM', () => {})",
+        "  const child = require('child_process').spawn('sleep', ['60'], { stdio: 'inherit' })",
+        '  fs.writeFileSync(process.env.FAKE_LEFTOVER, String(child.pid))',
+        '  setTimeout(() => {}, 60_000)',
+        '} else {',
+        "  if (process.env.FAKE_MODE === 'lock') {",
+        "    fs.mkdirSync(path.join(dir, 'locked'))",
+        "    fs.writeFileSync(path.join(dir, 'locked', 'file'), '')",
+        "    fs.chmodSync(path.join(dir, 'locked'), 0o500)",
+        '  }',
+        "  process.stdout.write(process.env.FAKE_OUTPUT + '\\n')",
+        '}'
       ].join('\n')
     )
     await chmod(cli, 0o755)
@@ -89,6 +102,14 @@ describe('checkClaudeCodeSandboxAvailability', () => {
       ].join('\n')
     )
     await chmod(path.join(root, 'bin', 'bwrap'), 0o755)
+    workspace = path.join(root, 'workspace')
+    leftover = path.join(root, 'leftover.pid')
+    await mkdir(path.join(workspace, 'tools'), { recursive: true })
+    await writeFile(
+      path.join(workspace, 'tools', 'bwrap'),
+      ['#!/usr/bin/env node', "require('fs').writeFileSync(process.env.FAKE_BWRAP_RECORD, '\"workspace\"')"].join('\n')
+    )
+    await chmod(path.join(workspace, 'tools', 'bwrap'), 0o755)
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) =>
       key === 'feature.agents.claude.sandbox_status.temp' ? path.join(root, 'status', filename ?? '') : `/mock/${key}`
     )
@@ -97,6 +118,9 @@ describe('checkClaudeCodeSandboxAvailability', () => {
   beforeEach(async () => {
     await rm(record, { force: true })
     await rm(bwrapRecord, { force: true })
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) =>
+      key === 'feature.agents.claude.sandbox_status.temp' ? path.join(root, 'status', filename ?? '') : `/mock/${key}`
+    )
   })
 
   afterAll(async () => {
@@ -104,12 +128,17 @@ describe('checkClaudeCodeSandboxAvailability', () => {
   })
 
   const run = (env: Record<string, string>) =>
-    checkClaudeCodeSandboxAvailability(cli, {
-      PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}`,
-      FAKE_RECORD: record,
-      FAKE_BWRAP_RECORD: bwrapRecord,
-      ...env
-    })
+    checkClaudeCodeSandboxAvailability(
+      cli,
+      {
+        PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}`,
+        FAKE_RECORD: record,
+        FAKE_BWRAP_RECORD: bwrapRecord,
+        FAKE_LEFTOVER: leftover,
+        ...env
+      },
+      workspace
+    )
 
   it('reports the sandbox available only from a throwaway config directory that enables it (AC7)', async () => {
     const userConfig = path.join(root, 'user-config')
@@ -118,6 +147,7 @@ describe('checkClaudeCodeSandboxAvailability', () => {
 
     const seen = JSON.parse(await readFile(record, 'utf8'))
     expect(seen.args).toEqual(['sandbox', 'status'])
+    expect(seen.cwd).toBe(await realpath(workspace))
     expect(seen.dir).not.toBe(userConfig)
     expect(path.dirname(seen.dir)).toBe(path.join(root, 'status'))
     expect(JSON.parse(seen.settings)).toEqual({ sandbox: { enabled: true } })
@@ -142,11 +172,49 @@ describe('checkClaudeCodeSandboxAvailability', () => {
     expect(result.available === false && result.reason).toContain(reason)
   })
 
-  it('gives up after five seconds (AC2)', { timeout: 15_000 }, async () => {
-    const started = Date.now()
+  it(
+    'gives up after five seconds even when the CLI ignores SIGTERM and leaves a child on its output (AC2)',
+    {
+      timeout: 15_000
+    },
+    async () => {
+      const started = Date.now()
 
-    await expect(run({ FAKE_MODE: 'hang' })).resolves.toMatchObject({ available: false })
-    expect(Date.now() - started).toBeLessThan(10_000)
+      const result = await run({ FAKE_MODE: 'hang' })
+
+      expect(result.available === false && result.reason).toContain('did not finish within 5000 ms')
+      expect(Date.now() - started).toBeLessThan(10_000)
+      const child = Number(await readFile(leftover, 'utf8'))
+      await vi.waitFor(() => expect(() => process.kill(child, 0)).toThrow())
+    }
+  )
+
+  it('reports the sandbox unavailable instead of throwing when the status directory cannot be created', async () => {
+    vi.mocked(application.getPath).mockReturnValue(path.join(root, 'missing', 'check-'))
+
+    const result = await run({ FAKE_OUTPUT: status() })
+
+    expect(result.available).toBe(false)
+    expect(result.available === false && result.reason).toContain('ENOENT')
+  })
+
+  it('reports the sandbox unavailable instead of throwing when the status directory cannot be removed', async () => {
+    const result = await run({ FAKE_OUTPUT: status(), FAKE_MODE: 'lock' })
+
+    const { dir } = JSON.parse(await readFile(record, 'utf8'))
+    await chmod(path.join(dir, 'locked'), 0o700)
+    await rm(dir, { recursive: true, force: true })
+    expect(result.available).toBe(false)
+    expect(result.available === false && result.reason).toContain('EACCES')
+  })
+
+  it('on Linux, resolves bubblewrap from a relative PATH entry in the session workspace, as the CLI will', async () => {
+    mocks.isLinux = true
+
+    await expect(run({ FAKE_OUTPUT: status(), PATH: `tools${path.delimiter}${process.env.PATH}` })).resolves.toEqual({
+      available: true
+    })
+    expect(JSON.parse(await readFile(bwrapRecord, 'utf8'))).toBe('workspace')
   })
 
   it('on Linux, reports the sandbox available only when bubblewrap can nest a user namespace (AC8)', async () => {

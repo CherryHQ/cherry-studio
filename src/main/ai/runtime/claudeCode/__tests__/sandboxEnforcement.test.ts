@@ -42,7 +42,9 @@ vi.mocked(application.getPath).mockImplementation((key: string, filename?: strin
   key === 'feature.agents.claude.sandbox_status.temp' ? path.join(statusRoot, filename ?? '') : `/mock/${key}`
 )
 const availability =
-  isDarwin || isLinux ? await checkClaudeCodeSandboxAvailability(bundledCliPath(), process.env) : undefined
+  isDarwin || isLinux
+    ? await checkClaudeCodeSandboxAvailability(bundledCliPath(), process.env, process.cwd())
+    : undefined
 
 afterAll(async () => {
   await rm(statusRoot, { recursive: true, force: true })
@@ -52,7 +54,9 @@ afterAll(async () => {
 it.runIf(process.platform === 'win32')(
   'keeps the sandbox off on native Windows without asking the CLI (AC5)',
   async () => {
-    await expect(checkClaudeCodeSandboxAvailability('Z:\\no-such-claude.exe', process.env)).resolves.toEqual({
+    await expect(
+      checkClaudeCodeSandboxAvailability('Z:\\no-such-claude.exe', process.env, process.cwd())
+    ).resolves.toEqual({
       available: false,
       reason: 'the shell sandbox is not enabled on native Windows'
     })
@@ -63,7 +67,11 @@ describe.runIf(isLinux)('Claude Code shell sandbox availability on Linux', () =>
   it('reports the sandbox unavailable when bubblewrap is not on PATH (AC3)', async () => {
     const emptyPath = await mkdtemp(path.join(tmpdir(), 'cherry-empty-path-'))
     try {
-      const result = await checkClaudeCodeSandboxAvailability(bundledCliPath(), { HOME: home, PATH: emptyPath })
+      const result = await checkClaudeCodeSandboxAvailability(
+        bundledCliPath(),
+        { HOME: home, PATH: emptyPath },
+        emptyPath
+      )
 
       expect(result.available).toBe(false)
       expect(result.available === false && result.reason).toMatch(/bubblewrap|bwrap|socat/i)

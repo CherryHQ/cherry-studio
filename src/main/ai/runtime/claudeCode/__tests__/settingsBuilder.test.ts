@@ -3460,6 +3460,8 @@ describe('buildClaudeCodeSessionSettings', () => {
         autoAllowBashIfSandboxed: true,
         network: { strictAllowlist: true, allowedDomains: [] }
       })
+      // Relative PATH entries must resolve in the probe as they will for the CLI.
+      expect(mocks.sandboxAvailability).toHaveBeenCalledWith(expect.any(String), expect.any(Object), settings.cwd)
       await expect(preToolUseDecision(settings, { command: 'ls -la' })).resolves.toBeUndefined()
     })
 

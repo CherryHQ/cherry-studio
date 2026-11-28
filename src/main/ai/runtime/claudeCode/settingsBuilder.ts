@@ -211,7 +211,7 @@ export async function buildClaudeCodeSessionSettings(
     discoverPlugins(cwd, agent.id)
   ])
   const sandboxAvailability = capabilities.sandbox
-    ? await checkClaudeCodeSandboxAvailability(resolveClaudeExecutablePath(), env)
+    ? await checkClaudeCodeSandboxAvailability(resolveClaudeExecutablePath(), env, cwd)
     : undefined
   if (sandboxAvailability?.available === false) {
     logger.info('Shell sandbox unavailable; keeping per-call shell approval', {

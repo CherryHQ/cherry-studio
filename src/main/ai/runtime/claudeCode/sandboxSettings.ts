@@ -1,7 +1,6 @@
-import { execFile } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { promisify } from 'node:util'
 
 import type { SandboxSettings, Settings } from '@anthropic-ai/claude-agent-sdk'
 
@@ -12,8 +11,7 @@ import type { SandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
 import { isLinux, isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 
-const execFileAsync = promisify(execFile)
-const SANDBOX_STATUS_TIMEOUT_MS = 5_000
+const SANDBOX_PROBE_TIMEOUT_MS = 5_000
 
 export type ClaudeCodeSandboxAvailability = { available: true } | { available: false; reason: string }
 
@@ -41,42 +39,55 @@ export function toClaudeCodeSandboxSettings(policy: SandboxPolicy): SandboxSetti
 /**
  * Asks the Claude Code CLI whether its sandbox can run on this machine, through `claude sandbox status`
  * with a throwaway config directory, and on Linux also tries the nested user namespace the CLI needs.
- * Native Windows is not enabled yet, so it is never asked.
+ * Both probes run in the session's `cwd` so relative `PATH` entries resolve as they will for the CLI.
+ * Never throws: any failure reports the sandbox unavailable. Native Windows is not enabled yet, so it
+ * is never asked.
  */
 export async function checkClaudeCodeSandboxAvailability(
   cliPath: string,
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
+  cwd: string
 ): Promise<ClaudeCodeSandboxAvailability> {
   if (isWin) return { available: false, reason: 'the shell sandbox is not enabled on native Windows' }
+  let availability: ClaudeCodeSandboxAvailability
+  try {
+    availability = await readSandboxStatus(cliPath, env, cwd)
+  } catch (error) {
+    return { available: false, reason: `claude sandbox status failed: ${(error as Error).message}` }
+  }
+  if (!availability.available || !isLinux) return availability
+  return checkNestedUserNamespace(env, cwd)
+}
+
+async function readSandboxStatus(
+  cliPath: string,
+  env: Record<string, string | undefined>,
+  cwd: string
+): Promise<ClaudeCodeSandboxAvailability> {
   const configDir = await mkdtemp(application.getPath('feature.agents.claude.sandbox_status.temp', 'check-'))
   try {
     await writeFile(path.join(configDir, 'settings.json'), JSON.stringify({ sandbox: { enabled: true } }))
-    const { stdout } = await execFileAsync(cliPath, ['sandbox', 'status'], {
-      env: { ...env, CLAUDE_CONFIG_DIR: configDir },
-      timeout: SANDBOX_STATUS_TIMEOUT_MS
-    })
-    const availability = parseSandboxStatus(stdout)
-    if (!availability.available || !isLinux) return availability
-  } catch (error) {
-    return { available: false, reason: `claude sandbox status failed: ${(error as Error).message}` }
+    return parseSandboxStatus(
+      await runProbe(cliPath, ['sandbox', 'status'], { env: { ...env, CLAUDE_CONFIG_DIR: configDir }, cwd })
+    )
   } finally {
     await rm(configDir, { recursive: true, force: true })
   }
-  return checkNestedUserNamespace(env)
 }
 
 // The CLI's seccomp helper nests a user namespace inside bubblewrap, which `status` does not try;
 // Ubuntu's stock `bwrap-userns-restrict` AppArmor profile forbids it (anthropics/claude-code#43454).
 async function checkNestedUserNamespace(
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
+  cwd: string
 ): Promise<ClaudeCodeSandboxAvailability> {
   try {
-    await execFileAsync(
+    await runProbe(
       'bwrap',
       ['--unshare-user', '--dev-bind', '/', '/', 'unshare', '--user', '--map-root-user', 'true'],
       {
         env,
-        timeout: SANDBOX_STATUS_TIMEOUT_MS
+        cwd
       }
     )
     return { available: true }
@@ -86,6 +97,38 @@ async function checkNestedUserNamespace(
       reason: `bubblewrap cannot nest the user namespace the CLI's seccomp helper needs (anthropics/claude-code#43454): ${(error as Error).message}`
     }
   }
+}
+
+function runProbe(
+  file: string,
+  args: string[],
+  options: { env: Record<string, string | undefined>; cwd: string }
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Its own process group, so a timeout also kills whatever the probe started.
+    const child = spawn(file, args, { ...options, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (chunk) => (stdout += chunk))
+    child.stderr.on('data', (chunk) => (stderr += chunk))
+    const timer = setTimeout(() => {
+      reject(new Error(`${file} did not finish within ${SANDBOX_PROBE_TIMEOUT_MS} ms`))
+      try {
+        process.kill(-child.pid!, 'SIGKILL')
+      } catch {
+        // Already gone.
+      }
+    }, SANDBOX_PROBE_TIMEOUT_MS)
+    child.once('error', (error) => {
+      clearTimeout(timer)
+      reject(error)
+    })
+    child.once('close', (code, signal) => {
+      clearTimeout(timer)
+      if (code === 0) resolve(stdout)
+      else reject(new Error(`${file} exited with ${code ?? signal}: ${stderr.trim()}`))
+    })
+  })
 }
 
 function parseSandboxStatus(stdout: string): ClaudeCodeSandboxAvailability {

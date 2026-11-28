@@ -208,6 +208,9 @@ throwaway config directory and treats the sandbox as available only for `statusV
 On Linux it then runs `bwrap --unshare-user … unshare --user --map-root-user true`, because the
 CLI's seccomp helper nests a user namespace that `status` does not try and that Ubuntu's stock
 `bwrap-userns-restrict` AppArmor profile forbids (anthropics/claude-code#43454).
+Both probes run in the session workspace, so relative `PATH` entries resolve as they will for the
+CLI, and each settles within 5 seconds, killing its process group on timeout. Any failure,
+including creating or removing the throwaway directory, reports the sandbox unavailable.
 `resolveSandboxPolicy` merges the overlay into the base policy only when the sandbox is available,
 so a machine without one (Linux without bubblewrap or socat, Ubuntu with that profile loaded,
 native Windows) keeps the per-call
