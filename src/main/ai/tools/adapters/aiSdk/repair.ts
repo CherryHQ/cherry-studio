@@ -3,6 +3,7 @@ import {
   InvalidToolInputError,
   jsonSchema,
   type JSONSchema7,
+  NoSuchToolError,
   Output,
   type ToolCallRepairFunction,
   type ToolSet
@@ -14,6 +15,7 @@ import { loggerService } from '@logger'
 
 import type { AppProviderSettingsMap } from '../../../types'
 import { createMcpJsonSchemaValidator } from './mcpSchema'
+import { resolveToolNameAlias } from './toolNameAlias'
 
 const logger = loggerService.withContext('repairToolCall')
 
@@ -34,6 +36,23 @@ export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
 
 export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>): ToolCallRepairFunction<ToolSet> {
   return async ({ toolCall, tools, error, inputSchema }) => {
+    // The model called a name outside the ToolSet. For MCP tools this is
+    // usually the human-readable protocol name ('nmap_scan') instead of the
+    // wire id ('mcp__{serverSlug}__{toolSlug}_{digest}'): the tool is
+    // connected and discovered, yet the call died as "tool is not available"
+    // (#24583). A unique protocol-name alias repairs the call in place; an
+    // ambiguous or unknown name is left to fail with the SDK's error.
+    if (NoSuchToolError.isInstance(error)) {
+      const alias = resolveToolNameAlias(toolCall.toolName, Object.keys(tools), (name) => tools[name])
+      if (!alias || 'ambiguous' in alias) return null
+      logger.info('Repaired tool call by MCP protocol-name alias', {
+        from: toolCall.toolName,
+        to: alias.resolved,
+        toolCallId: toolCall.toolCallId
+      })
+      return { ...toolCall, toolName: alias.resolved }
+    }
+
     if (!InvalidToolInputError.isInstance(error)) return null
 
     let schemaJson: JSONSchema7

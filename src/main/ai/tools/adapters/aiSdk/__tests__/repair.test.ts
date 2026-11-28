@@ -216,3 +216,52 @@ describe('createAiRepair', () => {
     expect(generateText).not.toHaveBeenCalled()
   })
 })
+
+describe('createAiRepair - NoSuchToolError alias repair (#24583)', () => {
+  const mcpToolEntry = (protocolName: string, serverId: string) => ({
+    inputSchema: jsonSchema({ type: 'object', properties: { target: { type: 'string' } } }),
+    metadata: {
+      cherry: { tool: { name: protocolName, serverId, serverName: serverId, type: 'mcp' as const } }
+    }
+  })
+
+  async function callNoSuchTool(toolName: string, tools: Parameters<typeof repair>[0]['tools']) {
+    return repair({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall(toolName, { target: '10.0.0.1' }),
+      tools,
+      inputSchema: async () => {
+        throw new Error('unknown tool')
+      },
+      error: new NoSuchToolError({ toolName })
+    })
+  }
+
+  it('rewrites a protocol-name call to the unique matching MCP wire id', async () => {
+    const repaired = await callNoSuchTool('nmap_scan', {
+      mcp__s1__nmap_scan_a1b2c3: mcpToolEntry('nmap_scan', 's1'),
+      web_search: { inputSchema: jsonSchema({ type: 'object' }) }
+    })
+
+    expect(repaired).not.toBeNull()
+    expect(repaired!.toolName).toBe('mcp__s1__nmap_scan_a1b2c3')
+    expect(JSON.parse(repaired!.input)).toEqual({ target: '10.0.0.1' })
+    expect(generateText).not.toHaveBeenCalled()
+  })
+
+  it('returns null when no tool exposes the called protocol name', async () => {
+    const repaired = await callNoSuchTool('fofa_search', {
+      mcp__s1__nmap_scan_a1b2c3: mcpToolEntry('nmap_scan', 's1')
+    })
+    expect(repaired).toBeNull()
+  })
+
+  it('returns null when two servers expose the same protocol name', async () => {
+    const repaired = await callNoSuchTool('nmap_scan', {
+      mcp__s1__nmap_scan_a1b2c3: mcpToolEntry('nmap_scan', 's1'),
+      mcp__s2__nmap_scan_d4e5f6: mcpToolEntry('nmap_scan', 's2')
+    })
+    expect(repaired).toBeNull()
+  })
+})

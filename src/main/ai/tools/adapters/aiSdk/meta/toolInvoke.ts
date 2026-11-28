@@ -23,6 +23,7 @@ import * as z from 'zod'
 
 import { isApprovalGated } from '../isApprovalGated'
 import type { ToolRegistry } from '../registry'
+import { resolveRequestToolName } from '../toolNameAlias'
 import type { ToolEntry } from '../types'
 import { buildToolStub } from './schemaStub'
 
@@ -81,6 +82,9 @@ export function createToolInvokeTool(
   // (defaults / coercions applied) — native dispatch keeps execute's and toModelOutput's input
   // identical, and the inner formatter (e.g. kb_list) keys its output off those params.
   const parsedParamsByCallId = new Map<string, Record<string, unknown>>()
+  // Model-supplied name -> resolved registry name, so `toModelOutput` can find
+  // the inner formatter when the call arrived under a protocol-name alias.
+  const resolvedNameByCallId = new Map<string, string>()
   return tool({
     description:
       'Call a single tool discovered via `tool_search` by name, passing arguments under `params`. ' +
@@ -88,8 +92,12 @@ export function createToolInvokeTool(
       'tool signature — read it and call again with corrected params. Inspect first to skip that round-trip.',
     inputSchema: toolInvokeInputSchema,
     inputExamples: [{ input: { name: 'web_search', params: { query: 'cherry studio latest release' } } }],
-    execute: async ({ name, params }, options) => {
-      if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)
+    execute: async ({ name: requestedName, params }, options) => {
+      // Bridge MCP protocol-name aliases ('nmap_scan') to the wire id the
+      // request exposes ('mcp__{serverSlug}__{toolSlug}_{digest}'); a name
+      // that stays unresolved throws with the reason (#24583).
+      const name = resolveRequestToolName(requestedName, allowedNames, (n) => registry.getByName(n)?.tool)
+      resolvedNameByCallId.set(options.toolCallId, name)
       const entry = registry.getByName(name)
       if (!entry) throw new Error(`Tool not found: ${name}`)
       if (typeof entry.tool.execute !== 'function') {
@@ -135,13 +143,14 @@ export function createToolInvokeTool(
     // the inner tool's `toModelOutput` (e.g. MCP summarises its full response to text). Without this
     // the model sees `tool_invoke`'s raw JSON return — the inner formatter is otherwise bypassed.
     toModelOutput: ({ toolCallId, input, output }) => {
-      const entry = allowedNames.has(input.name) ? registry.getByName(input.name) : undefined
+      const targetName = resolvedNameByCallId.get(toolCallId) ?? input.name
+      const entry = allowedNames.has(targetName) ? registry.getByName(targetName) : undefined
       const innerToModelOutput = entry?.tool.toModelOutput
       if (innerToModelOutput) {
         // Feed the inner formatter the parsed params `execute` ran on, not the raw `input.params`,
         // so its view matches native dispatch. Falls back to raw input if no parse was recorded.
         const innerInput = parsedParamsByCallId.get(toolCallId) ?? input.params ?? {}
-        return innerToModelOutput({ toolCallId: `${toolCallId}::${input.name}`, input: innerInput, output })
+        return innerToModelOutput({ toolCallId: `${toolCallId}::${targetName}`, input: innerInput, output })
       }
       return { type: 'json', value: output }
     }
