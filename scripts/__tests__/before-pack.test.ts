@@ -5,11 +5,12 @@
  * shipped a macOS x64 build without `@img/sharp-darwin-x64`.
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { Arch } from 'electron-builder'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 // CJS build script — vitest interops the module.exports fine.
@@ -17,8 +18,11 @@ import {
   assertPrebuiltPackages,
   keepPackages,
   prepareNativeModulesForElectron,
-  prepareSystemSpeechHelper
+  prepareSystemSpeechHelper,
+  resolveElectronHeaderUrl
 } from '../packaging/before-pack'
+
+const require = createRequire(import.meta.url)
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
@@ -144,6 +148,111 @@ describe('prepareNativeModulesForElectron', () => {
       arch: archName
     })
     expect(rebuild).not.toHaveBeenCalled()
+  })
+
+  it('passes electron-legacy headerURL when packaging win7 and omits it for mac12', async () => {
+    const win7Config = require('../../electron-builder.win7.config.cjs')
+    const mac12Config = require('../../electron-builder.mac12.config.cjs')
+    const projectDir = mkdtempSync(path.join(tmpdir(), 'sqlite-legacy-rebuild-'))
+    const moduleDir = path.join(projectDir, 'node_modules/better-sqlite3')
+    mkdirSync(path.join(moduleDir, 'prebuilds'), { recursive: true })
+    writeFileSync(path.join(moduleDir, 'package.json'), '{"name":"better-sqlite3"}')
+
+    try {
+      const win7Rebuild = vi.fn(async () => {
+        mkdirSync(path.join(moduleDir, 'build/Release'), { recursive: true })
+        writeFileSync(path.join(moduleDir, 'build/Release/better_sqlite3.node'), 'win7-compiled')
+      })
+      await prepareNativeModulesForElectron(
+        {
+          arch: Arch.x64,
+          packager: { projectDir, platform: { name: 'windows' }, config: win7Config }
+        },
+        win7Rebuild
+      )
+      expect(win7Rebuild).toHaveBeenCalledWith(
+        expect.objectContaining({
+          electronVersion: win7Config.electronVersion,
+          platform: 'win32',
+          arch: 'x64',
+          headerURL: 'https://thorium.rocks/electron-legacy/headers'
+        })
+      )
+
+      const mac12Rebuild = vi.fn(async () => {
+        mkdirSync(path.join(moduleDir, 'build/Release'), { recursive: true })
+        writeFileSync(path.join(moduleDir, 'build/Release/better_sqlite3.node'), 'mac12-compiled')
+      })
+      await prepareNativeModulesForElectron(
+        {
+          arch: Arch.arm64,
+          packager: { projectDir, platform: { name: 'mac' }, config: mac12Config }
+        },
+        mac12Rebuild
+      )
+      expect(mac12Rebuild).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          headerURL: expect.anything()
+        })
+      )
+      expect(mac12Rebuild).toHaveBeenCalledWith(
+        expect.objectContaining({
+          electronVersion: mac12Config.electronVersion,
+          platform: 'darwin',
+          arch: 'arm64'
+        })
+      )
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('legacy electron-builder configs and header resolution', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('prefers CHERRY_ELECTRON_HEADER_URL over mirror auto-detection', () => {
+    const win7Config = require('../../electron-builder.win7.config.cjs')
+    const mac12Config = require('../../electron-builder.mac12.config.cjs')
+
+    expect(resolveElectronHeaderUrl({ packager: { platform: { name: 'windows' }, config: win7Config } })).toBe(
+      'https://thorium.rocks/electron-legacy/headers'
+    )
+    expect(resolveElectronHeaderUrl({ packager: { platform: { name: 'mac' }, config: mac12Config } })).toBeUndefined()
+
+    vi.stubEnv('CHERRY_ELECTRON_HEADER_URL', 'https://headers.example.test/electron')
+    expect(resolveElectronHeaderUrl({ packager: { platform: { name: 'mac' }, config: mac12Config } })).toBe(
+      'https://headers.example.test/electron'
+    )
+  })
+
+  it('exposes valid win7 and mac12 packaging configs', () => {
+    const win7Config = require('../../electron-builder.win7.config.cjs')
+    const mac12Config = require('../../electron-builder.mac12.config.cjs')
+
+    expect(win7Config).toMatchObject({
+      extends: './electron-builder.yml',
+      electronVersion: '44.11.6',
+      npmRebuild: false,
+      electronDownload: {
+        mirror: 'https://github.com/Alex313031/electron-legacy/releases/download/',
+        customDir: 'v44.11.6'
+      },
+      nsis: {
+        include: 'build/nsis-installer-win7.nsh'
+      }
+    })
+
+    expect(mac12Config).toMatchObject({
+      extends: './electron-builder.yml',
+      electronVersion: '43.8.13',
+      npmRebuild: false,
+      mac: {
+        minimumSystemVersion: '12.0.0'
+      }
+    })
   })
 })
 

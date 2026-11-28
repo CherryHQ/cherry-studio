@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import type * as SystemOcrModule from '@napi-rs/system-ocr'
 
 import { loggerService } from '@logger'
-import { isLinux, isWin } from '@main/core/platform'
+import { isLinux, isWin, isWindowsLegacy } from '@main/core/platform'
 import { clampImageForModel, transcodeToPng } from '@main/utils/image'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
@@ -79,6 +79,10 @@ function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: Ab
 
   if (isLinux) {
     throw new Error('System OCR is not supported on Linux')
+  }
+
+  if (isWindowsLegacy()) {
+    throw new Error('System OCR requires Windows 10 or later')
   }
 
   if (file.type !== FILE_TYPE.IMAGE) {

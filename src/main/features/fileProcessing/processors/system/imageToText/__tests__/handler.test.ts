@@ -9,10 +9,13 @@ import { FILE_TYPE, type FileInfo, FileInfoSchema } from '@shared/types/file'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
 
-vi.mock('@main/core/platform', () => ({
+const platformMock = vi.hoisted(() => ({
   isLinux: false,
-  isWin: true
+  isWin: true,
+  isWindowsLegacy: vi.fn(() => false)
 }))
+
+vi.mock('@main/core/platform', () => platformMock)
 
 vi.mock('@napi-rs/system-ocr', () => ({
   OcrAccuracy: {
@@ -39,6 +42,25 @@ const imageFile = FileInfoSchema.parse({
 describe('systemImageToTextHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    platformMock.isWindowsLegacy.mockReturnValue(false)
+  })
+
+  it('rejects System OCR on legacy Windows versions below Windows 10', () => {
+    platformMock.isWindowsLegacy.mockReturnValueOnce(true)
+
+    expect(() =>
+      systemImageToTextHandler.prepare(
+        imageFile,
+        {
+          id: 'system',
+          type: 'builtin',
+          capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }],
+          options: {}
+        } as never,
+        undefined
+      )
+    ).toThrow('System OCR requires Windows 10 or later')
+    expect(recognize).not.toHaveBeenCalled()
   })
 
   it('logs invalid migrated options before falling back to platform defaults', async () => {

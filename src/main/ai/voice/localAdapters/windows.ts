@@ -177,6 +177,11 @@ export function createWindowsSpeechModel(options: SpeechOptions): SpeechModelV3 
 
 function windowsSupport(environment: VoiceEnvironment) {
   if (environment.platform !== 'win32') return VoiceModelSupport.UnsupportedPlatform
+  if (
+    environment.majorVersion !== undefined &&
+    (!Number.isInteger(environment.majorVersion) || environment.majorVersion < 10)
+  )
+    return VoiceModelSupport.UnsupportedVersion
   return environment.arch === 'x64' ? VoiceModelSupport.Supported : VoiceModelSupport.UnsupportedArchitecture
 }
 

@@ -98,6 +98,19 @@ const platformToArch = {
   linuxmusl: 'linuxmusl'
 }
 
+function resolveElectronHeaderUrl(context) {
+  const override = process.env.CHERRY_ELECTRON_HEADER_URL?.trim()
+  if (override) return override
+  const platform = platformToArch[context.packager.platform.name]
+  const electronDownload = context.packager.config.electronDownload
+  const mirror = electronDownload?.mirror ?? electronDownload?.mirrorOptions?.mirror
+  if (platform === 'win32' && typeof mirror === 'string' && mirror.includes('electron-legacy')) {
+    return 'https://thorium.rocks/electron-legacy/headers'
+  }
+  return undefined
+}
+exports.resolveElectronHeaderUrl = resolveElectronHeaderUrl
+
 async function prepareNativeModulesForElectron(
   context,
   rebuildFn = rebuild,
@@ -131,6 +144,7 @@ async function prepareNativeModulesForElectron(
   const forceBuild = process.env.npm_package_config_node_gyp_force_build
   // better-sqlite3's binding.gyp skips compilation when a bundled N-API prebuild exists.
   process.env.npm_package_config_node_gyp_force_build = '1'
+  const headerURL = resolveElectronHeaderUrl(context)
   try {
     await rebuildFn({
       buildPath: projectRoot,
@@ -139,7 +153,8 @@ async function prepareNativeModulesForElectron(
       arch,
       onlyModules: ['better-sqlite3'],
       force: true,
-      buildFromSource: true
+      buildFromSource: true,
+      ...(headerURL ? { headerURL } : {})
     })
     // The v13 loader prefers this file over build/Release, even after a source rebuild.
     fs.copyFileSync(sourceBinding, path.join(moduleRoot, `prebuilds/${platform}-${arch}.node`))

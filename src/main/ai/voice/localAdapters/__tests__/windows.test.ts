@@ -7,9 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
-import { WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import { VoiceModelSupport, WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID } from '@shared/ai/localVoice'
 
-import { getLocalVoiceStatus, listLocalAsrLocales, listLocalVoices } from '../../localAdapters'
+import { describeVoiceModel, getLocalVoiceStatus, listLocalAsrLocales, listLocalVoices } from '../../localAdapters'
 import { createAppleSpeechModel } from '../apple'
 import { createWindowsTranscriptionModel, createWindowsSpeechModel } from '../windows'
 
@@ -66,13 +66,13 @@ const capabilities = {
   }
 }
 
-function platform(platform: string, arch = 'x64') {
+function platform(platform: string, arch = 'x64', systemVersion = '26.3') {
   vi.stubGlobal(
     'process',
     Object.defineProperties(Object.create(process), {
       platform: { value: platform },
       arch: { value: arch },
-      getSystemVersion: { value: () => '26.3' }
+      getSystemVersion: { value: () => systemVersion }
     })
   )
 }
@@ -394,6 +394,35 @@ describe('Windows system TTS adapter', () => {
     await expect(createAppleSpeechModel({ voice: voices[0].id }).doGenerate({ text: 'private' })).rejects.toMatchObject(
       { reason: 'unsupported' }
     )
+  })
+
+  it('rejects Windows ASR and TTS on Windows 7 without invoking the native helper', async () => {
+    expect(describeVoiceModel(WINDOWS_ASR_MODEL_ID, { platform: 'win32', arch: 'x64', majorVersion: 6 }).support).toBe(
+      VoiceModelSupport.UnsupportedVersion
+    )
+    expect(describeVoiceModel(WINDOWS_TTS_MODEL_ID, { platform: 'win32', arch: 'x64', majorVersion: 6 }).support).toBe(
+      VoiceModelSupport.UnsupportedVersion
+    )
+
+    platform('win32', 'x64', '6.1.7601')
+    expect(await getLocalVoiceStatus(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' })).toEqual({
+      status: 'unsupported',
+      reason: 'unsupported'
+    })
+    expect(await getLocalVoiceStatus(WINDOWS_TTS_MODEL_ID, { voice: voices[0].id })).toEqual({
+      status: 'unsupported',
+      reason: 'unsupported'
+    })
+    await expect(
+      createWindowsTranscriptionModel({ language: 'zh-CN' }).doGenerate({
+        audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+        mediaType: 'audio/webm;codecs=opus'
+      })
+    ).rejects.toMatchObject({ reason: 'unsupported' })
+    await expect(
+      createWindowsSpeechModel({ voice: voices[0].id }).doGenerate({ text: 'private' })
+    ).rejects.toMatchObject({ reason: 'unsupported' })
+    expect(mocks.nativeRequest).not.toHaveBeenCalled()
   })
 
   it('cleans partially written synthesis output when its owner cancels', async () => {
