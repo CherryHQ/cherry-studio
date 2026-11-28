@@ -234,6 +234,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderLabelSuffix = meta.getGroupHeaderLabelSuffix?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
+  const groupHeaderTint = meta.getGroupHeaderStyle?.(group)
   // Default to `entity` explicitly: a list that declares no kinds at all reads as all-entity.
   const isBucketHeader = (meta.getGroupHeaderKind?.(group) ?? 'entity') !== 'entity'
   // An entity header stands in for the conversation it holds — but only while that row is off screen
@@ -417,7 +418,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const header = (
     <div
       ref={setHeaderRef}
-      style={style}
+      style={{ ...groupHeaderTint, ...style }}
       className={cn(
         'group/resource-list-group flex w-full items-center text-foreground text-sm',
         RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
