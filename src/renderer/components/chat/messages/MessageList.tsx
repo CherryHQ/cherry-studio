@@ -28,6 +28,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
+import { useMessageTurnFocus } from './hooks/useMessageTurnFocus'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -72,6 +73,7 @@ const RAIL_GUTTER_FADE_PX = 120
 const AFTER_MESSAGES = { key: 'after-messages' } as const
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
 const EMPTY_PARTS_BY_MESSAGE_ID: Record<string, CherryMessagePart[]> = {}
+const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 
 interface ActiveMessageOutline {
   messageId: string
@@ -116,6 +118,7 @@ function getMessageElementLayout(element: HTMLElement): MultiModelMessageStyle {
 type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
   groupKey: string
   isLive: boolean
+  isTurnFocused: boolean
   narrowMode: boolean
   railGutterPx: number
   sidePaddingPx: number
@@ -126,6 +129,7 @@ type MessageGroupLayerProps = ComponentProps<typeof MessageGroup> & {
 function MessageGroupLayer({
   groupKey,
   isLive,
+  isTurnFocused,
   narrowMode,
   railGutterPx,
   sidePaddingPx,
@@ -138,18 +142,26 @@ function MessageGroupLayer({
   void isLive
   return (
     <PartsProvider value={partsByMessageId ?? null}>
-      <NarrowLayout
-        narrowMode={narrowMode}
-        withSidePadding
-        // The gutter is mirrored on the left so the column stays
-        // centred and both margins match as the gutter grows.
-        style={{
-          paddingLeft: sidePaddingPx + railGutterPx,
-          paddingRight: sidePaddingPx + messageEndInsetPx + railGutterPx
-        }}>
-        {messageHead}
-        <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
-      </NarrowLayout>
+      <div className="relative" data-turn-focused={isTurnFocused || undefined}>
+        {isTurnFocused && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-0.5 rounded-full bg-primary"
+          />
+        )}
+        <NarrowLayout
+          narrowMode={narrowMode}
+          withSidePadding
+          // The gutter is mirrored on the left so the column stays
+          // centred and both margins match as the gutter grows.
+          style={{
+            paddingLeft: sidePaddingPx + railGutterPx,
+            paddingRight: sidePaddingPx + messageEndInsetPx + railGutterPx
+          }}>
+          {messageHead}
+          <MessageGroup key={groupKey} {...messageGroupProps} messages={messages} partsByMessageId={partsByMessageId} />
+        </NarrowLayout>
+      </div>
     </PartsProvider>
   )
 }
@@ -177,6 +189,7 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
   if (previous.isLive || next.isLive) return false
   return (
     previous.groupKey === next.groupKey &&
+    previous.isTurnFocused === next.isTurnFocused &&
     previous.narrowMode === next.narrowMode &&
     previous.railGutterPx === next.railGutterPx &&
     previous.sidePaddingPx === next.sidePaddingPx &&
@@ -783,6 +796,24 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     return [...keys]
   }, [leasedGroupKeys, latestAssistantGroupKey, shouldKeepLatestAssistantGroupMounted])
 
+  const getMessageParts = useCallback(
+    (messageId: string) =>
+      partsByMessageId?.[messageId] ?? streamingLayers?.historyPartsByMessageId[messageId] ?? EMPTY_MESSAGE_PARTS,
+    [partsByMessageId, streamingLayers]
+  )
+  const scrollToTurn = useCallback((key: string) => messageListRef.current?.scrollToKey(key, 'start'), [])
+  // Context-boundary dividers stay rendered but are not navigable turns.
+  const navigableTurns = useMemo(
+    () => groupedMessages.filter(([, groupMessages]) => groupMessages.some((message) => !message.isContextBoundary)),
+    [groupedMessages]
+  )
+  const { focusedTurnKey, surfaceProps } = useMessageTurnFocus({
+    turns: navigableTurns,
+    getMessageParts,
+    scrollToTurn,
+    resetKey: topic.id
+  })
+
   if (data.isInitialLoading && (messages.length === 0 || data.isMessagesStale)) {
     return <MessageListInitialLoading />
   }
@@ -836,7 +867,10 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
         openBrowserUrl={actions.openBrowserUrl}
         quoteTopicId={actions.locateMessage ? topic.id : undefined}
         replyDisabled={isMultiSelectMode}>
-        <div ref={messageListScopeRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <div
+          ref={messageListScopeRef}
+          {...surfaceProps}
+          style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, outline: 'none' }}>
           <MessageVirtualList
             handleRef={messageListRef}
             items={listItems}
@@ -875,6 +909,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
               const props: MessageGroupLayerProps = {
                 groupKey: key,
                 isLive: index >= firstLiveGroupIndex,
+                isTurnFocused: key === focusedTurnKey,
                 narrowMode: messageListNarrowMode,
                 railGutterPx,
                 sidePaddingPx,

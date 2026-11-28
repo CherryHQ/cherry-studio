@@ -607,6 +607,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'shortcut.app.print': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
+    'shortcut.app.quick_switcher.open': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
     'shortcut.app.search': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.app.settings.open': PreferenceTypes.PreferenceShortcutType
@@ -647,12 +649,19 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'shortcut.chat.context.toggle_new': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
+    'shortcut.chat.conversation.next': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
+    'shortcut.chat.conversation.prev': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
     'shortcut.chat.input.focus': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.chat.message.copy_last': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.chat.message.edit_last_user': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
+    'shortcut.chat.message.focus_next': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
+    'shortcut.chat.message.focus_prev': PreferenceTypes.PreferenceShortcutType
     'shortcut.chat.message.quote_selection': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.chat.message.search': PreferenceTypes.PreferenceShortcutType
@@ -1027,6 +1036,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.agent.workspace.open': { binding: ['CommandOrControl', 'O'], enabled: true },
     'shortcut.app.fullscreen.exit': { binding: ['Escape'], enabled: true },
     'shortcut.app.print': { binding: ['CommandOrControl', 'P'], enabled: true },
+    'shortcut.app.quick_switcher.open': { binding: ['CommandOrControl', 'Shift', 'P'], enabled: true },
     'shortcut.app.search': { binding: ['CommandOrControl', 'Shift', 'F'], enabled: true },
     'shortcut.app.settings.open': { binding: ['CommandOrControl', ','], enabled: true },
     'shortcut.app.sidebar.open_1': { binding: ['CommandOrControl', '1'], enabled: true },
@@ -1047,9 +1057,13 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.assistant.next': { binding: ['CommandOrControl', 'Alt', 'Right'], enabled: true },
     'shortcut.assistant.prev': { binding: ['CommandOrControl', 'Alt', 'Left'], enabled: true },
     'shortcut.chat.context.toggle_new': { binding: ['CommandOrControl', 'K'], enabled: true },
+    'shortcut.chat.conversation.next': { binding: [], enabled: true },
+    'shortcut.chat.conversation.prev': { binding: [], enabled: true },
     'shortcut.chat.input.focus': { binding: ['CommandOrControl', 'I'], enabled: true },
     'shortcut.chat.message.copy_last': { binding: ['CommandOrControl', 'Shift', 'C'], enabled: false },
     'shortcut.chat.message.edit_last_user': { binding: ['CommandOrControl', 'Shift', 'E'], enabled: false },
+    'shortcut.chat.message.focus_next': { binding: ['CommandOrControl', 'J'], enabled: true },
+    'shortcut.chat.message.focus_prev': { binding: ['CommandOrControl', 'K'], enabled: true },
     'shortcut.chat.message.quote_selection': { binding: ['CommandOrControl', 'Shift', 'Y'], enabled: true },
     'shortcut.chat.message.search': { binding: ['CommandOrControl', 'F'], enabled: true },
     'shortcut.chat.model.select': { binding: ['CommandOrControl', 'Shift', 'M'], enabled: true },
@@ -1100,7 +1114,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 350
+ * - 总配置项: 355
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0

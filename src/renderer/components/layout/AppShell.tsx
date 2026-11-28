@@ -169,6 +169,7 @@ const AppShellContent = () => {
   }, [commandRuntime, setActiveTab, orderedTabs])
 
   useCommandHandler('app.search', handleOpenGlobalSearch, { allowInKeyboardLayer: true })
+  useCommandHandler('app.quick_switcher.open', handleOpenGlobalSearch, { allowInKeyboardLayer: true })
   useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab, allowInKeyboardLayer: true })
   useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs, allowInKeyboardLayer: true })
   useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs, allowInKeyboardLayer: true })
