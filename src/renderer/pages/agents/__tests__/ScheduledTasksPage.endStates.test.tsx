@@ -48,6 +48,8 @@ function task(status: ScheduledTaskListItem['status'], index = 0): ScheduledTask
     name: `${status} task ${index}`,
     prompt: 'Report',
     trigger: { kind: 'once', at: 1 },
+    guard: { type: 'always' },
+    guardApproval: null,
     timeoutMinutes: 5,
     workspace: { type: 'system' },
     reuseSession: false,

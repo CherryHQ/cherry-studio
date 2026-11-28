@@ -31,6 +31,7 @@ import {
   CreateAssistantToolInputSchema,
   SelfUpdateToolInputSchema
 } from '@main/ai/agents/agentConfigToolSchemas'
+import { resolveAgentGuardPath } from '@main/ai/agents/taskGuard'
 import {
   createAgentChannel,
   createAgentChannelAndWaitForQr,
@@ -72,6 +73,7 @@ import {
   CRON_TOOL_NAME,
   NOTIFY_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import { TaskGuardSchema } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -170,6 +172,9 @@ const CronInputSchema = z.object({
     .describe(
       'Continue each execution in the same session. Default is false on add; omit on update to keep the current setting.'
     ),
+  guard: TaskGuardSchema.optional().describe(
+    'Precondition checked at each fire; when it fails the run is skipped with no agent turn. {"type":"always"} (default), {"type":"file_changed","path":"..."} (path inside the session workspace) runs only if the file exists and changed since the last run, {"type":"command","command":"..."} runs only if the command exits 0. Omit on update to keep the current guard.'
+  ),
   id: z.string().min(1).optional().describe('Job ID (required for update and remove)')
 })
 type CronInput = z.output<typeof CronInputSchema>
@@ -703,6 +708,7 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     at,
     timeout_minutes: timeoutMinutes,
     reuse_session: reuseSession,
+    guard,
     id
   } = args
   if (action === 'update' && !id) throw new Error("'id' is required for update")
@@ -740,6 +746,14 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     }
   }
 
+  // An agent-proposed file guard is later stat'ed with app privileges, so it needs file authority
+  // (inside the session workspace) before it can be saved, mirroring `notify`'s file_path rule.
+  const safeGuard =
+    guard?.type === 'file_changed'
+      ? // The root rides with the guard so fire time can re-confine it (symlinks resolve then, not only now).
+        { ...guard, path: resolveAgentGuardPath(ctx.workspacePath, guard.path), workspaceRoot: ctx.workspacePath }
+      : guard
+
   const service = application.get('AgentJobsService')
   const patch = {
     name,
@@ -747,6 +761,7 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     trigger,
     timeoutMinutes,
     channelIds,
+    guard: safeGuard,
     ...(reuseSession !== undefined ? { reuseSession } : {})
   }
   const task =
@@ -764,8 +779,24 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
 
   const outcome = action === 'add' ? 'created' : 'updated'
   logger.info(`Cron job ${outcome} via tool`, { agentId: ctx.agentId, taskId: task.id })
+  // A command guard reaches main-process `exec`, so it stays inert until the
+  // user approves that exact command in Settings — this tool can persist the
+  // guard but can never approve it. Say so explicitly: a silent "created"
+  // would read as a working schedule while every fire skips.
+  let notice = ''
+  if (task.guard.type === 'command' && task.guardApproval === null) {
+    notice =
+      `Note: the command guard is pending user approval. Every fire will skip until the user approves this exact command in Settings > Scheduled Tasks: ${JSON.stringify(task.guard.command)}` +
+      ' If you change the command later, the user must approve the new command again.'
+  } else if (task.guard.type === 'command') {
+    notice = 'The command guard is approved by the user and active.'
+  }
+  // The renderer parses everything after `Job <outcome>:` as the task JSON, so
+  // the notice rides inside the payload; a prose suffix would make the parse
+  // fail and drop the scheduled-task card (and its approval-recovery action).
+  const payload = notice ? { ...task, notice } : task
   return {
-    content: [{ type: 'text', text: `Job ${outcome}:\n${JSON.stringify(task, null, 2)}` }]
+    content: [{ type: 'text', text: `Job ${outcome}:\n${JSON.stringify(payload, null, 2)}` }]
   }
 }
 

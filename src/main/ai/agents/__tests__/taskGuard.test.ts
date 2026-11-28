@@ -1,0 +1,346 @@
+import { spawnSync } from 'node:child_process'
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { evaluateTaskGuard, resolveAgentGuardPath } from '../taskGuard'
+
+describe('evaluateTaskGuard', () => {
+  let dir: string
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'task-guard-'))
+  })
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('always proceeds for the always guard', async () => {
+    expect(await evaluateTaskGuard({ type: 'always' }, { lastRunStartedAt: null })).toEqual({ proceed: true })
+  })
+
+  describe('file_changed', () => {
+    it('skips a network path without stat-ing it', async () => {
+      for (const path of ['\\\\host\\share\\f', '//host/share/f']) {
+        expect(await evaluateTaskGuard({ type: 'file_changed', path }, { lastRunStartedAt: null })).toEqual({
+          proceed: false,
+          reason: 'file guard path is not allowed'
+        })
+      }
+    })
+
+    it('skips when the file is missing', async () => {
+      const path = join(dir, 'missing.txt')
+      const outcome = await evaluateTaskGuard({ type: 'file_changed', path }, { lastRunStartedAt: null })
+      expect(outcome).toEqual({ proceed: false, reason: `file missing: ${path}` })
+    })
+
+    it('proceeds on the first run when the file exists', async () => {
+      const path = join(dir, 'a.txt')
+      await writeFile(path, 'x')
+      expect(await evaluateTaskGuard({ type: 'file_changed', path }, { lastRunStartedAt: null })).toEqual({
+        proceed: true
+      })
+    })
+
+    it('skips when the file is not newer than the last run, proceeds when it is', async () => {
+      const path = join(dir, 'a.txt')
+      await writeFile(path, 'x')
+      const modified = new Date('2026-01-01T00:00:00Z')
+      await utimes(path, modified, modified)
+
+      const unchanged = await evaluateTaskGuard(
+        { type: 'file_changed', path },
+        { lastRunStartedAt: modified.getTime() + 1000 }
+      )
+      expect(unchanged).toEqual({ proceed: false, reason: `unchanged: ${path}` })
+
+      const changed = await evaluateTaskGuard(
+        { type: 'file_changed', path },
+        { lastRunStartedAt: modified.getTime() - 1000 }
+      )
+      expect(changed).toEqual({ proceed: true })
+    })
+  })
+
+  describe('command', () => {
+    it('proceeds on exit 0 and skips with the exit code otherwise', async () => {
+      const node = `"${process.execPath}"`
+      expect(
+        await evaluateTaskGuard(
+          { type: 'command', command: `${node} -e "process.exit(0)"` },
+          { lastRunStartedAt: null }
+        )
+      ).toEqual({ proceed: true })
+
+      const failed = await evaluateTaskGuard(
+        { type: 'command', command: `${node} -e "process.exit(3)"` },
+        { lastRunStartedAt: null }
+      )
+      expect(failed).toMatchObject({ proceed: false })
+      expect(failed.proceed === false && failed.reason).toContain('exit code 3')
+    })
+
+    it('proceeds for a successful command whose unused output exceeds the pipe buffer', async () => {
+      // Regression: exec buffered stdout/stderr at a 1 MiB default maxBuffer, so
+      // an exit-0 command emitting more than that was rejected with
+      // "stdout maxBuffer length exceeded". The contract is exit-code-only.
+      const node = `"${process.execPath}"`
+      const bigOutput = `${node} -e "process.stdout.write('x'.repeat(2 * 1024 * 1024)); process.stderr.write('y'.repeat(2 * 1024 * 1024))"`
+      expect(await evaluateTaskGuard({ type: 'command', command: bigOutput }, { lastRunStartedAt: null })).toEqual({
+        proceed: true
+      })
+    })
+
+    it('keeps the exit code as the predicate when large output is discarded', async () => {
+      const node = `"${process.execPath}"`
+      const bigOutput = `${node} -e "process.stdout.write('x'.repeat(2 * 1024 * 1024)); process.exit(3)"`
+      const outcome = await evaluateTaskGuard({ type: 'command', command: bigOutput }, { lastRunStartedAt: null })
+      expect(outcome).toMatchObject({ proceed: false })
+      expect(outcome.proceed === false && outcome.reason).toContain('exit code 3')
+    })
+
+    it('skips a zero exit that is delivered after the deadline', async () => {
+      // The exit callback can run before the overdue timer when the main loop stalls.
+      const real = performance.now.bind(performance)
+      let calls = 0
+      const spy = vi.spyOn(performance, 'now').mockImplementation(() => (calls++ === 0 ? 0 : real() + 31_000))
+      try {
+        const outcome = await evaluateTaskGuard({ type: 'command', command: 'exit 0' }, { lastRunStartedAt: null })
+        expect(outcome).toEqual({ proceed: false, reason: 'command failed (timed out): exit 0' })
+      } finally {
+        spy.mockRestore()
+      }
+    })
+
+    // POSIX shells only: traps, SIGTERM/SIGKILL semantics and ps are not portable to win32.
+    it.skipIf(process.platform === 'win32')(
+      'skips irreversibly when the deadline passes even if the command then exits 0 on SIGTERM',
+      async () => {
+        // Real shell: traps SIGTERM and exits 0 (a well-behaved command that
+        // shuts down cleanly on our kill). The timeout outcome must still be a
+        // skip, never a late approval.
+        const marker = join(dir, 'sigterm-received')
+        // The trap lives in the spawned shell itself (no nested sh -c), so the
+        // kill reaches the process that owns the trap.
+        // Background sleep + wait: sh defers traps while waiting on a
+        // foreground child, but a trapped signal interrupts `wait` itself.
+        const command = `trap "touch ${marker}; exit 0" TERM; sleep 60 & wait`
+        const started = Date.now()
+        const outcome = await evaluateTaskGuard({ type: 'command', command }, { lastRunStartedAt: null })
+        const elapsed = Date.now() - started
+
+        expect(outcome).toEqual({ proceed: false, reason: `command failed (timed out): ${command}` })
+        expect(elapsed).toBeGreaterThanOrEqual(30_000)
+        expect(elapsed).toBeLessThan(40_000)
+        // The SIGTERM was really delivered (the trap ran) and the exit-0 from
+        // it did not flip the already-settled skip. The touch lands right
+        // after the kill, so give the trap a moment to run.
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        await expect(stat(marker)).resolves.toBeTruthy()
+      },
+      45_000
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'settles the skip in bounded time and terminates the owned shell when SIGTERM is ignored',
+      async () => {
+        // Real shell: ignores SIGTERM entirely, so settlement cannot rely on
+        // process exit. A unique marker argument lets us verify the owned
+        // shell is actually reaped after SIGKILL escalation. (A descendant the
+        // command spawned may outlive this - tracked separately.)
+        const marker = `guard-ignore-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        // The trap lives in the spawned shell itself; the marker sits in its
+        // own command line so we can watch that exact process in ps.
+        const command = `trap "" TERM; : "${marker}"; sleep 60`
+        const findOwnedShell = () =>
+          spawnSync('ps', ['-eo', 'args='])
+            .stdout.toString()
+            .split('\n')
+            .some((line) => line.includes(marker))
+
+        const started = Date.now()
+        const outcome = await evaluateTaskGuard({ type: 'command', command }, { lastRunStartedAt: null })
+        const elapsed = Date.now() - started
+
+        expect(outcome).toEqual({ proceed: false, reason: `command failed (timed out): ${command}` })
+        expect(elapsed).toBeGreaterThanOrEqual(30_000)
+        expect(elapsed).toBeLessThan(40_000)
+        expect(findOwnedShell()).toBe(true) // SIGTERM was ignored: still alive right after the skip
+        await new Promise((resolve) => setTimeout(resolve, 6_000)) // past the 5s SIGKILL grace
+        expect(findOwnedShell()).toBe(false)
+      },
+      45_000
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'does not crash when cancellation lands during the post-timeout kill grace',
+      async () => {
+        // Fault-injection repro of the retained-listener invariant: a timeout
+        // settles the skip while the TERM-ignoring shell is still inside its
+        // SIGKILL grace; an abort landing in that window makes Node emit an
+        // AbortError 'error' event on the child, which must be swallowed by
+        // the retained settled-guarded listener, not crash the process.
+        const marker = `guard-late-abort-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const command = `trap "" TERM; : "${marker}"; sleep 60`
+        const findOwnedShell = () =>
+          spawnSync('ps', ['-eo', 'args='])
+            .stdout.toString()
+            .split('\n')
+            .some((line) => line.includes(marker))
+        const controller = new AbortController()
+
+        const outcome = await evaluateTaskGuard(
+          { type: 'command', command },
+          { lastRunStartedAt: null, signal: controller.signal }
+        )
+        expect(outcome).toEqual({ proceed: false, reason: `command failed (timed out): ${command}` })
+        expect(findOwnedShell()).toBe(true)
+
+        // The skip is irreversible: the late abort cannot change the settled
+        // outcome, and the run finishing without an uncaught exception is the
+        // no-crash evidence (an unhandled 'error' event would fail the run).
+        controller.abort(new Error('late cancel'))
+        await new Promise((resolve) => setTimeout(resolve, 6_000)) // past the 5s SIGKILL grace
+        expect(findOwnedShell()).toBe(false)
+      },
+      45_000
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'bounds cancellation of a resistant shell and its descendant',
+      async () => {
+        const pidFile = join(dir, 'guard-pids')
+        const controller = new AbortController()
+        const reason = new Error('cancel resistant tree')
+        const promise = evaluateTaskGuard(
+          { type: 'command', command: `trap "" TERM; sleep 60 & echo "$$ $!" > ${pidFile}; wait` },
+          { lastRunStartedAt: null, signal: controller.signal }
+        )
+        // Attach the rejection handler before delivering cancellation.
+        const rejected = expect(promise).rejects.toBe(reason)
+        let pids: number[] = []
+        for (let i = 0; i < 100; i++) {
+          try {
+            pids = (await readFile(pidFile, 'utf8')).trim().split(' ').map(Number)
+            if (pids.length === 2) break
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 10))
+        }
+        expect(pids).toHaveLength(2)
+        controller.abort(reason)
+        await rejected
+        const isTerminated = (pid: number) => {
+          const state = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)])
+            .stdout.toString()
+            .trim()
+          return state === '' || state.startsWith('Z')
+        }
+        const deadline = Date.now() + 10_000
+        while (!pids.every(isTerminated) && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+        expect(pids.every(isTerminated)).toBe(true)
+      },
+      15_000
+    )
+
+    it('rejects on cancellation instead of resolving a guard skip', async () => {
+      const node = `"${process.execPath}"`
+      const controller = new AbortController()
+      const reason = new Error('cancelled by test')
+      const promise = evaluateTaskGuard(
+        { type: 'command', command: `${node} -e "setTimeout(() => {}, 10000)"` },
+        { lastRunStartedAt: null, signal: controller.signal }
+      )
+      setTimeout(() => controller.abort(reason), 20)
+      await expect(promise).rejects.toBe(reason)
+    })
+  })
+})
+
+describe('workspace-confined file_changed guard', () => {
+  let base: string
+  let workspace: string
+  let outside: string
+  beforeEach(async () => {
+    base = await mkdtemp(join(tmpdir(), 'task-guard-ws-'))
+    workspace = join(base, 'ws')
+    outside = join(base, 'outside')
+    await mkdir(workspace)
+    await mkdir(outside)
+    await writeFile(join(outside, 'secret.txt'), 'x')
+    await writeFile(join(workspace, 'in.txt'), 'x')
+  })
+  afterEach(async () => {
+    await rm(base, { recursive: true, force: true })
+  })
+
+  it('proceeds for a changed file inside the workspace', async () => {
+    const outcome = await evaluateTaskGuard(
+      { type: 'file_changed', path: join(workspace, 'in.txt'), workspaceRoot: workspace },
+      { lastRunStartedAt: null }
+    )
+    expect(outcome).toEqual({ proceed: true })
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'skips a path that went through a workspace symlink to outside, without admitting it',
+    async () => {
+      await symlink(outside, join(workspace, 'link'))
+      const outcome = await evaluateTaskGuard(
+        { type: 'file_changed', path: join(workspace, 'link', 'secret.txt'), workspaceRoot: workspace },
+        { lastRunStartedAt: null }
+      )
+      expect(outcome).toEqual({ proceed: false, reason: 'file guard path is outside the workspace' })
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')('skips when a path component is retargeted after save', async () => {
+    await mkdir(join(workspace, 'dir'))
+    await writeFile(join(workspace, 'dir', 'f.txt'), 'x')
+    const guard = { type: 'file_changed' as const, path: join(workspace, 'dir', 'f.txt'), workspaceRoot: workspace }
+    expect(await evaluateTaskGuard(guard, { lastRunStartedAt: null })).toEqual({ proceed: true })
+    await rm(join(workspace, 'dir'), { recursive: true })
+    await symlink(outside, join(workspace, 'dir'))
+    await writeFile(join(outside, 'f.txt'), 'x')
+    expect(await evaluateTaskGuard(guard, { lastRunStartedAt: null })).toMatchObject({ proceed: false })
+  })
+
+  it('skips when the workspace root no longer exists', async () => {
+    const outcome = await evaluateTaskGuard(
+      { type: 'file_changed', path: join(outside, 'secret.txt'), workspaceRoot: join(base, 'gone') },
+      { lastRunStartedAt: null }
+    )
+    expect(outcome).toMatchObject({ proceed: false })
+  })
+
+  it('reports a missing file inside the workspace as missing', async () => {
+    const outcome = await evaluateTaskGuard(
+      { type: 'file_changed', path: join(workspace, 'nope.txt'), workspaceRoot: workspace },
+      { lastRunStartedAt: null }
+    )
+    expect(outcome).toMatchObject({ proceed: false, reason: expect.stringContaining('file missing') })
+  })
+})
+
+describe('resolveAgentGuardPath', () => {
+  it('accepts a filename that merely starts with two dots, and still rejects real traversal', () => {
+    expect(resolveAgentGuardPath('/ws', '..report.json')).toBe(resolve('/ws', '..report.json'))
+    expect(resolveAgentGuardPath('/ws', 'a/..b/c.txt')).toBe(resolve('/ws', 'a/..b/c.txt'))
+    expect(() => resolveAgentGuardPath('/ws', '../report.json')).toThrow('inside the session workspace')
+  })
+
+  it('resolves relative and absolute paths inside the workspace', () => {
+    expect(resolveAgentGuardPath('/ws', 'a/b.txt')).toBe(resolve('/ws', 'a/b.txt'))
+    expect(resolveAgentGuardPath('/ws', '/ws/a.txt')).toBe(resolve('/ws', 'a.txt'))
+  })
+
+  it.each(['/etc/passwd', '../x', 'a/../../x', '/ws', '', '\\\\host\\share', '//host/share/x', '\\\\?\\C:\\x'])(
+    'rejects %j without touching the filesystem',
+    (requested) => {
+      expect(() => resolveAgentGuardPath('/ws', requested)).toThrow('inside the session workspace')
+    }
+  )
+})

@@ -190,6 +190,50 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
+/**
+ * Precondition evaluated at fire time. A failing guard skips the run — no agent
+ * turn is started — and the run log records it as `skipped` with a reason.
+ */
+export const TaskGuardSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('always') }),
+  /** Proceed only when the file exists and was modified after the last executed run started. */
+  z.strictObject({
+    type: z.literal('file_changed'),
+    path: z.string().trim().min(1),
+    /**
+     * Set by agent-driven saves (MCP cron) to the workspace the proposing session ran in. Fire time
+     * resolves both through `realpath` and skips unless the file is still inside it, so a symlink
+     * created or retargeted after save cannot widen the agent's file authority. Absent for guards
+     * the user wrote, which keep the user's own authority.
+     */
+    workspaceRoot: z.string().trim().min(1).optional()
+  }),
+  /** Proceed only when the shell command exits 0. */
+  z.strictObject({
+    type: z.literal('command'),
+    // An embedded NUL makes Node throw synchronously at launch; reject it when the guard is saved.
+    command: z
+      .string()
+      .trim()
+      .min(1)
+      .refine((value) => !value.includes('\0'), 'Command must not contain a NUL character')
+  })
+])
+export type TaskGuard = z.infer<typeof TaskGuardSchema>
+
+/**
+ * User approval record for a `command` guard. Written only through the
+ * user-originated `ai.agent.task.approve_guard` command — never by agent-driven
+ * paths (MCP cron) — and bound to the exact command string it approved.
+ */
+export const TaskGuardApprovalSchema = z.strictObject({
+  /** Exact command string this approval covers; any edit requires re-approval. */
+  command: z.string(),
+  /** ISO timestamp of the user's approval. */
+  approvedAt: z.string()
+})
+export type TaskGuardApproval = z.infer<typeof TaskGuardApprovalSchema>
+
 export const ScheduledTaskEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
@@ -199,6 +243,13 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   trigger: TriggerSchema,
   timeoutMinutes: z.number(),
   workspace: AgentSessionWorkspaceSourceSchema,
+  /** Fire-time precondition; `always` runs every tick. */
+  guard: TaskGuardSchema,
+  /**
+   * User approval for a `command` guard; null while pending (fires skip until
+   * approved). Always null for non-command guards.
+   */
+  guardApproval: TaskGuardApprovalSchema.nullable(),
   /**
    * When true, every fire continues the same agent session instead of creating
    * a fresh one. Off by default — a sticky session accumulates context without

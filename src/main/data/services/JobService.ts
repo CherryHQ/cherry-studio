@@ -251,6 +251,7 @@ export class JobService {
       SELECT
         requested.schedule_id AS "scheduleId",
         terminal.status,
+        terminal.output,
         CASE
           WHEN terminal.status = 'cancelled' AND terminal.cancel_requested_at IS NOT NULL
           THEN terminal.cancel_requested_at

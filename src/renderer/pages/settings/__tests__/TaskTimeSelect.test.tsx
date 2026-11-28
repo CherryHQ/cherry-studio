@@ -14,7 +14,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => translationMock
 }))
 
-import { TaskTimeSelect } from '@renderer/components/ScheduledTask/TaskFormDialog'
+import { guardValueForTypeChange, TaskTimeSelect } from '@renderer/components/ScheduledTask/TaskFormDialog'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -71,5 +71,18 @@ describe('TaskTimeSelect with the production Combobox', () => {
 
     const hourSelect = screen.getByRole('combobox', { name: 'Hours' })
     expect(within(hourSelect).getByText('Hours')).toHaveClass('text-muted-foreground')
+  })
+})
+
+describe('guardValueForTypeChange', () => {
+  it('drops a file path when switching to a command guard', () => {
+    expect(guardValueForTypeChange({ type: 'file_changed', path: '/etc/passwd' }, 'command')).toBe('')
+    expect(guardValueForTypeChange(undefined, 'command')).toBe('')
+  })
+
+  it('restores the saved value only when returning to the saved type', () => {
+    const saved = { type: 'file_changed', path: 'a.txt' } as const
+    expect(guardValueForTypeChange(saved, 'file_changed')).toBe('a.txt')
+    expect(guardValueForTypeChange(saved, 'always')).toBe('')
   })
 })

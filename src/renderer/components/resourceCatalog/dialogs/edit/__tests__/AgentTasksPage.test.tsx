@@ -32,6 +32,8 @@ const task = (id: string, name: string, extra: Record<string, unknown> = {}) => 
   workspace: { type: 'system' },
   reuseSession: false,
   reuseSessionId: null,
+  guard: { type: 'always' },
+  guardApproval: null,
   enabled: true,
   status: 'active',
   createdAt: '2026-01-01T00:00:00.000Z',
