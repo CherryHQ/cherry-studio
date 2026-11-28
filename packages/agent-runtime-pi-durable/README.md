@@ -33,8 +33,10 @@ still drains admitted relation reads and their final facts before closing feeds.
 
 `resume()` enables the entire Harness scheduler. Reading with `open` or `observe` does not resume it. Native `submit` and `interrupt` can resume the entire
 Harness, including other conversations. Without shared behavior, `interrupt()` uses native ordinary-scope
-abort: queued inputs and owned non-background work are included; queued writes and
-background subtrees are not. These effects are not application-wide cancellation.
+abort includes queued inputs and owned non-background work. Queued writes and background subtrees remain.
+With shared behavior, a user stop on a root records the stop, pauses waiting follow-ups and marks the active run for
+cancellation in the same native transaction. Paused follow-ups keep their inbox entries and submission IDs until the
+host explicitly resumes or withdraws them. Run completion counts only inputs eligible to run.
 
 ## Input and output
 
@@ -54,15 +56,16 @@ The child submission proves admission. A lookup starts no execution.
 
 `input.steer.submit` delivers input at the next native input boundary. If the current
 run finishes normally before taking it, the input starts a subsequent run. `input.followUp.submit`
-waits for the final boundary. Both policies start a run when the conversation is idle;
-normal completion does not discard accepted input. Explicit interruption still follows
-the native cancellation scope. Read captured input facts to distinguish
-acceptance from placement and completion.
+waits for the final boundary. Both policies can start a run when idle. A paused inbox
+holds follow-ups until resume. The desktop's explicit new turn can start while the inbox
+is paused. Read captured input facts to distinguish acceptance, placement and completion.
 
 The desktop mirrors the ordered native follow-up inbox after attachment and on inbox commits.
-Editing and reordering check the still-waiting entries inside a native transaction. An edit takes
-its native content and product text part to placement under the original submission ID. The desktop
-can reapply that part on reopen. Withdrawing one entry uses the native submission abort operation.
+Editing and reordering check the still-waiting entries inside a native transaction. A persistent edit mark
+stops follow-up placement at that item. Saving updates the native content and revised message parts and
+clears the mark under the original submission ID. The native boundary resumes if the edit deferred dispatch
+and Stop has not paused it. The desktop can reapply edited parts on reopen, including legacy text-only
+edits. Remove settles one waiting submission as `withdrawn` and removes it from the inbox in one commit.
 
 Several inputs can share a native answer. Native `done` alone is insufficient: Durable also uses it for truncated output
 and tool-only termination. The adapter reads the actual assistant stop reason before reporting
@@ -92,9 +95,9 @@ Preview delivery follows that receipt microtask and cannot establish completion.
 Deferred in-memory progress is a preview without a durable revision; only stored commits can
 confirm foreground completion. Native progress may remain unpersisted for up to its configured
 `persistWithinMs` interval (1,000 ms by default); archives contain stored entries only. Reopen reads all submission
-facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
-foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
-A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
+facts, including placed native-only inputs. A committed change to the foreground run identity settles the
+previous run after its content, carrying only the submissions placed into that run. The same commit can
+identify a successor run. A follow-up that remains queued after failure retains its native submission.
 Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity. When the host supplies saved source IDs, the restored snapshot aliases the saved preview to the same native task and generation attempt or to the task's interrupted output already committed in the active reply. State-only reads and updates use `ThreadFeed.state`. Native views append the same entry records, so
 the projection keeps its committed messages frozen and projects only appended entries. A tool
 result copies the parts array of its owning message once per batch. A generation correction reads

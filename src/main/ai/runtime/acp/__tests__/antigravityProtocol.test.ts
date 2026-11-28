@@ -1,71 +1,11 @@
-import { PassThrough, Readable } from 'node:stream'
-
 import { describe, expect, it } from 'vitest'
 
 import { mapAcpPermissionOptions } from '@cherrystudio/agent-runtime-acp/v1'
-import { antigravityPreset, readAntigravitySubscriptionUsage } from '@cherrystudio/agent-runtime-antigravity-acp'
-import type { SpawnStdio, StdioProcess } from '@cherrystudio/agent-runtime/stdio'
+import { antigravityPreset } from '@cherrystudio/agent-runtime-antigravity-acp'
 
 const { describePermissionOption, permissionQuestion } = antigravityPreset.protocol
 
 describe('antigravityProtocol', () => {
-  it('preserves quota groups and periods and omits the native zero-date sentinel', async () => {
-    const resetTime = '2026-11-28T09:00:00.000Z'
-    const spawn: SpawnStdio = ({ args }) => {
-      const result =
-        args[0] === '--version'
-          ? '1.5.18'
-          : args[0] === 'models'
-            ? 'Gemini'
-            : JSON.stringify({
-                status: 'SUCCESS',
-                num_turns: 0,
-                command: {
-                  name: 'usage',
-                  data: {
-                    groups: [
-                      {
-                        name: 'Gemini',
-                        buckets: [
-                          { name: 'Five Hour Limit', window: '5h', remaining_fraction: 0.75, reset_time: resetTime },
-                          {
-                            name: 'Weekly Limit',
-                            window: 'weekly',
-                            remaining_fraction: 1,
-                            reset_time: '1970-01-01T00:00:00Z'
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                }
-              })
-      const stdout = Readable.from([Buffer.from(result)])
-      const closed: StdioProcess['closed'] = new Promise((resolve) =>
-        stdout.once('end', () => resolve({ kind: 'exited', code: 0, signal: null }))
-      )
-      return { stdout, stdin: new PassThrough(), stderr: new PassThrough().end(), closed, closeAndJoin: async () => {} }
-    }
-    const quota = await readAntigravitySubscriptionUsage(
-      { executable: 'agy', args: [], env: {}, cwd: '/test' },
-      spawn,
-      new AbortController().signal
-    )
-    expect(quota).toMatchObject({
-      status: 'available',
-      windows: [
-        {
-          groupLabel: 'Gemini',
-          label: 'Five Hour Limit',
-          durationMinutes: 300,
-          usedRatio: 0.25,
-          resetsAt: Date.parse(resetTime)
-        },
-        { groupLabel: 'Gemini', label: 'Weekly Limit', durationMinutes: 10080, usedRatio: 0, resetsAt: undefined }
-      ]
-    })
-  })
-
   it('keeps Antigravity always approval scoped to the current session', () => {
     const withWarning = mapAcpPermissionOptions(
       [

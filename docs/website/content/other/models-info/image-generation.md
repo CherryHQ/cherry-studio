@@ -4,22 +4,31 @@
 
 上下文长度与最大输出以 K / M 缩写并四舍五入（1K 约为 1,000～1,024 tokens，1M 约为 100 万 tokens），例如 131,072 与 128,000 均写作 128K。悬停可查看完整数值，精确限制请以模型服务商为准。
 
-> **数据更新时间**: 2026-11-03 16:01:16 UTC / 2026-11-04 00:01:16 CST (北京时间)
+> **数据更新时间**: 2026-11-27 17:59:10 UTC / 2026-11-28 01:59:10 CST (北京时间)
 
 <div data-models-table="num:2,3;sort:1;search:0,1;cap:4:函数调用,推理,识图,语音识别,视频理解,结构化输出,文件输入;in:5:图片输入=图片,音频输入=音频,视频输入=视频;out:6:文本输出=文本">
 
 | 模型名称 | 服务商 | 上下文长度 | 最大输出 | 能力 | 输入模态 | 输出模态 |
 | --- | --- | --- | --- | --- | --- | --- |
 | Qwen Image<br><code>qwen-image</code> | alibaba | - | - | 图片生成 | 文本 | 图片 |
+| Qwen Image 2.0<br><code>qwen-image-2-0</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| Qwen Image 2.0 Pro<br><code>qwen-image-2-0-pro</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| Qwen Image 2.1 Pro<br><code>qwen-image-2-1-pro</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| Qwen Image 2.1 Turbo<br><code>qwen-image-2-1-turbo</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | Qwen Image 3.0<br><code>qwen-image-3-0</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | Qwen Image 3.0 Pro<br><code>qwen-image-3-0-pro</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | Qwen Image Edit<br><code>qwen-image-edit</code> | alibaba | - | - | 识图、图片生成、文件输入 | 文本、图片 | 图片 |
+| Qwen Image Edit Max<br><code>qwen-image-edit-max</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| Qwen Image Edit Plus<br><code>qwen-image-edit-plus</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| Qwen Image Max<br><code>qwen-image-max</code> | alibaba | - | - | 图片生成 | 文本 | 图片 |
+| Qwen Image Plus<br><code>qwen-image-plus</code> | alibaba | - | - | 图片生成 | 文本 | 图片 |
 | Qwen: Qwen Image 3<br><code>qwen-image-3</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | Qwen: Qwen Image 3 Pro<br><code>qwen-image-3-pro</code> | alibaba | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | wan2-6-t2i<br><code>wan2-6-t2i</code> | alibaba | - | - | 图片生成 | 文本 | 图片 |
 | wan2.6-image<br><code>wan2-6-image</code> | alibaba | - | - | 图片生成 | 文本、图片 | - |
 | wan2.7-image<br><code>wan2-7-image</code> | alibaba | - | - | 图片生成 | 文本 | 图片 |
 | wan2.7-image-pro<br><code>wan2-7-image-pro</code> | alibaba | - | - | 图片生成 | 文本 | 图片 |
+| Z-Image Turbo<br><code>z-image-turbo</code> | alibaba | - | - | 图片生成 | 文本 | 图片 |
 | Flux 2 Flex<br><code>flux-2-flex</code> | black-forest-labs | - | - | 图片生成 | 文本 | 图片 |
 | Flux 2 Pro<br><code>flux-2-pro</code> | black-forest-labs | <span title="67,300">67.3K</span> | <span title="67,300">67.3K</span> | 图片生成 | 文本 | 图片 |
 | Flux Schnell<br><code>flux-fast-schnell</code> | black-forest-labs | 512 | - | 图片生成 | 文本 | 图片 |
@@ -53,6 +62,7 @@
 | Doubao Seedream 4 5<br><code>doubao-seedream-4-5</code> | bytedance | - | - | 图片生成 | 文本、图片 | 图片 |
 | Doubao Seedream 5.0 Lite<br><code>doubao-seedream-5-0-lite</code> | bytedance | - | - | 图片生成 | 文本、图片 | 图片 |
 | Doubao Seedream 5.0 Pro<br><code>doubao-seedream-5-0-pro</code> | bytedance | - | - | 图片生成 | 文本、图片 | 图片 |
+| Doubao Seedream 5.5<br><code>doubao-seedream-5-5</code> | bytedance | - | - | 图片生成 | 文本、图片 | 图片 |
 | Seedream 4.0<br><code>seedream-4-0</code> | bytedance | - | - | 图片生成 | 文本 | 图片 |
 | Seedream 4.5<br><code>seedream-4-5</code> | bytedance | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | Seedream 5.0 Lite<br><code>seedream-5-0-lite</code> | bytedance | - | - | 识图、图片生成 | 文本、图片 | 图片 |
@@ -89,6 +99,10 @@
 | Kolors<br><code>kolors</code> | kling | - | - | 图片生成 | 文本 | 图片 |
 | Luma Photon<br><code>photon</code> | luma | - | - | 图片生成 | 文本 | 图片 |
 | Luma Photon Flash<br><code>photon-flash</code> | luma | - | - | 图片生成 | 文本 | 图片 |
+| Meta: Muse Image<br><code>muse-image</code> | meta | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| Muse Image 1.0<br><code>muse-image-1-0</code> | meta | - | - | 识图、图片生成、文件输入 | 文本、图片 | 图片 |
+| Microsoft AI: MAI-Image-2.7<br><code>mai-image-2-7</code> | microsoft | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| Microsoft AI: MAI-Image-2.7 Flash<br><code>mai-image-2-7-flash</code> | microsoft | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | MicrosoftAI: MAI-Image-2.5<br><code>mai-image-2-5</code> | microsoft | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | MicrosoftAI: MAI-Image-2.5 Pro<br><code>mai-image-2-5-pro</code> | microsoft | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | MicrosoftAI: MAI-Image-2.6<br><code>mai-image-2-6</code> | microsoft | - | - | 识图、图片生成 | 文本、图片 | 图片 |
@@ -101,6 +115,8 @@
 | GPT Image 1.5<br><code>gpt-image-1-5</code> | openai | - | - | 识图、图片生成、文件输入 | 文本、图片 | 文本、图片 |
 | GPT Image 2.5 Flare<br><code>gpt-image-2-5-flare</code> | openai | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | GPT Image 2.5 Sunburst<br><code>gpt-image-2-5-sunburst</code> | openai | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| GPT Image 2.6 Flare<br><code>gpt-image-2-6-flare</code> | openai | - | - | 识图、图片生成 | 文本、图片 | 图片 |
+| GPT Image 2.6 Sunburst<br><code>gpt-image-2-6-sunburst</code> | openai | - | - | 识图、图片生成 | 文本、图片 | 图片 |
 | GPT-Image-1<br><code>gpt-image-1</code> | openai | - | - | 识图、图片生成、文件输入 | 文本、图片 | 图片 |
 | GPT-Image-1-Mini<br><code>gpt-image-1-mini</code> | openai | - | - | 识图、图片生成、文件输入 | 文本、图片 | 文本、图片 |
 | GPT-Image-2<br><code>gpt-image-2</code> | openai | - | - | 识图、图片生成、文件输入 | 文本、图片 | 图片 |
@@ -135,7 +151,6 @@
 | Hunyuan Image 3.0<br><code>hy-image-v3-0</code> | tencent | - | - | 图片生成 | 文本、图片 | 图片 |
 | Hunyuan Image Lite<br><code>hy-image-lite</code> | tencent | - | - | 图片生成 | 文本 | 图片 |
 | Arrow 1.1<br><code>arrow-1-1</code> | vercel | <span title="131,072">128K</span> | <span title="131,072">128K</span> | 图片生成 | 文本 | 图片 |
-| Muse Image 1.0<br><code>muse-image-1-0</code> | vercel | - | - | 识图、图片生成、文件输入 | 文本、图片 | 图片 |
 | Vidu Q1<br><code>viduq1</code> | vidu | - | - | 图片生成 | 文本 | 图片 |
 | Vidu Q2<br><code>viduq2</code> | vidu | - | - | 图片生成 | 文本 | 图片 |
 | Grok Imagine Image<br><code>grok-imagine-image</code> | xai | <span title="16,000">16K</span> | - | 识图、图片生成、文件输入 | 文本、图片 | 图片 |

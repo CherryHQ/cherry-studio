@@ -1,5 +1,15 @@
 import { Bot, ChevronDown, CircleSlash, Folder } from 'lucide-react'
-import { type FC, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentType,
+  type FC,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -36,7 +46,8 @@ import {
 import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
-import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
+import type { AgentSelectorSingleIdProps } from '@renderer/components/resourceCatalog/selectors'
+import { WorkspaceSelector } from '@renderer/components/resourceCatalog/WorkspaceSelector'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { cn } from '@renderer/utils/style'
@@ -508,7 +519,9 @@ const TaskGuardField: FC<{
 }
 
 type TaskFormDialogProps = {
+export type TaskFormDialogProps = {
   agentNotice?: ReactNode
+  agentSelector?: ComponentType<AgentSelectorSingleIdProps>
   open: boolean
   agents: AgentInfo[]
   onOpenChange: (open: boolean) => void
@@ -532,7 +545,7 @@ type TaskFormDialogProps = {
 )
 
 export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
-  const { open, task, agents, onOpenChange, agentLocked = false } = props
+  const { open, task, agents, onOpenChange, agentLocked = false, agentSelector: AgentSelector } = props
   const { t } = useTranslation()
   const { channels: rawChannels, error: channelsError, isLoading: channelsLoading } = useChannels()
   const channelsReady = !channelsLoading && !channelsError
@@ -690,6 +703,20 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     workspaceId
   ])
 
+  const agentTrigger = (
+    <Button
+      type="button"
+      variant="outline"
+      disabled={saving || isEditing || agentLocked || !AgentSelector}
+      aria-label={t('agent.channels.bindAgent')}
+      aria-invalid={(submitted && !agentId) || undefined}
+      aria-busy={saving || undefined}>
+      <Bot size={14} />
+      <span>{selectedAgent?.name ?? t('agent.channels.selectAgent')}</span>
+      <ChevronDown size={14} />
+    </Button>
+  )
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && requestClose()}>
       <DialogContent size="xl" guardDismiss={saving || hasDraft}>
@@ -752,28 +779,20 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                 }
               />
               <RowFlex className="flex-wrap items-center gap-2">
-                <AgentSelector
-                  value={agentId}
-                  onChange={(nextAgentId) => {
-                    setAgentId(nextAgentId)
-                    setChannelIds([])
-                  }}
-                  align="start"
-                  mountStrategy="lazy-keep"
-                  trigger={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={saving || isEditing || agentLocked}
-                      aria-label={t('agent.channels.bindAgent')}
-                      aria-invalid={(submitted && !agentId) || undefined}
-                      aria-busy={saving || undefined}>
-                      <Bot size={14} />
-                      <span>{selectedAgent?.name ?? t('agent.channels.selectAgent')}</span>
-                      <ChevronDown size={14} />
-                    </Button>
-                  }
-                />
+                {AgentSelector && !isEditing && !agentLocked ? (
+                  <AgentSelector
+                    value={agentId}
+                    onChange={(nextAgentId) => {
+                      setAgentId(nextAgentId)
+                      setChannelIds([])
+                    }}
+                    align="start"
+                    mountStrategy="lazy-keep"
+                    trigger={agentTrigger}
+                  />
+                ) : (
+                  agentTrigger
+                )}
                 <WorkspaceSelector
                   value={workspaceId}
                   onChange={setWorkspaceId}

@@ -23,14 +23,17 @@ vi.mock('@renderer/components/icons/CopyIcon', () => ({
   default: () => <span data-testid="copy-icon" />
 }))
 vi.mock('../../shared/GenericTools', () => ({
-  ToolHeader: ({ toolName, params }: { toolName: string; params?: React.ReactNode }) => (
+  SkeletonValue: ({ value }: { value?: React.ReactNode }) => <span data-testid="value">{value}</span>,
+  useIsStreaming: () => false
+}))
+
+vi.mock('../../ToolHeader', () => ({
+  default: ({ toolName, params }: { toolName: string; params?: React.ReactNode }) => (
     <div data-testid="tool-header">
       {toolName}
       <span data-testid="params">{params}</span>
     </div>
-  ),
-  SkeletonValue: ({ value }: { value?: React.ReactNode }) => <span data-testid="value">{value}</span>,
-  useIsStreaming: () => false
+  )
 }))
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre data-testid="workflow-script">{value}</pre>

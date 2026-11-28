@@ -247,6 +247,8 @@ export interface FileEntryService {
    */
   getStats(): FileEntryStats
 
+  countTrashedBefore(cutoffMs: number): number
+
   /**
    * Active (non-trashed) **manual-policy** entries with zero persistent
    * association rows pointing at them — the DB orphan report's data source.
@@ -698,6 +700,15 @@ class FileEntryServiceImpl implements FileEntryService {
           ? encodeCursor(getListSortValue(pageRows[pageRows.length - 1], sortBy), pageRows[pageRows.length - 1].id)
           : undefined
     }
+  }
+
+  countTrashedBefore(cutoffMs: number): number {
+    const [row] = this.getDb()
+      .select({ value: count() })
+      .from(fileEntryTable)
+      .where(lt(fileEntryTable.deletedAt, cutoffMs))
+      .all()
+    return row.value
   }
 
   getStats(): FileEntryStats {

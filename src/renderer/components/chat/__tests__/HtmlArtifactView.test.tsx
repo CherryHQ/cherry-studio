@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode, Ref, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { HtmlArtifactPopupHost } from '../HtmlArtifactPopupContext'
+import { HtmlArtifactPopupHost } from '../HtmlArtifactPopupHost'
 import { HtmlArtifactView } from '../HtmlArtifactView'
 import { ScrollOwnershipProvider } from '../messages/list/ScrollOwnershipContext'
 

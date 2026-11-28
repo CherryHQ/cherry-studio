@@ -254,6 +254,9 @@ export function LocalAgentDirectory({
     return invalidateDetections
   }, [refresh, invalidateDetections])
   useIpcOn('binary.availability_changed', () => void refresh())
+  useIpcOn('ai.claude_code.binary.changed', ({ phase }) => {
+    if (phase === 'ready') void refresh()
+  })
   const localAgents = [
     ...agents,
     ...(archivedAgents?.items ?? []).filter((a) => a.deletedAt && !agents.some((agent) => agent.id === a.id))

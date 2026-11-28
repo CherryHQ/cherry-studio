@@ -12,10 +12,11 @@ import type {
 } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
-import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { SkeletonValue, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 import { extractToolErrorText } from '../toolError'
+import ToolHeader from '../ToolHeader'
 
 const removeSystemReminderTags = (text: string): string => {
   return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')

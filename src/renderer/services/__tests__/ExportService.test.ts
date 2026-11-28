@@ -3,7 +3,6 @@ import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { preferenceService } from '@data/PreferenceService'
-import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
@@ -12,6 +11,7 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { IMAGE_CAPTURE_ATTRIBUTE } from '@renderer/utils/image'
 import type * as MessageFind from '@renderer/utils/message/find'
+import { getTopicMessages } from '@renderer/utils/message/getTopicMessages'
 
 // --- Mocks Setup ---
 
@@ -141,7 +141,7 @@ vi.mock('@renderer/utils/message/find', async (importOriginal) => ({
 }))
 
 // Mock getTopicMessages for dynamic import
-vi.mock('@renderer/hooks/useTopic', () => ({
+vi.mock('@renderer/utils/message/getTopicMessages', () => ({
   getTopicMessages: vi.fn()
 }))
 

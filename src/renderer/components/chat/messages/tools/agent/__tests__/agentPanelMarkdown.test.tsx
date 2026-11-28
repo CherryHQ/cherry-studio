@@ -17,8 +17,11 @@ vi.mock('../../shared/ClickableFilePath', () => ({
 }))
 vi.mock('../../shared/GenericTools', () => ({
   SkeletonValue: ({ value }: { value: ReactNode }) => <>{value}</>,
-  ToolHeader: () => <div />,
   TruncatedIndicator: () => <div />
+}))
+
+vi.mock('../../ToolHeader', () => ({
+  default: () => <div />
 }))
 
 import { ExitPlanModeTool } from '../ExitPlanModeTool'

@@ -1522,6 +1522,36 @@ it('keeps steered inputs, late tool results and new output in one run until nati
   expect(f.connections.sent).toEqual([f.user.id])
 })
 
+it('settles the desktop reply from its input outcomes after a steer continues a truncated response', async () => {
+  const f = await fixture(undefined, false, 'pi-durable')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  await f.project([text('before', 'Partial answer')])
+  const steer = savedUser(f.reply.id, 'Correction')
+  f.service.enqueueUserMessage('root', steer)
+  await f.emit({
+    type: 'input-state',
+    contextId: f.context.id,
+    input: {
+      inputId: runtimeId(f.user.id),
+      facts: ['accepted', 'placed'],
+      outcome: 'unanswered',
+      error: { operation: 'input', code: 'output-truncated', message: 'Output limit reached' }
+    }
+  })
+  await f.emit({ type: 'steer-boundary', inputIds: [steer.id] })
+  await f.project([text('after', 'Corrected answer')])
+  await f.emit({
+    type: 'input-state',
+    contextId: f.context.id,
+    input: { inputId: runtimeId(steer.id), facts: ['accepted', 'placed'], outcome: 'completed' }
+  })
+  await f.emit({ type: 'turn-complete' })
+  expect(await f.done).toMatchObject({
+    threw: { error: { message: 'Output limit reached', reason: 'output-truncated', finishReason: 'length' } },
+    finalMessage: { parts: [...text('', 'Partial answer').parts, ...text('', 'Corrected answer').parts] }
+  })
+})
+
 it.each([
   { outcome: 'aborted', status: 'paused' },
   { outcome: undefined, status: 'paused' },

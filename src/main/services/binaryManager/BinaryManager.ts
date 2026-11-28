@@ -745,6 +745,11 @@ export class BinaryManager extends BaseService {
     return snapshots
   }
 
+  public async tryClearDownloadCaches<T>(clear: () => Promise<T>): Promise<T | null> {
+    if (this.isShuttingDown || this.mutationMutex.isLocked()) return null
+    return this.mutationMutex.runExclusive(clear)
+  }
+
   public async getToolInstalledSizes(names: string[]): Promise<BinaryToolInstalledSizes> {
     const requested = [...new Set(names)]
     const empty = (): BinaryToolInstalledSizes => Object.fromEntries(requested.map((name) => [name, null]))

@@ -143,11 +143,11 @@
     },
     {
       "path": "docs/dev/references/ai/translation.md",
-      "sources": ["src/main/ipc/handlers/translate.ts","src/main/services/translate/translateService.ts","src/renderer/pages/home/messages/homeMessageListAdapter.tsx","src/renderer/pages/translate/TranslateSettings.tsx","src/renderer/pages/translate/useTranslateReasoningEffort.ts","src/renderer/utils/translate/translateText.ts","src/shared/data/preference/preferenceSchemas.ts","src/shared/ipc/schemas/translate.ts"]
+      "sources": ["src/main/ipc/handlers/translate.ts","src/main/services/translate/translateService.ts","src/renderer/components/translate/TranslateSettings.tsx","src/renderer/components/translate/useTranslateReasoningEffort.ts","src/renderer/pages/home/messages/homeMessageListAdapter.tsx","src/renderer/utils/translate/translateText.ts","src/shared/data/preference/preferenceSchemas.ts","src/shared/ipc/schemas/translate.ts"]
     },
     {
       "path": "docs/dev/references/api-gateway/README.md",
-      "sources": ["src/main/ai/runtime/agentApiGateway.ts","src/main/features/apiGateway","src/main/services/PdfTranslationService.ts","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/settings/DeviceConnectionsSettings","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings"]
+      "sources": ["src/main/ai/runtime/agentApiGateway.ts","src/main/features/apiGateway","src/main/services/PdfTranslationService.ts","src/renderer/components/ApiGatewayPanel.tsx","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/apiGateway","src/renderer/pages/launchpad/LaunchpadPage.tsx","src/renderer/pages/settings/DeviceConnectionsSettings","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings","src/renderer/routes/app/api-gateway.tsx"]
     },
     {
       "path": "docs/dev/references/api-gateway/remote-agent-access.md",

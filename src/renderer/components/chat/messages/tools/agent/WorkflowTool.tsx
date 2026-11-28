@@ -8,8 +8,9 @@ import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
-import { SkeletonValue, ToolHeader, useIsStreaming } from '../shared/GenericTools'
+import { SkeletonValue, useIsStreaming } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import ToolHeader from '../ToolHeader'
 
 const CodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 

@@ -1,7 +1,8 @@
 import { AgentToolsType, type WebFetchToolInput, type WebFetchToolOutput } from '../shared/agentToolTypes'
-import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 
 export function WebFetchTool({
   input,

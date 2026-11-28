@@ -693,7 +693,8 @@ export function ResourceCreateWizard({
           size="xl"
           className={cn(
             // Narrows with the window instead of filling a small one edge to edge.
-            'flex flex-col gap-0 p-0 sm:max-w-[min(720px,85vw)]',
+            'flex flex-col gap-0 p-0',
+            view === 'entry' ? 'sm:max-w-[min(560px,85vw)]' : 'sm:max-w-[min(720px,85vw)]',
             view === 'steps' && 'h-[min(600px,76vh)]',
             resourceDialogCloseButtonClassName
           )}

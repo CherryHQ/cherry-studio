@@ -11,7 +11,7 @@ import {
   useState
 } from 'react'
 
-import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
+import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupHost'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'

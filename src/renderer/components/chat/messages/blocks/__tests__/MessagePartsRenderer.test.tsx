@@ -652,7 +652,7 @@ describe('MessagePartsRenderer', () => {
       }
     )
 
-    it('keeps the focused expanded tool mounted before steer while a new segment streams after it', async () => {
+    it('folds settled process groups before a steer and keeps prose and the focused tool in place', async () => {
       const ipc = projectionIpc()
       const store = new MessageProjectionService()
       const target = { kind: 'topic', topicId: 't' } as const
@@ -668,15 +668,19 @@ describe('MessagePartsRenderer', () => {
       const source: CherryUIMessage = {
         id: 'msg-1',
         role: 'assistant',
-        parts: [call],
-        partIds: ['held'],
-        partPositions: [1]
+        parts: [
+          { ...call, toolCallId: 'settled', state: 'output-available', output: 'Earlier result' },
+          { type: 'text', text: 'I will check the log.', state: 'done' },
+          call
+        ],
+        partIds: ['settled', 'narration', 'held'],
+        partPositions: [1, 2, 3]
       }
       const steer: CherryUIMessage = {
         id: 'steer',
         role: 'user',
         parts: [{ type: 'text', text: 'Steer now' }],
-        timeline: { pos: 2 }
+        timeline: { pos: 4, replyId: source.id }
       }
       await act(async () => attachment.resolve({ ...target, revision: 0, executions: [], messages: [source] }))
       activateTurn('streaming')
@@ -691,7 +695,15 @@ describe('MessagePartsRenderer', () => {
                 ) : (
                   renderPartsTree(
                     row.parts,
-                    msg({ id: row.id, sourceMessageId: row.sourceMessageId, partIds: row.partIds, status: 'pending' })
+                    msg({
+                      id: row.id,
+                      sourceMessageId: row.sourceMessageId,
+                      isBeforeLatestRunInput: row.isBeforeLatestRunInput,
+                      partIds: row.partIds,
+                      status: 'pending'
+                    }),
+                    {},
+                    { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
                   )
                 )}
               </React.Fragment>
@@ -701,16 +713,20 @@ describe('MessagePartsRenderer', () => {
       }
       const tree = render(display([source]))
       expandCollapsedLiveToolGroups()
-      const trigger = screen.getAllByRole('button').find((button) => button.getAttribute('aria-expanded') === 'true')!
+      const trigger = screen.getAllByRole('button', { expanded: true }).at(-1)!
       trigger.focus()
+      tree.rerender(display([source, { ...steer, timeline: { replyId: source.id } }]))
+      expect(screen.queryByTestId('completed-process-trigger')).not.toBeInTheDocument()
       tree.rerender(display([source, steer]))
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      expectNodeBefore(screen.getByText('I will check the log.'), screen.getByText('Steer now'))
       act(() =>
         ipc.emit(attachment.subscriptionId, {
           kind: 'topic',
           type: 'parts',
           revision: 1,
           patches: [
-            { type: 'part-open', messageId: 'msg-1', partId: 'after', kind: 'text', pos: 3 },
+            { type: 'part-open', messageId: 'msg-1', partId: 'after', kind: 'text', pos: 5 },
             { type: 'part-append', partId: 'after', text: 'Answer after steer' }
           ]
         })
@@ -720,17 +736,38 @@ describe('MessagePartsRenderer', () => {
       expect(trigger).toHaveAttribute('aria-expanded', 'true')
       expectNodeBefore(trigger, screen.getByText('Steer now'))
       expectNodeBefore(screen.getByText('Steer now'), screen.getByText('Answer after steer'))
+      act(() => trigger.blur())
       act(() =>
         ipc.emit(attachment.subscriptionId, {
           kind: 'topic',
           type: 'parts',
           revision: 2,
+          patches: [
+            {
+              type: 'part-put',
+              partId: 'held',
+              part: { ...call, state: 'output-available', output: 'Partial', preliminary: true }
+            }
+          ]
+        })
+      )
+      expect(screen.getAllByTestId('completed-process-trigger')).toHaveLength(1)
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'invoking')
+      trigger.focus()
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 3,
           patches: [{ type: 'part-put', partId: 'held', part: { ...call, state: 'output-available', output: 'Done' } }]
         })
       )
       expect(trigger).toHaveFocus()
       expect(trigger.isConnected).toBe(true)
-      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(1)
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'done')
+      act(() => trigger.blur())
+      expect(screen.getAllByTestId('completed-process-trigger')).toHaveLength(2)
+      expect(screen.getByText('I will check the log.')).toBeVisible()
       tree.unmount()
       stop()
     })

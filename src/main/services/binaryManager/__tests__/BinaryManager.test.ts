@@ -961,19 +961,21 @@ describe('BinaryManager', () => {
       }
     )
 
-    it('uses the exact Windows command wrapper for an Agent whose name contains a dot', async () => {
+    it('uses the Windows command wrapper for a managed Agent command', async () => {
       platformMock.isWin = true
-      const name = 'agy_acp_server.par'
+      const name = 'pi'
+      const tool = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name]?.miseTool ?? name
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       const shim = path.join('/mock/feature.binary.data', 'shims', name + '.cmd')
+      mockFs.existsSync.mockImplementation((...args: unknown[]) => args[0] === shim)
       ;(mockFsp.access as any).mockImplementation(async (file: string) => {
         if (file.endsWith('.exe')) throw new Error('ENOENT')
       })
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => ({
         stdout:
-          args[0] === 'ls' ? JSON.stringify({ [name]: [{ version: '1.0.0', active: true }] }) : '/mock/bin/' + name,
+          args[0] === 'ls' ? JSON.stringify({ [tool]: [{ version: '1.0.0', active: true }] }) : '/mock/bin/' + name,
         stderr: ''
       }))
       expect((await service.getToolSnapshots([name]))[name].availability).toMatchObject({ source: 'mise', path: shim })
@@ -2479,6 +2481,18 @@ describe('BinaryManager', () => {
 
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual(['prune', 'fd'])
     })
+  })
+
+  it('skips download-cache cleanup while a tool mutation holds the lock', async () => {
+    const service = new BinaryManager()
+    const clear = async () => 'download cache cleared'
+    const release = await (service as any).mutationMutex.acquire()
+    try {
+      await expect(service.tryClearDownloadCaches(clear)).resolves.toBeNull()
+    } finally {
+      release()
+    }
+    await expect(service.tryClearDownloadCaches(clear)).resolves.toBe('download cache cleared')
   })
 
   describe('installByName (name-only fixed/custom install)', () => {
