@@ -715,6 +715,14 @@ export interface PreferenceSchemas {
     // redux/settings/showTopics
     'topic.tab.show': boolean
     // target-key-definitions/complex/complex
+    'ui.background.blur': number
+    // target-key-definitions/complex/complex
+    'ui.background.image': string
+    // target-key-definitions/complex/complex
+    'ui.background.opacity': number
+    // target-key-definitions/complex/complex
+    'ui.background.size': 'cover' | 'contain' | 'auto'
+    // target-key-definitions/complex/complex
     'ui.custom_css': string
     // target-key-definitions/complex/complex
     'ui.launchpad.app_order': PreferenceTypes.SidebarFavorite[]
@@ -1081,6 +1089,10 @@ export const DefaultPreferences: PreferenceSchemas = {
     'topic.tab.display_mode': 'assistant',
     'topic.tab.position': 'left',
     'topic.tab.show': true,
+    'ui.background.blur': 0,
+    'ui.background.image': '',
+    'ui.background.opacity': 100,
+    'ui.background.size': 'cover',
     'ui.custom_css': '',
     'ui.launchpad.app_order': [],
     'ui.marketplace.skill_sources': [],
@@ -1100,7 +1112,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 350
+ * - 总配置项: 354
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0
