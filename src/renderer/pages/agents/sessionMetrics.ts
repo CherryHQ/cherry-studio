@@ -1,5 +1,6 @@
 import { getMessageGenerationSample } from '@renderer/components/chat/messages/frame/messagePerformance'
-import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
+import { messagePartsAt, type MessagePartRows } from '@renderer/utils/message/messagePartRows'
+import type { CherryUIMessage, MessageStats } from '@shared/data/types/message'
 
 export interface AgentSessionMetrics {
   turns: number
@@ -29,7 +30,7 @@ function isToolPart(type: string): boolean {
 
 export function buildAgentSessionMetrics(
   messages: readonly CherryUIMessage[],
-  partsByMessageId: Readonly<Record<string, readonly CherryMessagePart[]>>
+  partsByMessageId: MessagePartRows
 ): AgentSessionMetrics {
   // A completed assistant turn counts by its completion status, not by the presence of usage
   // stats: forking a session preserves successful messages and tool parts but clears stats,
@@ -80,7 +81,8 @@ export function buildAgentSessionMetrics(
     usageIncomplete,
     turns: turns.length,
     toolSteps: turns.reduce(
-      (count, turn) => count + (partsByMessageId[turn.id] ?? []).filter((part) => isToolPart(part.type)).length,
+      (count, turn) =>
+        count + (messagePartsAt(partsByMessageId, turn.id) ?? []).filter((part) => isToolPart(part.type)).length,
       0
     ),
     inputTokens,

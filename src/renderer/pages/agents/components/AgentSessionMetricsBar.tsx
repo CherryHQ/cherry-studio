@@ -4,13 +4,14 @@ import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { buildAgentSessionMetrics } from '../sessionMetrics'
 
 interface AgentSessionMetricsBarProps {
   messages: readonly CherryUIMessage[]
-  partsByMessageId: Readonly<Record<string, readonly CherryMessagePart[]>>
+  partsByMessageId: MessagePartRows
   /** Older history is not loaded yet, so counts and token sums cover only the loaded messages. */
   partial?: boolean
 }
