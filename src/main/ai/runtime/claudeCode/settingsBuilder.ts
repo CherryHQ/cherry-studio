@@ -531,128 +531,205 @@ async function buildToolPermissions(
     // while the tool row is live, before approval or a headless denial settles the call.
     surfaceExitPlanModeInput(session.id, toolName, input, opts.toolUseID)
 
-    // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
-    // the live session snapshot, not a per-build instance the running subprocess never sees.
-    const snapshot = sessionState().getToolPolicySnapshot(session.id)
-    if (!snapshot) {
-      logger.warn('canUseTool fired with no live tool-policy snapshot — denying', { toolName })
-      return { behavior: 'deny', message: 'Tool policy not ready' }
-    }
+    const finalizeEvaluation = (
+      snapshot: ToolPolicySnapshot,
+      permissionMode: ReturnType<ToolPolicySnapshot['getPermissionMode']>,
+      skillAccess: ReturnType<typeof resolveMcpSkillToolAccess>,
+      checkShell: (command: string, mode: typeof permissionMode) => ReturnType<typeof checkCommand>,
+      commandPolicy: Awaited<ReturnType<typeof checkCommand>> | undefined,
+      installApprovalHolds: boolean,
+      interactionState: ReturnType<
+        ReturnType<typeof application.get<'AgentSessionRuntimeService'>>['getInteractionState']
+      >,
+      shellGuard: Awaited<ReturnType<typeof evaluateToolGuards>> | undefined
+    ) => {
+      if (shellGuard?.effect === 'deny') {
+        return {
+          kind: 'deny' as const,
+          result: { behavior: 'deny', message: shellGuard.reason } satisfies PermissionResult
+        }
+      }
+      const commandRequiresApproval = shellGuard?.effect === 'ask'
+      const policy = findBuiltinToolPolicy(toolName, mountedServers, input)
+      const delegationApproval =
+        policy?.approval === 'delegation'
+          ? resolveDelegationApproval(snapshot.getPermissionMode(), interactionState)
+          : undefined
+      if (delegationApproval === 'deny') {
+        return {
+          kind: 'deny' as const,
+          result: { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL } satisfies PermissionResult
+        }
+      }
+      // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
+      // requires a user decision, even when matchedAskRule is absent.
+      const rtkApprovalRequired =
+        toolName === 'Bash' && sessionState().isBashRtkApprovalRequired(session.id, opts.toolUseID)
+      const approvalHoldsInThisMode =
+        commandRequiresApproval ||
+        rtkApprovalRequired ||
+        installApprovalHolds ||
+        policy?.approval === 'delegation' ||
+        (policy?.approval === 'required' &&
+          !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift'))
+      const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
+      if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
+        return {
+          kind: 'deny' as const,
+          result: {
+            behavior: 'deny',
+            message: installApprovalHolds ? GLOBAL_INSTALL_UNATTENDED_DENIAL : HEADLESS_INTERACTIVE_TOOL_DENIAL
+          } satisfies PermissionResult
+        }
+      }
 
-    const permissionMode = snapshot.getPermissionMode()
-    if (permissionMode === 'plan' && CLAUDE_FILE_WRITE_TOOLS.has(toolName)) {
-      return { behavior: 'deny', message: FILE_WRITE_PLAN_DENIAL }
-    }
-    const skillAccess = resolveMcpSkillToolAccess(toolName, input)
-    if (skillAccess?.enabled === false) return { behavior: 'deny', message: 'This MCP skill is disabled.' }
-    const dialect = shellToolDialect(toolName)
-    const checkShell = (command: string, mode: typeof permissionMode) =>
-      checkCommand({ command, dialect: dialect ?? 'bash', cwd, builtinRole, permissionMode: mode })
-    const commandPolicy =
-      dialect && typeof input.command === 'string' ? await checkShell(input.command, permissionMode) : undefined
-    const globalInstall =
-      toolName === 'Bash' && typeof input.command === 'string' && detectGlobalInstall(input.command) !== null
-    if (globalInstall && permissionMode === 'plan') {
-      return { behavior: 'deny', message: GLOBAL_INSTALL_PLAN_DENIAL }
-    }
-    const installApprovalHolds = globalInstall && permissionMode !== 'bypassPermissions'
+      const access =
+        skillAccess && permissionMode === 'bypassPermissions'
+          ? { approval: 'auto' }
+          : (skillAccess ?? snapshot.resolve(toolName))
+      // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
+      // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
+      // bypassPermissions marks every ordinary tool as auto-approved.
+      if (
+        toolName !== ASK_USER_QUESTION_TOOL_NAME &&
+        !approvalHoldsInThisMode &&
+        (policy?.approval === 'auto' || access?.approval === 'auto')
+      ) {
+        return { kind: 'allow' as const, result: { behavior: 'allow', updatedInput: input } satisfies PermissionResult }
+      }
 
-    // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce the per-turn
-    // no-responder denial at fire time too. It mirrors the guard table's headless rules — Full Access
-    // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
-    // `canUseTool` under bypassPermissions.
-    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
-    const shellGuard = commandPolicy
-      ? await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
+      const hasLiveTurnStream = interactionState.userResponse === 'stream'
+      // A headless turn (channel / scheduled) is unattended work with no approval UI, like a sub-agent.
+      // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
+      const isBackgroundAgent =
+        (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
+      const requiresUserResponse =
+        requiresInteractiveResponder ||
+        opts.matchedAskRule !== undefined ||
+        (commandPolicy !== undefined && permissionMode !== 'auto' && permissionMode !== 'bypassPermissions')
+
+      // Shell consent follows the root's current mode, including background children.
+      if (isBackgroundAgent && !requiresUserResponse) {
+        return { kind: 'allow' as const, result: { behavior: 'allow', updatedInput: input } satisfies PermissionResult }
+      }
+
+      // Interactive background requests are rendered as independent assistant messages. This is
+      // intentionally separate from "has a live turn": the parent turn may be complete while its
+      // background agent is still waiting for the user. Tools needing a user-authored answer stay
+      // fail-closed on channel/scheduled runs — they have no responder.
+      if (
+        (!hasLiveTurnStream && !requiresUserResponse) ||
+        (requiresUserResponse &&
+          (!hasLiveTurnStream || isBackgroundAgent) &&
+          interactionState.userResponse === 'unavailable')
+      ) {
+        logger.warn('Approval requested outside a live interactive turn — denying', {
           toolName,
-          input,
-          permissionMode,
-          builtinRole,
-          mountedServers,
-          pluginDirectories,
-          cwd,
-          agentDataPath,
-          interaction: interactionState,
-          isDisabled: (name) => snapshot.isDisabled(name)
+          isBackgroundAgent
         })
-      : undefined
-    if (shellGuard?.effect === 'deny') return { behavior: 'deny', message: shellGuard.reason }
-    const commandRequiresApproval = shellGuard?.effect === 'ask'
-    const policy = findBuiltinToolPolicy(toolName, mountedServers, input)
-    const delegationApproval =
-      policy?.approval === 'delegation'
-        ? resolveDelegationApproval(snapshot.getPermissionMode(), interactionState)
-        : undefined
-    if (delegationApproval === 'deny') {
-      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
-    }
-    // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
-    // requires a user decision, even when matchedAskRule is absent.
-    const rtkApprovalRequired =
-      toolName === 'Bash' && sessionState().isBashRtkApprovalRequired(session.id, opts.toolUseID)
-    const approvalHoldsInThisMode =
-      commandRequiresApproval ||
-      rtkApprovalRequired ||
-      installApprovalHolds ||
-      policy?.approval === 'delegation' ||
-      (policy?.approval === 'required' &&
-        !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift'))
-    const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
-    if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
+        return {
+          kind: 'deny' as const,
+          result: { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL } satisfies PermissionResult
+        }
+      }
       return {
-        behavior: 'deny',
-        message: installApprovalHolds ? GLOBAL_INSTALL_UNATTENDED_DENIAL : HEADLESS_INTERACTIVE_TOOL_DENIAL
+        kind: 'ask' as const,
+        snapshot,
+        commandPolicy,
+        shellGuard,
+        checkShell,
+        presentation: !hasLiveTurnStream || isBackgroundAgent ? ('message' as const) : ('stream' as const)
       }
     }
 
-    const access =
-      skillAccess && permissionMode === 'bypassPermissions'
-        ? { approval: 'auto' }
-        : (skillAccess ?? snapshot.resolve(toolName))
-    // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
-    // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
-    // bypassPermissions marks every ordinary tool as auto-approved.
-    if (
-      toolName !== ASK_USER_QUESTION_TOOL_NAME &&
-      !approvalHoldsInThisMode &&
-      (policy?.approval === 'auto' || access?.approval === 'auto')
-    ) {
-      return { behavior: 'allow', updatedInput: input }
+    const evaluate = () => {
+      // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
+      // the live session snapshot, not a per-build instance the running subprocess never sees.
+      const snapshot = sessionState().getToolPolicySnapshot(session.id)
+      if (!snapshot) {
+        logger.warn('canUseTool fired with no live tool-policy snapshot — denying', { toolName })
+        return {
+          kind: 'deny' as const,
+          result: { behavior: 'deny', message: 'Tool policy not ready' } satisfies PermissionResult
+        }
+      }
+
+      const permissionMode = snapshot.getPermissionMode()
+      if (permissionMode === 'plan' && CLAUDE_FILE_WRITE_TOOLS.has(toolName)) {
+        return {
+          kind: 'deny' as const,
+          result: { behavior: 'deny', message: FILE_WRITE_PLAN_DENIAL } satisfies PermissionResult
+        }
+      }
+      const skillAccess = resolveMcpSkillToolAccess(toolName, input)
+      if (skillAccess?.enabled === false) {
+        return {
+          kind: 'deny' as const,
+          result: { behavior: 'deny', message: 'This MCP skill is disabled.' } satisfies PermissionResult
+        }
+      }
+      const dialect = shellToolDialect(toolName)
+      const checkShell = (command: string, mode: typeof permissionMode) =>
+        checkCommand({ command, dialect: dialect ?? 'bash', cwd, builtinRole, permissionMode: mode })
+      const globalInstall =
+        toolName === 'Bash' && typeof input.command === 'string' && detectGlobalInstall(input.command) !== null
+      if (globalInstall && permissionMode === 'plan') {
+        return {
+          kind: 'deny' as const,
+          result: { behavior: 'deny', message: GLOBAL_INSTALL_PLAN_DENIAL } satisfies PermissionResult
+        }
+      }
+      const installApprovalHolds = globalInstall && permissionMode !== 'bypassPermissions'
+
+      // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce the per-turn
+      // no-responder denial at fire time too. It mirrors the guard table's headless rules — Full Access
+      // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
+      // `canUseTool` under bypassPermissions.
+      const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+      if (dialect && typeof input.command === 'string') {
+        return checkShell(input.command, permissionMode).then(async (commandPolicy) => {
+          const shellGuard = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
+            toolName,
+            input,
+            permissionMode,
+            builtinRole,
+            mountedServers,
+            pluginDirectories,
+            cwd,
+            agentDataPath,
+            interaction: interactionState,
+            isDisabled: (name) => snapshot.isDisabled(name)
+          })
+          return finalizeEvaluation(
+            snapshot,
+            permissionMode,
+            skillAccess,
+            checkShell,
+            commandPolicy,
+            installApprovalHolds,
+            interactionState,
+            shellGuard
+          )
+        })
+      }
+
+      return finalizeEvaluation(
+        snapshot,
+        permissionMode,
+        skillAccess,
+        checkShell,
+        undefined,
+        installApprovalHolds,
+        interactionState,
+        undefined
+      )
     }
 
-    const hasLiveTurnStream = interactionState.userResponse === 'stream'
-    // A headless turn (channel / scheduled) is unattended work with no approval UI, like a sub-agent.
-    // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
-    const isBackgroundAgent =
-      (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
-    const requiresUserResponse =
-      requiresInteractiveResponder ||
-      opts.matchedAskRule !== undefined ||
-      (commandPolicy !== undefined && permissionMode !== 'auto' && permissionMode !== 'bypassPermissions')
+    const initial = evaluate()
+    const evaluated = initial instanceof Promise ? await initial : initial
+    if (evaluated.kind !== 'ask') return evaluated.result
 
-    // Shell consent follows the root's current mode, including background children.
-    if (isBackgroundAgent && !requiresUserResponse) {
-      return { behavior: 'allow', updatedInput: input }
-    }
-
-    // Interactive background requests are rendered as independent assistant messages. This is
-    // intentionally separate from "has a live turn": the parent turn may be complete while its
-    // background agent is still waiting for the user. Tools needing a user-authored answer stay
-    // fail-closed on channel/scheduled runs — they have no responder.
-    if (
-      (!hasLiveTurnStream && !requiresUserResponse) ||
-      (requiresUserResponse &&
-        (!hasLiveTurnStream || isBackgroundAgent) &&
-        interactionState.userResponse === 'unavailable')
-    ) {
-      logger.warn('Approval requested outside a live interactive turn — denying', {
-        toolName,
-        isBackgroundAgent
-      })
-      return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
-    }
-
-    const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
+    const { snapshot, commandPolicy, shellGuard, checkShell, presentation } = evaluated
     const originalInput = JSON.stringify(input)
     const approvalId = randomUUID()
     const emit = sessionState().peekToolApprovalEmitter(session.id)?.emit
@@ -669,6 +746,20 @@ async function buildToolPermissions(
         originalInput: input,
         presentation,
         signal: opts.signal,
+        ...(claudeToolRequiresUserInteraction(toolName)
+          ? {}
+          : {
+              reevaluate: async () => {
+                const next = await evaluate()
+                if (next.kind === 'allow') {
+                  return { approved: true, reevaluated: true, updatedInput: next.result.updatedInput }
+                }
+                if (next.kind === 'deny') {
+                  return { approved: false, reevaluated: true, reason: next.result.message }
+                }
+                return undefined
+              }
+            }),
         resolve: (decision) => {
           if (!decision.approved || !commandPolicy) {
             resolve(decisionToPermissionResult(decision, input))
@@ -684,7 +775,7 @@ async function buildToolPermissions(
                 resolve({ behavior: 'deny', message: checked.reason ?? t('command_approval.configuration_error') })
               else if (
                 opts.signal.aborted ||
-                checked.context !== commandPolicy.context ||
+                (!decision.reevaluated && checked.context !== commandPolicy.context) ||
                 snapshot.isDisabled(toolName) ||
                 JSON.stringify(input) !== originalInput
               )

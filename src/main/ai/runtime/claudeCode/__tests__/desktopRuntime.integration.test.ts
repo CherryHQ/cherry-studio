@@ -1568,6 +1568,71 @@ it.each([
   30000
 )
 
+it('re-evaluates pending tool approvals during reconcile while keeping AskUserQuestion pending', async () => {
+  const modelId = 'native-test::claude-sonnet-4-6'
+  const { permissionMode, allowDangerouslySkipPermissions } = createClaudeCodeQueryOptions({
+    modelId,
+    settings: { permissionMode: 'default' }
+  })
+  const test = await desktop({ permissionMode, allowDangerouslySkipPermissions, tools: ['Write'] })
+  const agentId = randomUUID()
+  dbh.db
+    .insert(agentTable)
+    .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', orderKey: 'a0' })
+    .run()
+  const agent = agentService.getAgent(agentId)!
+  const snapshot = await createClaudeAgentToolPolicySnapshot({
+    ...agent,
+    configuration: { ...agent.configuration, permission_mode: 'default' }
+  })
+  const built = await ports.build()
+  built.settings.toolPolicySnapshot = snapshot
+  built.connectionConfig.live.toolPolicy.permissionMode = 'default'
+  const connection = await test.connect(undefined, undefined, true, { sessionId: test.sessionId, agentId, modelId })
+
+  const writeResolve = vi.fn()
+  const askResolve = vi.fn()
+  const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
+  toolApprovalRegistry.register({
+    approvalId: 'claude-pending-write',
+    sessionId: test.sessionId,
+    toolCallId: 'tu-write',
+    toolName: 'Write',
+    originalInput: { file_path: 'a.txt', content: 'x' },
+    presentation: 'stream',
+    reevaluate: async () =>
+      snapshot.getPermissionMode() === 'bypassPermissions' ? { approved: true, reevaluated: true } : undefined,
+    resolve: writeResolve
+  })
+  toolApprovalRegistry.register({
+    approvalId: 'claude-pending-ask',
+    sessionId: test.sessionId,
+    toolCallId: 'tu-ask',
+    toolName: 'AskUserQuestion',
+    originalInput: { questions: [] },
+    presentation: 'stream',
+    resolve: askResolve
+  })
+
+  await connection.send(test.input('Wait for reconcile'))
+  await test.request()
+
+  const { live } = built.connectionConfig
+  ports.derive.mockResolvedValueOnce({
+    ok: true,
+    config: {
+      ...built.connectionConfig,
+      live: { ...live, toolPolicy: { ...live.toolPolicy, permissionMode: 'bypassPermissions' } }
+    }
+  })
+  expect(await connection.reconcile({ modelId })).toBe('patched')
+  expect(writeResolve).toHaveBeenCalledWith({ approved: true, reevaluated: true })
+  expect(askResolve).not.toHaveBeenCalled()
+  expect(toolApprovalRegistry.peek('claude-pending-write')).toBeUndefined()
+  expect(toolApprovalRegistry.peek('claude-pending-ask')).toBeDefined()
+  toolApprovalRegistry.abort(test.sessionId, 'test-cleanup')
+}, 30000)
+
 it('interrupts an active native request before retiring its owner and permits a new connection', async () => {
   const test = await desktop()
   const connection = await test.connect()

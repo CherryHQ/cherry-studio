@@ -602,6 +602,159 @@ describe('desktop Pi root connection', () => {
     expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
   })
 
+  // Catches issue #24432: switching default -> bypassPermissions while a write approval is already
+  // parked must release the write immediately, execute it, clear the pending approval, and finish the turn.
+  it('releases a parked write approval when switching default → bypassPermissions mid-turn', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply([toolCallPart('write-1', 'write', { path: 'parked-write.txt', content: 'released' })], 'toolUse'),
+      assistantReply('write completed')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('write file') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+    expect(approvals()[0].request).toMatchObject({ toolCallId: 'write-1', toolName: 'write' })
+    expect(existsSync(join(directory, 'parked-write.txt'))).toBe(false)
+    expect(toolApprovalRegistry.size()).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'bypassPermissions' }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+
+    await done(events, APPROVAL_WAIT.timeout)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(toolApprovalRegistry.size()).toBe(0)
+    expect(readFileSync(join(directory, 'parked-write.txt'), 'utf8')).toBe('released')
+  })
+
+  it('releases a parked safe bash approval on default → bypassPermissions', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply([toolCallPart('bash-1', 'bash', { command: 'printf ok > bash-released.txt' })], 'toolUse'),
+      assistantReply('bash done')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('run bash') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+    expect(approvals()[0].request).toMatchObject({ toolCallId: 'bash-1', toolName: 'bash' })
+    expect(existsSync(join(directory, 'bash-released.txt'))).toBe(false)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'bypassPermissions' }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+
+    await done(events, APPROVAL_WAIT.timeout)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(toolApprovalRegistry.size()).toBe(0)
+    expect(readFileSync(join(directory, 'bash-released.txt'), 'utf8')).toBe('ok')
+  })
+
+  it('blocks a parked bash call instead of bypassing when the tool becomes disabled on mode switch', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply(
+        [toolCallPart('bash-disabled', 'bash', { command: 'printf nope > blocked-disabled.txt' })],
+        'toolUse'
+      ),
+      assistantReply('blocked disabled')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('run bash') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'bypassPermissions' }
+    snapshot.agent.disabledTools = ['bash']
+    await connection.reconcile({ modelId: input.modelId })
+
+    await done(events, APPROVAL_WAIT.timeout)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(toolApprovalRegistry.size()).toBe(0)
+    expect(existsSync(join(directory, 'blocked-disabled.txt'))).toBe(false)
+    expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('disabled')
+  })
+
+  it('blocks a parked write approval without executing it when switching default → plan mid-turn', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply([toolCallPart('write-plan', 'write', { path: 'plan-blocked.txt', content: 'nope' })], 'toolUse'),
+      assistantReply('blocked by plan')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('write file') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'plan' }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+
+    await done(events, APPROVAL_WAIT.timeout)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(toolApprovalRegistry.size()).toBe(0)
+    expect(existsSync(join(directory, 'plan-blocked.txt'))).toBe(false)
+    expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('Plan mode is read-only')
+  })
+
+  it('leaves a parked bash approval pending when switching default → acceptEdits mid-turn', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply([toolCallPart('bash-stay', 'bash', { command: 'printf kept > bash-kept.txt' })], 'toolUse'),
+      assistantReply('done after manual approval')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('run bash') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'acceptEdits' }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+
+    expect(toolApprovalRegistry.size()).toBe(1)
+    expect(toolApprovalRegistry.peek(approvals()[0].request.approvalId)).toBeDefined()
+    expect(existsSync(join(directory, 'bash-kept.txt'))).toBe(false)
+  })
+
+  it('keeps AskUserQuestion pending when switching default → bypassPermissions mid-turn', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask-keep', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Which option?',
+                header: 'Option',
+                options: [
+                  { label: 'A', description: 'First' },
+                  { label: 'B', description: 'Second' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply('answered A')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('ask me') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'bypassPermissions' }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+
+    expect(toolApprovalRegistry.size()).toBe(1)
+    expect(toolApprovalRegistry.peek(approvals()[0].request.approvalId)).toBeDefined()
+
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Which option?': 'A' } }
+    })
+    await done(events, APPROVAL_WAIT.timeout)
+    expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('A')
+  })
+
   // Catches shutdown waiting indefinitely for an unanswered desktop question.
   it('withdraws a pending question on close without another model request', async () => {
     setScript([

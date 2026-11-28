@@ -41,6 +41,7 @@ export type ApprovalAnswer =
   | { readonly kind: 'granted'; readonly args?: JsonValue }
   | { readonly kind: 'denied'; readonly feedback?: string }
   | { readonly kind: 'unavailable' }
+  | { readonly kind: 'recheck' }
 export type QuestionOption = { readonly label: string; readonly description: string; readonly preview?: string }
 export type QuestionItem = {
   readonly question: string

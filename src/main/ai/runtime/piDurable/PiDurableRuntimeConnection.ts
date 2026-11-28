@@ -1019,7 +1019,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       try {
         const nextInput = { ...this.input, ...input, permissionModeOverride: input.permissionModeOverride }
         const next = await this.desktop!.reconcile(nextInput, this.active)
-        if (next.permissionChanged) await this.handle!.durable.permissionModeChanged()
+        if (next.permissionChanged) {
+          await this.handle!.durable.permissionModeChanged()
+          await toolApprovalRegistry.reevaluate(this.input.sessionId, this.context?.id)
+        }
         if (
           this.failure ||
           next.signature !== this.desktop!.snapshot.signature ||

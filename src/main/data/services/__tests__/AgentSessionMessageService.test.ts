@@ -2492,6 +2492,47 @@ describe('AgentSessionMessageService', () => {
     ).toMatchObject({ state: 'output-error' })
   })
 
+  it('settles a parked approval-requested card by approvalId when auto-resolved', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-write',
+              toolCallId: 'tool-call-write',
+              state: 'approval-requested',
+              input: { path: 'a.txt', content: 'hi' },
+              approval: { id: 'approval-auto' }
+            }
+          ]
+        }
+      }
+    })
+
+    expect(
+      agentSessionMessageService.applyPendingToolApprovalDecision(SESSION_ID, {
+        approvalId: 'approval-auto',
+        approved: true
+      })
+    ).toBe(true)
+    expect(
+      agentSessionMessageService.applyPendingToolApprovalDecision(SESSION_ID, {
+        approvalId: 'approval-auto',
+        approved: true
+      })
+    ).toBe(false)
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
+    ).toMatchObject({
+      state: 'approval-responded',
+      approval: { id: 'approval-auto', approved: true }
+    })
+  })
+
   it('keeps attachment refs in sync with agent-session message history', async () => {
     await dbh.db.insert(fileEntryTable).values({
       id: FILE_ENTRY_ID,

@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   hasSessionMessages: vi.fn<(_sessionId: string) => boolean>(),
   hasSessionMessage: vi.fn<(_sessionId: string, _messageId: string) => boolean>(() => true),
   applyToolApprovalDecision: vi.fn(),
+  applyPendingToolApprovalDecision: vi.fn(),
   retireAbandonedApproval: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   relocateSystemWorkspaces: vi.fn<() => Promise<Set<string>>>(),
@@ -155,6 +156,7 @@ vi.mock('@data/services/AgentSessionMessageService', async (importOriginal) => {
       hasSessionMessage: mocks.hasSessionMessage,
       hasContextModelInput: agentSessionMessageService.hasContextModelInput.bind(agentSessionMessageService),
       applyToolApprovalDecision: mocks.applyToolApprovalDecision,
+      applyPendingToolApprovalDecision: mocks.applyPendingToolApprovalDecision,
       retireAbandonedApproval: mocks.retireAbandonedApproval,
       getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
       getNativeSessionId: vi.fn(),
@@ -1156,6 +1158,149 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(resolve).toHaveBeenCalledWith({ approved: false, reason: 'stream-ended' })
       expect(mocks.retireAbandonedApproval).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('auto-resolved approvals on mode switch', () => {
+    it('settles a live stream approval and skips stale presentation if auto-resolved beforehand', async () => {
+      const resolveLive = vi.fn()
+      const resolveEarly = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-live-mode',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-live',
+        toolName: 'write',
+        originalInput: { path: 'a.txt', content: 'hi' },
+        presentation: 'stream',
+        reevaluate: async () => ({ approved: true, reevaluated: true }),
+        resolve: resolveLive
+      })
+      toolApprovalRegistry.register({
+        approvalId: 'approval-early-mode',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-early',
+        toolName: 'write',
+        originalInput: { path: 'b.txt', content: 'hi' },
+        presentation: 'stream',
+        reevaluate: async () => ({ approved: true, reevaluated: true }),
+        resolve: resolveEarly
+      })
+      const events = createAsyncQueue<AgentRuntimeEvent>()
+      const connection: AgentRuntimeConnection = {
+        events: events.iterable,
+        send: vi.fn(),
+        close: vi.fn(async () => {
+          events.end()
+        }),
+        reconcile: async () => 'current'
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn()
+      })
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+      try {
+        const handle = service.beginTurn(baseTurnInput)
+        const reader = openChunkStream(service, {
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        }).getReader()
+        await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+
+        events.push({
+          type: 'tool-approval-request',
+          request: {
+            approvalId: 'approval-live-mode',
+            toolCallId: 'tool-call-live',
+            toolName: 'write',
+            input: { path: 'a.txt', content: 'hi' },
+            presentation: 'stream'
+          }
+        })
+        await expect(reader.read()).resolves.toMatchObject({
+          value: { type: 'tool-input-available', toolCallId: 'tool-call-live' }
+        })
+        await expect(reader.read()).resolves.toMatchObject({
+          value: { type: 'tool-approval-request', approvalId: 'approval-live-mode' }
+        })
+
+        await expect(toolApprovalRegistry.reevaluate('session-1')).resolves.toBe(2)
+
+        expect(resolveLive).toHaveBeenCalledWith({ approved: true, reevaluated: true })
+        expect(resolveEarly).toHaveBeenCalledWith({ approved: true, reevaluated: true })
+        expect(mocks.resolveToolApproval).toHaveBeenCalledWith(
+          'agent-session:session-1',
+          'tool-call-live',
+          'approval-live-mode',
+          true
+        )
+        expect(mocks.resolveToolApproval).toHaveBeenCalledWith(
+          'agent-session:session-1',
+          'tool-call-early',
+          'approval-early-mode',
+          true
+        )
+        const callsBeforeLateEvent = mocks.resolveToolApproval.mock.calls.length
+
+        // Late presentation of an already auto-resolved approval must not emit another approval card or replay resolve.
+        events.push({
+          type: 'tool-approval-request',
+          request: {
+            approvalId: 'approval-early-mode',
+            toolCallId: 'tool-call-early',
+            toolName: 'write',
+            input: { path: 'b.txt', content: 'hi' },
+            presentation: 'stream'
+          }
+        })
+        events.push({ type: 'turn-complete' })
+        await vi.waitFor(() => expect(mocks.resolveToolApproval).toHaveBeenCalledTimes(callsBeforeLateEvent))
+
+        const trailingChunks: unknown[] = []
+        while (true) {
+          const next = await reader.read()
+          if (next.done) break
+          trailingChunks.push(next.value)
+        }
+        expect(trailingChunks).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ type: 'tool-approval-request', approvalId: 'approval-early-mode' })
+          ])
+        )
+      } finally {
+        await (service as any).onDestroy()
+      }
+    })
+
+    it('settles a parked message-presentation approval card when auto-resolved', async () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-msg-mode',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-msg',
+        toolName: 'write',
+        originalInput: { path: 'c.txt', content: 'hi' },
+        presentation: 'message',
+        reevaluate: async () => ({ approved: true, reevaluated: true }),
+        resolve
+      })
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+      try {
+        await expect(toolApprovalRegistry.reevaluate('session-1')).resolves.toBe(1)
+
+        expect(resolve).toHaveBeenCalledWith({ approved: true, reevaluated: true })
+        expect(mocks.applyPendingToolApprovalDecision).toHaveBeenCalledWith('session-1', {
+          approvalId: 'approval-msg-mode',
+          approved: true
+        })
+      } finally {
+        await (service as any).onDestroy()
+      }
     })
   })
 

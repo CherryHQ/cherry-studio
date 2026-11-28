@@ -1707,6 +1707,97 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect(mocks.approvalRegister).not.toHaveBeenCalled()
       }
     )
+
+    it('reevaluates parked Write and Bash approvals on permission mode change while keeping AskUserQuestion pending', async () => {
+      let currentMode = 'default'
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: vi.fn((name: string) => ({
+          approval:
+            currentMode === 'bypassPermissions'
+              ? 'auto'
+              : currentMode === 'acceptEdits' && name === 'Write'
+                ? 'auto'
+                : 'prompt'
+        })),
+        isDisabled: vi.fn(() => false),
+        getPermissionMode: vi.fn(() => currentMode),
+        update: vi.fn(),
+        setPermissionMode: vi.fn((next: string) => {
+          currentMode = next
+        })
+      })
+      const originalGet = mocks.applicationGet.getMockImplementation()!
+      mocks.applicationGet.mockImplementation((name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? { getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }) }
+          : originalGet(name)
+      )
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      settings.approvalEmitter!.emit = vi.fn()
+
+      // 1. Write parked in default -> bypassPermissions allows it; plan blocks it.
+      const writeInput = { file_path: '/workspace/project/out.txt', content: 'hi' }
+      const writePending = settings.canUseTool!('Write', writeInput, {
+        signal: new AbortController().signal,
+        toolUseID: 'tu-write',
+        requestId: 'req-write',
+        matchedAskRule: undefined
+      })
+      await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalledTimes(1))
+      const writeReg = mocks.approvalRegister.mock.lastCall![0]
+      await expect(writeReg.reevaluate!()).resolves.toBeUndefined()
+      currentMode = 'plan'
+      await expect(writeReg.reevaluate!()).resolves.toMatchObject({ approved: false, reevaluated: true })
+      currentMode = 'bypassPermissions'
+      const writeDecision = await writeReg.reevaluate!()
+      expect(writeDecision).toEqual({ approved: true, reevaluated: true, updatedInput: writeInput })
+      if (!writeDecision) throw new Error('Expected writeDecision')
+      writeReg.resolve(writeDecision)
+      await expect(writePending).resolves.toEqual({ behavior: 'allow', updatedInput: writeInput })
+
+      // 2. Bash parked in default -> stays pending in acceptEdits, allowed in bypassPermissions without stale-context denial.
+      currentMode = 'default'
+      mocks.approvalRegister.mockClear()
+      const bashInput = { command: 'echo hello' }
+      const bashPending = settings.canUseTool!('Bash', bashInput, {
+        signal: new AbortController().signal,
+        toolUseID: 'tu-bash',
+        requestId: 'req-bash',
+        matchedAskRule: undefined
+      })
+      await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalledTimes(1))
+      const bashReg = mocks.approvalRegister.mock.lastCall![0]
+      currentMode = 'acceptEdits'
+      await expect(bashReg.reevaluate!()).resolves.toBeUndefined()
+      currentMode = 'bypassPermissions'
+      const bashDecision = await bashReg.reevaluate!()
+      expect(bashDecision).toEqual({ approved: true, reevaluated: true, updatedInput: bashInput })
+      if (!bashDecision) throw new Error('Expected bashDecision')
+      bashReg.resolve(bashDecision)
+      await expect(bashPending).resolves.toEqual({ behavior: 'allow', updatedInput: bashInput })
+
+      // 3. AskUserQuestion never provides a mode-switch reevaluator.
+      mocks.approvalRegister.mockClear()
+      void settings.canUseTool!(
+        'AskUserQuestion',
+        { questions: [] },
+        {
+          signal: new AbortController().signal,
+          toolUseID: 'tu-ask',
+          requestId: 'req-ask',
+          matchedAskRule: undefined
+        }
+      )
+      await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalledTimes(1))
+      expect(mocks.approvalRegister.mock.lastCall![0].reevaluate).toBeUndefined()
+    })
   })
 
   // Catches a leading safe command word auto-approving a Bash call the SDK escalated to canUseTool.
