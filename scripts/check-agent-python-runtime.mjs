@@ -59,7 +59,7 @@ worker.onmessage = (event) => {
   const port = server.httpServer.address().port
   const origin = `http://127.0.0.1:${port}`
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_EXECUTABLE_PATH, headless: true })
-  for (const corrupt of [false, true]) {
+  for (const scenario of ['offline', 'corrupt-wheel', 'missing-wasm', 'corrupt-wasm']) {
     const context = await browser.newContext()
     const external = []
     await context.route('**/*', (route) => {
@@ -68,8 +68,11 @@ worker.onmessage = (event) => {
         external.push(url)
         return route.abort()
       }
-      if (corrupt && url.endsWith('openpyxl-3.1.5-py2.py3-none-any.whl')) {
+      if (scenario === 'corrupt-wheel' && url.endsWith('openpyxl-3.1.5-py2.py3-none-any.whl')) {
         return route.fulfill({ status: 200, body: 'corrupt wheel' })
+      }
+      if (scenario.endsWith('-wasm') && url.endsWith('pyodide.asm.wasm')) {
+        return route.fulfill({ status: scenario === 'missing-wasm' ? 404 : 200, body: 'invalid wasm' })
       }
       return route.continue()
     })
@@ -81,22 +84,21 @@ worker.onmessage = (event) => {
       { timeout: 60000 }
     )
     const results = await page.evaluate(() => window.results)
-    const passed = corrupt
-      ? results.some((item) => item.type === 'init-error' && item.error.includes('Repair the application')) &&
-        !results.some((item) => item.id === 'xlsx')
-      : results.some(
-          (item) =>
-            item.id === 'xlsx' &&
-            !item.output.error &&
-            item.output.text.includes('Offline XLSX read, edit and save passed')
-        )
+    const passed =
+      scenario !== 'offline'
+        ? results.some((item) => item.type === 'init-error' && item.error.includes('Repair the application')) &&
+          !results.some((item) => item.id === 'xlsx')
+        : results.some(
+            (item) =>
+              item.id === 'xlsx' &&
+              !item.output.error &&
+              item.output.text.includes('Offline XLSX read, edit and save passed')
+          )
     if (!passed || external.length)
-      throw new Error(
-        `${corrupt ? 'Corrupt wheel' : 'Offline workbook'} acceptance failed: ${JSON.stringify({ results, external })}`
-      )
+      throw new Error(`${scenario} acceptance failed: ${JSON.stringify({ results, external })}`)
     console.log(
-      corrupt
-        ? 'Corrupt managed wheel rejected without external requests.'
+      scenario !== 'offline'
+        ? `${scenario} rejected with repair guidance and no external requests.`
         : 'Offline managed workbook round trip passed.',
       results
     )

@@ -65,6 +65,14 @@ let output: PyodideOutput = {
   error: null
 }
 
+const bootstrapTimeout = setTimeout(() => {
+  self.postMessage({
+    type: 'init-error',
+    error: 'Managed Python runtime initialization stalled. Repair the application installation and try again.'
+  } satisfies WorkerResponse)
+  self.close()
+}, 20_000)
+
 const pyodidePromise = (async () => {
   // 重置输出变量
   output = {
@@ -133,9 +141,11 @@ function processResult(result: any): any {
 // 通知主线程已加载
 pyodidePromise
   .then(({ diagnostics }) => {
+    clearTimeout(bootstrapTimeout)
     self.postMessage({ type: 'initialized', diagnostics } satisfies WorkerResponse)
   })
   .catch((error: unknown) => {
+    clearTimeout(bootstrapTimeout)
     const errorMessage = error instanceof Error ? error.message : String(error)
     self.postMessage({
       type: 'init-error',

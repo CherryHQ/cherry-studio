@@ -67,10 +67,17 @@ class PyodideService {
 
           // 设置初始化超时
           const timeout = setTimeout(() => {
+            this.worker?.removeEventListener('message', initHandler)
+            this.worker?.terminate()
             this.worker = null
+            this.diagnostics = null
             this.initPromise = null
             this.initRetryCount++
-            reject(new Error('Pyodide initialization timeout'))
+            reject(
+              new Error(
+                'Managed Python runtime initialization stalled. Repair the application installation and try again.'
+              )
+            )
           }, SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.INIT)
 
           // 设置初始化处理器
