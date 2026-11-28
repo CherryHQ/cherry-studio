@@ -1276,8 +1276,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = await this.ensureSessionConnection(sessionId)
     const commands = await connection?.getSupportedCommands?.()
     const entry = this.entries.get(sessionId)
-    if (commands && entry && this.currentConnection(entry) === connection)
-      cache.setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId), commands)
+    if (!entry || !connection || this.currentConnection(entry) !== connection || entry.closing) return []
+    if (commands) this.publishSupportedCommands(entry, commands)
     return commands ?? []
   }
 
@@ -1298,7 +1298,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     if (entry) this.clearIdleTimer(entry)
     await this.closingSessions.get(sessionId)?.promise
-    if (this.interactiveLocalSessions.get(windowId) === sessionId) await this.ensureSessionConnection(sessionId)
+    if (this.interactiveLocalSessions.get(windowId) === sessionId) await this.listSessionCommands(sessionId)
   }
 
   private releaseLocalSessionInterest(windowId: WindowId): void {
@@ -3159,8 +3159,6 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishLocalSessionInfo(entry, event.info)
         break
       case 'supported-commands':
-        // SDK pushed a refreshed catalog (`commands_changed`) — replace the cached list so the
-        // composer and channel `/help` reflect commands discovered after the initial read.
         this.publishSupportedCommands(entry, event.commands)
         break
       case 'background-tasks':
@@ -3697,7 +3695,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private publishSupportedCommands(entry: AgentSessionRuntimeEntry, commands: AgentSessionSlashCommand[]): void {
-    if (!this.isCurrentEntry(entry)) return
+    if (this.entries.get(entry.sessionId) !== entry || entry.closing) return
     application.get('CacheService').setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId), commands)
   }
 
@@ -3973,6 +3971,9 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
     }
     const cache = application.get('CacheService')
+    if (this.entries.get(entry.sessionId) === entry) {
+      cache.deleteShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId))
+    }
     if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})

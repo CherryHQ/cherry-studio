@@ -100,7 +100,8 @@ are preserved.
   its production connection in the background once its workspace is known. Read-only
   history uses Cherry’s saved messages. The permission menu displays connection status
   until the formal connection reports its choices. A send or command request joins
-  the same opening or restore.
+  the same opening or restore. Activation reads the command catalog from that
+  connection, and retiring the connection drops its cached command descriptions.
   After the last interactive view leaves, a resumable idle connection is eligible for
   the normal idle timeout. Active execution retains its connection.
 - CLI-backed adapters share executable and environment resolution in `runtime/cli`.

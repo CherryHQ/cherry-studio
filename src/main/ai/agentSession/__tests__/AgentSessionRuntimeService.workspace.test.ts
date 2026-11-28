@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
@@ -20,6 +21,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type * as ShellEnv from '@main/utils/shellEnv'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
@@ -322,6 +324,50 @@ it('reclaims an idle ACP connection after the last interactive view leaves and r
   expect((await readAcpRequests()).some(({ method }) => method === 'session/new' || method === 'session/prompt')).toBe(
     false
   )
+})
+
+it('refreshes the ACP command catalog when its conversation becomes interactive', async () => {
+  setup('acp')
+  await service.listSessionCommands('session')
+
+  const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session')
+  const review = { name: 'review', description: 'Review changes in this workspace', argumentHint: '' }
+  vi.spyOn(connections[0], 'getSupportedCommands').mockResolvedValue([review])
+  MockMainCacheServiceUtils.setSharedCacheValue(key, [{ ...review, description: 'Previous review description' }])
+
+  await service.setLocalSessionInteractive('window', 'session', true)
+
+  expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toEqual([review])
+  expect((await readAcpRequests()).filter(({ method }) => method === 'session/new')).toHaveLength(1)
+})
+
+it('keeps retired ACP command results out of the replacement connection catalog', async () => {
+  setup('acp', false, 'initial-updates')
+  await service.setLocalSessionInteractive('window', 'session', true)
+  const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session')
+  const review = { name: 'review', description: 'Review code', argumentHint: '' }
+  await vi.waitFor(() => expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toEqual([review]))
+
+  const lookupStarted = Promise.withResolvers<void>()
+  const oldCatalog = Promise.withResolvers<(typeof review)[]>()
+  vi.spyOn(connections[0], 'getSupportedCommands').mockImplementation(async () => {
+    lookupStarted.resolve()
+    return oldCatalog.promise
+  })
+  const lookup = service.listSessionCommands('session')
+  await lookupStarted.promise
+
+  try {
+    await connections[0].close()
+    await vi.waitFor(() => expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toBeUndefined())
+    await service.setLocalSessionInteractive('window', 'session', true)
+    await vi.waitFor(() => expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toEqual([review]))
+  } finally {
+    oldCatalog.resolve([{ ...review, description: 'Retired connection description' }])
+  }
+
+  await expect(lookup).resolves.toEqual([])
+  expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toEqual([review])
 })
 
 it('rechecks the directory if it changes while reconciliation is awaiting', async () => {
