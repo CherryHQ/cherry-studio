@@ -30,6 +30,9 @@ describe('getFileTypeByExt', () => {
     expect(getFileTypeByExt('m4v')).toBe('video')
     expect(getFileTypeByExt('ogg')).toBe('audio')
     expect(getFileTypeByExt('mp3')).toBe('audio')
+    expect(getFileTypeByExt('m4a')).toBe('audio')
+    expect(getFileTypeByExt('opus')).toBe('audio')
+    expect(getFileTypeByExt('3gp')).toBe('video')
     expect(getFileTypeByExt('pdf')).toBe('document')
     expect(getFileTypeByExt('jpg')).toBe('image')
   })
@@ -38,6 +41,14 @@ describe('getFileTypeByExt', () => {
     expect(getFileTypeByExt('webm')).toBe('video')
     expect(getFileTypeByExt('.webm')).toBe('video')
     expect(getFileTypeByExt('.WEBM')).toBe('video')
+  })
+
+  it('classifies AIFF as audio so media readers do not extract it as a document', () => {
+    expect(getFileTypeByExt('aiff')).toBe('audio')
+    expect(getFileTypeByExt('.aiff')).toBe('audio')
+    expect(getFileTypeByExt('aif')).toBe('audio')
+    expect(getFileTypeByExt('.aif')).toBe('audio')
+    expect(getFileTypeByExt('.AIFF')).toBe('audio')
   })
 
   it('classifies both legacy .xls and modern .xlsx as document', () => {

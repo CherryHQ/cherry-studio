@@ -42,6 +42,7 @@ import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64, downloadPublicImageAsBase64 } from '@main/utils/downloadAsBase64'
 import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { CompactionSink } from '@shared/ai/compaction'
+import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import {
   isSeedream5xTargetModel,
@@ -324,6 +325,8 @@ export type AsInProcessChat<T extends AiChatRequest> = AsInProcess<T> & {
    * manager supplies it because only it can reach the turn's chunk sink.
    */
   compactionSink?: CompactionSink
+  /** Live audio/video analysis stage while attachments are prepared; `null` once preparation ends. */
+  mediaAnalysisSink?: (progress: MediaAnalysisProgress | null) => void
 }
 
 /** Non-streaming text generation request — pure transport data. */
@@ -705,7 +708,15 @@ export class AiService extends BaseService {
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file). The cap is
     // one shared pool, priced against what the rest of the request already spends.
+    // A failed attachment settles preparation while sibling analyses still run; their late progress must not reappear.
+    let mediaProgressOpen = true
+    const mediaAnalysisSink = request.mediaAnalysisSink
     const preparedMessages = await prepareChatMessages(request.messages ?? [], {
+      onMediaProgress:
+        mediaAnalysisSink &&
+        ((progress) => {
+          if (mediaProgressOpen) mediaAnalysisSink(progress)
+        }),
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
@@ -725,6 +736,9 @@ export class AiService extends BaseService {
             })) ?? undefined)
           : undefined,
       signal
+    }).finally(() => {
+      mediaProgressOpen = false
+      mediaAnalysisSink?.(null)
     })
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"

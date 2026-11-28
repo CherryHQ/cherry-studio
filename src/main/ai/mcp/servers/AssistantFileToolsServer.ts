@@ -66,7 +66,7 @@ export function createAssistantFileToolsServer(context: AssistantFileToolContext
       runTool(READ_FILE_TOOL_NAME, ctx.mcpReq.signal, async () => {
         const result = await readFile(
           input,
-          { attachments: listAgentSessionAttachments(context.sessionId) },
+          { attachments: listAgentSessionAttachments(context.sessionId), conversationId: context.sessionId },
           ctx.mcpReq.signal
         )
         const output = readFileModelOutput(result)

@@ -23,6 +23,7 @@ export const ERROR_CATEGORIES = [
   'deprecated',
   'knowledge',
   'ocr',
+  'media',
   'mcp',
   'parse',
   'unknown'

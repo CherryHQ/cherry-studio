@@ -15,5 +15,7 @@ export const fileProcessingHandlers: IpcHandlersFor<typeof fileProcessingRequest
   'file_processing.list_available_processors': async () =>
     application.get('FileProcessingService').listAvailableProcessors(),
   'file_processing.open_mineru.check_connectivity': async () =>
-    application.get('FileProcessingService').checkOpenMineruConnectivity()
+    application.get('FileProcessingService').checkOpenMineruConnectivity(),
+  'file_processing.media.prepare': async ({ path }) =>
+    application.get('MediaAnalysisService').prepare({ kind: 'path', path })
 }

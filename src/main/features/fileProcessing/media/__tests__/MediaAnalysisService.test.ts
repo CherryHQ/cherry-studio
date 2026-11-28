@@ -108,7 +108,8 @@ vi.mock('@application', async () => {
   const mocked = mockApplicationFactory({
     CacheService: {
       get: (key: string) => runtime.cache.get(key),
-      set: (key: string, value: unknown) => runtime.cache.set(key, value)
+      set: (key: string, value: unknown) => runtime.cache.set(key, value),
+      delete: (key: string) => runtime.cache.delete(key)
     }
   })
   const delegated = mocked.application.get.getMockImplementation()
@@ -137,12 +138,16 @@ vi.mock('@application', async () => {
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { VoiceCleanupError, VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService } from '@main/core/lifecycle'
+import { resolveFileProcessingFileInfo } from '@main/features/fileProcessing/tasks/jobExecution'
 
 import { MediaAnalysisService } from '../MediaAnalysisService'
 import { resolveMediaExecutionConfig } from '../mediaExecutionConfig'
 import { planFrameTimestamps } from '../probeClassification'
 
 const file = { kind: 'path' as const, path: AbsoluteFilePathSchema.parse('/fixture.mp4') }
+/** Full analysis results in the cache; per-stage entries (transcript, frame text) are not counted. */
+const cachedAnalyses = () =>
+  [...runtime.cache.values()].filter((value) => typeof value === 'object' && value !== null && 'source' in value).length
 let service: MediaAnalysisService
 
 beforeEach(async () => {
@@ -158,6 +163,9 @@ beforeEach(async () => {
     budget: { maxFrames: 2, targetIntervalMs: 4_000, maxEdgePx: 640, jpegQuality: 70 },
     pipelineVersion: MEDIA_PIPELINE_VERSION
   }
+  vi.mocked(resolveFileProcessingFileInfo)
+    .mockReset()
+    .mockImplementation(async () => runtime.fileInfo as never)
   runtime.probe.mockReset().mockResolvedValue({
     durationMs: 10_000,
     hasAudio: true,
@@ -199,7 +207,7 @@ describe('MediaAnalysisService', () => {
         output: TranscriptionOutputKind.Final,
         options: { language: 'en-US' }
       },
-      undefined
+      expect.any(AbortSignal)
     )
     expect(await readdir(runtime.tempRoot)).toEqual([])
   })
@@ -316,7 +324,7 @@ describe('MediaAnalysisService', () => {
     const analysis = await service.analyze(file)
     expect(analysis.audio?.segments).toEqual([{ startMs: 1_000, endMs: 2_000, text: 'first phrase' }])
     expect(analysis.warnings).toContain('audio_transcription_failed')
-    expect(runtime.cache.size).toBe(0)
+    expect(cachedAnalyses()).toBe(0)
 
     await service.analyze(file)
     expect(runtime.extractAudio).toHaveBeenCalledTimes(2)
@@ -339,7 +347,7 @@ describe('MediaAnalysisService', () => {
     const analysis = await service.analyze(file)
     expect(analysis.audio?.segments).toEqual([{ startMs: 1_000, endMs: 2_000, text: 'hello' }])
     expect(analysis.warnings).toContain('audio_transcription_failed')
-    expect(runtime.cache.size).toBe(0)
+    expect(cachedAnalyses()).toBe(0)
   })
 
   it('keeps useful video OCR when no ASR model is configured', async () => {
@@ -381,7 +389,30 @@ describe('MediaAnalysisService', () => {
 
   it('rejects audio-only media when no ASR model is configured', async () => {
     runtime.config = { ...runtime.config, asr: null }
-    await expect(service.analyze(file)).rejects.toMatchObject({ code: 'unusable_media_analysis' })
+    await expect(service.analyze(file)).rejects.toMatchObject({
+      code: 'unusable_media_analysis',
+      gaps: { vision: false, speech: true }
+    })
+  })
+
+  it('reports a missing vision model for a silent video whose frames have no text', async () => {
+    runtime.probe.mockResolvedValue({
+      durationMs: 6_000,
+      hasAudio: false,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir }) => {
+      const path = join(outputDir, 'frame.jpg')
+      await writeFile(path, Buffer.from('jpeg'))
+      return { frames: [{ path, timestampMs: 0 }] }
+    })
+
+    await expect(service.analyze(file)).rejects.toMatchObject({
+      code: 'unusable_media_analysis',
+      gaps: { vision: true, speech: false }
+    })
   })
 
   it('treats no_speech as a successful empty transcription', async () => {
@@ -525,7 +556,7 @@ describe('MediaAnalysisService', () => {
     runtime.closeTranscription.mockRejectedValue(new VoiceCleanupError())
 
     await expect(service.analyze(file)).rejects.toMatchObject({ code: 'unusable_media_analysis' })
-    expect(runtime.cache.size).toBe(0)
+    expect(cachedAnalyses()).toBe(0)
   })
 
   it('reuses the cache until the file version changes', async () => {
@@ -935,14 +966,14 @@ describe('MediaAnalysisService', () => {
     expect(failed.audio).toBeUndefined()
     expect(failed.visuals).toEqual([{ timestampMs: 4_000, ocrText: 'Agenda' }])
     expect(failed.warnings).toContain('audio_transcription_failed')
-    expect(runtime.cache.size).toBe(0)
+    expect(cachedAnalyses()).toBe(0)
 
     const recovered = await service.analyze(file)
     expect(recovered.audio?.segments).toEqual([{ startMs: 6_000, endMs: 7_000, text: 'hello' }])
     expect(recovered.visuals).toEqual([{ timestampMs: 4_000, ocrText: 'Agenda' }])
     expect(recovered.warnings).not.toContain('audio_transcription_failed')
     expect(runtime.transcribe).toHaveBeenCalledTimes(2)
-    expect(runtime.cache.size).toBe(1)
+    expect(cachedAnalyses()).toBe(1)
 
     await service.analyze(file)
     expect(runtime.transcribe).toHaveBeenCalledTimes(2)
@@ -1167,7 +1198,10 @@ describe('MediaAnalysisService', () => {
         return { text: frames.map((frame) => `${frame}: kept`).join('\n') }
       })
 
-      await Promise.all([service.analyze(file), service.analyze(file)])
+      // One service shares concurrent sends, so a second instance is what still overlaps on the cache.
+      BaseService.resetInstances()
+      const otherService = new MediaAnalysisService()
+      await Promise.all([service.analyze(file), otherService.analyze(file)])
       expect(runtime.generateText).toHaveBeenCalledTimes(4)
 
       runtime.generateText.mockImplementation(async () => ({ text: '' }))
@@ -1225,13 +1259,91 @@ describe('MediaAnalysisService', () => {
         }
       })
 
-      await Promise.all([service.analyze(file), service.analyze(file)])
+      // One service shares concurrent sends, so a second instance is what still overlaps on the cache.
+      BaseService.resetInstances()
+      const otherService = new MediaAnalysisService()
+      await Promise.all([service.analyze(file), otherService.analyze(file)])
       runtime.generateText.mockImplementation(async () => ({ text: '' }))
       const third = await service.analyze(file)
 
       expect(runtime.generateText).toHaveBeenCalledTimes(4)
       expect(third.visuals).toHaveLength(7)
       expect(third.visuals?.every((frame) => frame.summary === 'kept')).toBe(true)
+    })
+  })
+
+  describe('concurrent sends of one attachment', () => {
+    let answerVision!: () => void
+
+    beforeEach(() => {
+      runtime.config = { ...runtime.config, asr: null, vision: visionExecution() }
+      runtime.probe.mockResolvedValue({
+        durationMs: 60_000,
+        hasAudio: false,
+        hasVideo: true,
+        mime: 'video/mp4',
+        kind: 'video'
+      })
+      runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => ({
+        frames: await Promise.all(
+          timestampsMs.map(async (timestampMs: number) => {
+            const path = join(outputDir, `frame-${timestampMs}.jpg`)
+            await writeFile(path, Buffer.from(`jpeg-${timestampMs}`))
+            return { path, timestampMs }
+          })
+        )
+      }))
+      const answered = new Promise<void>((resolve) => (answerVision = resolve))
+      runtime.generateText.mockImplementation(
+        async (
+          _providerId: string,
+          _settings: unknown,
+          request: { abortSignal?: AbortSignal; messages: Array<{ content: Array<{ type: string; text?: string }> }> }
+        ) => {
+          await new Promise<void>((resolve, reject) => {
+            void answered.then(resolve)
+            request.abortSignal?.addEventListener('abort', () => reject(request.abortSignal?.reason), { once: true })
+          })
+          const lines = request.messages[0].content.flatMap((part) =>
+            part.type === 'text' && part.text?.startsWith('FRAME_') ? [`${part.text}: slide`] : []
+          )
+          return { text: lines.join('\n') }
+        }
+      )
+    })
+
+    it('sends the frames to the vision model once for every model of a multi-model turn', async () => {
+      const stages: string[][] = [[], []]
+      const first = service.analyze(file, undefined, { onProgress: (progress) => stages[0].push(progress.stage) })
+      const second = service.analyze(file, undefined, { onProgress: (progress) => stages[1].push(progress.stage) })
+      await vi.waitFor(() => expect(runtime.generateText).toHaveBeenCalledTimes(1))
+      answerVision()
+
+      const analyses = await Promise.all([first, second])
+
+      expect(runtime.generateText).toHaveBeenCalledTimes(1)
+      for (const analysis of analyses) {
+        expect(analysis.visuals?.length).toBeGreaterThan(0)
+        expect(analysis.visuals?.every((frame) => frame.summary === 'slide')).toBe(true)
+      }
+      expect(stages[0]).toContain('describing_frames')
+      expect(stages[1]).toContain('describing_frames')
+    })
+
+    it('keeps the shared analysis running for the other model when one send is cancelled', async () => {
+      const controller = new AbortController()
+      const cancelled = service.analyze(file, controller.signal)
+      const kept = service.analyze(file)
+      await vi.waitFor(() => expect(runtime.generateText).toHaveBeenCalledTimes(1))
+
+      controller.abort()
+      await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+      answerVision()
+      const analysis = await kept
+
+      expect(runtime.generateText).toHaveBeenCalledTimes(1)
+      expect(analysis.visuals?.length).toBeGreaterThan(0)
+      expect(analysis.visuals?.every((frame) => frame.summary === 'slide')).toBe(true)
     })
   })
 
@@ -1254,7 +1366,7 @@ describe('MediaAnalysisService', () => {
     expect(failed.audio?.segments).toEqual([{ startMs: 6_000, endMs: 7_000, text: 'hello' }])
     expect(failed.visuals).toBeUndefined()
     expect(failed.warnings).toContain('visual_analysis_failed')
-    expect(runtime.cache.size).toBe(0)
+    expect(cachedAnalyses()).toBe(0)
 
     const recovered = await service.analyze(file)
     expect(recovered.audio?.segments).toEqual([{ startMs: 6_000, endMs: 7_000, text: 'hello' }])
@@ -1262,9 +1374,254 @@ describe('MediaAnalysisService', () => {
     expect(recovered.warnings).not.toContain('visual_analysis_failed')
     expect(recovered.warnings).toContain('vision_model_unavailable')
     expect(runtime.extractFrames).toHaveBeenCalledTimes(2)
-    expect(runtime.cache.size).toBe(1)
+    expect(cachedAnalyses()).toBe(1)
 
     await service.analyze(file)
     expect(runtime.extractFrames).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('MediaAnalysisService local stages', () => {
+  const ocrConfig = {
+    processor: {
+      id: 'system',
+      type: 'builtin',
+      capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+    },
+    identity: { processorId: 'system', modelId: '', apiHost: '', optionsJson: '{}' }
+  } as MediaExecutionConfig['ocr']
+
+  beforeEach(() => {
+    runtime.config = { ...runtime.config, ocr: ocrConfig, vision: visionExecution() }
+    runtime.probe.mockResolvedValue({
+      durationMs: 10_000,
+      hasAudio: true,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => {
+      const frames = await Promise.all(
+        (timestampsMs as number[]).map(async (timestampMs) => {
+          const path = join(outputDir, `frame-${timestampMs}.jpg`)
+          await writeFile(path, Buffer.from(`jpeg-${timestampMs}`))
+          return { path, timestampMs }
+        })
+      )
+      return { frames }
+    })
+    runtime.ocrImage.mockResolvedValue('Agenda')
+    runtime.generateText.mockImplementation(async (_provider, _settings, { messages }) => ({
+      text: messages[0].content
+        .filter((part: { type: string; text?: string }) => part.type === 'text' && part.text?.startsWith('FRAME_'))
+        .map((part: { text: string }) => `${part.text}: a slide`)
+        .join('\n')
+    }))
+  })
+
+  it('reuses the transcript and frame text of a pre-analysis when the message is sent', async () => {
+    await service.prepare(file)
+    expect(runtime.generateText).not.toHaveBeenCalled()
+
+    const analysis = await service.analyze(file)
+
+    expect(runtime.transcribe).toHaveBeenCalledTimes(1)
+    expect(runtime.detectSceneChanges).toHaveBeenCalledTimes(1)
+    expect(runtime.ocrImage).toHaveBeenCalledTimes(analysis.visuals!.length)
+    expect(analysis.audio?.segments.map((segment) => segment.text)).toEqual(['hello'])
+    expect(analysis.visuals?.every((frame) => frame.ocrText === 'Agenda' && frame.summary === 'a slide')).toBe(true)
+  })
+
+  it('reuses a pre-analysis of the picked file when the sent copy has another path', async () => {
+    const picked = join(runtime.tempRoot, 'picked.mp4')
+    const stored = join(runtime.tempRoot, 'stored.mp4')
+    const bytes = Buffer.from('same video bytes')
+    await writeFile(picked, bytes)
+    await writeFile(stored, bytes)
+    vi.mocked(resolveFileProcessingFileInfo)
+      .mockResolvedValueOnce({ ...runtime.fileInfo, path: picked, size: bytes.length, modifiedAt: 1 } as never)
+      .mockResolvedValue({ ...runtime.fileInfo, path: stored, size: bytes.length, modifiedAt: 2 } as never)
+
+    await service.prepare(file)
+    await service.analyze({ kind: 'entry', entryId: 'entry-1' })
+
+    expect(runtime.transcribe).toHaveBeenCalledTimes(1)
+    expect(runtime.detectSceneChanges).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reuse a pre-analysis for a same-size copy edited in the middle', async () => {
+    // Over 2 MiB, so the first and last MiB of both files are identical.
+    const original = Buffer.alloc(3 * 1024 * 1024, 1)
+    const redacted = Buffer.from(original)
+    redacted[original.length / 2] = 2
+    const picked = join(runtime.tempRoot, 'original.wav')
+    const stored = join(runtime.tempRoot, 'redacted.wav')
+    await writeFile(picked, original)
+    await writeFile(stored, redacted)
+    vi.mocked(resolveFileProcessingFileInfo)
+      .mockResolvedValueOnce({ ...runtime.fileInfo, path: picked, size: original.length, modifiedAt: 1 } as never)
+      .mockResolvedValue({ ...runtime.fileInfo, path: stored, size: redacted.length, modifiedAt: 2 } as never)
+
+    await service.prepare(file)
+    await service.analyze({ kind: 'entry', entryId: 'entry-1' })
+
+    expect(runtime.transcribe).toHaveBeenCalledTimes(2)
+  })
+
+  describe('a picked file replaced in place with the same size and mtime', () => {
+    const speech = {
+      text: 'replacement speech',
+      segments: [{ text: 'replacement speech', startSecond: 0, endSecond: 1 }]
+    }
+    const silence = { text: '   ', segments: [] }
+    let picked: string
+
+    beforeEach(async () => {
+      picked = join(runtime.tempRoot, 'memo.wav')
+      const copy = join(runtime.tempRoot, 'memo-copy.wav')
+      await writeFile(picked, Buffer.alloc(1024, 1))
+      // A separate stored copy of the original (redacted) recording.
+      await writeFile(copy, Buffer.alloc(1024, 1))
+      const pickedInfo = { ...runtime.fileInfo, path: picked, size: 1024, modifiedAt: 5 }
+      vi.mocked(resolveFileProcessingFileInfo).mockImplementation(
+        async (handle) => (handle.kind === 'entry' ? { ...pickedInfo, path: copy, modifiedAt: 9 } : pickedInfo) as never
+      )
+    })
+
+    const copyTranscript = async () =>
+      (await service.analyze({ kind: 'entry', entryId: 'copy' })).audio?.segments.map((segment) => segment.text) ?? []
+
+    it('keeps the replacement speech out of the original copy after a failed pre-analysis', async () => {
+      runtime.transcribe
+        .mockRejectedValueOnce(new Error('ASR busy'))
+        .mockResolvedValueOnce(speech)
+        .mockResolvedValueOnce(silence)
+
+      await service.prepare(file)
+      await writeFile(picked, Buffer.alloc(1024, 2))
+      await service.prepare(file)
+
+      expect(await copyTranscript()).not.toContain('replacement speech')
+    })
+
+    it('analyzes the replacement instead of returning the previous file analysis', async () => {
+      const original = {
+        text: 'original speech',
+        segments: [{ text: 'original speech', startSecond: 0, endSecond: 1 }]
+      }
+      runtime.transcribe.mockResolvedValueOnce(original).mockResolvedValueOnce(speech)
+
+      const first = await service.analyze(file)
+      await writeFile(picked, Buffer.alloc(1024, 2))
+      const second = await service.analyze(file)
+
+      expect(first.audio?.segments.map((segment) => segment.text)).toEqual(['original speech'])
+      expect(second.audio?.segments.map((segment) => segment.text)).toEqual(['replacement speech'])
+    })
+
+    it('drops a pass whose file is replaced while it runs', async () => {
+      runtime.transcribe
+        .mockImplementationOnce(async () => {
+          await writeFile(picked, Buffer.alloc(1024, 2))
+          return speech
+        })
+        .mockResolvedValueOnce(silence)
+
+      await service.prepare(file)
+
+      expect(await copyTranscript()).not.toContain('replacement speech')
+    })
+  })
+
+  it('leaves remote OCR for the send instead of uploading frames on attach', async () => {
+    const remoteOcr = {
+      ...ocrConfig!,
+      processor: { ...ocrConfig!.processor, id: 'mistral', type: 'api' }
+    } as MediaExecutionConfig['ocr']
+    runtime.config = { ...runtime.config, ocr: remoteOcr }
+
+    await service.prepare(file)
+    expect(runtime.ocrImage).not.toHaveBeenCalled()
+
+    await service.analyze(file)
+    expect(runtime.ocrImage).toHaveBeenCalled()
+  })
+
+  /** Holds the next probe so a test can act while a pre-analysis is running, before it reports any stage. */
+  function holdNextProbe() {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const probe = { durationMs: 10_000, hasAudio: true, hasVideo: true, mime: 'video/mp4', kind: 'video' }
+    runtime.probe.mockImplementationOnce(async () => {
+      await held
+      return probe
+    })
+    return release
+  }
+
+  const sendsWaitingForProgress = () =>
+    [...(service as unknown as { localPasses: Map<string, { listeners: Set<unknown> }> }).localPasses.values()].reduce(
+      (count, pass) => count + pass.listeners.size,
+      0
+    )
+
+  it('waits for a running pre-analysis instead of transcribing the file twice', async () => {
+    const release = holdNextProbe()
+    const preparing = service.prepare(file)
+    await vi.waitFor(() => expect(runtime.probe).toHaveBeenCalledTimes(1))
+    const analyzing = service.analyze(file)
+    release()
+    const analysis = await analyzing
+    await preparing
+
+    expect(runtime.transcribe).toHaveBeenCalledTimes(1)
+    expect(analysis.audio?.segments.map((segment) => segment.text)).toEqual(['hello'])
+  })
+
+  it('shows the running pre-analysis stages to a send that waits for it', async () => {
+    const stages: string[] = []
+    const release = holdNextProbe()
+    const preparing = service.prepare(file)
+    await vi.waitFor(() => expect(runtime.probe).toHaveBeenCalledTimes(1))
+    const analyzing = service.analyze(file, undefined, { onProgress: (progress) => stages.push(progress.stage) })
+    await vi.waitFor(() => expect(sendsWaitingForProgress()).toBe(1))
+    release()
+    await analyzing
+    await preparing
+
+    expect(runtime.transcribe).toHaveBeenCalledTimes(1)
+    expect(stages).toContain('transcribing')
+    expect(stages).toContain('reading_frames')
+  })
+
+  it('retries a frame whose OCR fails once', async () => {
+    runtime.config = { ...runtime.config, budget: { ...runtime.config.budget, maxFrames: 1 } }
+    runtime.ocrImage.mockRejectedValueOnce(new Error('CRImageReaderError')).mockResolvedValue('Agenda')
+
+    const analysis = await service.analyze(file)
+
+    expect(analysis.visuals?.[0]?.ocrText).toBe('Agenda')
+    expect(analysis.warnings).not.toContain('ocr_failed')
+  })
+
+  it('keeps frame text it already read when a later run has to redo the analysis', async () => {
+    runtime.generateText.mockRejectedValueOnce(new Error('vision provider down'))
+    const first = await service.analyze(file)
+    expect(first.warnings).toContain('vision_failed')
+    runtime.ocrImage.mockReset().mockRejectedValue(new Error('CRImageReaderError'))
+
+    const second = await service.analyze(file)
+
+    expect(second.visuals?.every((frame) => frame.ocrText === 'Agenda')).toBe(true)
+    expect(second.warnings).not.toContain('ocr_failed')
+  })
+
+  it('reports each stage while it analyzes', async () => {
+    const stages: string[] = []
+    await service.analyze(file, undefined, { onProgress: (progress) => stages.push(progress.stage) })
+
+    expect(stages).toContain('transcribing')
+    expect(stages).toContain('reading_frames')
+    expect(stages.at(-1)).toBe('describing_frames')
   })
 })
