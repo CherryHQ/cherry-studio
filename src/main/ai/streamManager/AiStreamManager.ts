@@ -52,6 +52,7 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
+import { extractProviderRequestStatus } from '@shared/utils/errorCategory'
 
 import type { AiRequestOptions, AsInProcess } from '../AiService'
 import { applyTurnOutputAttributes } from '../observability'
@@ -292,11 +293,15 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
 }
 
 function errorFromStreamChunk(errorText: string): SerializedError {
+  // The AI SDK `error` chunk carries only `error.message`; recover an explicit HTTP status marker
+  // from that text so a provider's 400 is not relabeled as a stream interruption (#25617).
+  const statusCode = extractProviderRequestStatus(errorText)
   return {
     name: 'StreamError',
     message: getSafeProviderErrorMessage({ message: errorText }),
     stack: null,
-    streamStage: 'response-stream'
+    streamStage: 'response-stream',
+    ...(statusCode !== undefined ? { statusCode } : {})
   }
 }
 

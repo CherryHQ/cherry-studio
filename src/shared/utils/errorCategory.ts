@@ -50,6 +50,15 @@ export function extractHttpStatus(text: string): number | undefined {
   return match ? Number(match[1] ?? match[2] ?? match[3]) : undefined
 }
 
+/** Recover only a provider-request 400 prefix, never a status mentioned inside its diagnostic. */
+export function extractProviderRequestStatus(text: string): 400 | undefined {
+  return /^\s*(?:400:|HTTP(?:\/\d+(?:\.\d+)?)?\s+400\b|API Error:\s*400\b|(?:Request rejected|API error) \(400\))/i.test(
+    text
+  )
+    ? 400
+    : undefined
+}
+
 // Groq's entitlement response links to billing; the host confines this exception
 // so other providers keep the existing billing classification.
 export function isGroqServiceTierPermissionErrorMessage(message: string): boolean {
@@ -419,7 +428,10 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'parse'
   }
 
-  // A provider's validation type marks a rejected request when no structured status survived
-  // (`Unexpected role "tool"` — #24238), so it must not fall through to the stream-interruption label.
-  return status === 400 || (status === undefined && msg.includes('invalid_request_error')) ? 'bad_request' : 'unknown'
+  // Recover only a provider-request marker; HTTP codes inside a validation diagnostic name other resources.
+  // Without structured status, the provider's invalid_request_error type remains a request rejection.
+  const recoveredStatus = status ?? extractProviderRequestStatus(text ?? '')
+  return recoveredStatus === 400 || (recoveredStatus === undefined && msg.includes('invalid_request_error'))
+    ? 'bad_request'
+    : 'unknown'
 }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyErrorCategory, isProxyErrorMessage, isQuotaErrorMessage } from '../errorCategory'
+import {
+  classifyErrorCategory,
+  extractProviderRequestStatus,
+  isProxyErrorMessage,
+  isQuotaErrorMessage
+} from '../errorCategory'
 
 describe('classifyErrorCategory unusable API responses', () => {
   const text =
@@ -77,6 +82,27 @@ describe('classifyErrorCategory HTTP 400', () => {
       '400 {"message":"Unexpected role \\"tool\\". Allowed roles are \\"user\\", \\"assistant\\" or \\"system\\"","type":"invalid_request_error","code":"bad_request"}'
 
     expect(classifyErrorCategory({ text })).toBe('bad_request')
+  })
+
+  // #25617: the stream path rebuilds the provider error from chunk text, dropping the structured
+  // status; an explicit HTTP-400 marker in that text must still read as a request failure, not a
+  // stream interruption.
+  it('recovers a leading 400 marker from status-less chunk text', () => {
+    expect(
+      classifyErrorCategory({ text: '400: At most 3 image(s) may be provided in one prompt. (parameter=image)' })
+    ).toBe('bad_request')
+  })
+
+  it('recovers an HTTP-syntax 400 marker from status-less text', () => {
+    expect(classifyErrorCategory({ text: 'HTTP 400 invalid image count' })).toBe('bad_request')
+  })
+
+  it('prefers a structured status over a text marker', () => {
+    expect(classifyErrorCategory({ text: '400: rejected', status: 429 })).toBe('rate_limit')
+  })
+
+  it('leaves status-less text without an HTTP marker as unknown', () => {
+    expect(classifyErrorCategory({ text: 'At most 3 image(s) may be provided in one prompt.' })).toBe('unknown')
   })
 
   it.each([
@@ -596,5 +622,31 @@ describe('request body buffer limit', () => {
     'Failed to buffer the request body: connection closed'
   ])('does not infer a request size rejection from %s', (text) => {
     expect(classifyErrorCategory({ text })).not.toBe('payload')
+  })
+})
+
+describe('provider request status recovery', () => {
+  it.each([
+    '400: Invalid image count',
+    'HTTP 400 Invalid image count',
+    'HTTP/1.1 400 Bad Request',
+    'API Error: 400 Invalid image count',
+    'Request rejected (400)',
+    'API error (400)'
+  ])('recovers the provider request marker: %s', (text) => {
+    expect(extractProviderRequestStatus(text)).toBe(400)
+    expect(classifyErrorCategory({ text })).toBe('bad_request')
+  })
+
+  it.each([400, 404, 429, 500])('ignores nested resource HTTP %s in validation text', (status) => {
+    const text = `invalid_request_error: The supplied image URL returned HTTP ${status}`
+    expect(classifyErrorCategory({ text })).toBe('bad_request')
+    expect(extractProviderRequestStatus(text)).toBeUndefined()
+  })
+
+  it('does not promote an embedded 400 without validation evidence', () => {
+    const text = 'The supplied image URL returned HTTP 400'
+    expect(extractProviderRequestStatus(text)).toBeUndefined()
+    expect(classifyErrorCategory({ text })).toBe('unknown')
   })
 })
