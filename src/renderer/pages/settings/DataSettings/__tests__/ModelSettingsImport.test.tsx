@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ request: vi.fn(), show: vi.fn(), info: vi.fn(), warning: vi.fn() }))
+const mocks = vi.hoisted(() => ({ request: vi.fn(), show: vi.fn(), info: vi.fn(), warning: vi.fn(), success: vi.fn() }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -47,7 +47,9 @@ vi.mock('@renderer/components/SettingsPrimitives', () => {
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 vi.mock('@renderer/services/popup', () => ({ popup: { info: mocks.info, confirm: vi.fn() } }))
-vi.mock('@renderer/services/toast', () => ({ toast: { warning: mocks.warning, success: vi.fn(), error: vi.fn() } }))
+vi.mock('@renderer/services/toast', () => ({
+  toast: { warning: mocks.warning, success: mocks.success, error: vi.fn() }
+}))
 vi.mock('@renderer/utils/file', () => ({ formatFileSize: () => '' }))
 vi.mock('@renderer/utils/style', () => ({ cn: () => '' }))
 vi.mock('../BackupPopup', () => ({ default: { show: vi.fn() } }))
@@ -115,4 +117,26 @@ it('applies only the opaque handle and shows each failed item kind, id and reaso
   const { content } = mocks.info.mock.calls[0][0]
   render(content)
   expect(screen.getByText('模型: relay::gpt, 无法导入此模型的服务商。')).toBeInTheDocument()
+})
+
+it('reports warning-only imports as successful and lists the ignored hint separately', async () => {
+  mocks.request.mockImplementation((route: string) =>
+    Promise.resolve(
+      route === 'model_settings.import_preview'
+        ? { handle: 'opaque', conflicts: [] }
+        : {
+            created: 1,
+            replaced: 0,
+            skipped: 0,
+            failed: [],
+            warnings: [{ kind: 'provider', id: 'relay', reason: 'adapter_family_dropped' }]
+          }
+    )
+  )
+  render(<BasicDataSettings />)
+  fireEvent.click(screen.getByRole('button', { name: 'settings.data.model_settings.import_button' }))
+  await waitFor(() => expect(mocks.info).toHaveBeenCalledOnce())
+  expect(mocks.warning).not.toHaveBeenCalled()
+  expect(mocks.success).toHaveBeenCalledWith('settings.data.model_settings.import_success')
+  expect(mocks.info.mock.calls[0][0].title).toBe('settings.data.model_settings.title')
 })

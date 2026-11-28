@@ -85,12 +85,11 @@ function toExportedModel(row: UserModelRow): ExportedModel {
     description: row.description ?? undefined,
     group: row.group ?? undefined,
     capabilities: row.capabilities ?? undefined,
-    inputModalities:
-      row.presetModelId && row.inputModalities !== null
+    inputModalities: row.presetModelId
+      ? (row.inputModalities ?? undefined)
+      : row.inputModalitiesExplicit || row.inputModalities?.length
         ? row.inputModalities
-        : row.inputModalitiesExplicit || row.inputModalities?.length
-          ? row.inputModalities
-          : null,
+        : null,
     outputModalities: row.outputModalities ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
@@ -216,13 +215,18 @@ class ModelSettingsBackupService {
     const failedProviderIds = new Set<string>()
 
     for (const rawProvider of document.providers) {
+      const exists = existingProviderIds.has(rawProvider.providerId)
+      if (exists && decisions[providerKey(rawProvider.providerId)] !== 'replace') {
+        result.skipped++
+        continue
+      }
       const provider = {
         ...rawProvider,
         endpointConfigs: rawProvider.endpointConfigs
           ? Object.fromEntries(
               Object.entries(rawProvider.endpointConfigs).map(([endpoint, config]) => {
                 const family = config?.adapterFamily
-                if (family && family !== 'newapi' && family !== 'gateway') {
+                if (family !== undefined && family !== 'newapi' && family !== 'gateway') {
                   result.warnings ??= []
                   if (!result.warnings.some((warning) => warning.id === rawProvider.providerId))
                     result.warnings.push({
@@ -236,11 +240,6 @@ class ModelSettingsBackupService {
               })
             )
           : undefined
-      }
-      const exists = existingProviderIds.has(provider.providerId)
-      if (exists && decisions[providerKey(provider.providerId)] !== 'replace') {
-        result.skipped++
-        continue
       }
       try {
         if (exists) {

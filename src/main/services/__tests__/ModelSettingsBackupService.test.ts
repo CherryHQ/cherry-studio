@@ -273,6 +273,67 @@ describe('ModelSettingsBackupService', () => {
     expect(dbh.db.select().from(userProviderTable).all()[0].providerId).toBe('team::relay')
   })
 
+  it('omits inherited preset modalities and preserves the destination override on Replace', async () => {
+    seedRelay()
+    dbh.db
+      .update(userModelTable)
+      .set({ presetModelId: 'catalog-model', inputModalities: null, inputModalitiesExplicit: false })
+      .run()
+    const filePath = path.join(workDir, 'inherited-preset.json')
+    dialogMock.showSaveDialog.mockResolvedValue({ canceled: false, filePath })
+    await modelSettingsBackupService.exportToFile()
+    const exported = ModelSettingsDocumentSchema.parse(JSON.parse(readFileSync(filePath, 'utf-8')))
+    expect(exported.models[0]).not.toHaveProperty('inputModalities')
+    dbh.db.update(userModelTable).set({ inputModalities: [], inputModalitiesExplicit: true }).run()
+    modelSettingsBackupService.applyImport(exported, { 'provider:relay': 'skip', 'model:relay::gpt': 'replace' })
+    expect(dbh.db.select().from(userModelTable).all()[0]).toMatchObject({
+      inputModalities: [],
+      inputModalitiesExplicit: true
+    })
+  })
+
+  it('previews and imports an empty adapter hint with a dropped-hint warning', async () => {
+    const filePath = path.join(workDir, 'empty-adapter.json')
+    writeFileSync(
+      filePath,
+      JSON.stringify(
+        document(
+          [{ ...relayProvider('Relay'), endpointConfigs: { 'openai-chat-completions': { adapterFamily: '' } } }],
+          []
+        )
+      )
+    )
+    dialogMock.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [filePath] })
+    const preview = await modelSettingsBackupService.pickImportFile('owner')
+    const result = modelSettingsBackupService.applyPreview(preview!.handle, {}, 'owner')
+    expect(result).toMatchObject({
+      created: 1,
+      failed: [],
+      warnings: [{ kind: 'provider', id: 'relay', reason: 'adapter_family_dropped' }]
+    })
+    expect(
+      dbh.db.select().from(userProviderTable).all()[0].endpointConfigs?.['openai-chat-completions']?.adapterFamily
+    ).toBeUndefined()
+  })
+
+  it('does not report a dropped-hint warning for a skipped provider', () => {
+    seedRelay()
+    const result = modelSettingsBackupService.applyImport(
+      document(
+        [
+          {
+            ...relayProvider('Relay'),
+            endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'future-adapter' } }
+          }
+        ],
+        []
+      ),
+      {}
+    )
+    expect(result).toMatchObject({ skipped: 1, created: 0, failed: [] })
+    expect(result.warnings ?? []).toEqual([])
+  })
+
   it('drops unknown adapter hints with an item warning and imports unrelated settings', () => {
     const parsed = ModelSettingsDocumentSchema.parse(
       document(

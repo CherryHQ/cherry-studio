@@ -313,10 +313,24 @@ const BasicDataSettings: React.FC = () => {
 
       const result = await ipcApi.request('model_settings.import_apply', { handle: preview.handle, decisions })
       const importDetails = [...result.failed, ...(result.warnings ?? [])]
+      if (result.failed.length > 0) {
+        toast.warning(t('settings.data.model_settings.import_partial', { count: result.failed.length }))
+      } else {
+        toast.success(
+          t('settings.data.model_settings.import_success', {
+            created: result.created,
+            replaced: result.replaced,
+            skipped: result.skipped
+          })
+        )
+      }
       if (importDetails.length > 0) {
-        toast.warning(t('settings.data.model_settings.import_partial', { count: importDetails.length }))
         await popup.info({
-          title: t('settings.data.model_settings.import_error'),
+          title: t(
+            result.failed.length > 0
+              ? 'settings.data.model_settings.import_error'
+              : 'settings.data.model_settings.title'
+          ),
           content: (
             <ul className="max-h-80 list-disc space-y-2 overflow-y-auto break-all pl-5">
               {importDetails.map((failure, index) => (
@@ -330,14 +344,6 @@ const BasicDataSettings: React.FC = () => {
             </ul>
           )
         })
-      } else {
-        toast.success(
-          t('settings.data.model_settings.import_success', {
-            created: result.created,
-            replaced: result.replaced,
-            skipped: result.skipped
-          })
-        )
       }
     } catch (error) {
       toast.error(t('settings.data.model_settings.import_error'))
