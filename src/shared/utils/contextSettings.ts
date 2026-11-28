@@ -18,6 +18,14 @@ export function clampThresholdPercent(value: number | null | undefined): number 
   return Math.min(MAX_COMPRESS_THRESHOLD_PERCENT, Math.max(MIN_COMPRESS_THRESHOLD_PERCENT, Math.floor(value)))
 }
 
+/** Off is valid; an enabled window needs two finite, positive whole-round bounds. */
+export function isValidCompressionWindow(recent: number | null, total: number | null | undefined): boolean {
+  return (
+    total == null ||
+    (recent != null && Number.isSafeInteger(recent) && Number.isSafeInteger(total) && recent >= 1 && total > recent)
+  )
+}
+
 // Invalid stored limits preserve unlimited history rather than dropping context or indexing past its end.
 export function normalizeMaxMessages(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null

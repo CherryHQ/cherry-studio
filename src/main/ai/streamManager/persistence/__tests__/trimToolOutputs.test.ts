@@ -46,9 +46,9 @@ beforeEach(() => {
   prefsGetMock.mockImplementation((key: string) => {
     if (key === 'chat.context_settings.enabled') return true
     if (key === 'chat.context_settings.truncate_threshold') return THRESHOLD
-    // resolveGlobalContextSettings reads every context key; max_messages and
-    // compress.* are unused by the trim gate but must resolve without throwing.
+    // The shared resolver also reads the window and compression keys, unused by this trim gate.
     if (key === 'chat.context_settings.max_messages') return null
+    if (key === 'chat.context_settings.compress_window') return null
     if (key === 'chat.context_settings.compress.enabled') return true
     if (key === 'chat.context_settings.compress.model_id') return null
     if (key === 'chat.context_settings.compress.threshold_percent') return 80

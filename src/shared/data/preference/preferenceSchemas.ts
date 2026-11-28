@@ -195,6 +195,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'chat.context_settings.compress.threshold_percent': number
     // target-key-definitions/complex/complex
+    'chat.context_settings.compress_window': number | null
+    // target-key-definitions/complex/complex
     'chat.context_settings.enabled': boolean
     // target-key-definitions/complex/complex
     'chat.context_settings.max_messages': number | null
@@ -821,6 +823,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.context_settings.compress.enabled': true,
     'chat.context_settings.compress.model_id': null,
     'chat.context_settings.compress.threshold_percent': 80,
+    'chat.context_settings.compress_window': null,
     'chat.context_settings.enabled': true,
     'chat.context_settings.max_messages': null,
     'chat.context_settings.truncate_threshold': 50000,

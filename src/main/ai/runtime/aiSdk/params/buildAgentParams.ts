@@ -344,6 +344,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     system,
     tools,
     requestedMaxOutputTokens,
+    outputReservation: { maxOutputTokens: requestedMaxOutputTokens },
     request,
     signal,
     registry,

@@ -50,6 +50,7 @@ import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
+import { isValidCompressionWindow } from '@shared/utils/contextSettings'
 
 import type { RequestFeature } from '../feature'
 import { createOverflowRecoveryMiddleware } from './contextOverflowRecovery'
@@ -212,13 +213,15 @@ export const inLoopCompactionFeature: RequestFeature = {
     // this request declares as max_tokens is billed alongside the input.
     const inputRoom = resolveInputRoom(
       contextWindow,
-      resolveRequestedMaxOutputTokens(
-        scope.request.callOverrides?.maxOutputTokens,
-        undefined,
-        scope.assistant,
-        scope.model,
-        scope.endpointType
-      )
+      scope.outputReservation
+        ? scope.outputReservation.maxOutputTokens
+        : resolveRequestedMaxOutputTokens(
+            scope.request.callOverrides?.maxOutputTokens,
+            undefined,
+            scope.assistant,
+            scope.model,
+            scope.endpointType
+          )
     )
     const trigger = Math.floor((inputRoom * scope.contextSettings.compress.thresholdPercent) / 100)
     const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
@@ -261,7 +264,7 @@ export const inLoopCompactionFeature: RequestFeature = {
     // must not re-fail on every step; one failure disables it for this request.
     let compactionDisabled = false
     return {
-      prepareStep: async ({ messages }) => {
+      prepareStep: async ({ messages, steps }) => {
         const candidate = foldCache
           ? [...foldCache.compactedPrefix, ...messages.slice(foldCache.consumedCount)]
           : messages
@@ -275,6 +278,15 @@ export const inLoopCompactionFeature: RequestFeature = {
           (foldCache
             ? foldCache.prefixTokens + estimateMessages(messages.slice(foldCache.consumedCount))
             : estimateMessages(messages))
+        // The turn-start window already chose verbatim recent rounds or its recent-only fallback.
+        // Do not proactively fold that first request while it still fits the actual input room.
+        if (
+          (steps?.length ?? 0) === 0 &&
+          typeof scope.contextSettings.compressWindow === 'number' &&
+          isValidCompressionWindow(scope.contextSettings.maxMessages, scope.contextSettings.compressWindow) &&
+          estimate <= inputRoom
+        )
+          return undefined
         if (estimate <= trigger) {
           // A previously folded view that still fits is served as-is — zero LLM calls.
           return foldCache ? { messages: candidate } : undefined

@@ -5,6 +5,7 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
   }
 })
 
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -346,6 +347,15 @@ vi.mock('react-i18next', async (importOriginal) => {
       // an object resolves to the mapped value / key, never to itself.
       t: (key: string, fallbackOrOptions?: string | Record<string, unknown>) =>
         ({
+          'settings.models.context_management.window_enabled': 'Compression window',
+          'settings.models.context_management.window_rounds': 'Total retained rounds (B)',
+          'settings.models.context_management.window_recent': 'Recent verbatim rounds (A)',
+          'settings.models.context_management.window_inherit': 'Follow global',
+          'settings.models.context_management.window_off': 'Off',
+          'settings.models.context_management.window_custom': 'Custom',
+          'settings.models.context_management.window_invalid':
+            'Set a positive whole-number recent limit A and a whole-number window B greater than A.',
+
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
           // Permission-mode titles intentionally absent: they fall through to the card
@@ -712,7 +722,11 @@ beforeEach(() => {
   useMutationMock.mockImplementation((method: string, path: string) => {
     if (method === 'PATCH' && path.startsWith('/assistants/')) {
       return {
-        trigger: ({ body }: { body: unknown }) => updateAssistantMock({ body }),
+        trigger: async ({ body }: { body: unknown }, lifecycle?: { onCommitted?: (value: Assistant) => void }) => {
+          const committed = await updateAssistantMock({ body })
+          lifecycle?.onCommitted?.(committed)
+          return committed
+        },
         isLoading: false,
         error: undefined
       }
@@ -1849,6 +1863,470 @@ describe('edit dialogs', () => {
     await user.tab()
 
     expect(input).toHaveValue('5')
+  })
+
+  // The three states must survive the real dialog's debounced PATCH boundary.
+  it('auto-saves custom, off, and inherited compression windows as distinct settings', async () => {
+    const previousRecent = MockUsePreferenceUtils.getPreferenceValue('chat.context_settings.max_messages')
+    const previousWindow = MockUsePreferenceUtils.getPreferenceValue('chat.context_settings.compress_window')
+    try {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 3)
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.compress_window', 8)
+      const user = userEvent.setup()
+      render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+      fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+      const choose = async (name: string) => {
+        await user.click(screen.getByRole('combobox', { name: 'Compression window' }))
+        await user.click(await screen.findByRole('option', { name }))
+      }
+      await choose('Custom')
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenLastCalledWith({
+          body: { settings: { contextSettings: { compressWindow: 8 } } }
+        })
+      )
+      const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+      await user.clear(rounds)
+      await user.type(rounds, '11')
+      await user.tab()
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenLastCalledWith({
+          body: { settings: { contextSettings: { compressWindow: 11 } } }
+        })
+      )
+      await choose('Off')
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenLastCalledWith({
+          body: { settings: { contextSettings: { compressWindow: null } } }
+        })
+      )
+      await choose('Follow global')
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { settings: { contextSettings: null } } })
+      )
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', previousRecent)
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.compress_window', previousWindow)
+    }
+  }, 10_000)
+
+  it('rejects a custom window for an explicitly unlimited assistant instead of borrowing global A', async () => {
+    const previousRecent = MockUsePreferenceUtils.getPreferenceValue('chat.context_settings.max_messages')
+    try {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 3)
+      const user = userEvent.setup()
+      render(
+        <AssistantEditDialog
+          open
+          resource={{ ...ASSISTANT, settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: null } } }}
+          onOpenChange={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+      await user.click(screen.getByRole('combobox', { name: 'Compression window' }))
+      await user.click(await screen.findByRole('option', { name: 'Custom' }))
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      expect(updateAssistantMock).not.toHaveBeenCalled()
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', previousRecent)
+    }
+  })
+
+  it('uses the successful PATCH resource when a stale list survives a failed refresh', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    updateAssistantMock.mockResolvedValueOnce({
+      ...original,
+      settings: { ...original.settings, contextSettings: { maxMessages: 4, compressWindow: 6 } }
+    })
+    render(<AssistantEditDialog open resource={original} onOpenChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    const recent = screen.getByRole('spinbutton', { name: 'Recent verbatim rounds (A)' })
+    await user.clear(recent)
+    await user.type(recent, '4')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenLastCalledWith({
+        body: { settings: { contextSettings: { maxMessages: 4, compressWindow: 7 } } }
+      })
+    )
+  })
+
+  it('preserves a newer confirmed detail read during a window-only save', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      updatedAt: '2026-11-23T10:00:00Z',
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    const newer = {
+      ...original,
+      updatedAt: '2026-11-23T10:01:00Z',
+      settings: { ...original.settings, contextSettings: { maxMessages: 4, compressWindow: 6 } }
+    }
+    view.rerender(<AssistantEditDialog open resource={newer} onOpenChange={onOpenChange} />)
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenLastCalledWith({
+        body: { settings: { contextSettings: { maxMessages: 4, compressWindow: 7 } } }
+      })
+    )
+  })
+
+  it('validates a window against the refreshed A that the PATCH would preserve', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    view.rerender(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...original,
+          settings: { ...original.settings, contextSettings: { maxMessages: 5, compressWindow: 6 } }
+        }}
+        onOpenChange={onOpenChange}
+      />
+    )
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '4')
+    await user.tab()
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(rounds).toHaveValue('4')
+    expect(rounds).toHaveAttribute('aria-invalid', 'true')
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps a successful save even when the clock moves backward', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      updatedAt: '2026-11-23T10:00:00Z',
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const saved = {
+      ...original,
+      updatedAt: '2026-11-23T09:00:00Z',
+      settings: { ...original.settings, contextSettings: { maxMessages: 4, compressWindow: 6 } }
+    }
+    updateAssistantMock.mockResolvedValueOnce(saved)
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    const recent = screen.getByRole('spinbutton', { name: 'Recent verbatim rounds (A)' })
+    await user.clear(recent)
+    await user.type(recent, '4')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    view.rerender(<AssistantEditDialog open resource={saved} onOpenChange={onOpenChange} />)
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenLastCalledWith({
+        body: { settings: { contextSettings: { maxMessages: 4, compressWindow: 7 } } }
+      })
+    )
+  })
+
+  it('preserves refreshed A when an overflow toggle is batched with a B edit', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 5, compressWindow: 6 } }
+    }
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    view.rerender(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...original,
+          settings: { ...original.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+        }}
+        onOpenChange={onOpenChange}
+      />
+    )
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '4')
+    await user.click(screen.getByRole('switch', { name: 'Customize context management' }))
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      body: { settings: { contextSettings: expect.objectContaining({ maxMessages: 3, compressWindow: 4 }) } }
+    })
+  })
+
+  it('replaces a precommit detail with the committed bounds when refresh fails', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const pending = Promise.withResolvers<typeof original>()
+    updateAssistantMock.mockReturnValueOnce(pending.promise)
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    const recent = screen.getByRole('spinbutton', { name: 'Recent verbatim rounds (A)' })
+    await user.clear(recent)
+    await user.type(recent, '4')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    view.rerender(<AssistantEditDialog open resource={{ ...original }} onOpenChange={onOpenChange} />)
+    await act(async () =>
+      pending.resolve({
+        ...original,
+        settings: { ...original.settings, contextSettings: { maxMessages: 4, compressWindow: 6 } }
+      })
+    )
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      body: { settings: { contextSettings: { maxMessages: 4, compressWindow: 7 } } }
+    })
+  })
+
+  it('preserves both refreshed bounds on an overflow-only toggle', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 4 } }
+    }
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    view.rerender(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...original,
+          settings: { ...original.settings, contextSettings: { maxMessages: 5, compressWindow: 7 } }
+        }}
+        onOpenChange={onOpenChange}
+      />
+    )
+    await user.click(screen.getByRole('switch', { name: 'Customize context management' }))
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      body: { settings: { contextSettings: expect.objectContaining({ maxMessages: 5, compressWindow: 7 }) } }
+    })
+  })
+
+  it('blocks an invalid queued A/B pair after a committed write advances the baseline during refresh', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const refresh = Promise.withResolvers<void>()
+    useMutationMock.mockImplementation((method: string, path: string) => {
+      if (method === 'PATCH' && path.startsWith('/assistants/'))
+        return {
+          trigger: async ({ body }: { body: unknown }, lifecycle?: { onCommitted?: (value: Assistant) => void }) => {
+            updateAssistantMock({ body })
+            const committed = {
+              ...original,
+              settings: { ...original.settings, contextSettings: { maxMessages: 3, compressWindow: 8 } }
+            }
+            lifecycle?.onCommitted?.(committed)
+            await refresh.promise
+            return committed
+          },
+          isLoading: false,
+          error: undefined
+        }
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
+    })
+    render(<AssistantEditDialog open resource={original} onOpenChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '8')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    await user.clear(rounds)
+    await user.type(rounds, '6')
+    await user.tab()
+    const recent = screen.getByRole('spinbutton', { name: 'Recent verbatim rounds (A)' })
+    await user.clear(recent)
+    await user.type(recent, '7')
+    await user.tab()
+    await act(async () => refresh.resolve())
+    // Wait for the footer's live region itself, not just the field error, so the
+    // revert below cannot beat the save that sets the footer error.
+    const footer = () => document.querySelector('form [aria-live="polite"]') as HTMLElement
+    await waitFor(() =>
+      expect(footer()).toHaveTextContent(
+        'Set a positive whole-number recent limit A and a whole-number window B greater than A.'
+      )
+    )
+    // Wait past the 500ms autosave debounce so a guardless build would fire the
+    // second PATCH here; a shorter wait can pass even with the guard removed.
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+    expect(rounds).toHaveValue('6')
+  })
+
+  it('clears the footer bounds error when a rejected draft is reverted without another PATCH', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const refresh = Promise.withResolvers<void>()
+    useMutationMock.mockImplementation((method: string, path: string) => {
+      if (method === 'PATCH' && path.startsWith('/assistants/'))
+        return {
+          trigger: async ({ body }: { body: unknown }, lifecycle?: { onCommitted?: (value: Assistant) => void }) => {
+            updateAssistantMock({ body })
+            const committed = {
+              ...original,
+              settings: { ...original.settings, contextSettings: { maxMessages: 3, compressWindow: 8 } }
+            }
+            lifecycle?.onCommitted?.(committed)
+            await refresh.promise
+            return committed
+          },
+          isLoading: false,
+          error: undefined
+        }
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
+    })
+    render(<AssistantEditDialog open resource={original} onOpenChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '8')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    await user.clear(rounds)
+    await user.type(rounds, '6')
+    await user.tab()
+    const recent = screen.getByRole('spinbutton', { name: 'Recent verbatim rounds (A)' })
+    await user.clear(recent)
+    await user.type(recent, '7')
+    await user.tab()
+    await act(async () => refresh.resolve())
+    // Wait for the footer's live region itself, not just the field error, so the
+    // revert below cannot beat the save that sets the footer error.
+    const footer = () => document.querySelector('form [aria-live="polite"]') as HTMLElement
+    await waitFor(() =>
+      expect(footer()).toHaveTextContent(
+        'Set a positive whole-number recent limit A and a whole-number window B greater than A.'
+      )
+    )
+    // Revert both fields to the committed A=3/B=8: the save intent disappears,
+    // so only the explicit clear can remove the footer error.
+    await user.clear(recent)
+    await user.type(recent, '3')
+    await user.tab()
+    await user.clear(rounds)
+    await user.type(rounds, '8')
+    await user.tab()
+    await waitFor(() => expect(footer()).toBeEmptyDOMElement())
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves an overflow-only toggle when the untouched bounds pair is only invalid against the globals', async () => {
+    const previousRecent = MockUsePreferenceUtils.getPreferenceValue('chat.context_settings.max_messages')
+    const previousWindow = MockUsePreferenceUtils.getPreferenceValue('chat.context_settings.compress_window')
+    try {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 3)
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.compress_window', 6)
+      const user = userEvent.setup()
+      // Assistant A=7 with no window override: valid message-count fallback on
+      // its own, but invalid when validated against the global B=6.
+      const original = {
+        ...ASSISTANT,
+        settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 7 } }
+      }
+      render(<AssistantEditDialog open resource={original} onOpenChange={vi.fn()} />)
+      fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+      await user.click(screen.getByRole('switch', { name: 'Customize context management' }))
+      await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+      expect(updateAssistantMock).toHaveBeenLastCalledWith({
+        body: { settings: { contextSettings: expect.objectContaining({ maxMessages: 7 }) } }
+      })
+      expect(
+        screen.queryByText('Set a positive whole-number recent limit A and a whole-number window B greater than A.')
+      ).toBeNull()
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', previousRecent)
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.compress_window', previousWindow)
+    }
+  })
+
+  it('keeps a newer detail while an older unrelated PATCH is awaiting refresh', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const pending = Promise.withResolvers<typeof original>()
+    useMutationMock.mockImplementation((method: string, path: string) => {
+      if (method === 'PATCH' && path.startsWith('/assistants/'))
+        return {
+          trigger: async ({ body }: { body: unknown }, lifecycle?: { onCommitted?: (value: Assistant) => void }) => {
+            updateAssistantMock({ body })
+            const committed = { ...original, name: 'Renamed' }
+            lifecycle?.onCommitted?.(committed)
+            await pending.promise
+            return committed
+          },
+          isLoading: false,
+          error: undefined
+        }
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
+    })
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    const name = screen.getByRole('textbox', { name: 'Name' })
+    await user.clear(name)
+    await user.type(name, 'Renamed')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    const refreshed = {
+      ...original,
+      name: 'Renamed',
+      settings: { ...original.settings, contextSettings: { maxMessages: 5, compressWindow: 6 } }
+    }
+    view.rerender(<AssistantEditDialog open resource={refreshed} onOpenChange={onOpenChange} />)
+    await act(async () => pending.resolve({ ...original, name: 'Renamed' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      body: { settings: { contextSettings: { maxMessages: 5, compressWindow: 7 } } }
+    })
   })
 
   it('names the context override for what it does and states what is inherited while off', async () => {

@@ -281,6 +281,28 @@ describe('diffAssistantUpdate', () => {
 })
 
 describe('context-management override (P2-D)', () => {
+  it.each([8, null])(
+    'preserves stored compression-window scope %s while editing other context controls',
+    (compressWindow) => {
+      const assistant = createAssistant({
+        settings: {
+          ...DEFAULT_ASSISTANT_SETTINGS,
+          contextSettings: { maxMessages: 2, compressWindow, truncateThreshold: 4000 }
+        }
+      })
+      const baseline = initialAssistantFormState(assistant)
+      for (const form of [
+        { ...baseline, contextTruncateThreshold: 9000 },
+        { ...baseline, contextOverrideEnabled: false }
+      ]) {
+        const result = diffAssistantUpdate(form, baseline, assistant)!
+        const parsed = UpdateAssistantSchema.parse(result.dto)
+        expect(parsed.settings?.contextSettings?.compressWindow).toBe(compressWindow)
+        expect(parsed.settings?.contextSettings?.maxMessages).toBe(2)
+      }
+    }
+  )
+
   it('seeds the override-off state when no contextSettings are stored', () => {
     const form = initialAssistantFormState(createAssistant())
     expect(form.contextOverrideEnabled).toBe(false)
@@ -397,6 +419,50 @@ describe('context-management override (P2-D)', () => {
     const baseline = initialAssistantFormState(createAssistant())
     const form = { ...baseline, contextTruncateThreshold: 999 }
     expect(diffAssistantUpdate(form, baseline, createAssistant())).toBeNull()
+  })
+})
+
+describe('compression window edits', () => {
+  it('uses both confirmed bounds when only overflow customization changes', () => {
+    const original = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: { maxMessages: 3, compressWindow: 4 } }
+    })
+    const baseline = initialAssistantFormState(original)
+    const refreshed = {
+      ...original,
+      settings: { ...original.settings, contextSettings: { maxMessages: 5, compressWindow: 7 } }
+    }
+    const form = { ...baseline, contextOverrideEnabled: !baseline.contextOverrideEnabled }
+    expect(diffAssistantUpdate(form, baseline, refreshed)?.dto.settings?.contextSettings).toMatchObject({
+      maxMessages: 5,
+      compressWindow: 7
+    })
+  })
+
+  it('preserves explicit unlimited and partial overflow settings on a window-only save', () => {
+    const contextSettings = { maxMessages: null, compressWindow: 6, compress: { enabled: false } }
+    const assistant = createAssistant({ settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings } })
+    const baseline = initialAssistantFormState(assistant)
+    const result = diffAssistantUpdate({ ...baseline, contextCompressWindow: null }, baseline, assistant)
+    expect(result?.dto.settings?.contextSettings).toEqual({ ...contextSettings, compressWindow: null })
+  })
+
+  it('saves a custom window and explicit off without enabling overflow overrides', () => {
+    const assistant = createAssistant()
+    const baseline = initialAssistantFormState(assistant)
+    for (const value of [12, null]) {
+      const result = diffAssistantUpdate({ ...baseline, contextCompressWindow: value }, baseline, assistant)
+      expect(result?.dto.settings?.contextSettings).toEqual({ compressWindow: value })
+    }
+  })
+
+  it('removes the window override to resume global inheritance without losing the recent limit', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: { maxMessages: 3, compressWindow: null } }
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const result = diffAssistantUpdate({ ...baseline, contextCompressWindow: undefined }, baseline, assistant)
+    expect(result?.dto.settings?.contextSettings).toEqual({ maxMessages: 3 })
   })
 })
 

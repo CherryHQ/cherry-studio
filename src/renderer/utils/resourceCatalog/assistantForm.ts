@@ -62,6 +62,8 @@ export interface AssistantFormState {
    * not what happens when the context overflows, and it persists on its own.
    */
   contextMaxMessages: number | null
+  /** undefined inherits, null explicitly disables the global compression window. */
+  contextCompressWindow?: number | null
   /**
    * Compact once the prompt passes this percent of the available input context.
    * null = inherit the global trigger — same three-state contract as
@@ -108,6 +110,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
     contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
     contextMaxMessages: ctx?.maxMessages ?? null,
+    contextCompressWindow: ctx?.compressWindow,
     contextCompressThresholdPercent: ctx?.compress?.thresholdPercent ?? null,
     contextCompressModelId: ctx?.compress?.modelId ?? null,
     groupId: assistant.groupId,
@@ -160,6 +163,7 @@ export function diffAssistantUpdate(
     // Always compared: the scope control persists whether or not the
     // offload/compression override is on.
     baseline.contextMaxMessages !== form.contextMaxMessages ||
+    baseline.contextCompressWindow !== form.contextCompressWindow ||
     // Sub-fields only matter while the override is on, so an ON→OFF→ON round
     // trip that lands back on the baseline values fires no spurious PATCH.
     (form.contextOverrideEnabled &&
@@ -168,8 +172,30 @@ export function diffAssistantUpdate(
         baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
+  const onlyWindowChanged =
+    baseline.contextCompressWindow !== form.contextCompressWindow &&
+    baseline.contextMaxMessages === form.contextMaxMessages &&
+    baseline.contextOverrideEnabled === form.contextOverrideEnabled &&
+    baseline.contextCompressEnabled === form.contextCompressEnabled &&
+    baseline.contextTruncateThreshold === form.contextTruncateThreshold &&
+    baseline.contextCompressThresholdPercent === form.contextCompressThresholdPercent &&
+    baseline.contextCompressModelId === form.contextCompressModelId
+  const windowOnlySettings = { ...assistant.settings.contextSettings }
+  if (form.contextCompressWindow === undefined) delete windowOnlySettings.compressWindow
+  else windowOnlySettings.compressWindow = form.contextCompressWindow
+  const storedWindow =
+    baseline.contextCompressWindow === form.contextCompressWindow
+      ? assistant.settings.contextSettings?.compressWindow
+      : form.contextCompressWindow
+  const recentLimit =
+    baseline.contextMaxMessages === form.contextMaxMessages
+      ? assistant.settings.contextSettings?.maxMessages
+      : (form.contextMaxMessages ?? undefined)
+  const scopeOverride = {
+    ...(recentLimit !== undefined ? { maxMessages: recentLimit } : {}),
+    ...(storedWindow !== undefined ? { compressWindow: storedWindow } : {})
+  }
   const replyLanguage = diffReplyLanguage(baseline, form)
-
   const settings: NonNullable<UpdateAssistantDto['settings']> = {
     ...(baseline.temperature !== form.temperature ? { temperature: form.temperature } : {}),
     ...(baseline.enableTemperature !== form.enableTemperature ? { enableTemperature: form.enableTemperature } : {}),
@@ -188,22 +214,26 @@ export function diffAssistantUpdate(
       ? {
           // null clears the override; the `enabled` kill-switch stays global.
           // An empty limit is ABSENT, matching the "follow global" placeholder.
-          contextSettings: form.contextOverrideEnabled
-            ? {
-                truncateThreshold: form.contextTruncateThreshold,
-                ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
-                compress: {
-                  enabled: form.contextCompressEnabled,
-                  modelId: form.contextCompressModelId,
-                  // Absent = inherit the global trigger; the UI's empty field.
-                  ...(form.contextCompressThresholdPercent !== null
-                    ? { thresholdPercent: form.contextCompressThresholdPercent }
-                    : {})
-                }
-              }
-            : form.contextMaxMessages !== null
-              ? { maxMessages: form.contextMaxMessages }
+          contextSettings: onlyWindowChanged
+            ? Object.keys(windowOnlySettings).length
+              ? windowOnlySettings
               : null
+            : form.contextOverrideEnabled
+              ? {
+                  truncateThreshold: form.contextTruncateThreshold,
+                  ...scopeOverride,
+                  compress: {
+                    enabled: form.contextCompressEnabled,
+                    modelId: form.contextCompressModelId,
+                    // Absent = inherit the global trigger; the UI's empty field.
+                    ...(form.contextCompressThresholdPercent !== null
+                      ? { thresholdPercent: form.contextCompressThresholdPercent }
+                      : {})
+                  }
+                }
+              : Object.keys(scopeOverride).length
+                ? scopeOverride
+                : null
         }
       : {})
   }

@@ -1,5 +1,5 @@
 import { Sparkles, Trash2 } from 'lucide-react'
-import { type RefObject, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -28,6 +28,7 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { CompressionWindowField } from '@renderer/components/CompressionWindowField'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
@@ -41,6 +42,7 @@ import { toast } from '@renderer/services/toast'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
+  type AssistantSaveIntent,
   diffAssistantSaveIntent,
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
@@ -52,7 +54,7 @@ import {
   MIN_TRUNCATE_THRESHOLD
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { clampThresholdPercent, isValidCompressionWindow } from '@shared/utils/contextSettings'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -113,6 +115,7 @@ type AssistantEditFormValues = {
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
   contextMaxMessages: number | null
+  contextCompressWindow?: number | null
   contextCompressThresholdPercent: number | null
   contextCompressModelId: string | null
   knowledgeBaseIds: string[]
@@ -155,6 +158,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
     contextMaxMessages: form.contextMaxMessages,
+    contextCompressWindow: form.contextCompressWindow,
     contextCompressThresholdPercent: form.contextCompressThresholdPercent,
     contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
@@ -197,6 +201,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
     contextMaxMessages: values.contextMaxMessages,
+    contextCompressWindow: values.contextCompressWindow,
     contextCompressThresholdPercent: values.contextCompressThresholdPercent,
     contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
@@ -235,6 +240,8 @@ function AssistantEditDialogContent({
   initialTab
 }: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
+  const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
+  const [globalCompressWindow] = usePreference('chat.context_settings.compress_window')
   const [page, setPage] = useState<EditPage>(() => resolveInitialEditPage('assistant', initialTab, ASSISTANT_SUB_PAGES))
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -242,8 +249,20 @@ function AssistantEditDialogContent({
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
   const [formBaseline, setFormBaseline] = useState(() => initialAssistantFormState(resource))
   const formBaselineRef = useRef(formBaseline)
+  const savedResourceRef = useRef(resource)
+  const [savedResource, setSavedResource] = useState(resource)
+  // Detail observations after commit replace its snapshot; reads before commit
+  // are superseded by the commit callback, independent of wall-clock time.
+  useEffect(() => {
+    savedResourceRef.current = resource
+    setSavedResource(resource)
+  }, [resource])
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
-  const contextInitializedRef = useRef(defaultValues.contextOverrideEnabled)
+  // Captured once per dialog session: whether the assistant had a stored
+  // context override when this dialog (re)opened. Page navigation unmounts the
+  // context section, so this must not follow the live toggle or the baseline
+  // advanced by an OFF save.
+  const hadStoredOverrideAtOpenRef = useRef(defaultValues.contextOverrideEnabled)
   // Validate as the user types so an emptied name shows its required message.
   const form = useForm<AssistantEditFormValues>({ defaultValues, mode: 'onChange' })
   const values = form.watch()
@@ -251,8 +270,8 @@ function AssistantEditDialogContent({
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
-    return diffAssistantSaveIntent(buildAssistantFormState(formBaseline, values), formBaseline, resource)
-  }, [formBaseline, resource, values])
+    return diffAssistantSaveIntent(buildAssistantFormState(formBaseline, values), formBaseline, savedResource)
+  }, [formBaseline, savedResource, values])
 
   // Tracks the exact form snapshot that failed so it cannot be retried until
   // the user changes the form, while a later close can explicitly discard it.
@@ -269,7 +288,7 @@ function AssistantEditDialogContent({
     if (!justOpened) return
 
     form.reset(defaultValues)
-    contextInitializedRef.current = defaultValues.contextOverrideEnabled
+    hadStoredOverrideAtOpenRef.current = defaultValues.contextOverrideEnabled
     formBaselineRef.current = initialAssistantFormState(resource)
     setFormBaseline(formBaselineRef.current)
     form.clearErrors()
@@ -293,16 +312,49 @@ function AssistantEditDialogContent({
     diffAssistantSaveIntent(
       buildAssistantFormState(formBaselineRef.current, form.getValues()),
       formBaselineRef.current,
-      resource
+      savedResourceRef.current
     )
+
+  const windowInvalidMessage = t('settings.models.context_management.window_invalid')
+
+  // Validate the bounds pair the PATCH would actually write: each bound is the
+  // outgoing override when it changes, otherwise the assistant's own saved
+  // override, falling back to the global only when neither sets it. A PATCH
+  // that leaves the saved bounds untouched (an overflow-only toggle) has
+  // nothing to validate, so an unrelated invalid global pair must not block it.
+  const hasInvalidOutgoingContextPair = (intent: AssistantSaveIntent | null): boolean => {
+    const settings = intent?.payload.settings
+    if (!settings || !Object.hasOwn(settings, 'contextSettings')) return false
+    const outgoing = settings.contextSettings
+    if (!outgoing) return false
+    const savedContext = savedResourceRef.current?.settings.contextSettings
+    const recent = outgoing.maxMessages !== undefined ? outgoing.maxMessages : savedContext?.maxMessages
+    const total = outgoing.compressWindow !== undefined ? outgoing.compressWindow : savedContext?.compressWindow
+    if (recent === savedContext?.maxMessages && total === savedContext?.compressWindow) return false
+    return !isValidCompressionWindow(recent ?? globalMaxMessages, total ?? globalCompressWindow)
+  }
+
+  // A bounds pair rejected by the persist guard leaves its footer error behind
+  // when the draft is corrected or reverted without a new save, because the
+  // save intent disappears and autosave never runs. Clear the error once the
+  // current intent is valid again or gone.
+  useEffect(() => {
+    if (rootError !== windowInvalidMessage) return
+    if (!hasInvalidOutgoingContextPair(saveIntent)) form.clearErrors('root')
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- the pair check closes over refs and preferences only
+  }, [rootError, windowInvalidMessage, saveIntent, form])
 
   const persist = async () => {
     // oxlint-disable-next-line no-restricted-globals -- Capture one submitted form across async save while the user continues editing.
     const submittedValues = structuredClone(form.getValues())
     if (!submittedValues.name.trim()) return
     const submittedFormState = buildAssistantFormState(formBaselineRef.current, submittedValues)
-    const pending = diffAssistantSaveIntent(submittedFormState, formBaselineRef.current, resource)
+    const pending = diffAssistantSaveIntent(submittedFormState, formBaselineRef.current, savedResourceRef.current)
     if (!pending) return
+    if (hasInvalidOutgoingContextPair(pending)) {
+      form.setError('root', { message: windowInvalidMessage })
+      return
+    }
     const attemptedKey = JSON.stringify(submittedValues)
 
     // A close-triggered flush does not cancel the already scheduled debounce.
@@ -313,7 +365,10 @@ function AssistantEditDialogContent({
     failedSaveKeyRef.current = null
 
     try {
-      await updateAssistant(pending.payload)
+      await updateAssistant(pending.payload, (updated) => {
+        savedResourceRef.current = updated
+        setSavedResource(updated)
+      })
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
@@ -495,16 +550,23 @@ function AssistantEditDialogContent({
           portalContainer={dialogContentElement}
         />
       ) : null}
-      {page === 'context' ? (
-        <AssistantContextPage
-          contextInitializedRef={contextInitializedRef}
-          form={form}
-          modelFilter={modelFilter}
-          isModelDisabled={isModelDisabled}
-          portalContainer={dialogContentElement}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-        />
+      {open ? (
+        // Stays mounted while the dialog is open so a rejected draft and its error survive Back.
+        <div hidden={page !== 'context'}>
+          <AssistantContextPage
+            overflowSeededRef={hadStoredOverrideAtOpenRef}
+            storedMaxMessages={savedResource.settings.contextSettings?.maxMessages}
+            baselineMaxMessages={formBaseline.contextMaxMessages}
+            storedCompressWindow={savedResource.settings.contextSettings?.compressWindow}
+            baselineCompressWindow={formBaseline.contextCompressWindow}
+            form={form}
+            modelFilter={modelFilter}
+            isModelDisabled={isModelDisabled}
+            portalContainer={dialogContentElement}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+          />
+        </div>
       ) : null}
       {page === 'parameters' ? (
         <FormField
@@ -860,7 +922,11 @@ function AssistantSettingsCards({
 
 /** Message count plus the context override (compression and truncation), seeded from the globals. */
 function AssistantContextPage({
-  contextInitializedRef,
+  overflowSeededRef,
+  storedMaxMessages,
+  baselineMaxMessages,
+  storedCompressWindow,
+  baselineCompressWindow,
   form,
   modelFilter,
   isModelDisabled,
@@ -868,7 +934,12 @@ function AssistantContextPage({
   modelLabels,
   setModelLabels
 }: {
-  contextInitializedRef: RefObject<boolean>
+  /** True once the overflow fields hold stored or seeded values for this dialog session. */
+  overflowSeededRef: { current: boolean }
+  storedMaxMessages: number | null | undefined
+  baselineMaxMessages: number | null
+  storedCompressWindow: number | null | undefined
+  baselineCompressWindow: number | null | undefined
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -878,6 +949,7 @@ function AssistantContextPage({
 }) {
   const [globalContextEnabled] = usePreference('chat.context_settings.enabled')
   const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
+  const [globalCompressWindow] = usePreference('chat.context_settings.compress_window')
   const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
@@ -886,7 +958,11 @@ function AssistantContextPage({
   return (
     <div className="grid gap-4">
       <ContextManagementFields
-        contextInitializedRef={contextInitializedRef}
+        overflowSeededRef={overflowSeededRef}
+        storedMaxMessages={storedMaxMessages}
+        baselineMaxMessages={baselineMaxMessages}
+        storedCompressWindow={storedCompressWindow}
+        baselineCompressWindow={baselineCompressWindow}
         form={form}
         modelFilter={modelFilter}
         isModelDisabled={isModelDisabled}
@@ -897,6 +973,7 @@ function AssistantContextPage({
           enabled: globalContextEnabled,
           compressEnabled: globalCompressEnabled,
           maxMessages: globalMaxMessages,
+          compressWindow: globalCompressWindow,
           truncateThreshold: globalTruncateThreshold,
           compressThreshold: clampThresholdPercent(globalCompressThreshold),
           compressModelId: globalCompressModelId || null
@@ -907,7 +984,11 @@ function AssistantContextPage({
 }
 
 function ContextManagementFields({
-  contextInitializedRef,
+  overflowSeededRef,
+  storedMaxMessages,
+  baselineMaxMessages,
+  storedCompressWindow,
+  baselineCompressWindow,
   form,
   modelFilter,
   isModelDisabled,
@@ -916,7 +997,12 @@ function ContextManagementFields({
   setModelLabels,
   globalDefaults
 }: {
-  contextInitializedRef: RefObject<boolean>
+  /** True once the overflow fields hold stored or seeded values for this dialog session. */
+  overflowSeededRef: { current: boolean }
+  storedMaxMessages: number | null | undefined
+  baselineMaxMessages: number | null
+  storedCompressWindow: number | null | undefined
+  baselineCompressWindow: number | null | undefined
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -928,18 +1014,34 @@ function ContextManagementFields({
     compressEnabled: boolean
     truncateThreshold: number
     maxMessages: number | null
+    compressWindow: number | null
     compressThreshold: number
     compressModelId: string | null
   }
 }) {
   const { t } = useTranslation()
   const values = form.watch()
+  // Seed from globals only the first time an assistant WITHOUT a stored override is
+  // customized in this dialog session. A later OFF→ON round trip, with or without
+  // leaving the page, must keep the values the user already edited. The flag lives
+  // on the dialog, not this section, because page navigation can unmount the section.
+  const [recentDraft, setRecentDraft] = useState<number | null | undefined>(undefined)
+  const effectiveRecent =
+    values.contextMaxMessages === baselineMaxMessages
+      ? storedMaxMessages === undefined
+        ? globalDefaults.maxMessages
+        : storedMaxMessages
+      : (values.contextMaxMessages ?? globalDefaults.maxMessages)
+  const outgoingWindow =
+    values.contextCompressWindow === baselineCompressWindow ? storedCompressWindow : values.contextCompressWindow
+  const effectiveWindow = outgoingWindow === undefined ? globalDefaults.compressWindow : outgoingWindow
+
   const onOverrideToggle = (checked: boolean) => {
-    if (checked && !contextInitializedRef.current) {
+    if (checked && !overflowSeededRef.current) {
+      overflowSeededRef.current = true
       form.setValue('contextCompressEnabled', globalDefaults.compressEnabled, { shouldDirty: true })
       form.setValue('contextTruncateThreshold', globalDefaults.truncateThreshold, { shouldDirty: true })
       form.setValue('contextCompressModelId', globalDefaults.compressModelId, { shouldDirty: true })
-      contextInitializedRef.current = true
     }
     form.setValue('contextOverrideEnabled', checked, { shouldDirty: true })
   }
@@ -952,27 +1054,59 @@ function ContextManagementFields({
         render={({ field }) => (
           <FormItem>
             <FieldLabelWithHelp
-              label={t('library.config.basic.context_count')}
-              help={t('library.config.basic.field.context_count.hint')}
+              label={
+                effectiveWindow == null || !isValidCompressionWindow(effectiveRecent, effectiveWindow)
+                  ? t('library.config.basic.context_count')
+                  : t('settings.models.context_management.window_recent')
+              }
+              help={
+                effectiveWindow == null || !isValidCompressionWindow(effectiveRecent, effectiveWindow)
+                  ? t('library.config.basic.field.context_count.hint')
+                  : t('settings.models.context_management.window_description')
+              }
             />
             <FormControl>
               {/* Outside the override group: scope is not an overflow policy. */}
               <InputNumber
-                min={1}
-                step={1}
                 placeholder={
                   globalDefaults.maxMessages === null
                     ? t('library.config.basic.context_count_unlimited')
                     : t('library.config.basic.context_count_follow_global', { count: globalDefaults.maxMessages })
                 }
                 className="h-8 rounded-lg px-2.5"
-                value={field.value}
-                onBlur={(value) => field.onChange(value === null ? null : Math.floor(value))}
+                value={recentDraft === undefined ? field.value : recentDraft}
+                onBlur={(value) => {
+                  const next = value
+                  if (
+                    (next !== null && (!Number.isInteger(next) || next < 1)) ||
+                    !isValidCompressionWindow(next ?? globalDefaults.maxMessages, effectiveWindow)
+                  ) {
+                    setRecentDraft(next)
+                    form.setError('contextMaxMessages', {
+                      message: t('settings.models.context_management.window_invalid')
+                    })
+                    return
+                  }
+                  setRecentDraft(undefined)
+                  form.clearErrors('contextMaxMessages')
+                  field.onChange(next)
+                }}
               />
             </FormControl>
             <FormMessage />
           </FormItem>
         )}
+      />
+
+      <CompressionWindowField
+        value={values.contextCompressWindow}
+        recent={effectiveRecent}
+        inherited={globalDefaults.compressWindow ?? null}
+        onChange={(value) => {
+          form.clearErrors('contextMaxMessages')
+          setRecentDraft(undefined)
+          form.setValue('contextCompressWindow', value, { shouldDirty: true })
+        }}
       />
 
       <div className="flex items-center justify-between gap-3">
