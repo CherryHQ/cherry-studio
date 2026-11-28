@@ -5,7 +5,11 @@ import { type Session, session } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { MINI_APP_PARTITION_PREFIX, miniAppPartition } from '@main/features/miniApp/runtime/partition'
+import {
+  isMiniAppPartition,
+  MINI_APP_PARTITION_PREFIX,
+  miniAppPartition
+} from '@main/features/miniApp/runtime/partition'
 import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { MiniAppIdSchema } from '@shared/types/miniAppManifest'
 import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
@@ -136,24 +140,28 @@ export async function inspectSiteData(): Promise<CacheCleanupSizeSnapshot> {
     })
   )
 
-  targets.push(
-    ...COOKIE_RELATIVE_PATHS.map((relativePath) => ({
-      item: 'webview_cookies',
-      path: path.join(paths.webviewSession, relativePath)
-    })),
-    { item: 'webview_local_storage', path: path.join(paths.webviewSession, 'Local Storage') },
-    { item: 'webview_indexeddb', path: path.join(paths.webviewSession, 'IndexedDB') },
-    { item: 'webview_file_system', path: path.join(paths.webviewSession, 'File System') },
-    {
-      item: 'webview_service_workers',
-      path: path.join(paths.webviewSession, 'Service Worker'),
-      excludedPaths: new Set([path.resolve(paths.webviewSession, 'Service Worker', 'CacheStorage')])
-    },
-    { item: 'webview_websql', path: path.join(paths.webviewSession, 'databases') }
-  )
+  const { partitions, issues } = await inspectAdditionalPartitions()
+  const siteRoots = [
+    paths.webviewSession,
+    ...partitions.filter(({ name }) => isMiniAppPartition(name)).map(({ root }) => root)
+  ]
+  for (const root of siteRoots) {
+    targets.push(
+      ...COOKIE_RELATIVE_PATHS.map((relativePath) => ({ item: 'site_cookies', path: path.join(root, relativePath) })),
+      { item: 'site_local_storage', path: path.join(root, 'Local Storage') },
+      { item: 'site_indexeddb', path: path.join(root, 'IndexedDB') },
+      { item: 'site_file_system', path: path.join(root, 'File System') },
+      {
+        item: 'site_service_workers',
+        path: path.join(root, 'Service Worker'),
+        excludedPaths: new Set([path.resolve(root, 'Service Worker', 'CacheStorage')])
+      },
+      { item: 'site_websql', path: path.join(root, 'databases') }
+    )
+  }
 
   const measurement = await measurePaths(targets)
-  measurement.issues.push(issue('html_artifact_preview_site_data', 'inspection_failed'))
+  measurement.issues.push(...issues)
   return toSizeSnapshot(measurement, 'estimated')
 }
 
@@ -193,20 +201,24 @@ export async function clearNormalCache(): Promise<CacheCleanupGroupResult> {
 }
 
 export async function clearSiteData(): Promise<CacheCleanupGroupResult> {
+  const { partitions, issues } = await inspectAdditionalPartitions()
+  const sitePartitions = [
+    'persist:webview',
+    HTML_ARTIFACT_PREVIEW_PARTITION,
+    ...partitions.filter(({ name }) => isMiniAppPartition(name)).map(({ name }) => name)
+  ]
   const steps = await Promise.all([
     captureStep('default_session_cookies', () =>
       session.defaultSession.clearData({ dataTypes: ['cookies'], avoidClosingConnections: true })
     ),
-    captureStep('webview_site_data', () =>
-      session.fromPartition('persist:webview').clearData({
-        dataTypes: ['cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
-      })
-    ),
-    captureStep('html_artifact_preview_site_data', () =>
-      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION).clearData({
-        dataTypes: ['cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
-      })
+    ...sitePartitions.map((name) =>
+      captureStep(name, () =>
+        session.fromPartition(name).clearData({
+          dataTypes: ['cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
+        })
+      )
     )
   ])
+  steps.push(...issues.map((): CleanupStepResult => ({ state: 'skipped' })))
   return resultFromSteps('site_data', steps)
 }

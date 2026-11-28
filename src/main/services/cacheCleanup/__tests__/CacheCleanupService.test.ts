@@ -322,19 +322,38 @@ describe('CacheCleanupService', () => {
     await expectExisting(cache)
   })
 
-  it('reports site-data inspection as partial when the preview partition cannot be measured', async () => {
+  it('measures and clears independent mini-app site data without counting or clearing its cache', async () => {
+    const miniApp = 'persist:miniapp:com.example.app'
+    const root = rootPath('Session', 'Partitions', 'miniapp%3Acom.example.app')
+    const storage = path.join(root, 'Local Storage', 'data.bin')
+    const cache = path.join(root, 'Service Worker', 'CacheStorage', 'data.bin')
     await writeTestFile(rootPath('Session', 'Partitions', 'webview', 'Local Storage', 'data.bin'), Buffer.alloc(17))
+    await writeTestFile(storage, Buffer.alloc(23))
+    await writeTestFile(cache, Buffer.alloc(31))
 
-    const result = await cacheCleanupService.inspect(['site_data'])
-
-    expect(result.results[0]).toMatchObject({
-      group: 'site_data',
-      size: {
-        bytes: 17,
-        accuracy: 'estimated',
-        completeness: 'partial'
-      }
+    const partitionLookup = vi.mocked(session.fromPartition)
+    const lookup = partitionLookup.getMockImplementation()!
+    partitionLookup.mockImplementation((name) => {
+      if (name !== miniApp) return lookup(name)
+      return Object.assign({}, lookup(name), {
+        clearData: async (options) => {
+          if (options?.dataTypes?.includes('localStorage')) await fs.rm(storage)
+          if (options?.dataTypes?.includes('cache')) await fs.rm(cache)
+        }
+      } satisfies Partial<Session>)
     })
+    try {
+      const result = await cacheCleanupService.inspect(['site_data'])
+      expect(result.results[0]).toEqual({
+        group: 'site_data',
+        size: { bytes: 40, accuracy: 'estimated', completeness: 'complete' }
+      })
+      expect((await cacheCleanupService.run(['site_data'])).results[0]?.status).toBe('cleared')
+      await expectMissing(storage)
+      await expectExisting(cache)
+    } finally {
+      partitionLookup.mockImplementation(lookup)
+    }
   })
 
   it('clears both the active and legacy trace directories', async () => {
