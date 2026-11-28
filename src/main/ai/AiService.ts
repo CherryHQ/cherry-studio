@@ -85,7 +85,7 @@ import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoin
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { ToolContinuationRouteError } from './provider/replayRoute'
 import { resolveSdkConfig } from './provider/sdkConfig'
-import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
+import type { AgentLoopHooks, RecoverableModelTransportFailure, RequestFeature } from './runtime/aiSdk'
 import {
   Agent,
   buildAgentParams,
@@ -93,7 +93,8 @@ import {
   buildFallbackModels,
   createRetryableWrap,
   MAX_OUTPUT_TOKEN_RETRIES,
-  readRetryPolicy
+  readRetryPolicy,
+  recoverableModelTransportFailure
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import type { AiStreamSource } from './streamManager'
@@ -200,7 +201,8 @@ function resolveTextRetryPolicy(
 function createCallerRetryWrap(
   maxRetries: number | undefined,
   recoverOutputTokens: boolean | undefined,
-  onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent']
+  onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent'],
+  callerHandlesTransportRetry?: boolean
 ): ReturnType<typeof createRetryableWrap> {
   const retryTransient = maxRetries !== undefined && maxRetries > 0
   if (!retryTransient && !recoverOutputTokens) return undefined
@@ -214,7 +216,10 @@ function createCallerRetryWrap(
     },
     outputTokenRetries: Math.min(maxAttempts, MAX_OUTPUT_TOKEN_RETRIES),
     fallbacks: [],
-    onRetryEvent
+    onRetryEvent,
+    shouldRetryError: callerHandlesTransportRetry
+      ? (error) => recoverableModelTransportFailure(error) === undefined
+      : undefined
   })
 }
 
@@ -313,6 +318,8 @@ export function mergeProviderModelsWithRegistry(remote: Partial<Model>[], regist
 export interface AiRequestOptions extends AiTransportOptions {
   /** In-process only. Renderer payloads use `AiTransportOptions` (no signal). */
   signal?: AbortSignal
+  /** Trusted caller owns retry scheduling for reported transport failures. */
+  onModelTransportFailure?: (failure: RecoverableModelTransportFailure) => void
 }
 
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
@@ -671,6 +678,28 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
+    const onFailure = request.requestOptions?.onModelTransportFailure
+    const reportTransportFailure =
+      onFailure &&
+      ((error: unknown) => {
+        if (signal.aborted) return
+        const failure = recoverableModelTransportFailure(error)
+        if (failure) onFailure(failure)
+      })
+    try {
+      return await this.streamSdkText(request, signal, extraFeatures, reportTransportFailure)
+    } catch (error) {
+      reportTransportFailure?.(error)
+      throw error
+    }
+  }
+
+  private async streamSdkText(
+    request: AsInProcessChat<AiStreamRequest>,
+    signal: AbortSignal,
+    extraFeatures: readonly RequestFeature[],
+    reportTransportFailure?: (error: unknown) => void
+  ): Promise<AiStreamSource> {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
@@ -749,8 +778,11 @@ export class AiService extends BaseService {
       : undefined
     let wrapModel =
       request.contextOwner === 'caller'
-        ? createCallerRetryWrap(request.requestOptions?.maxRetries, request.retryOutputTokenLimit, (event) =>
-            agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+        ? createCallerRetryWrap(
+            request.requestOptions?.maxRetries,
+            request.retryOutputTokenLimit,
+            (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event }),
+            !!reportTransportFailure
           )
         : undefined
     let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
@@ -841,6 +873,16 @@ export class AiService extends BaseService {
       options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [
         this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
+        ...(reportTransportFailure
+          ? [
+              {
+                onError: ({ error }) => {
+                  reportTransportFailure(error)
+                  return 'abort'
+                }
+              } satisfies Partial<AgentLoopHooks>
+            ]
+          : []),
         ...(request.runtimeTimingSink
           ? [
               {

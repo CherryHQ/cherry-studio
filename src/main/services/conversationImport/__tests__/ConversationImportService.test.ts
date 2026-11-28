@@ -532,9 +532,10 @@ describe('local history atomic import', () => {
       message(1, first),
       last
     ].join('\n')
-    await writeFile(file, text.slice(0, -2))
+    await writeFile(file, text.split('\n', 1)[0])
     const scan = await service.discover('window', 'codex', dir)
     const [{ ref }] = scan.candidates
+    await writeFile(file, text.slice(0, -2))
     const prepare = () => service.preview('window', scan.scanId, 'pi', [{ ref }])
     const partial = await prepare()
     expect(partial.items[0].diagnostics).toContainEqual(
@@ -546,6 +547,7 @@ describe('local history atomic import', () => {
     const repaired = await prepare()
     const [result] = await service.commit('window', repaired.previewId, [ref])
     expect(result.status).toBe('imported')
+    expect(agentSessionService.getById(result.sessionId!).name).toBe(first.replace(/\s+/g, ' '))
     expect(
       agentSessionMessageService
         .listSessionMessages(result.sessionId!)

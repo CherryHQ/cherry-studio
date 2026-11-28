@@ -51,12 +51,17 @@
       {
         "id": "notes",
         "path": "/app/notes"
+      },
+      {
+        "id": "api_gateway",
+        "path": "/app/api-gateway"
       }
     ],
     "all": [
       "/app",
       "/settings",
       "/app/agents",
+      "/app/api-gateway",
       "/app/browser",
       "/app/chat",
       "/app/code",

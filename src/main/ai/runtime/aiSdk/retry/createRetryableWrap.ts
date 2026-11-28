@@ -77,6 +77,7 @@ export interface CreateRetryableWrapOptions {
   diagnosticContext?: Readonly<Record<string, unknown>>
   /** Invoked when retry starts or settles (e.g. to reconcile a live UI status part). */
   onRetryEvent?: (event: RetryPartData) => void
+  shouldRetryError?: (error: unknown) => boolean
   /** Switches request-scoped helpers to the credential/model selected by a fallback. */
   onFallbackActivated?: (fallback: RetryFallback) => void
   /** Restores request-scoped helpers when a new operation starts from the primary model. */
@@ -201,6 +202,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     ...(backoffEnabled && { backoffFactor: 2 })
   })
   const retryTransient: Retryable<LanguageModel> = async (context) => {
+    if (isErrorAttempt(context.current) && options.shouldRetryError?.(context.current.error) === false) return
     const retry = await transientRetry(context)
     return (
       retry && {

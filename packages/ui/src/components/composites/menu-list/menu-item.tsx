@@ -13,7 +13,7 @@ const menuItemVariants = cva(
     'group relative flex w-full items-center gap-2.5 rounded-lg font-normal',
     'border border-transparent',
     'transition-all duration-150',
-    'outline-none select-none',
+    'select-none',
     'focus-visible:bg-accent',
     'disabled:pointer-events-none disabled:opacity-40',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0'
