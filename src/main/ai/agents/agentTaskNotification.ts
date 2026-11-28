@@ -32,6 +32,6 @@ export async function publishScheduledTaskResult(jobId: string): Promise<boolean
     ...(job.error
       ? { errorSummary: toExecutionFailure({ name: null, stack: null, message: job.error.message }).message }
       : {}),
-    target: { kind: 'scheduled-task', taskId: job.scheduleId }
+    target: { kind: 'scheduled-task', taskId: job.scheduleId, runId: job.id }
   })
 }

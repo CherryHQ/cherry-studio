@@ -40,6 +40,7 @@ import { agentDataDirectoryPath, assertAgentStorageDirectory } from '@main/ai/ag
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { pauseHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
 import { frameScheduledTrigger } from '@main/ai/agents/scheduledTriggerFraming'
+import { LocalAgentSessionRestoreError } from '@main/ai/runtime/LocalAgentSessionRestoreError'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
@@ -156,6 +157,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   }
 
   const config = agent.configuration ?? {}
+  if (agent.type === 'local' && !agent.localRuntime?.enabled) {
+    return { kind: 'skipped', result: 'Skipped (disabled)' }
+  }
 
   // Identity is the reserved prompt, not the schedule name — see HEARTBEAT_PROMPT_SENTINEL.
   const isHeartbeat = prompt === HEARTBEAT_PROMPT_SENTINEL
@@ -280,7 +284,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     application.get('AiStreamManager').removeListener(topicId, `agent-task:${scheduleId ?? ctx.jobId}`)
     settle()
   }
-  let historyOverflow = false
+  let cannotReuseSession = false
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
     ownsTaskResult: true,
@@ -318,7 +322,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       complete(() => {
         const message = result.error.message ?? 'Execution failed'
         const failure = result.failure ?? toExecutionFailure(result.error, result.modelId)
-        historyOverflow = failure.failure.reasonCode === 'context_length'
+        cannotReuseSession =
+          failure.failure.reasonCode === 'context_length' ||
+          result.error.name === LocalAgentSessionRestoreError.errorName
         rejectExecution(new Error(message))
       })
     },
@@ -394,13 +400,13 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   } catch (err) {
     runError = err instanceof Error ? err : new Error(String(err))
     if (
-      historyOverflow &&
+      (cannotReuseSession || err instanceof LocalAgentSessionRestoreError) &&
       reuseBinding &&
       !runSignal.aborted &&
       resolved.reused &&
       resolved.session.id === session.id
     ) {
-      application.get('AgentJobsService').releaseOverflowedTaskSession(reuseBinding, session.id)
+      application.get('AgentJobsService').releaseTaskSessionReuse(reuseBinding, session.id)
     }
     if (pausedStatus) await ctx.patchMetadata({ taskResultStatus: pausedStatus })
     if (!runSignal.aborted && !pausedStatus && subscribedChannels.length > 0) {

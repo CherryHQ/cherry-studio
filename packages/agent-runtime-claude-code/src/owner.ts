@@ -14,7 +14,6 @@ import {
 import {
   cloneHistoryData,
   runtimeId,
-  type BusyPolicy,
   type InputFact,
   type InputId,
   type InputState,
@@ -55,12 +54,23 @@ interface Input {
   projection: ClaudeProjection
   state: ProductInputState
 }
+interface Compaction {
+  id: ReturnType<typeof randomUUID>
+  sessionId: string
+  content: string
+  stage: 'checking' | 'queued' | 'dispatched' | 'started'
+  compacted: boolean
+  failure?: string
+  readonly completion: Promise<OperationResult<void>>
+  finish: (result: OperationResult<void>) => void
+}
 
-// Any explicit CLAUDE_CONFIG_DIR, even the CLI's own default, re-keys the macOS Keychain
-// credential and hides an existing `claude /login`, so only a non-default directory is passed.
+// An implicit default and an explicit CLAUDE_CONFIG_DIR can select different macOS Keychain accounts.
 function childEnvironment(env: ClaudeSessionOptions['env'], configDir: string) {
   const childEnv: Record<string, string | undefined> = { ...env, CLAUDE_CONFIG_DIR: configDir }
-  if (path.resolve(configDir) === path.join(homedir(), '.claude')) delete childEnv.CLAUDE_CONFIG_DIR
+  const home = (process.platform === 'win32' ? env?.USERPROFILE : env?.HOME) || homedir()
+  if (!env?.CLAUDE_CONFIG_DIR && path.resolve(configDir) === path.join(home, '.claude'))
+    delete childEnv.CLAUDE_CONFIG_DIR
   return childEnv
 }
 
@@ -71,6 +81,7 @@ export class ClaudeOwner {
   private readonly inputs = new Map<string, Input>()
   private readonly nativeInputIds = new Map<InputId, string>()
   private readonly queue: { input: Input; message: SDKUserMessage; resolve: (result: SubmitResult) => void }[] = []
+  private compaction?: Compaction
   private wake?: () => void
   private readonly contextWindows = new Map<string, number>()
   private contextEpoch = 0
@@ -124,6 +135,19 @@ export class ClaudeOwner {
 
   private async *inputStream(): AsyncGenerator<SDKUserMessage> {
     while (!this.closing && !this.lost) {
+      const compaction = this.compaction
+      if (compaction?.stage === 'queued') {
+        compaction.stage = 'dispatched'
+        yield {
+          type: 'user',
+          uuid: compaction.id,
+          message: { role: 'user', content: compaction.content },
+          priority: 'later',
+          parent_tool_use_id: null,
+          session_id: compaction.sessionId
+        }
+        continue
+      }
       const queued = this.queue.shift()
       if (!queued) {
         await new Promise<void>((resolve) => {
@@ -179,10 +203,11 @@ export class ClaudeOwner {
   }
 
   private contextWindow(model: string): number | undefined {
+    const native = this.contextWindows.get(model)
+    if (native !== undefined) return native
     const declared = this.runtime.contextWindow
     const normalize = (id: string) => id.replace(/\[1m\]$/i, '')
-    if (declared && normalize(declared.model) === normalize(model)) return declared.tokens
-    return this.contextWindows.get(model)
+    return declared && normalize(declared.model) === normalize(model) ? declared.tokens : undefined
   }
 
   async contextUsage(projection: ClaudeProjection): Promise<OperationResult<ThreadContextUsage>> {
@@ -194,15 +219,10 @@ export class ClaudeOwner {
     let result: OperationResult<ThreadContextUsage>
     try {
       const native = await this.sdk.getContextUsage()
-      const window = this.contextWindow(native.model)
-      if (window) {
-        const value = normalizeContextUsage(native, window)
-        result = {
-          status: 'confirmed',
-          value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
-        }
-      } else {
-        result = { status: 'unknown', error: runtimeError('contextUsage', 'unknown-window') }
+      const value = normalizeContextUsage(native, this.contextWindow(native.model))
+      result = {
+        status: 'confirmed',
+        value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
       }
     } catch (error) {
       this.report(error)
@@ -230,7 +250,6 @@ export class ClaudeOwner {
           options: {
             ...this.config,
             env: childEnvironment(this.config.env, this.runtime.configDir),
-            permissionMode: this.config.permissionMode ?? 'default',
             sessionId: this.fresh ? this.activeSession : undefined,
             resume: this.fresh ? undefined : this.activeSession,
             persistSession: true,
@@ -294,13 +313,13 @@ export class ClaudeOwner {
     projection: ClaudeProjection,
     inputId: InputId,
     content: SDKUserMessage['message']['content'],
-    policy: BusyPolicy
+    policy: 'steer' | 'follow-up'
   ): Promise<SubmitResult> {
     const refuse = (code: string, status: 'rejected' | 'unsupported' = 'rejected'): Promise<SubmitResult> =>
       Promise.resolve({ status, inputId, error: runtimeError('submit', code) })
     if (this.closing || this.lost || this.resetFrom || projection.thread.id !== this.activeSession)
       return refuse('closed')
-    if (policy !== 'steer' && policy !== 'follow-up') return refuse('busy-policy', 'unsupported')
+    if (this.compaction) return refuse('compacting')
     if (this.inputs.has(inputId) || this.nativeInputIds.has(inputId)) return refuse('duplicate-input')
     if (typeof content === 'string' ? !content.trim() : !content.length) return refuse('empty-input')
     try {
@@ -335,6 +354,95 @@ export class ClaudeOwner {
     })
   }
 
+  async compact(projection: ClaudeProjection, instructions?: string): Promise<OperationResult<void>> {
+    const state = projection.control.snapshot
+    if (this.compaction || this.queue.length || state.active || state.backgroundWorkActive)
+      return rejected('compact', 'busy')
+    if (this.connect(projection).status !== 'confirmed') return rejected('compact', 'closed')
+    const { promise, resolve } = Promise.withResolvers<OperationResult<void>>()
+    const operation: Compaction = {
+      id: randomUUID(),
+      sessionId: this.activeSession,
+      content: instructions ? `/compact ${instructions}` : '/compact',
+      stage: 'checking',
+      compacted: false,
+      completion: promise,
+      finish: (result) => {
+        if (this.compaction !== operation) return
+        this.compaction = undefined
+        resolve(result)
+      }
+    }
+    this.compaction = operation
+    void this.sdk!.reinitialize()
+      .then(({ commands }) => {
+        if (this.compaction !== operation) return
+        const matches = commands.filter(({ name }) => name === 'compact')
+        if (!matches.length || matches.some(({ builtin }) => builtin !== true)) {
+          operation.finish({ status: 'unsupported', error: runtimeError('compact', 'unavailable') })
+          return
+        }
+        operation.stage = 'queued'
+        this.wake?.()
+      })
+      .catch((error) => {
+        this.report(error)
+        operation.finish(rejected('compact', 'command-discovery-failed'))
+      })
+    return promise
+  }
+
+  private consumeCompaction(message: SDKMessage | ClaudeCommandLifecycle): boolean {
+    const operation = this.compaction
+    if (
+      !operation ||
+      !('session_id' in message) ||
+      message.session_id !== operation.sessionId ||
+      ('agent_id' in message && message.agent_id) ||
+      ('parent_tool_use_id' in message && message.parent_tool_use_id)
+    )
+      return false
+    if (message.type === 'system' && message.subtype === 'commands_changed' && !operation.compacted) {
+      if (operation.stage === 'checking' || operation.stage === 'queued')
+        operation.finish(rejected('compact', 'command-changed'))
+      else operation.failure = 'command-changed'
+      return false
+    }
+    if (operation.stage !== 'dispatched' && operation.stage !== 'started') return false
+    if (isCommandLifecycle(message)) {
+      if (message.command_uuid !== operation.id) return false
+      if (message.state === 'started') operation.stage = 'started'
+      if (message.state === 'cancelled' || message.state === 'discarded' || message.state === 'refused')
+        operation.finish(rejected('compact', message.state))
+      return true
+    }
+    if (message.type === 'result' && message.user_message_uuid === operation.id) {
+      const failure =
+        operation.failure ?? (message.is_error || message.subtype !== 'success' ? 'native-result-error' : undefined)
+      if (failure) operation.finish(rejected('compact', failure))
+      else if (operation.compacted) operation.finish({ status: 'confirmed', value: undefined })
+      else if (operation.stage === 'started' && message.subtype === 'success' && message.local_command)
+        operation.finish(rejected('compact', 'not-compacted'))
+      else operation.finish({ status: 'unknown', error: runtimeError('compact', 'missing-compaction-boundary') })
+      return true
+    }
+    if (message.type === 'user') return message.uuid === operation.id
+    if (message.type !== 'system' || operation.stage !== 'started') return false
+    if (message.subtype === 'status' && message.compact_result === 'failed') operation.failure ??= 'native-failed'
+    if (message.subtype === 'compact_boundary' && message.compact_metadata.trigger === 'manual') {
+      operation.compacted = true
+      this.contextEpoch++
+      this.projection(operation.sessionId).publish([
+        { type: 'context.changed', result: { status: 'unknown', error: runtimeError('contextUsage', 'compacted') } }
+      ])
+      return true
+    }
+    return (
+      message.subtype === 'local_command_output' ||
+      (message.subtype === 'status' && (message.status === 'compacting' || !!message.compact_result))
+    )
+  }
+
   private inputFacts(
     input: Input,
     facts: readonly InputFact[],
@@ -347,6 +455,13 @@ export class ClaudeOwner {
   }
 
   private failPending(): void {
+    const compaction = this.compaction
+    if (compaction)
+      compaction.finish(
+        compaction.stage === 'checking' || compaction.stage === 'queued'
+          ? rejected('compact', 'closed')
+          : { status: 'unknown', error: runtimeError('compact', 'disconnected') }
+      )
     for (const { input, resolve } of this.queue.splice(0))
       resolve({ ...rejected('submit', 'not-dispatched'), inputId: input.state.inputId })
     for (const input of this.inputs.values()) {
@@ -446,6 +561,7 @@ export class ClaudeOwner {
   }
 
   private async consume(message: SDKMessage | ClaudeCommandLifecycle): Promise<void> {
+    if (this.consumeCompaction(message)) return
     if (isCommandLifecycle(message)) {
       const input = this.inputs.get(message.command_uuid)
       if (input) {
@@ -542,14 +658,14 @@ export class ClaudeOwner {
         (this.liveInputUsage.input_tokens ?? 0) +
         (this.liveInputUsage.cache_read_input_tokens ?? 0) +
         (this.liveInputUsage.cache_creation_input_tokens ?? 0)
-      if ((event.type === 'message_start' || event.type === 'message_delta') && model && window && tokens > 0)
+      if ((event.type === 'message_start' || event.type === 'message_delta') && model && tokens > 0)
         events.push({
           type: 'context.changed',
           result: {
             status: 'confirmed',
             value: {
               model,
-              contextWindow: window,
+              ...(window === undefined ? {} : { contextWindow: window }),
               revision: `${this.activeSession}:${this.contextEpoch}:${message.uuid}`,
               basis: 'last-request',
               used: { tokens, precision: 'reported' }
@@ -624,7 +740,7 @@ export class ClaudeOwner {
         }
       }
     } else if (message.type === 'result') {
-      const content = projection.result(message)
+      const content = projection.result(message, !!commandInput)
       if (content.length) {
         events.push(...content)
       }
@@ -690,6 +806,11 @@ export class ClaudeOwner {
   async interrupt(projection: ClaudeProjection) {
     if (this.closing || this.lost || this.resetFrom || projection.thread.id !== this.activeSession)
       return rejected('interrupt', 'closed')
+    const compaction = this.compaction
+    if (compaction?.stage === 'checking' || compaction?.stage === 'queued') {
+      compaction.finish(rejected('compact', 'cancelled'))
+      return { status: 'confirmed' as const, value: undefined }
+    }
     if (!this.sdk) return { status: 'confirmed' as const, value: undefined }
     try {
       const receipt = await this.sdk.interrupt()
@@ -788,6 +909,7 @@ export class ClaudeOwner {
   }
 
   async settled(): Promise<void> {
+    await this.compaction?.completion
     let observation: Observation | undefined
     try {
       await new Promise<void>((resolve, reject) => {

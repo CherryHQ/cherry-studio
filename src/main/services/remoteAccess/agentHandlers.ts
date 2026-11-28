@@ -23,6 +23,7 @@ import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 
 import type { RemoteAgentHub } from './agentJournal'
 import { pageOf, queryPage } from './agentPagination'
@@ -32,6 +33,7 @@ import {
   inputDigest,
   listAgents,
   listMessages,
+  listModels,
   listParts,
   listPersistedInteractions,
   listSessions,
@@ -153,6 +155,17 @@ export function registerAgentMethods(
   }
 
   on('agent.agents.list', ({ cursor, limit }) => listAgents(cursor, limit))
+  on('agent.models.list', async (params) => {
+    if (!params.cursor) {
+      // A cloud refresh failure still leaves locally configured models available.
+      await application
+        .get('CherryCloudService')
+        .syncEntitledModelsIfStale()
+        .catch(() => undefined)
+      access.requireAgent()
+    }
+    return listModels(params)
+  })
   on('agent.workspaces.list', ({ agentId, cursor, limit }) => listWorkspaces(agentId, cursor, limit))
   on('agent.sessions.list', (params) =>
     queryPage((attemptLimit) => {
@@ -164,19 +177,29 @@ export function registerAgentMethods(
     }, params.limit)
   )
   on('agent.sessions.get', ({ sessionId }) => ({ session: summaryOf(sessionId) }))
-  on('agent.sessions.create', (params, auth) => {
+  on('agent.sessions.create', async (params, auth) => {
     const method = 'agent.sessions.create'
+    const key = { ...auth, commandId: params.commandId }
+    let cloudRefreshFailed = false
+    if (params.model && isManagedCherryCloudModel(params.model.providerId) && !remoteCommandService.get(key)) {
+      try {
+        await application.get('CherryCloudService').syncEntitledModelsIfStale()
+      } catch {
+        cloudRefreshFailed = true
+      }
+      access.requireAgent()
+    }
     let admission
     try {
       admission = remoteCommandService.apply(
-        { ...auth, commandId: params.commandId },
+        key,
         {
           method,
           identityDigest: sha256(encodeAgentCommand(method, params))
         },
         (tx) => {
           const sessionId = randomUUID()
-          createSessionTx(tx, sessionId, params)
+          createSessionTx(tx, sessionId, params, { cloudRefreshFailed })
           return { status: 'applied', sessionId, result: { sessionId } }
         }
       )

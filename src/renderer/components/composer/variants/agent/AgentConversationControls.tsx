@@ -6,6 +6,7 @@ import { Button, EmojiIcon, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
@@ -14,6 +15,7 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
+import type { LocalAgentSessionView } from '@shared/ai/localAgent'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
@@ -27,6 +29,7 @@ import {
   COMPOSER_TOP_BAR_SHRINK_CLASS
 } from '../shared/ComposerControlScaffolding'
 import { AgentLabel } from './AgentLabel'
+import { LocalAgentModelControl } from './LocalAgentModelControl'
 
 const ResourceEditDialogHost = React.lazy(() =>
   import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
@@ -40,6 +43,8 @@ export type AgentConversationWorkspace = Pick<AgentWorkspaceEntity, 'type'> &
 export interface AgentConversationControlsProps {
   agent?: AgentEntity
   model?: Model
+  localView?: LocalAgentSessionView
+  localSessionId?: string
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
   workspaceChanging?: boolean
@@ -107,13 +112,17 @@ function AgentControl({
         aria-pressed={avatarActive}
         onClick={onAvatarClick}
         className={COMPOSER_PROFILE_AVATAR_BUTTON_CLASS}>
-        <AssistantAvatarImage
-          src={agent.avatarSrc}
-          alt=""
-          size={20}
-          className="max-w-none rounded-full object-cover"
-          fallback={<EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={20} />}
-        />
+        {agent.localRuntime ? (
+          <LocalAgentIcon presetId={agent.localRuntime.presetId} size={20} />
+        ) : (
+          <AssistantAvatarImage
+            src={agent.avatarSrc}
+            alt=""
+            size={20}
+            className="max-w-none rounded-full object-cover"
+            fallback={<EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={20} />}
+          />
+        )}
       </button>
     ) : null
 
@@ -401,7 +410,22 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
   return (
     <>
       <AgentControl {...props} />
-      <ModelControl {...props} />
+      {props.agent?.type === 'local' ? (
+        <LocalAgentModelControl
+          key={props.agent.id}
+          agent={props.agent}
+          info={props.localView?.info}
+          connecting={props.localView?.connecting}
+          providerId={props.localView?.providerId}
+          presetId={props.localView?.presetId}
+          sessionId={props.localSessionId}
+          disabled={!props.canChangeModel}
+          side={props.side}
+          iconOnly={props.iconOnly}
+        />
+      ) : (
+        <ModelControl {...props} />
+      )}
       <WorkspaceControl {...props} />
     </>
   )

@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from '../bootstrap'
+import { resolveAgentCapabilities } from '../builtin/builtinAgentCapabilities'
 
 const logger = loggerService.withContext('PromptBuilder')
 const PROMPT_FILE_CACHE_TTL_MS = 30 * 60 * 1000
@@ -69,9 +70,9 @@ type CacheEntry = {
 
 /**
  * How the agent's base system prompt should be established, decided from the
- * workspace alone and kept free of any SDK type:
+ * workspace and the Agent's environment policy and kept free of any SDK type:
  *
- * - `native` — no workspace `system.md`; the runtime uses its native base prompt.
+ * - `native` — no eligible workspace `system.md`; the runtime uses its native base prompt.
  * - `custom` — an explicit workspace `system.md` replaces only that native base.
  *
  * Cherry-owned context remains separate and is appended in either case.
@@ -132,13 +133,17 @@ export class PromptBuilder {
     workspacePath: string,
     config?: AgentConfiguration,
     hasUserInstructions = false,
-    agentDataPath = workspacePath
+    agentDataPath = workspacePath,
+    agentName?: string | null
   ): Promise<AgentPromptParts> {
     const contextParts: string[] = []
 
     // File presence is the explicit choice: even an empty system.md replaces only
     // the SDK base preset, while Cherry-owned context remains appended separately.
-    const systemPath = await resolveFile(workspacePath, 'system.md', true)
+    const systemPath =
+      resolveAgentCapabilities({ configuration: config }).environment === 'open'
+        ? await resolveFile(workspacePath, 'system.md', true)
+        : undefined
     const base: AgentPromptBase = systemPath
       ? { kind: 'custom', content: await this.readCachedFile(systemPath, path.dirname(systemPath), true) }
       : { kind: 'native' }
@@ -146,7 +151,7 @@ export class PromptBuilder {
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config)
     const bootstrap = needsBootstrap
-      ? `${buildBootstrapInstructions(hasUserInstructions)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
+      ? `${buildBootstrapInstructions(hasUserInstructions, agentName)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
       : undefined
     if (bootstrap) {
       contextParts.push(bootstrap)
