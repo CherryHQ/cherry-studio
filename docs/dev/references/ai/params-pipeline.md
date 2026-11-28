@@ -248,6 +248,16 @@ in `getTemperature` / `getTopP`; this final step enforces sampling omission
 regardless of which input supplied the value. Undeclared support retains the
 existing default behavior.
 
+Chat Completions sends one output-token field. An explicitly supplied
+`max_completion_tokens` takes precedence over `max_tokens`, including when a
+custom parameter is merged into the SDK body. The compatible OpenAI adapter
+uses `max_completion_tokens` for OpenAI reasoning model IDs, including
+OpenAI-prefixed relay aliases.
+For retry-enabled Chat Completions calls, an explicit HTTP 400 that requires
+the completion field or rejects both fields can trigger one encoding repair.
+The retry checks the body sent by the adapter and preserves the budget. Later
+attempts for the same model call keep the corrected field.
+
 `maxOutputTokens` uses a separate raw-limit resolution before reasoning:
 
 1. `request.callOverrides.maxOutputTokens`

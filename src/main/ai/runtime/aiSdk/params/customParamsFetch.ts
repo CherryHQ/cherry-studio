@@ -1,4 +1,7 @@
+import { applyReasoningModelMaxTokensConversion } from '@cherrystudio/ai-sdk-provider'
+
 import { isCustomProviderNamespace } from '../../../utils/options'
+import { applyChatTokenFieldRetry } from '../retry/chatTokenFieldRetry'
 
 const CUSTOM_PARAMS_FETCH_CACHE_SIZE = 10
 const customParamsFetchCache = new WeakMap<typeof globalThis.fetch, Map<string, typeof globalThis.fetch>>()
@@ -27,27 +30,31 @@ export function selectCustomBodyParameters(
  */
 export function createCustomParamsFetch(
   innerFetch: typeof globalThis.fetch,
-  customParams: Record<string, unknown>
+  customParams: Record<string, unknown>,
+  chatCompletions = false
 ): typeof globalThis.fetch {
-  if (Object.keys(customParams).length === 0) return innerFetch
+  const hasCustomParams = Object.keys(customParams).length > 0
+  if (!chatCompletions && !hasCustomParams) return innerFetch
 
   const serializedCustomParams = JSON.stringify(customParams) ?? '{}'
+  const cacheKey = chatCompletions ? `chat:${serializedCustomParams}` : serializedCustomParams
   let cachedByParams = customParamsFetchCache.get(innerFetch)
   if (!cachedByParams) {
     cachedByParams = new Map()
     customParamsFetchCache.set(innerFetch, cachedByParams)
   }
 
-  const cachedFetch = cachedByParams.get(serializedCustomParams)
+  const cachedFetch = cachedByParams.get(cacheKey)
   if (cachedFetch) {
-    cachedByParams.delete(serializedCustomParams)
-    cachedByParams.set(serializedCustomParams, cachedFetch)
+    cachedByParams.delete(cacheKey)
+    cachedByParams.set(cacheKey, cachedFetch)
     return cachedFetch
   }
 
   const customParamsSnapshot = JSON.parse(serializedCustomParams) as Record<string, unknown>
   const wrappedFetch: typeof globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     if (init?.method?.toUpperCase() === 'POST' && typeof init.body === 'string') {
+      if (!hasCustomParams && !init.body.includes('"max_tokens"')) return innerFetch(input, init)
       let body: unknown
       try {
         body = JSON.parse(init.body)
@@ -56,9 +63,16 @@ export function createCustomParamsFetch(
       }
 
       if (isRecord(body)) {
+        let merged = { ...customParamsSnapshot, ...body }
+        if (chatCompletions) {
+          if (merged.max_completion_tokens != null || customParamsSnapshot.max_tokens != null) {
+            merged = applyReasoningModelMaxTokensConversion(merged)
+          }
+          applyChatTokenFieldRetry(merged)
+        }
         return innerFetch(input, {
           ...init,
-          body: JSON.stringify({ ...customParamsSnapshot, ...body })
+          body: JSON.stringify(merged)
         })
       }
     }
@@ -70,6 +84,6 @@ export function createCustomParamsFetch(
     const oldestKey = cachedByParams.keys().next().value
     if (oldestKey !== undefined) cachedByParams.delete(oldestKey)
   }
-  cachedByParams.set(serializedCustomParams, wrappedFetch)
+  cachedByParams.set(cacheKey, wrappedFetch)
   return wrappedFetch
 }

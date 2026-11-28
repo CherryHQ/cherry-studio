@@ -3,8 +3,12 @@ import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provid
 import { APICallError, generateText, type ModelMessage, wrapLanguageModel } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { resolveLanguageModel } from '@cherrystudio/ai-core'
+
 import { routeToolResultMedia } from '../../../../messages/messageCapabilities'
+import { createCustomParamsFetch } from '../../params/customParamsFetch'
 import { providerErrorBoundaryMiddleware } from '../../params/features/providerErrorBoundary'
+import { applyChatTokenFieldRetry, observeChatBudgetPlugin } from '../chatTokenFieldRetry'
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
 
@@ -231,22 +235,64 @@ describe('createRetryableWrap', () => {
     }
   )
 
-  it('does not resend an unchanged OpenAI completion budget when the provider option owns the field', async () => {
+  it.each(['adapter option', 'body passthrough'])('does not resend a completion budget set by %s', async (source) => {
     const budgets: number[] = []
     const providerFetch: typeof fetch = async (_url, init) => {
       budgets.push(JSON.parse(String(init?.body)).max_completion_tokens)
       return Response.json({ error: { message: 'max_completion_tokens must be at most 4096' } }, { status: 400 })
     }
-    const model = createOpenAI({ apiKey: 'fixture', fetch: providerFetch }).chat('o3')
+    const passthrough = source === 'body passthrough'
+    const modelFetch = passthrough
+      ? createCustomParamsFetch(providerFetch, { max_completion_tokens: 8192 }, true)
+      : providerFetch
+    const model = createOpenAI({ apiKey: 'fixture', fetch: modelFetch }).chat(passthrough ? 'gpt-4o' : 'o3')
     const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
     await expect(
       wrap(model).doGenerate({
         prompt: [],
         maxOutputTokens: 8192,
-        providerOptions: { openai: { maxCompletionTokens: 8192 } }
+        providerOptions: { openai: passthrough ? { max_completion_tokens: 8192 } : { maxCompletionTokens: 8192 } }
       })
     ).rejects.toMatchObject({ statusCode: 400 })
     expect(budgets).toEqual([8192])
+  })
+
+  it.each([true, false])('repairs a dual-field rejection only when both fields were sent (%s)', async (bothSent) => {
+    const requests: Record<string, unknown>[] = []
+    const dualFieldError = "Setting 'max_tokens' and 'max_completion_tokens' at the same time is not supported."
+    const providerFetch: typeof fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body))
+      if (!bothSent) delete body.max_tokens
+      applyChatTokenFieldRetry(body)
+      requests.push(body)
+      if (requests.length === 1) return Response.json({ error: { message: dualFieldError } }, { status: 400 })
+      return Response.json({
+        id: 'answer',
+        created: 0,
+        model: 'gpt-4o',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }]
+      })
+    }
+    const model = await resolveLanguageModel('openai-chat', { apiKey: 'fixture', fetch: providerFetch }, 'gpt-4o', [
+      observeChatBudgetPlugin
+    ])
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    const result = wrap(model).doGenerate({
+      prompt: [],
+      maxOutputTokens: 4096,
+      providerOptions: { openai: { maxCompletionTokens: 8192 } }
+    })
+    if (bothSent) {
+      await expect(result).resolves.toMatchObject({ content: [{ type: 'text', text: 'ok' }] })
+      expect(requests).toHaveLength(2)
+      const { max_tokens: legacy, ...corrected } = requests[0]
+      expect(legacy).toBe(4096)
+      expect(corrected.max_completion_tokens).toBe(8192)
+      expect(requests[1]).toEqual(corrected)
+    } else {
+      await expect(result).rejects.toMatchObject({ statusCode: 400 })
+      expect(requests).toHaveLength(1)
+    }
   })
 
   it('does not dispatch a reduced request after cancellation', async () => {

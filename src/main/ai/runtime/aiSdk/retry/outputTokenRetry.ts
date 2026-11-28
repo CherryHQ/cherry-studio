@@ -58,7 +58,12 @@ export function outputTokenRetry(maxRetries: number): Retryable<LanguageModel> {
     if (!APICallError.isInstance(error) || (error.statusCode !== 400 && error.statusCode !== 422)) return
     const body = error.requestBodyValues
     if (!isPlainObject(body)) return
-    if (body.max_completion_tokens != null && current.options.providerOptions?.openai?.maxCompletionTokens != null) {
+    const providerOptions = current.options.providerOptions
+    if (
+      (body.max_completion_tokens != null && providerOptions?.openai?.maxCompletionTokens != null) ||
+      (body.max_tokens != null &&
+        Object.values(providerOptions ?? {}).some((options) => options?.max_completion_tokens != null))
+    ) {
       return
     }
 
