@@ -1721,10 +1721,15 @@ describe('local protocol processes', () => {
     await sending
     await drained
     expect(toolApprovalRegistry.hasSession('session')).toBe(false)
-    const wire = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
-    expect(wire).not.toContain('"decision":"accept"')
-    expect(wire).not.toContain('"optionId":"once"')
-    expect(wire).toContain(protocol === 'acp' ? '"outcome":"cancelled"' : '"decision":"cancel"')
+    const wire = await readWire()
+    const cancellation = wire.findIndex(({ id }) => id === 'approval')
+    expect(wire.filter(({ id }) => id === 'approval')).toEqual([
+      expect.objectContaining({
+        result: protocol === 'acp' ? { outcome: { outcome: 'cancelled' } } : { decision: 'cancel' }
+      })
+    ])
+    const interrupt = wire.findIndex(({ method }) => method === 'turn/interrupt')
+    if (interrupt !== -1) expect(cancellation).toBeLessThan(interrupt)
   })
 
   it.each(['acp', 'codex'] as const)('%s preserves partial text when the process crashes', async (protocol) => {
