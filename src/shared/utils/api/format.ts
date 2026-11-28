@@ -13,14 +13,6 @@ const TRAILING_VERSION_REGEX = /\/v\d+(?:alpha|beta)?\/?$/i
  */
 const VERSION_REGEX = /\/v\d+(?:alpha|beta)?(?:\/|$)/i
 
-/**
- * Matches a dotted API version segment like `/v2.1/` (iFlytek Spark TTI, etc.).
- * The stock `VERSION_REGEX` only matches `/vN` without a dot, so hosts such as
- * `https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti` would otherwise gain a
- * spurious `/v1` suffix via `formatApiHost`.
- */
-const DOTTED_VERSION_REGEX = /\/v\d+\.\d+(?:\/|$)/i
-
 const FULL_IMAGE_REQUEST_SUFFIXES = ['/images/generations', '/images/edits'] as const
 
 /**
@@ -248,37 +240,56 @@ export function formatOllamaApiHost(host: string): string {
  * POSTed as-is instead of `baseURL + /images/generations|edits`.
  *
  * Full-URL cases (see #18572, iFlytek Spark TTI `.../v2.1/tti`):
- * - already ends with `/images/generations` or `/images/edits` (pasted full
- *   OpenAI path — appending again would double the suffix), or
- * - contains a dotted version segment with a trailing path
+ * - already ends with `/images/generations` or `/images/edits` on the parsed
+ *   pathname (pasted full OpenAI path with an optional query — appending again
+ *   would double the suffix), or
+ * - a dotted-version vendor path with exactly one trailing segment
  *   (`/v2.1/tti`), which `hasApiVersion` does not recognise and
  *   `formatApiHost` would otherwise corrupt with a spurious `/v1`.
  *
- * A trailing `#` is stripped before detection, so `.../v2.1/tti#` is also a
- * full request URL. A bare `.../custom#` stays a base host and keeps the
- * legacy `base + /images/...` behaviour.
+ * Narrowing (review #25653): gateway bases such as `.../v2.1/openai/v1`
+ * (two segments after the dotted version) or `.../v2.1/openai` (gateway marker
+ * `openai`, or a trailing plain version like `/v1`) stay base hosts and keep
+ * the legacy `base + /images/...` SDK join. A trailing `#` is stripped before
+ * detection, so `.../v2.1/tti#` is also a full request URL. A bare
+ * `.../custom#` stays a base host and keeps the legacy behaviour.
  */
 export function isFullImageRequestUrl(url?: string): boolean {
   const trimmed = trim(url ?? '')
   if (!trimmed) return false
 
-  const stripped = withoutTrailingSlash(withoutTrailingSharp(trimmed))
-  if (!stripped) return false
+  const noSharp = withoutTrailingSharp(trimmed)
+  if (!noSharp) return false
 
-  const lower = stripped.toLowerCase()
-  if ((FULL_IMAGE_REQUEST_SUFFIXES as readonly string[]).some((suffix) => lower.endsWith(suffix))) {
+  let pathname: string
+  try {
+    pathname = new URL(noSharp).pathname
+  } catch {
+    const queryIndex = noSharp.search(/[?#]/)
+    pathname = queryIndex === -1 ? noSharp : noSharp.slice(0, queryIndex)
+  }
+  if (!pathname) return false
+
+  const normalizedPath = withoutTrailingSlash(pathname)
+  if (!normalizedPath) return false
+
+  const lowerPath = normalizedPath.toLowerCase()
+  if ((FULL_IMAGE_REQUEST_SUFFIXES as readonly string[]).some((suffix) => lowerPath.endsWith(suffix))) {
     return true
   }
 
   // Dotted-version vendor path, e.g. `.../v2.1/tti` — full API path, not a base host.
-  if (DOTTED_VERSION_REGEX.test(stripped)) {
-    try {
-      const pathname = new URL(stripped).pathname
-      // Require something after the dotted version (`/v2.1/tti`, not just `/v2.1`).
-      return /\/v\d+\.\d+\/.+$/i.test(pathname)
-    } catch {
-      return /\/v\d+\.\d+\/.+$/i.test(stripped)
-    }
+  // Require exactly one segment after the dotted version so gateway bases like
+  // `.../v2.1/openai/v1` (two segments) retain SDK path joining.
+  const dottedTail = normalizedPath.match(/\/v\d+\.\d+\/([^/]+)$/i)
+  if (dottedTail) {
+    const tail = dottedTail[1]
+    // A trailing plain version (`.../v2.1/v1`) is a gateway base, not a vendor path.
+    if (/^v\d+(?:alpha|beta)?$/i.test(tail)) return false
+    // `.../v2.1/openai` is an OpenAI-compatible gateway base; `.../v2.1/tti`
+    // is a vendor full path. Distinguish by the gateway marker.
+    if (tail.toLowerCase() === 'openai') return false
+    return true
   }
 
   // A trailing `#` alone does not imply full-URL (preserves `.../custom#` base behaviour);
@@ -288,10 +299,32 @@ export function isFullImageRequestUrl(url?: string): boolean {
 
 /**
  * Normalise a full image request URL: trim, strip a trailing `#` opt-in and
- * any trailing slash. Returns `''` for empty input.
+ * any trailing slash on the path, preserving an optional query string.
+ * Returns `''` for empty input.
+ *
+ * `.../v2.1/tti?prefix=tenant/` keeps its query verbatim (the trailing slash
+ * lives inside the query value, not on the path).
  */
 export function normalizeFullImageRequestUrl(url?: string): string {
   const trimmed = trim(url ?? '')
   if (!trimmed) return ''
-  return withoutTrailingSlash(withoutTrailingSharp(trimmed))
+  const noSharp = withoutTrailingSharp(trimmed)
+  if (!noSharp) return ''
+
+  try {
+    const parsed = new URL(noSharp)
+    const pathname = parsed.pathname.length > 1 ? withoutTrailingSlash(parsed.pathname) : parsed.pathname
+    return `${parsed.origin}${pathname}${parsed.search}`
+  } catch {
+    const queryIndex = noSharp.search(/[?#]/)
+    if (queryIndex === -1) return withoutTrailingSlash(noSharp)
+    const base = noSharp.slice(0, queryIndex)
+    const rest = noSharp.slice(queryIndex)
+    if (rest.startsWith('?')) {
+      const hashIndex = rest.indexOf('#')
+      const search = hashIndex === -1 ? rest : rest.slice(0, hashIndex)
+      return `${withoutTrailingSlash(base)}${search}`
+    }
+    return withoutTrailingSlash(base)
+  }
 }

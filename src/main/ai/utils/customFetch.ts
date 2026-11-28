@@ -49,6 +49,22 @@ export interface HttpTraceFinalBodySlot {
 }
 
 /**
+ * Symbol-keyed slot carried on a `RequestInit` between a provider full-URL
+ * rewrite wrapper and the HTTP-trace layer. Full image request URLs
+ * (`isFullImageRequestUrl`) bypass the SDK's `baseURL + /images/...` join, so
+ * the trace would otherwise record the pre-rewrite SDK path. The wrapper writes
+ * the resolved outbound URL here; the trace overwrites its `http.url`
+ * attribute with it (still redacted).
+ */
+export const HTTP_TRACE_FINAL_URL_SLOT: unique symbol = Symbol('httpTrace.finalUrl')
+
+/** Slot value stored under {@link HTTP_TRACE_FINAL_URL_SLOT}. */
+export interface HttpTraceFinalUrlSlot {
+  /** The outbound URL the wrapper actually sent. */
+  url?: string
+}
+
+/**
  * Resolve the effective `User-Agent` from a {@link HeadersInit} with
  * case-insensitive last-writer-wins.
  *

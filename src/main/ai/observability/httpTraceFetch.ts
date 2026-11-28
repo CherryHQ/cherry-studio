@@ -6,7 +6,11 @@ import { loggerService } from '@logger'
 import { KB } from '@shared/utils/constants'
 import { redactRecord, redactUrlParams } from '@shared/utils/redaction'
 
-import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../utils/customFetch'
+import {
+  HTTP_TRACE_FINAL_BODY_SLOT,
+  HTTP_TRACE_FINAL_URL_SLOT,
+  type HttpTraceFinalBodySlot
+} from '../utils/customFetch'
 import { TRACER_NAME } from './constants'
 
 const logger = loggerService.withContext('httpTraceFetch')
@@ -55,8 +59,11 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     // after the initial capture below, so `inputs` is corrected once the request
     // has actually been built. The symbol survives `{ ...init, body }` spreads.
     const finalBodySlot: HttpTraceFinalBodySlot = {}
-    if (init)
-      (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot })[HTTP_TRACE_FINAL_BODY_SLOT] = finalBodySlot
+    const finalUrlSlot: { url?: string } = {}
+    if (init) {
+      ;(init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot })[HTTP_TRACE_FINAL_BODY_SLOT] = finalBodySlot
+      ;(init as { [HTTP_TRACE_FINAL_URL_SLOT]?: { url?: string } })[HTTP_TRACE_FINAL_URL_SLOT] = finalUrlSlot
+    }
     // Capturing request metadata must never break the real request: if any of the
     // url/header/body helpers throw, drop tracing for this call and fall back to
     // the untraced fetch.
@@ -87,6 +94,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
       // The request may still have been sent (customFetch records the body before
       // net.fetch rejects) — reflect the real body on the errored span too.
       applyFinalBodyInputs(span, init, maxBodyBytes)
+      applyFinalUrl(span, init)
       span.recordException(error as Error)
       span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error)?.message })
       span.end()
@@ -94,6 +102,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     }
 
     applyFinalBodyInputs(span, init, maxBodyBytes)
+    applyFinalUrl(span, init)
 
     span.setAttribute('http.status', response.status)
     span.setAttribute('http.statusText', response.statusText)
@@ -193,6 +202,23 @@ async function accumulateBody(
     signal?.removeEventListener('abort', onAbort)
   }
   return { body: truncate(acc, maxBytes), error: streamError }
+}
+
+/**
+ * Overwrite the span's `http.url` with the outbound URL a provider full-URL
+ * wrapper actually sent, when it rewrote the SDK's `baseURL + /images/...`
+ * join via the trace slot (see #18572 full image request URLs). Redaction is
+ * identical to the initial capture.
+ */
+function applyFinalUrl(span: Span, init: RequestInit | undefined): void {
+  const slot = (init as { [HTTP_TRACE_FINAL_URL_SLOT]?: { url?: string } } | undefined)?.[HTTP_TRACE_FINAL_URL_SLOT]
+  const finalUrl = slot?.url
+  if (typeof finalUrl !== 'string' || !finalUrl) return
+  try {
+    span.setAttribute('http.url', redactUrlParams(finalUrl))
+  } catch {
+    // Capturing diagnostics must never break the real request path.
+  }
 }
 
 /**

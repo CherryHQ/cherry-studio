@@ -396,7 +396,12 @@ describe('api', () => {
       'https://api.example.com/v1/images/generations',
       'https://api.example.com/v1/images/generations#',
       'https://api.example.com/v1/images/edits',
-      'https://api.example.com/v1/images/edits#'
+      'https://api.example.com/v1/images/edits#',
+      'https://api.example.com/v1/images/generations?tenant=x',
+      'https://api.example.com/v1/images/generations?tenant=x#',
+      'https://api.example.com/v1/images/edits?tenant=x',
+      'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti?prefix=tenant/',
+      'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti?prefix=tenant#'
     ])('treats %s as a full image request URL', (url) => {
       expect(isFullImageRequestUrl(url)).toBe(true)
     })
@@ -407,7 +412,13 @@ describe('api', () => {
       'https://api.example.com/v1',
       'https://relay.example.com/custom#',
       'https://relay.example.com/gateway/v1',
-      'https://api.example.com/v1beta'
+      'https://api.example.com/v1beta',
+      'https://relay.example/v2.1/openai/v1',
+      'https://relay.example/v2.1/openai#',
+      'https://relay.example/v2.1/openai',
+      'https://relay.example/v2.1/openai/',
+      'https://relay.example/v2.1/v1',
+      'https://api.example.com/api/v1/services/aigc/multimodal-generation/generation#'
     ])('treats %s as a base host, not a full request URL', (url) => {
       expect(isFullImageRequestUrl(url)).toBe(false)
     })
@@ -418,6 +429,18 @@ describe('api', () => {
       ['https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti#', 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti'],
       ['https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti/', 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti'],
       ['  https://api.example.com/v1/images/generations#  ', 'https://api.example.com/v1/images/generations'],
+      [
+        'https://api.example.com/v1/images/generations?tenant=x',
+        'https://api.example.com/v1/images/generations?tenant=x'
+      ],
+      [
+        'https://api.example.com/v1/images/generations?tenant=x#',
+        'https://api.example.com/v1/images/generations?tenant=x'
+      ],
+      [
+        'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti?prefix=tenant/',
+        'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti?prefix=tenant/'
+      ],
       ['', '']
     ])('normalizes %s to %s', (input, expected) => {
       expect(normalizeFullImageRequestUrl(input)).toBe(expected)
