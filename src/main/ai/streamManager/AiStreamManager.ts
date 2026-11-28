@@ -136,13 +136,12 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
 
 const logger = loggerService.withContext('AiStreamManager')
 type ManagedAiStreamRequest = AiStreamRequest & {
+  /** In-process options (adds `signal`/`streamContinuation`); this request never crosses IPC. */
   requestOptions?: AsInProcess<AiStreamRequest>['requestOptions']
   taskIds?: readonly string[]
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
   resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
-  /** In-process options (adds `signal`/`streamContinuation`); this request never crosses IPC. */
-  requestOptions?: AsInProcess<AiStreamRequest>['requestOptions']
 }
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
