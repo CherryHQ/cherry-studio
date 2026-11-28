@@ -174,7 +174,7 @@ describe('ClickableFilePath', () => {
     expect(link).toHaveAttribute('tabindex', '0')
     fireEvent.click(link)
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/index.tsx')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/index.tsx', undefined)
     })
   })
 
@@ -187,7 +187,7 @@ describe('ClickableFilePath', () => {
     fireEvent.click(screen.getByRole('link', { name: '~/Desktop/report.html' }))
 
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/Desktop/report.html')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/Desktop/report.html', undefined)
     })
   })
 
@@ -212,9 +212,9 @@ describe('ClickableFilePath', () => {
     })
     fireEvent.click(screen.getByRole('link', { name: '/Users/foo/essays/' }))
     await waitFor(() => {
-      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/essays/')
+      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/essays/', undefined)
     })
-    expect(isDirectory).toHaveBeenCalledWith('/Users/foo/essays/')
+    expect(isDirectory).toHaveBeenCalledWith('/Users/foo/essays/', undefined)
     expect(mockOpenArtifactFile).not.toHaveBeenCalled()
   })
 
@@ -229,7 +229,7 @@ describe('ClickableFilePath', () => {
     expect(link).toBeInTheDocument()
     fireEvent.click(link)
     await waitFor(() => {
-      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/bar.tsx')
+      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/bar.tsx', undefined)
     })
   })
 
@@ -239,7 +239,7 @@ describe('ClickableFilePath', () => {
     fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
 
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx', undefined)
     })
   })
 
@@ -304,7 +304,7 @@ describe('ClickableFilePath', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
     await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link') })
     await user.click(screen.getByRole('menuitem', { name: 'Open' }))
-    expect(mockOpenArtifactFile).toHaveBeenCalledWith('/tmp/test.ts')
+    expect(mockOpenArtifactFile).toHaveBeenCalledWith('/tmp/test.ts', undefined)
   })
 
   it.each([
@@ -405,7 +405,7 @@ describe('ClickableFilePath', () => {
     renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, { openArtifactFile: mockOpenArtifactFile })
     fireEvent.keyDown(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }), { key: 'Enter' })
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx', undefined)
     })
   })
 
@@ -413,7 +413,7 @@ describe('ClickableFilePath', () => {
     renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, { openArtifactFile: mockOpenArtifactFile })
     fireEvent.keyDown(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }), { key: ' ' })
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx', undefined)
     })
   })
 

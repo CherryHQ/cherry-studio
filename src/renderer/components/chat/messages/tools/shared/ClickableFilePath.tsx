@@ -28,6 +28,7 @@ import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
+import { useMessagePartsScopeId } from '../../blocks/MessagePartsContext'
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 
 interface ClickableFilePathProps {
@@ -58,9 +59,12 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const unresolvedTargetPath = target.path
   const actions = useOptionalMessageListActions()
   const resolvePath = actions?.resolvePath
+  // The message this link belongs to: after a workspace rebind, its relative path resolves against
+  // the workspace bound when the message was written, not the session's current one (AC6).
+  const scopeMessageId = useMessagePartsScopeId()
   const targetPath = useMemo(
-    () => resolvePath?.(unresolvedTargetPath) ?? unresolvedTargetPath,
-    [resolvePath, unresolvedTargetPath]
+    () => resolvePath?.(unresolvedTargetPath, scopeMessageId) ?? unresolvedTargetPath,
+    [resolvePath, scopeMessageId, unresolvedTargetPath]
   )
   const openFilePreviewTab = useOptionalOpenFilePreviewTab()
   const sourceLine = line != null && Number.isInteger(line) && line > 0 ? line : undefined
@@ -148,9 +152,12 @@ export const ClickableFilePath = memo(function ClickableFilePath({
       await openFileTarget(
         unresolvedTargetPath,
         {
-          openArtifactFile: openArtifactFile ?? openSourcePreview,
-          openPath,
-          isDirectory,
+          // targetPath already carries the message-era workspace: the pane receives it resolved.
+          openArtifactFile: openArtifactFile
+            ? (_path, location) => openArtifactFile(targetPath, location)
+            : openSourcePreview,
+          openPath: openPath ? (path) => openPath(path, scopeMessageId) : undefined,
+          isDirectory: isDirectory ? (path) => isDirectory(path, scopeMessageId) : undefined,
           onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
         },
         resolvedLocation
@@ -164,6 +171,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
       openFilePreviewTab,
       openPath,
       resolvedLocation,
+      scopeMessageId,
       t,
       targetPath,
       unresolvedTargetPath

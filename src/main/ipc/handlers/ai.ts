@@ -455,12 +455,18 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
-  'ai.agent.session.open_path': async ({ sessionId, path }) => {
-    const workspacePath = agentSessionService.getById(sessionId).workspace.path
+  'ai.agent.session.open_path': async ({ sessionId, path, messageId }) => {
+    const workspacePath = agentSessionService.getWorkspacePathForOpen(sessionId, messageId)
     await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data, {
       channel: 'ai.agent.session.open_path'
     })
   },
+  'ai.agent.session.list_workspace_events': async ({ sessionId }) =>
+    agentSessionService.listWorkspaceEvents(sessionId).map((event) => ({
+      previousWorkspacePath: event.previousWorkspacePath,
+      newWorkspacePath: event.newWorkspacePath,
+      createdAt: event.createdAt
+    })),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),

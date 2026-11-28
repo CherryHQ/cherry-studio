@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
@@ -396,27 +397,59 @@ export function useAgentMessageListProviderValue({
   // The conversation's current Assistant / Agent, not the snapshot each message header shows.
   const toggleAuthorProfile = useProfilePaneToggle()?.toggle
 
+  // The session's recorded rebinds (AC6 of the rebind spec): a historical relative link resolves
+  // against the workspace bound when its message was written, not the session's current one.
+  const { data: workspaceEvents } = useSWR(
+    ['agent-session-workspace-events', sessionId],
+    ([, id]) => ipcApi.request('ai.agent.session.list_workspace_events', { sessionId: id }),
+    { shouldRetryOnError: false }
+  )
+  const messageCreatedAtById = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const message of messages) {
+      const createdAt = message.metadata?.createdAt ? Date.parse(message.metadata.createdAt) : NaN
+      if (!Number.isNaN(createdAt)) map.set(message.id, createdAt)
+    }
+    return map
+  }, [messages])
+  const workspaceForMessage = useCallback(
+    (messageId?: string): string | undefined => {
+      if (!messageId || !workspaceEvents?.length) return workspacePath
+      const createdAt = messageCreatedAtById.get(messageId)
+      if (createdAt == null) return workspacePath
+      let applicable: string | undefined
+      for (const event of workspaceEvents) {
+        if (event.createdAt <= createdAt) applicable = event.newWorkspacePath
+        else break
+      }
+      return applicable ?? workspaceEvents[0].previousWorkspacePath
+    },
+    [messageCreatedAtById, workspaceEvents, workspacePath]
+  )
+
   // Raw path to main, which resolves workspace-relative input against the session's workspace: the
-  // renderer must never join paths, and nothing unresolved may reach `shell.openPath`.
+  // renderer must never join paths, and nothing unresolved may reach `shell.openPath`. The message
+  // id goes along so main anchors the resolution to the message's originating workspace (AC6).
   const openPath = useCallback(
-    (path: string) => ipcApi.request('ai.agent.session.open_path', { sessionId, path }),
+    (path: string, messageId?: string) => ipcApi.request('ai.agent.session.open_path', { sessionId, path, messageId }),
     [sessionId]
   )
 
   // Still renderer-side: the open-target menu needs an absolute path to describe, and it is not a
   // file-opening call.
   const resolvePath = useMemo<MessageListActions['resolvePath']>(
-    () => (workspacePath ? (path) => requireWorkspaceFilePath(workspacePath, path) : undefined),
-    [workspacePath]
+    () =>
+      workspacePath ? (path, messageId) => requireWorkspaceFilePath(workspaceForMessage(messageId), path) : undefined,
+    [workspaceForMessage, workspacePath]
   )
 
   const isDirectory = useCallback<NonNullable<MessageListActions['isDirectory']>>(
-    async (path) => {
-      const resolvedPath = requireWorkspaceFilePath(workspacePath, path)
+    async (path, messageId) => {
+      const resolvedPath = requireWorkspaceFilePath(workspaceForMessage(messageId), path)
       const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(resolvedPath))
       return metadata?.kind === 'directory'
     },
-    [workspacePath]
+    [workspaceForMessage]
   )
 
   const abortTool = useCallback((toolId: string) => {

@@ -7,6 +7,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import { agentSessionWorkspaceEventTable } from '@data/db/schemas/agentSessionWorkspaceEvent'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -339,8 +340,9 @@ export class AgentWorkspaceService {
 
   /**
    * Delete a workspace row only while nothing references it: sessions (whose
-   * FK cascades on delete), channels, and task schedules all keep the row
-   * alive. A referenced — or already missing — row is left in place.
+   * FK cascades on delete), channels, task schedules, and recorded workspace
+   * rebinds all keep the row alive. A referenced — or already missing — row
+   * is left in place.
    *
    * Used by cleanup paths (e.g. agent deletion dropping an auto-provisioned
    * heartbeat workspace) where the row may have been reused by, or shared
@@ -371,6 +373,22 @@ export class AgentWorkspaceService {
       .limit(1)
       .all()
     if (session) return false
+    // A recorded rebind keeps the previous workspace alive (AC6 of the rebind
+    // spec): session history still carries relative links that resolve against
+    // it, so an orphaned-by-rebind row is never swept merely because the
+    // current binding moved on.
+    const [eventRef] = tx
+      .select({ id: agentSessionWorkspaceEventTable.id })
+      .from(agentSessionWorkspaceEventTable)
+      .where(
+        or(
+          eq(agentSessionWorkspaceEventTable.previousWorkspaceId, id),
+          eq(agentSessionWorkspaceEventTable.newWorkspaceId, id)
+        )
+      )
+      .limit(1)
+      .all()
+    if (eventRef) return false
     if (agentChannelService.listWorkspaceReferencesTx(tx, id).length > 0) return false
     if (getDataService('AgentTaskService').listWorkspaceReferencesTx(tx, id).length > 0) return false
 
