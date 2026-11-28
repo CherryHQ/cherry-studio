@@ -1,5 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, generateText, type ModelMessage, wrapLanguageModel } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -83,6 +84,27 @@ function budgetError(message: string, body: unknown, statusCode = 400, responseB
 }
 
 describe('createRetryableWrap', () => {
+  it('reports a terminal provider failure without starting retry status', async () => {
+    const rejection = makeApiError(400)
+    const onRetryEvent = vi.fn()
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy(),
+      diagnosticContext: { messageId: 'terminal-rejection' },
+      onRetryEvent
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(rejection)))
+
+    await expect(model.doGenerate({ prompt: [] })).rejects.toBe(rejection)
+    expect(mockMainLoggerService.debug).toHaveBeenCalledWith('model retry attempt failed', {
+      messageId: 'terminal-rejection',
+      modelId: 'primary',
+      attempt: 1,
+      statusCode: 400
+    })
+    expect(onRetryEvent).not.toHaveBeenCalled()
+  })
+
   it('settles live status when a retried stream is cancelled before completion', async () => {
     const events: string[] = []
     const doStream = vi

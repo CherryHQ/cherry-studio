@@ -5,6 +5,8 @@ import { isErrorAttempt, type RetryContext } from 'ai-retry'
 import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
+import { getTerminalModelError } from '../../../utils/retryError'
+
 const logger = loggerService.withContext('ModelRetry')
 
 export function createModelRetryEvents(
@@ -23,6 +25,16 @@ export function createModelRetryEvents(
   }
 
   return {
+    reportError({ current, attempts }: RetryContext<LanguageModelV3>) {
+      if (!isErrorAttempt(current)) return
+      const error = getTerminalModelError(current.error)
+      logger.debug('model retry attempt failed', {
+        ...diagnosticContext,
+        modelId: current.model.modelId,
+        attempt: attempts.length,
+        statusCode: APICallError.isInstance(error) ? error.statusCode : undefined
+      })
+    },
     report(context: RetryContext<LanguageModelV3>, credentialModelId?: string) {
       if (settled || signal?.aborted) return
       const { current, attempts } = context

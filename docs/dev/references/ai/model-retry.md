@@ -155,7 +155,9 @@ reporter publishes `{ state: 'settled' }` once when the call succeeds, fails, or
 is cancelled. For a stream, receiving its handle does not settle the call.
 `PersistenceListener` calls
 `stripTransientStatusParts` before every terminal write, so retry status is
-live-only and never persisted. Cross-model fallback is logged at warning level
+live-only and never persisted. The outer retry wrapper logs failed attempts at
+debug level, including terminal failures that never produce `retrying`.
+Cross-model fallback is logged at warning level
 with both failed and fallback ids; terminal logs preserve the original error
 and per-attempt diagnostics. All logging goes through
 `loggerService.withContext('ModelRetry')`.

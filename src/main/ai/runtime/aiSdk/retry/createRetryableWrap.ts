@@ -162,9 +162,10 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     ...outputRetries,
     ...(options.retryPolicy.enabled ? [retryTransient] : [])
   ]
+  const canSwitchModel = error((_cause, { current }) => !getPendingReplayRoute(current.options.prompt))
   const crossModelRetries = options.retryPolicy.enabled
-    ? fallbackResolvers.map<Retryable<LanguageModel>>((resolve) => async ({ current }) => {
-        if (!isErrorAttempt(current) || getPendingReplayRoute(current.options.prompt)) return
+    ? fallbackResolvers.map<Retryable<LanguageModel>>((resolve) => async (context) => {
+        if (!(await canSwitchModel.evaluate(context))) return
         const fallback = await resolve()
         if (!fallback) return
         const model = withActivation(fallback.model, () => options.onFallbackActivated?.(fallback))
@@ -187,6 +188,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
           model,
           retries,
           onRetry,
+          onError: events.reportError,
           onFailure: (context) => {
             if (context.attempts.length === 1 && !options.retryPolicy.enabled) return
             const failure = context.error instanceof Error ? context.error : new Error(String(context.error))
@@ -263,7 +265,8 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
                 }
               }
             ],
-            onRetry: (context) => onRetry(context, base.modelId)
+            onRetry: (context) => onRetry(context, base.modelId),
+            onError: sameModelRetries.length || crossModelRetries.length ? undefined : events.reportError
           })
         : primary
 
