@@ -607,6 +607,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  // Anonymous id of product events; merged into an account at sign-in and replaced at sign-out.
+  'analytics.anonymous_id': string | null
   'skill.subscription.catalogs': Record<string, SkillSubscriptionSnapshot>
   // ZIP-derived contents only; installed state still comes from the skill library.
   'skill.marketplace.members': Record<string, MarketplaceSkillMember[]>
@@ -628,6 +630,7 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'analytics.anonymous_id': null,
   'skill.subscription.catalogs': {},
   'skill.marketplace.members': {},
   'browser.favicons': {},

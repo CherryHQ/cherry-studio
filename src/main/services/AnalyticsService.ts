@@ -19,6 +19,8 @@ const POSTHOG_PROJECT_KEY = 'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna'
 const POSTHOG_HOST = 'https://us.i.posthog.com'
 const PRODUCT_EVENT_SCHEMA_VERSION = 1
 const MAX_PENDING_PRODUCT_EVENTS = 200
+const ANONYMOUS_ID_KEY = 'analytics.anonymous_id'
+const DEVICE_EVENTS: ReadonlySet<string> = new Set(['app_opened'])
 
 // Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
 function resolvePostHogKey(): string {
@@ -54,10 +56,13 @@ function linkSignals(first: AbortSignal, second?: AbortSignal | null): AbortSign
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
   private posthog: PostHog | null = null
+  /** Signed-in Cherry AI account's distinct id; product events fall back to the device id. */
+  private productAccountId: string | null = null
+  private identifiedProductAccountId: string | null = null
   private revokeController: AbortController | null = null
   private hasTrackedAppLaunch = false
-  /** Consented product events raised while the clients are still starting; replayed once they are up. */
-  private pendingProductEvents: ProductAnalyticsEvent[] = []
+  /** Consented product events raised while the clients are still starting, with the account they were raised under. */
+  private pendingProductEvents: { event: ProductAnalyticsEvent; accountId: string | null }[] = []
   private productEventsReady = false
   /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
@@ -155,6 +160,7 @@ export class AnalyticsService extends BaseService implements Activatable {
       })
     }
 
+    this.identifyProductAccount()
     // app_opened precedes replayed events so funnels see the launch first.
     if (!this.hasTrackedAppLaunch) {
       this.client.trackAppLaunch({
@@ -169,13 +175,14 @@ export class AnalyticsService extends BaseService implements Activatable {
     }
 
     this.productEventsReady = true
-    for (const event of this.pendingProductEvents.splice(0)) this.captureProductEvent(event)
+    for (const { event, accountId } of this.pendingProductEvents.splice(0)) this.captureProductEvent(event, accountId)
 
     logger.info('Analytics service activated')
   }
 
   async onDeactivate(): Promise<void> {
     this.productEventsReady = false
+    this.identifiedProductAccountId = null
     if (this.posthog) {
       // After a revocation the shared revoke signal fails every request, so the queue is dropped
       // without waiting out PostHog's retries.
@@ -226,15 +233,61 @@ export class AnalyticsService extends BaseService implements Activatable {
       return
     }
     if (this.pendingProductEvents.length >= MAX_PENDING_PRODUCT_EVENTS) this.pendingProductEvents.shift()
-    this.pendingProductEvents.push(event)
+    this.pendingProductEvents.push({ event, accountId: this.productAccountId })
   }
 
-  private captureProductEvent({ event, ...fields }: ProductAnalyticsEvent): void {
+  /** Binds later product events to the signed-in Cherry AI account; null returns them to a fresh anonymous id. */
+  public setProductAccount(accountDistinctId: string | null): void {
+    // The previous anonymous id was merged into the account, so events after sign-out start a new one.
+    if (this.productAccountId && !accountDistinctId) {
+      const cache = application.get('CacheService')
+      cache.setPersist(ANONYMOUS_ID_KEY, crypto.randomUUID())
+      // Written now: a crash inside the debounce would bring back the id already merged into the account.
+      try {
+        cache.flushPersistForBackup()
+      } catch (error) {
+        logger.warn('Anonymous id rotation not flushed', error as Error)
+      }
+      // The new anonymous id has not been merged yet, even into the account it came from.
+      this.identifiedProductAccountId = null
+    }
+    this.productAccountId = accountDistinctId
+    if (this.productEventsReady) this.identifyProductAccount()
+  }
+
+  private productAnonymousId(): string {
+    const cache = application.get('CacheService')
+    const stored = cache.getPersist(ANONYMOUS_ID_KEY)
+    if (stored) return stored
+    const id = crypto.randomUUID()
+    cache.setPersist(ANONYMOUS_ID_KEY, id)
+    return id
+  }
+
+  // Merges this device's earlier anonymous events into the account, once per account and activation.
+  private identifyProductAccount(): void {
+    const accountId = this.productAccountId
+    if (!this.desiredEnabled || !accountId || accountId === this.identifiedProductAccountId) return
+    this.identifiedProductAccountId = accountId
+    this.capture(
+      '$identify',
+      { $anon_distinct_id: this.productAnonymousId() },
+      { distinctId: accountId, processPersonProfile: true }
+    )
+  }
+
+  private captureProductEvent({ event, ...fields }: ProductAnalyticsEvent, accountId = this.productAccountId): void {
     const properties: Record<string, string | number | boolean> = { schema_version: PRODUCT_EVENT_SCHEMA_VERSION }
     for (const [key, value] of Object.entries(fields)) {
       if (value !== undefined) properties[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] = value
     }
-    this.capture(event, properties)
+    // Launch events keep the device id, which is never merged into an account.
+    const identity = DEVICE_EVENTS.has(event)
+      ? undefined
+      : accountId
+        ? { distinctId: accountId, processPersonProfile: true }
+        : { distinctId: this.productAnonymousId(), processPersonProfile: false }
+    this.capture(event, properties, identity)
   }
 
   private capture(

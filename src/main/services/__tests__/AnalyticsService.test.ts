@@ -430,7 +430,7 @@ describe('AnalyticsService product events', () => {
     })
 
     expect(posthog.capture).toHaveBeenCalledWith({
-      distinctId: 'test-client-id',
+      distinctId: expect.not.stringMatching(/^test-client-id$/),
       event: 'cherryin_sign_in_result',
       properties: expect.objectContaining({
         source: 'onboarding',
@@ -478,6 +478,111 @@ describe('AnalyticsService product events', () => {
     const events = posthog.capture.mock.calls.map(([call]) => call)
     expect(events.map(({ event }) => event)).toEqual(['app_opened', 'onboarding_option_selected'])
     expect(events[0].properties).toMatchObject({ onboarding_status: 'pending' })
+  })
+
+  it('binds product events to a signed-in account and starts a new anonymous id after sign-out', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'cherryin_login' })
+    const anonymousBefore = posthog.capture.mock.calls.at(-1)![0].distinctId
+    posthog.capture.mockClear()
+
+    service.setProductAccount('cloud-api:global:production:account:a1')
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    service.setProductAccount(null)
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'other_provider' })
+
+    const sent = posthog.capture.mock.calls.map(([message]) => message)
+    expect(sent.map(({ event, distinctId }) => [event, distinctId])).toEqual([
+      ['$identify', 'cloud-api:global:production:account:a1'],
+      ['onboarding_option_selected', 'cloud-api:global:production:account:a1'],
+      ['onboarding_option_selected', expect.any(String)]
+    ])
+    expect(sent[0].properties).toMatchObject({ $anon_distinct_id: anonymousBefore, $ip: '0.0.0.0' })
+    expect(sent[1].properties.$process_person_profile).toBe(true)
+    // The merged id and the device id stay out of later anonymous events.
+    expect([anonymousBefore, 'test-client-id']).not.toContain(sent[2].distinctId)
+    // The new id is on disk at once, so a crash right after sign-out cannot bring back the merged one.
+    const cache = (await import('@application')).application.get('CacheService')
+    const rotation = vi.mocked(cache.setPersist).mock.invocationCallOrder.at(-1)!
+    expect(vi.mocked(cache.flushPersistForBackup).mock.invocationCallOrder.at(-1)).toBeGreaterThan(rotation)
+    expect(sent[2].properties.$process_person_profile).toBe(false)
+  })
+
+  it('merges events made while signed out when the same account signs back in', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const account = 'cloud-api:global:production:account:a1'
+
+    service.setProductAccount(account)
+    service.setProductAccount(null)
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    const signedOutId = posthog.capture.mock.calls.at(-1)![0].distinctId
+    service.setProductAccount(account)
+
+    const identifies = posthog.capture.mock.calls
+      .map(([message]) => message)
+      .filter(({ event }) => event === '$identify')
+    expect(identifies).toHaveLength(2)
+    expect(identifies[1].properties.$anon_distinct_id).toBe(signedOutId)
+  })
+
+  it('identifies an account known before start-up, keeping the launch event on the device id', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    captured.preferenceValues['app.privacy.policy_version'] = ''
+    const service = new AnalyticsService()
+    await service._doInit()
+    service.setProductAccount('cloud-api:cn:production:account:a1')
+
+    changePreference('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    expect(posthog.capture.mock.calls.map(([message]) => [message.event, message.distinctId])).toEqual([
+      ['$identify', 'cloud-api:cn:production:account:a1'],
+      ['app_opened', 'test-client-id']
+    ])
+    const [identify] = posthog.capture.mock.calls[0]
+    expect(identify.properties.$anon_distinct_id).not.toBe('test-client-id')
+  })
+
+  it('replays a queued event under the account it was raised under, not one signed in before start-up', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    captured.preferenceValues['app.privacy.policy_version'] = ''
+    const service = new AnalyticsService()
+    await service._doInit()
+    service.setProductAccount('cloud-api:global:production:account:a1')
+
+    changePreference('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    service.setProductAccount('cloud-api:global:production:account:b2')
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    const replayed = posthog.capture.mock.calls.find(([message]) => message.event === 'onboarding_option_selected')
+    expect(replayed?.[0].distinctId).toBe('cloud-api:global:production:account:a1')
+  })
+
+  it('drops events raised after data collection is turned off, even once it is turned back on', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    destroyResolvers.forEach((resolve) => resolve())
+    mockDestroy.mockResolvedValue(undefined)
+
+    changePreference('app.privacy.data_collection.enabled', false)
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    service.setProductAccount('cloud-api:global:production:account:a1')
+    await vi.waitFor(() => expect(service.isActivated).toBe(false))
+    changePreference('app.privacy.data_collection.enabled', true)
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    const events = posthog.capture.mock.calls.map(([message]) => message.event)
+    expect(events).not.toContain('onboarding_option_selected')
+    expect(events.filter((event) => event === '$identify')).toHaveLength(1)
   })
 
   it('drops events raised without consent instead of replaying them later', async () => {

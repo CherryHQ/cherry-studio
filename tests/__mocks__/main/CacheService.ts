@@ -176,6 +176,9 @@ export class MockMainCacheService {
     this.setPersist(key, DefaultMainPersistCache[key])
   })
 
+  /** The in-memory store is the "file", so a forced write has nothing further to do. */
+  public flushPersistForBackup = vi.fn((): void => {})
+
   // ============ Subscription Methods ============
   // These are call-tracking stubs — the mock does NOT replicate fire semantics.
   // Each call returns a fresh vi.fn() unsubscribe stub, useful for verifying
