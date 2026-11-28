@@ -69,6 +69,9 @@ vi.mock('react-i18next', () => ({
       ({
         'agent.settings.toolsMcp.mcp.tab': 'MCP',
         'deviceConnections.title': '设备互联',
+        'local_agents.beta_badge': 'Beta',
+        'local_agents.beta_tooltip': zhCN['local_agents.beta_tooltip'],
+        'local_agents.title': '智能体服务',
         'selection.name': '划词助手',
         'settings.appearance.title': '外观',
         'settings.voice.title': '语音',
@@ -235,5 +238,15 @@ describe('SettingsPage', () => {
     rerender(<SettingsPage />)
     expect(screen.queryByRole('navigation', { name: '内置工具' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '内置工具' })).not.toHaveAttribute('data-active')
+  })
+
+  it('shows a Beta badge with tooltip copy on the Agent services menu item and navigates when clicked', () => {
+    render(<SettingsPage />)
+
+    const localAgentsItem = screen.getByRole('button', { name: '智能体服务' })
+    expect(within(localAgentsItem).getByText('Beta')).toBeInTheDocument()
+
+    fireEvent.click(localAgentsItem)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-agents' })
   })
 })

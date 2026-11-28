@@ -14,6 +14,11 @@ import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import {
+  agentProviderService,
+  type LocalAgentBindingPatch,
+  type LocalAgentProviderPrecondition
+} from '@data/services/AgentProviderService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService, HEARTBEAT_PROMPT_SENTINEL } from '@data/services/AgentTaskService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
@@ -29,6 +34,7 @@ import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+import type { LocalAgentLaunchSettings, LocalAgentRuntime } from '@shared/ai/localAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -39,6 +45,7 @@ import {
   type AgentConfiguration,
   type AgentEntity,
   type AgentStats,
+  type CreateLocalAgentBindingDto,
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
@@ -57,6 +64,7 @@ export interface AgentUpdatedEvent {
   agentId: string
   updates: UpdateAgentDto
   agent: AgentEntity
+  taskScheduleIds?: string[]
 }
 
 export interface AgentCreatedEvent {
@@ -74,10 +82,12 @@ export type AgentLifecycleState = 'active' | 'trashed' | 'missing'
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
-type AgentCreateInput = AgentBase & {
+type AgentCreateInput = Omit<AgentBase, 'model'> & {
+  model: UniqueModelId | null
   type: AgentType
   skillIds?: string[]
   channels?: AgentChannelDraft[]
+  localRuntime?: CreateLocalAgentBindingDto & { encryptedEnv?: string | null }
 }
 
 interface EnsureBuiltinAgentInput extends BuiltinAgentDefaults {
@@ -157,10 +167,8 @@ function removeUntrustedSupportRole(id: string, configuration: unknown): Record<
 /**
  * Apply the public first-level configuration PATCH to the persisted JSON.
  *
- * Object-valued keys (for example `env_vars`) remain whole-value replacements,
- * except `prompt_overrides`, merged per block so two windows editing different
- * blocks both keep their change. `builtin_role` is deliberately skipped because
- * it is owned by Main; callers are validated separately before this helper runs.
+ * `prompt_overrides` merges per block; other objects replace as a whole.
+ * `builtin_role` remains owned by Main and is validated separately.
  */
 function applyAgentConfigurationPatch(
   persisted: unknown,
@@ -172,7 +180,7 @@ function applyAgentConfigurationPatch(
       : {}
 
   for (const [key, value] of Object.entries(patch ?? {})) {
-    if (key === 'builtin_role') continue
+    if (key === 'builtin_role' || key === 'localRuntime') continue
     if (key === 'prompt_overrides' && value !== undefined) {
       const overrides = { ...(next.prompt_overrides as Record<string, string> | undefined) }
       for (const [block, text] of Object.entries(value as Record<string, string | null>)) {
@@ -213,7 +221,8 @@ function rowToAgent(
   modelName: string | null = null,
   mcps: string[],
   knowledgeBaseIds: string[],
-  avatarFileId?: FileEntryId
+  avatarFileId?: FileEntryId,
+  localRuntime?: LocalAgentRuntime
 ): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
@@ -226,6 +235,7 @@ function rowToAgent(
     planModel: clean.planModel as UniqueModelId | undefined,
     smallModel: clean.smallModel as UniqueModelId | undefined,
     configuration: parseConfiguration(row.configuration, row.id),
+    ...(localRuntime && { localRuntime }),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
     deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined,
@@ -394,6 +404,22 @@ export class AgentService {
         'configuration.builtin_role is reserved for system agents'
       )
     }
+    const configuration = applyAgentConfigurationPatch(undefined, req.configuration)
+    if (req.type === 'local') {
+      if (
+        !req.localRuntime ||
+        req.planModel ||
+        req.smallModel ||
+        req.configuration?.heartbeat_enabled ||
+        req.configuration?.scheduler_enabled ||
+        req.model !== null ||
+        req.mcps?.length ||
+        req.knowledgeBaseIds?.length ||
+        req.skillIds?.length
+      )
+        throw DataApiErrorFactory.invalidOperation('create local agent', 'Local agents own their model and resources')
+    } else if (!req.model || req.localRuntime)
+      throw DataApiErrorFactory.invalidOperation('create agent', 'A provider model is required')
     const mcps = req.mcps ?? []
     const knowledgeBaseIds = req.knowledgeBaseIds ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')
@@ -406,12 +432,12 @@ export class AgentService {
       type: req.type,
       name: req.name || 'New Agent',
       description: req.description,
-      instructions: req.instructions ?? '',
+      instructions: req.type === 'local' ? '' : (req.instructions ?? ''),
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
       disabledTools: req.disabledTools,
-      configuration: req.configuration
+      configuration
     }
 
     // Validate referenced skills before opening the write tx so the main path
@@ -434,6 +460,8 @@ export class AgentService {
           getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
           const result = this.createAgentTx(tx, id, insertData, 'first')
+          if (!result) return null
+          const localRuntime = req.localRuntime && agentProviderService.setBindingTx(tx, id, req.localRuntime)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
             tx.insert(agentMcpServerTable)
@@ -452,7 +480,6 @@ export class AgentService {
           for (const skillId of skillIds) {
             globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
-          if (!result) return null
           if (avatarFileId) this.setAvatarSlotTx(tx, id, avatarFileId)
           // A rejected channel throws here and rolls back the Agent with it.
           const channelIds = (req.channels ?? []).map(
@@ -465,7 +492,7 @@ export class AgentService {
                 isActive: isQrLoginChannel(channel) ? false : channel.isActive
               }).id
           )
-          return { ...result, channelIds }
+          return { ...result, channelIds, localRuntime }
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -473,7 +500,7 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds, avatarFileId)
+    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds, avatarFileId, row.localRuntime)
     const effects: DataApiDataChangeEffect[] = [{ endpoint: '/agents', kind: 'membership', entityIds: [id] }]
     if (row.channelIds.length) {
       effects.push(
@@ -749,7 +776,8 @@ export class AgentService {
       modelName,
       mcpsMap.get(id) ?? [],
       knowledgeBasesMap.get(id) ?? [],
-      this.avatarIds(database, [id]).get(id)
+      this.avatarIds(database, [id]).get(id),
+      agent.type === 'local' ? agentProviderService.getProjectionsTx(database, [id]).get(id) : undefined
     )
   }
 
@@ -830,13 +858,18 @@ export class AgentService {
     )
 
     const avatarIds = this.avatarIds(database, agentIds)
+    const localRuntimes = agentProviderService.getProjectionsTx(
+      database,
+      result.filter(({ agent }) => agent.type === 'local').map(({ agent }) => agent.id)
+    )
     const agents = result.map((row) =>
       rowToAgent(
         row.agent,
         row.agent.model ? (modelNames.get(row.agent.model) ?? null) : null,
         mcpsMap.get(row.agent.id) ?? [],
         knowledgeBasesMap.get(row.agent.id) ?? [],
-        avatarIds.get(row.agent.id)
+        avatarIds.get(row.agent.id),
+        localRuntimes.get(row.agent.id)
       )
     )
 
@@ -879,7 +912,19 @@ export class AgentService {
   updateAgent(
     id: string,
     updates: UpdateAgentDto,
-    { replaceAvatarImage = false, expected }: { replaceAvatarImage?: boolean; expected?: AgentUpdatePrecondition } = {}
+    {
+      replaceAvatarImage = false,
+      expected,
+      localAccount,
+      encryptedLocalEnv,
+      expectedLocalProvider
+    }: {
+      replaceAvatarImage?: boolean
+      expected?: AgentUpdatePrecondition
+      localAccount?: LocalAgentBindingPatch['account']
+      encryptedLocalEnv?: string | null
+      expectedLocalProvider?: LocalAgentProviderPrecondition
+    } = {}
   ): AgentEntity | null {
     // Preserve the existing not-found precedence before validating related IDs.
     // The authoritative configuration read still happens inside the write tx.
@@ -889,6 +934,11 @@ export class AgentService {
     const newMcps = updates.mcps
     const newKnowledgeBaseIds = updates.knowledgeBaseIds
     const newSkillUpdates = updates.skillUpdates
+    const updatesLocalBinding =
+      updates.localRuntime !== undefined ||
+      localAccount !== undefined ||
+      encryptedLocalEnv !== undefined ||
+      expectedLocalProvider !== undefined
 
     // Same two-step validation as createAgent: pre-check each id outside the write
     // tx so a missing skill surfaces as `Skill` not-found (not the Agent FK
@@ -906,7 +956,7 @@ export class AgentService {
       this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), newKnowledgeBaseIds)
     }
 
-    withSqliteErrors(
+    const taskScheduleIds = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const [current] = tx
@@ -916,6 +966,35 @@ export class AgentService {
             .limit(1)
             .all()
           if (!current) throw DataApiErrorFactory.notFound('Agent', id)
+          let changedLocalEnabled: boolean | undefined
+          if (current.type === 'local') {
+            if (
+              updates.planModel ||
+              updates.smallModel ||
+              updates.configuration?.heartbeat_enabled ||
+              updates.configuration?.scheduler_enabled ||
+              updates.model ||
+              updates.mcps?.length ||
+              updates.knowledgeBaseIds?.length ||
+              updates.skillUpdates?.length
+            )
+              throw DataApiErrorFactory.invalidOperation(
+                'update local agent',
+                'Local agents own their model and resources'
+              )
+            if (updatesLocalBinding) {
+              const previous = agentProviderService.getProjectionsTx(tx, [id]).get(id)
+              const next = agentProviderService.setBindingTx(
+                tx,
+                id,
+                { ...updates.localRuntime, account: localAccount, encryptedEnv: encryptedLocalEnv },
+                expectedLocalProvider
+              )
+              if (next.enabled !== previous?.enabled) changedLocalEnabled = next.enabled
+            }
+          } else if (updatesLocalBinding) {
+            throw DataApiErrorFactory.invalidOperation('update agent', 'Only local agents can bind a local provider')
+          }
           if (expected) {
             const skills = getDataService('AgentGlobalSkillService')
               .list({ agentId: id })
@@ -940,7 +1019,7 @@ export class AgentService {
           // Several mutable fields map to NOT NULL columns with DB defaults
           // (description, instructions, disabledTools, configuration). Writing
           // literal NULL when the DTO omits a field would violate the constraint.
-          // Configuration is handled separately as a first-level JSON PATCH.
+          // Configuration is handled separately as a JSON PATCH.
           for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
             if (field === 'mcps' || field === 'knowledgeBaseIds' || field === 'configuration') continue
             if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
@@ -1014,6 +1093,10 @@ export class AgentService {
             getDataService('AgentGlobalSkillService').applyJoinUpdatesByAgentTx(tx, id, newSkillUpdates)
           }
           if (replaceAvatarImage) this.clearAvatarSlotTx(tx, id)
+          return changedLocalEnabled !== undefined
+            ? agentTaskService.setOwnerStateTx(tx, id, changedLocalEnabled ? 'active' : 'trashed', Date.now())
+                .scheduleIds
+            : []
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -1021,7 +1104,13 @@ export class AgentService {
     const updated = this.getAgent(id)
     if (updated) {
       this.notifyReadModelChange([id], 'projection')
-      this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
+      if (taskScheduleIds.length > 0) agentTaskService.notifyReadModelChange(taskScheduleIds, 'membership')
+      this._onAgentUpdated.fire({
+        agentId: id,
+        updates,
+        agent: updated,
+        ...(taskScheduleIds.length > 0 ? { taskScheduleIds } : {})
+      })
     }
     return updated
   }
@@ -1166,20 +1255,37 @@ export class AgentService {
     return agent
   }
 
-  restoreAgentTx(tx: DbOrTx, id: string): { agent: AgentEntity; restoredSessionIds: string[] } {
+  restoreAgentTx(
+    tx: DbOrTx,
+    id: string,
+    launchSettings?: LocalAgentLaunchSettings & { encryptedEnv?: string | null }
+  ): { agent: AgentEntity; restoredSessionIds: string[] } {
     const [target] = tx
-      .select({ deletedAt: agentsTable.deletedAt })
+      .select({
+        deletedAt: agentsTable.deletedAt,
+        type: agentsTable.type,
+        updatedAt: agentsTable.updatedAt
+      })
       .from(agentsTable)
       .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
     if (!target || target.deletedAt === null) throw DataApiErrorFactory.notFound('Agent', id)
 
+    const restoreData: Partial<AgentRow> = { deletedAt: null }
+    if (launchSettings) {
+      const runtime = agentProviderService.getProjectionsTx(tx, [id]).get(id)
+      if (target.type !== 'local' || !runtime || runtime.presetId !== undefined) {
+        throw DataApiErrorFactory.invalidOperation('restore agent', 'Only custom ACP launch settings can be changed')
+      }
+      agentProviderService.setBindingTx(tx, id, { ...launchSettings, enabled: true })
+      restoreData.updatedAt = Math.max(Date.now(), target.updatedAt + 1)
+    }
     const restoredSessionIds = agentSessionService.restoreTrashedWithAgentTx(tx, id, target.deletedAt)
 
     const [row] = tx
       .update(agentsTable)
-      .set({ deletedAt: null })
+      .set(restoreData)
       .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
       .returning()
       .all()
@@ -1193,7 +1299,8 @@ export class AgentService {
       modelName,
       fetchMcpsForAgents(database, [id]).get(id) ?? [],
       fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? [],
-      this.avatarIds(database, [id]).get(id)
+      this.avatarIds(database, [id]).get(id),
+      row.type === 'local' ? agentProviderService.getProjectionsTx(database, [id]).get(id) : undefined
     )
     logger.info('Restored agent', { id })
     return { agent, restoredSessionIds }
@@ -1317,13 +1424,18 @@ export class AgentService {
       rows.map((row) => row.model)
     )
     const avatarIds = this.avatarIds(database, agentIds)
+    const localRuntimes = agentProviderService.getProjectionsTx(
+      database,
+      rows.filter((row) => row.type === 'local').map((row) => row.id)
+    )
     for (const row of rows) {
       const agent = rowToAgent(
         row,
         row.model ? (modelNames.get(row.model) ?? null) : null,
         mcpsMap.get(row.id) ?? [],
         knowledgeBasesMap.get(row.id) ?? [],
-        avatarIds.get(row.id)
+        avatarIds.get(row.id),
+        localRuntimes.get(row.id)
       )
       const updates: UpdateAgentDto =
         relation === 'mcps' ? { mcps: agent.mcps } : { knowledgeBaseIds: agent.knowledgeBaseIds ?? [] }

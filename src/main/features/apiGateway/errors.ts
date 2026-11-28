@@ -8,6 +8,7 @@ import { isDev } from '@main/core/platform'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
+import { GROK_SESSION_SUMMARY_PATH } from '@shared/utils/apiGateway'
 
 import type { OutputFormat } from './adapters'
 
@@ -554,6 +555,7 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | '
     return 'rest'
   }
   if (pathname.startsWith('/v1/messages')) return 'anthropic'
+  if (pathname === `/v1${GROK_SESSION_SUMMARY_PATH}/chat/completions`) return 'openai'
   if (pathname.startsWith('/v1/chat') || pathname.startsWith('/v1/responses')) return 'openai'
   if (pathname.startsWith('/v1beta')) return 'google'
   if (MCP_PROXY_PATH.test(pathname)) return 'mcp'

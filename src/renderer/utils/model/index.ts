@@ -11,4 +11,16 @@ export {
 } from './reconcile'
 export { readDefaultModel, readQuickModel, readTranslateModel } from './resolve'
 export { getSearchMatchScore } from './search'
+export {
+  getModelDisplayCapabilityTags,
+  getModelDisplayTags,
+  isModelTagVisible,
+  MODEL_DISPLAY_CAPABILITY_TAGS,
+  MODEL_DISPLAY_TAGS,
+  type ModelDisplayCapabilityTag,
+  type ModelDisplayTag,
+  type ModelDisplayTagSource,
+  modelMatchesDisplayTag,
+  type ModelTagVisibilityOptions
+} from './tags'
 export { isOpenAIWebSearchModel } from './websearch'
