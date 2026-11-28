@@ -39,6 +39,18 @@ Rel(user, app, "Uses")
 @enduml`
 
 describe('plantUml.worker', () => {
+  it.each([
+    ['', '#FFFFFF'],
+    ['skinparam backgroundColor black', '#000000'],
+    ['<style>\nroot {\nBackgroundColor #123456\n}\n</style>', '#123456']
+  ])('renders the sequence diagram background from %j', async (setting, color) => {
+    const result = await renderInWorker(
+      `@startuml\n${setting}\nskinparam sequenceArrowColor white\nAlice -> Bob: Message\n@enduml`
+    )
+
+    expect('svg' in result && result.svg).toContain(`background:${color};`)
+  })
+
   it('fails repeated unbundled stdlib includes quickly without wedging subsequent renders', async () => {
     const first = await renderInWorker(c4Diagram)
     expect(first).toEqual({ error: 'cannot include <C4/C4_Context>', line: 2 })

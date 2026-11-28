@@ -81,6 +81,6 @@ First, proactively send a message to the bot on the corresponding platform so th
 
 <summary>What if the channel is connected but does not reply? </summary>
 
-Check the allowed session ID, bound Agent, workspace, and permission mode, then review the channel logs. If the platform received the message but the Agent did not execute, continue checking the API gateway and Agent task status.
+Check the allowed session ID, bound Agent, workspace, and permission mode, then review the channel logs. If the platform received the message but the Agent did not execute, continue checking the Unified Gateway and Agent task status.
 
 </details>

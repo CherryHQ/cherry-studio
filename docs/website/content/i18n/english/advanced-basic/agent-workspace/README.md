@@ -58,12 +58,12 @@ Read the meeting minutes in the current directory, extract decisions, owners, an
 {% endstep %}
 {% endstepper %}
 
-### API Gateway Notice
+### Unified Gateway Notice
 
-If your model connection requires the API Gateway, open **Settings** → **API Gateway** to start the service and check its port and status.
+If your model connection requires the Unified Gateway, open **Settings** → **Unified Gateway** to start the service and check its port and status.
 
 {% hint style="warning" %}
-When enabling the API Gateway for an agent, keep the default local access settings. Copy the URL and API key when another program needs to connect.
+When enabling the Unified Gateway for an agent, keep the default local access settings. Copy the URL and API key when another program needs to connect.
 {% endhint %}
 
 ### One Agent or Multiple Agents

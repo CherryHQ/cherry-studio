@@ -53,7 +53,7 @@ V2 调整了数据结构和多项功能入口。升级前先看需要重新配�
 
 <summary>API 与外部集成有哪些变化？</summary>
 
-* API Gateway 的模型标识由 `provider::model` 改为 `provider:model`。
+* 统一网关 的模型标识由 `provider::model` 改为 `provider:model`。
 * Knowledge API 返回条目使用 V2 字段。
 * MCP-over-HTTP 端点已移除，不影响应用内 MCP。
 * SSE 启动失败可能直接返回普通 HTTP 错误，客户端需同时兼容 HTTP 与 SSE 错误路径。

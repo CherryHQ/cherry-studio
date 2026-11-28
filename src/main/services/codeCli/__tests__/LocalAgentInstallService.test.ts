@@ -77,6 +77,7 @@ vi.mock('@application', async () => {
       }
     },
     ...{
+      ClaudeCodeBinaryService: { getInstalledExecutable: () => undefined },
       LocalAgentWebUiService: { stop: async () => {} },
       CodeBuddyWebUiService: { stop: async () => {} },
       HermesDashboardService: { stop: async () => {} },
