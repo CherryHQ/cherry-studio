@@ -1711,19 +1711,34 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: withContext('user-1', 'oc_123') })
       const entry = getEntry(service)
-      const connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+      const sameChat = withContext(randomUUID(), 'oc_123')
+      const differentChat = withContext(randomUUID(), 'oc_other')
+      const submit = vi.fn<Steer>(async ({ inputId }) => ({
+        status: 'acknowledged',
+        inputId,
+        facts: ['accepted', 'queued']
+      }))
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        contextId: saveSteerInputs(sameChat, differentChat),
+        threadInput: steering(submit)
+      }
       entry.connection = connection
+      entry.connectionGeneration = 'test-generation'
       entry.connectionModelId = baseTurnInput.modelId
       entry.runtimeState.execution.reply.delivery = { kind: 'open' }
       entry.runtimeState.execution.reply.admission = 'admitted'
 
       // Equal context can fold before a queued turn establishes FIFO ordering.
-      service.enqueueUserMessage('session-1', withContext('user-3', 'oc_123'), {})
-      expect(connection.redirect).toHaveBeenCalledTimes(1)
+      service.enqueueUserMessage('session-1', sameChat, {})
+      await vi.waitFor(() => expect(submit).toHaveBeenCalledTimes(1))
+      expect(submit.mock.calls[0][0]).toMatchObject({ inputId: sameChat.id })
       expect(entry.pendingTurns).toHaveLength(0)
-      connection.redirect.mockClear()
-      service.enqueueUserMessage('session-1', withContext('user-2', 'oc_other'), {})
-      expect(connection.redirect).not.toHaveBeenCalled()
+      submit.mockClear()
+      service.enqueueUserMessage('session-1', differentChat, {})
+      expect(submit).not.toHaveBeenCalled()
       expect(entry.pendingTurns).toHaveLength(1)
       void service.closeSession('session-1')
     })
