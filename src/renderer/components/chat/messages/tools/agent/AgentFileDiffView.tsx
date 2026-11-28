@@ -18,7 +18,7 @@ export function AgentFileDiffView({
   hunks: AgentFileDiffHunk[]
 }) {
   return (
-    <div className="relative">
+    <div className="group/agent-diff relative">
       <Suspense fallback={null}>
         <AgentFileDiffRenderer filePath={filePath} hunks={hunks} />
       </Suspense>

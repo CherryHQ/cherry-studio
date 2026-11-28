@@ -19,9 +19,10 @@ export const DiffStyleToggle = memo(function DiffStyleToggle({
   const Icon = diffStyle === 'unified' ? Columns2 : Rows2
 
   return (
+    // Dimly revealed while the enclosing AgentFileDiffView (group/agent-diff) is hovered.
     <button
       type="button"
-      className="absolute top-2 right-2 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded border-none bg-muted text-muted-foreground opacity-0 transition-all duration-200 ease-in-out hover:opacity-100 hover:[&_.tool-icon]:text-foreground [.relative:hover_&]:opacity-60"
+      className="absolute top-2 right-2 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded border-none bg-muted text-muted-foreground opacity-0 transition-all duration-200 ease-in-out group-hover/agent-diff:opacity-60 hover:opacity-100 hover:[&_.tool-icon]:text-foreground focus-visible:opacity-100"
       onClick={onToggle}>
       <Icon size={14} className="tool-icon" />
     </button>
