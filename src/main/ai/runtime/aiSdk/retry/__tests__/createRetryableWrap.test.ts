@@ -1,8 +1,9 @@
 import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import { APICallError, generateText, type ModelMessage } from 'ai'
+import { APICallError, generateText, type ModelMessage, wrapLanguageModel } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { routeToolResultMedia } from '../../../../messages/messageCapabilities'
+import { providerErrorBoundaryMiddleware } from '../../params/features/providerErrorBoundary'
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
 
@@ -310,6 +311,29 @@ describe('createRetryableWrap', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('surfaces context overflow even when the provider marks it retryable', async () => {
+    const overflow = new APICallError({
+      url: 'https://provider.invalid',
+      requestBodyValues: {},
+      statusCode: 400,
+      message: 'Invalid request',
+      data: { error: { code: 'context_length_exceeded' } },
+      isRetryable: true
+    })
+    const generate = vi.fn().mockRejectedValueOnce(overflow).mockResolvedValue(okResult)
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy() })
+    const model = wrapLanguageModel({
+      model: makeFakeLanguageModel('gpt-4', generate),
+      middleware: providerErrorBoundaryMiddleware
+    })
+    await expect(wrap!(model).doGenerate({ prompt: [] })).rejects.toMatchObject({
+      providerErrorCategory: 'context_length',
+      isRetryable: false,
+      statusCode: 400
+    })
+    expect(generate).toHaveBeenCalledTimes(1)
   })
 
   it('retries the same model on transient errors and emits retry events', async () => {

@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 import type { LanguageModelV3Prompt, LanguageModelV3StreamPart, LanguageModelV3StreamResult } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
-import { isContextOverflowError } from '@cherrystudio/ai-core'
+import { ProviderContextOverflowError } from '@shared/ai/providerError'
 
 async function inspectStream(result: LanguageModelV3StreamResult): Promise<LanguageModelV3StreamResult> {
   const reader = result.stream.getReader()
@@ -12,7 +12,7 @@ async function inspectStream(result: LanguageModelV3StreamResult): Promise<Langu
     while (true) {
       const next = await reader.read()
       if (next.done) break
-      if (next.value.type === 'error' && isContextOverflowError(next.value.error)) {
+      if (next.value.type === 'error' && next.value.error instanceof ProviderContextOverflowError) {
         await reader.cancel().catch(() => {})
         throw next.value.error
       }
@@ -70,7 +70,7 @@ export function createOverflowRecoveryMiddleware(
           await (prompt === params.prompt ? doStream() : model.doStream({ ...params, prompt }))
         )
       } catch (error) {
-        if (!isContextOverflowError(error)) throw error
+        if (!(error instanceof ProviderContextOverflowError)) throw error
         params.abortSignal?.throwIfAborted()
         let compacted: LanguageModelV3Prompt | undefined
         try {
@@ -91,7 +91,7 @@ export function createOverflowRecoveryMiddleware(
       try {
         return await (prompt === params.prompt ? doGenerate() : model.doGenerate({ ...params, prompt }))
       } catch (error) {
-        if (!isContextOverflowError(error)) throw error
+        if (!(error instanceof ProviderContextOverflowError)) throw error
         params.abortSignal?.throwIfAborted()
         let compacted: LanguageModelV3Prompt | undefined
         try {

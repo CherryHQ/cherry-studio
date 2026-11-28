@@ -87,6 +87,7 @@ import { createCustomParamsFetch, selectCustomBodyParameters } from './customPar
 import type { RequestFeature } from './feature'
 import { hasAnchorRow } from './features/contextBuild'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
+import { providerErrorBoundaryPlugin } from './features/providerErrorBoundary'
 import type { RequestScope, SdkConfig } from './scope'
 
 const logger = loggerService.withContext('buildAgentParams')
@@ -408,7 +409,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType,
     credentialReceipt,
     tools,
-    plugins: contributions.modelAdapters,
+    // The innermost adapter classifies failures before recovery or retry can observe them.
+    plugins: [...contributions.modelAdapters, providerErrorBoundaryPlugin],
     system,
     options,
     hookParts,
