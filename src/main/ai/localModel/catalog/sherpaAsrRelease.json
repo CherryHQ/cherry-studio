@@ -1,0 +1,36 @@
+{
+  "parakeet": {
+    "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+    "revision": "2bda32ec70b097a55adaa07d9a7173915b43cc78",
+    "upstream": {
+      "url": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
+      "revision": "541d1f99c6b0c3cd0b11a95167540bb8edefd82b"
+    },
+    "files": [
+      {
+        "key": "encoder",
+        "relPath": "encoder.int8.onnx",
+        "sha256": "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247",
+        "sizeBytes": 652184281
+      },
+      {
+        "key": "decoder",
+        "relPath": "decoder.int8.onnx",
+        "sha256": "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e",
+        "sizeBytes": 11845275
+      },
+      {
+        "key": "joiner",
+        "relPath": "joiner.int8.onnx",
+        "sha256": "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3",
+        "sizeBytes": 6355277
+      },
+      {
+        "key": "tokens",
+        "relPath": "tokens.txt",
+        "sha256": "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d",
+        "sizeBytes": 93939
+      }
+    ]
+  }
+}
