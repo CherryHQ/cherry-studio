@@ -52,6 +52,7 @@ export function useConfigEditPanelBodyProps({
     claudeModelMode,
     isForeignDraft,
     submitting,
+    saveFailure,
     canSave,
     onModelSelect,
     onConfigChange,
@@ -173,6 +174,7 @@ export function useConfigEditPanelBodyProps({
     error: draft.error,
     onFilesChange: onCliConfigFilesChange,
     submitting,
+    saveFailure,
     canSave,
     onSubmit: submitDraft
   }
