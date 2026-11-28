@@ -8,23 +8,23 @@ import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { callBuiltinTool, toolText } from '../../__tests__/builtinMcpClient'
-import { resolveFilesystemBaseDir } from '../config'
+import { resolveFilesystemBaseDirs } from '../config'
 import { createFileSystemServer } from '../server'
 import * as types from '../types'
 import { validatePath } from '../types'
 
-async function callFsTool(name: string, args: Record<string, unknown>, root: string) {
+async function callFsTool(name: string, args: Record<string, unknown>, root: readonly string[]) {
   const result = await callBuiltinTool(() => createFileSystemServer(root), name, args)
   if (result.isError) throw new Error(toolText(result))
   return result
 }
 
-const globTool = (args: Record<string, unknown>, root: string) => callFsTool('glob', args, root)
-const lsTool = (args: Record<string, unknown>, root: string) => callFsTool('ls', args, root)
-const readTool = (args: Record<string, unknown>, root: string) => callFsTool('read', args, root)
-const editTool = (args: Record<string, unknown>, root: string) => callFsTool('edit', args, root)
-const writeTool = (args: Record<string, unknown>, root: string) => callFsTool('write', args, root)
-const deleteTool = (args: Record<string, unknown>, root: string) => callFsTool('delete', args, root)
+const globTool = (args: Record<string, unknown>, root: readonly string[]) => callFsTool('glob', args, root)
+const lsTool = (args: Record<string, unknown>, root: readonly string[]) => callFsTool('ls', args, root)
+const readTool = (args: Record<string, unknown>, root: readonly string[]) => callFsTool('read', args, root)
+const editTool = (args: Record<string, unknown>, root: readonly string[]) => callFsTool('edit', args, root)
+const writeTool = (args: Record<string, unknown>, root: readonly string[]) => callFsTool('write', args, root)
+const deleteTool = (args: Record<string, unknown>, root: readonly string[]) => callFsTool('delete', args, root)
 
 const tempDirs: string[] = []
 
@@ -52,7 +52,7 @@ describe('filesystem MCP preset root', () => {
     const result = await callBuiltinTool(
       () =>
         createFileSystemServer(
-          resolveFilesystemBaseDir(
+          resolveFilesystemBaseDirs(
             [...(PRESET_MCP_SERVERS.find((s) => s.name === BuiltinMcpServerNames.filesystem)?.args ?? [])],
             {}
           )
@@ -73,7 +73,7 @@ describe('filesystem MCP preset root', () => {
     )
 
     const result = await callBuiltinTool(
-      () => createFileSystemServer(resolveFilesystemBaseDir([configuredDir], {})),
+      () => createFileSystemServer(resolveFilesystemBaseDirs([configuredDir], {})),
       'read',
       { file_path: 'configured-note.txt' }
     )
@@ -84,9 +84,31 @@ describe('filesystem MCP preset root', () => {
 
 describe('filesystem MCP security', () => {
   it('prefers WORKSPACE_ROOT and falls back to args for filesystem root', () => {
-    expect(resolveFilesystemBaseDir(['C:/args-root'], {})).toBe('C:/args-root')
-    expect(resolveFilesystemBaseDir(['C:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toBe('C:/env-root')
-    expect(resolveFilesystemBaseDir([], {})).toBeUndefined()
+    expect(resolveFilesystemBaseDirs(['C:/args-root'], {})).toEqual(['C:/args-root'])
+    expect(resolveFilesystemBaseDirs(['C:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toEqual(['C:/env-root'])
+    expect(resolveFilesystemBaseDirs([], {})).toEqual([])
+  })
+
+  it('validates each configured root without allowing traversal or symlink escapes', async () => {
+    const roots = await Promise.all(['a', 'b', 'c'].map(() => createTempDir('multi-root-')))
+    const outside = await createTempDir('multi-outside-')
+    for (const root of roots) {
+      const file = path.join(root, 'file.txt')
+      await fs.writeFile(file, 'allowed')
+      for (const order of [roots, [...roots].reverse()]) {
+        await expect(validatePath(file, order)).resolves.toBe(await fs.realpath(file))
+      }
+      await fs.symlink(outside, path.join(root, 'link'), 'dir')
+      await expect(validatePath(path.join(root, 'link', 'secret'), roots)).rejects.toThrow(
+        'outside the configured workspace root'
+      )
+      await expect(validatePath('../escape', [root])).rejects.toThrow('outside the configured workspace root')
+    }
+    const target = path.join(outside, 'secret')
+    await expect(validatePath(target, roots)).rejects.toThrow(
+      `Access denied: Path is outside the configured workspace root: ${target}`
+    )
+    await expect(validatePath('file.txt', [])).rejects.toThrow('outside the configured workspace root')
   })
 
   it('allows paths inside the configured root and rejects paths outside it', async () => {
@@ -98,8 +120,8 @@ describe('filesystem MCP security', () => {
     await fs.writeFile(insideFile, 'inside')
     await fs.writeFile(outsideFile, 'outside')
 
-    await expect(validatePath(insideFile, workspaceRoot)).resolves.toBe(insideFile)
-    await expect(validatePath(outsideFile, workspaceRoot)).rejects.toThrow('outside the configured workspace root')
+    await expect(validatePath(insideFile, [workspaceRoot])).resolves.toBe(insideFile)
+    await expect(validatePath(outsideFile, [workspaceRoot])).rejects.toThrow('outside the configured workspace root')
   })
 
   it('rejects symlink escapes outside the configured root', async () => {
@@ -111,7 +133,7 @@ describe('filesystem MCP security', () => {
     await fs.writeFile(outsideFile, 'top-secret')
     await fs.symlink(outsideFile, symlinkPath)
 
-    await expect(validatePath(symlinkPath, workspaceRoot)).rejects.toThrow('outside the configured workspace root')
+    await expect(validatePath(symlinkPath, [workspaceRoot])).rejects.toThrow('outside the configured workspace root')
   })
 
   it('rejects relative path traversal outside the configured root', async () => {
@@ -120,13 +142,15 @@ describe('filesystem MCP security', () => {
 
     await fs.writeFile(outsideFile, 'outside')
 
-    await expect(validatePath('../outside.txt', workspaceRoot)).rejects.toThrow('outside the configured workspace root')
+    await expect(validatePath('../outside.txt', [workspaceRoot])).rejects.toThrow(
+      'outside the configured workspace root'
+    )
   })
 
   it('rejects home expansion outside the configured root', async () => {
     const workspaceRoot = await createTempDir('filesystem-home-root-')
 
-    await expect(validatePath('~/sensitive-file', workspaceRoot)).rejects.toThrow(
+    await expect(validatePath('~/sensitive-file', [workspaceRoot])).rejects.toThrow(
       'outside the configured workspace root'
     )
   })
@@ -166,7 +190,7 @@ describe('filesystem MCP security', () => {
       exitCode: 0
     })
 
-    const result = await globTool({ pattern: '*.txt' }, workspaceRoot)
+    const result = await globTool({ pattern: '*.txt' }, [workspaceRoot])
     const content = result.content[0]
     expect(content.type).toBe('text')
     if (content.type !== 'text') throw new Error('Expected text content')
@@ -187,7 +211,7 @@ describe('filesystem MCP security', () => {
     // Create a symlink inside workspace pointing to the outside directory
     await fs.symlink(outsideRoot, path.join(workspaceRoot, 'escape-dir'))
 
-    const result = await lsTool({ recursive: true }, workspaceRoot)
+    const result = await lsTool({ recursive: true }, [workspaceRoot])
     const content = result.content[0]
     expect(content.type).toBe('text')
     if (content.type !== 'text') throw new Error('Expected text content')
@@ -203,7 +227,7 @@ describe('filesystem MCP security', () => {
       const workspaceRoot = await createTempDir('ls-missing-root-')
       const missing = path.join(workspaceRoot, 'does-not-exist')
 
-      await expect(lsTool({ path: missing }, workspaceRoot)).rejects.toThrow('Directory not found')
+      await expect(lsTool({ path: missing }, [workspaceRoot])).rejects.toThrow('Directory not found')
     })
 
     it('rejects a file path', async () => {
@@ -211,14 +235,14 @@ describe('filesystem MCP security', () => {
       const filePath = path.join(workspaceRoot, 'note.txt')
       await fs.writeFile(filePath, 'not a directory')
 
-      await expect(lsTool({ path: filePath }, workspaceRoot)).rejects.toThrow('Path is not a directory')
+      await expect(lsTool({ path: filePath }, [workspaceRoot])).rejects.toThrow('Path is not a directory')
     })
 
     it('still lists a real empty directory as empty', async () => {
       const workspaceRoot = await createTempDir('ls-empty-root-')
       await fs.mkdir(path.join(workspaceRoot, 'empty-dir'))
 
-      const result = await lsTool({ path: path.join(workspaceRoot, 'empty-dir') }, workspaceRoot)
+      const result = await lsTool({ path: path.join(workspaceRoot, 'empty-dir') }, [workspaceRoot])
 
       expect(result.content[0]).toMatchObject({ type: 'text', text: expect.stringContaining('(empty directory)') })
     })
@@ -233,7 +257,7 @@ describe('filesystem MCP security', () => {
       const outsideFile = path.join(outsideRoot, 'target.txt')
       await fs.writeFile(outsideFile, 'original')
 
-      await expect(writeTool({ file_path: '../escape.txt', content: 'pwned' }, workspaceRoot)).rejects.toThrow(
+      await expect(writeTool({ file_path: '../escape.txt', content: 'pwned' }, [workspaceRoot])).rejects.toThrow(
         ESCAPE_ERROR
       )
       // No file leaked into the parent of the workspace root.
@@ -244,7 +268,7 @@ describe('filesystem MCP security', () => {
       // Symlink inside the workspace pointing outside it must be rejected before writing.
       const symlinkPath = path.join(workspaceRoot, 'escape-link')
       await fs.symlink(outsideFile, symlinkPath)
-      await expect(writeTool({ file_path: 'escape-link', content: 'pwned' }, workspaceRoot)).rejects.toThrow(
+      await expect(writeTool({ file_path: 'escape-link', content: 'pwned' }, [workspaceRoot])).rejects.toThrow(
         ESCAPE_ERROR
       )
       await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('original')
@@ -256,7 +280,7 @@ describe('filesystem MCP security', () => {
       const outsideFile = path.join(outsideRoot, 'missing.txt')
       await fs.symlink(outsideFile, path.join(workspaceRoot, 'dangling-link'))
 
-      await expect(writeTool({ file_path: 'dangling-link', content: 'pwned' }, workspaceRoot)).rejects.toThrow(
+      await expect(writeTool({ file_path: 'dangling-link', content: 'pwned' }, [workspaceRoot])).rejects.toThrow(
         ESCAPE_ERROR
       )
       await expect(fs.stat(outsideFile)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -265,7 +289,7 @@ describe('filesystem MCP security', () => {
     it('write still creates a new file below a missing directory inside the root', async () => {
       const workspaceRoot = await createTempDir('write-new-nested-root-')
 
-      await writeTool({ file_path: 'nested/new.txt', content: 'ok' }, workspaceRoot)
+      await writeTool({ file_path: 'nested/new.txt', content: 'ok' }, [workspaceRoot])
       await expect(fs.readFile(path.join(workspaceRoot, 'nested', 'new.txt'), 'utf-8')).resolves.toBe('ok')
     })
 
@@ -279,7 +303,7 @@ describe('filesystem MCP security', () => {
         process.platform === 'win32' ? 'junction' : 'dir'
       )
 
-      await expect(writeTool({ file_path: 'dangling-dir/new.txt', content: 'pwned' }, workspaceRoot)).rejects.toThrow(
+      await expect(writeTool({ file_path: 'dangling-dir/new.txt', content: 'pwned' }, [workspaceRoot])).rejects.toThrow(
         ESCAPE_ERROR
       )
       await expect(fs.stat(outsideDir)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -294,7 +318,7 @@ describe('filesystem MCP security', () => {
         await fs.symlink(outsideFile, path.join(workspaceRoot, 'dangling-link'))
 
         await expect(
-          editTool({ file_path: 'dangling-link', old_string: '', new_string: 'pwned' }, workspaceRoot)
+          editTool({ file_path: 'dangling-link', old_string: '', new_string: 'pwned' }, [workspaceRoot])
         ).rejects.toThrow(ESCAPE_ERROR)
         await expect(fs.stat(outsideFile)).rejects.toMatchObject({ code: 'ENOENT' })
       }
@@ -307,14 +331,14 @@ describe('filesystem MCP security', () => {
       await fs.writeFile(outsideFile, 'original')
 
       await expect(
-        editTool({ file_path: '../target.txt', old_string: 'original', new_string: 'pwned' }, workspaceRoot)
+        editTool({ file_path: '../target.txt', old_string: 'original', new_string: 'pwned' }, [workspaceRoot])
       ).rejects.toThrow(ESCAPE_ERROR)
       await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('original')
 
       const symlinkPath = path.join(workspaceRoot, 'escape-link')
       await fs.symlink(outsideFile, symlinkPath)
       await expect(
-        editTool({ file_path: 'escape-link', old_string: 'original', new_string: 'pwned' }, workspaceRoot)
+        editTool({ file_path: 'escape-link', old_string: 'original', new_string: 'pwned' }, [workspaceRoot])
       ).rejects.toThrow(ESCAPE_ERROR)
       await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('original')
     })
@@ -325,12 +349,12 @@ describe('filesystem MCP security', () => {
       const outsideFile = path.join(outsideRoot, 'target.txt')
       await fs.writeFile(outsideFile, 'keep-me')
 
-      await expect(deleteTool({ path: '../target.txt' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
+      await expect(deleteTool({ path: '../target.txt' }, [workspaceRoot])).rejects.toThrow(ESCAPE_ERROR)
       await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('keep-me')
 
       const symlinkPath = path.join(workspaceRoot, 'escape-link')
       await fs.symlink(outsideFile, symlinkPath)
-      await expect(deleteTool({ path: 'escape-link' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
+      await expect(deleteTool({ path: 'escape-link' }, [workspaceRoot])).rejects.toThrow(ESCAPE_ERROR)
       // Both the symlink and its target must survive.
       await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('keep-me')
     })
@@ -341,11 +365,11 @@ describe('filesystem MCP security', () => {
       const outsideFile = path.join(outsideRoot, 'secret.txt')
       await fs.writeFile(outsideFile, 'top-secret')
 
-      await expect(readTool({ file_path: '../secret.txt' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
+      await expect(readTool({ file_path: '../secret.txt' }, [workspaceRoot])).rejects.toThrow(ESCAPE_ERROR)
 
       const symlinkPath = path.join(workspaceRoot, 'escape-link')
       await fs.symlink(outsideFile, symlinkPath)
-      await expect(readTool({ file_path: 'escape-link' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
+      await expect(readTool({ file_path: 'escape-link' }, [workspaceRoot])).rejects.toThrow(ESCAPE_ERROR)
     })
   })
 
@@ -369,10 +393,9 @@ describe('filesystem MCP security', () => {
       const target = path.join(workspaceRoot, 'script.sh')
       await fs.writeFile(target, 'line TARGET\nline TARGET\n', 'utf-8')
 
-      await editTool(
-        { file_path: 'script.sh', old_string: 'TARGET', new_string: newString, replace_all: true },
+      await editTool({ file_path: 'script.sh', old_string: 'TARGET', new_string: newString, replace_all: true }, [
         workspaceRoot
-      )
+      ])
 
       await expect(fs.readFile(target, 'utf-8')).resolves.toBe(`line ${newString}\nline ${newString}\n`)
     })
@@ -382,12 +405,12 @@ describe('filesystem MCP security', () => {
 
       const allRoot = await createTempDir('edit-agree-all-')
       await fs.writeFile(path.join(allRoot, 'f.txt'), 'TARGET\n', 'utf-8')
-      await editTool({ file_path: 'f.txt', old_string: 'TARGET', new_string: newString, replace_all: true }, allRoot)
+      await editTool({ file_path: 'f.txt', old_string: 'TARGET', new_string: newString, replace_all: true }, [allRoot])
       const viaReplaceAll = await fs.readFile(path.join(allRoot, 'f.txt'), 'utf-8')
 
       const oneRoot = await createTempDir('edit-agree-one-')
       await fs.writeFile(path.join(oneRoot, 'f.txt'), 'TARGET\n', 'utf-8')
-      await editTool({ file_path: 'f.txt', old_string: 'TARGET', new_string: newString }, oneRoot)
+      await editTool({ file_path: 'f.txt', old_string: 'TARGET', new_string: newString }, [oneRoot])
       const viaSingle = await fs.readFile(path.join(oneRoot, 'f.txt'), 'utf-8')
 
       expect(viaReplaceAll).toBe(viaSingle)
@@ -406,7 +429,7 @@ describe('filesystem MCP security', () => {
     async function editInWorkspace(content: string, oldString: string, replaceAll: boolean) {
       const root = await createTempDir('edit-empty-')
       await fs.writeFile(path.join(root, 'f.txt'), content, 'utf-8')
-      await editTool({ file_path: 'f.txt', old_string: oldString, new_string: 'X', replace_all: replaceAll }, root)
+      await editTool({ file_path: 'f.txt', old_string: oldString, new_string: 'X', replace_all: replaceAll }, [root])
       return fs.readFile(path.join(root, 'f.txt'), 'utf-8')
     }
 

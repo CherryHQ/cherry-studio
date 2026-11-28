@@ -13,19 +13,22 @@ export const GlobToolSchema = z.object({
   path: z
     .string()
     .optional()
-    .describe('The directory to search in (must be absolute path). Defaults to the base directory')
+    .describe('The directory to search in (must be absolute path). Defaults to the first configured root')
 })
 
 // Tool definition with detailed description
 export const globToolDefinition = {
-  description: `Find files by glob pattern (**/*.ts, src/*.js), newest first, max 100. Paths must stay inside the workspace root.`,
+  description: `Find files by glob pattern (**/*.ts, src/*.js), newest first, max 100. Paths must stay inside the workspace root. Defaults to the first configured root.`,
   inputSchema: GlobToolSchema
 }
 
 // Handler implementation
-export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const searchPath = args.path || baseDir
-  const validPath = await validatePath(searchPath, baseDir)
+export async function handleGlobTool(
+  args: z.infer<typeof GlobToolSchema>,
+  baseDirs: readonly string[]
+): Promise<CallToolResult> {
+  const searchPath = args.path || baseDirs[0]
+  const validPath = await validatePath(searchPath, baseDirs)
 
   // Verify the search directory exists
   try {
@@ -92,7 +95,7 @@ export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseD
 
       try {
         // Re-validate each result to filter out symlink escapes (--follow traverses symlinks)
-        await validatePath(absolutePath, baseDir)
+        await validatePath(absolutePath, baseDirs)
         const stats = await fs.stat(absolutePath)
         files.push({
           path: absolutePath,

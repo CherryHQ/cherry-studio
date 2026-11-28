@@ -42,20 +42,38 @@ export function expandHome(filepath: string): string {
 }
 
 // Security validation
-export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
+export async function validatePath(
+  requestedPath: string,
+  baseDirs: readonly string[] = [process.cwd()]
+): Promise<string> {
   const expandedPath = expandHome(requestedPath)
-  const root = expandHome(baseDir ?? process.cwd())
-  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
+  const absoluteTarget = path.isAbsolute(expandedPath)
+    ? await canonicalizePathForContainment(path.resolve(expandedPath), { allowMissing: true })
+    : undefined
 
-  const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
-  const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
-
-  // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
-  if (!resolvedRoot || !resolvedPath || isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
-    throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
+  for (const baseDir of baseDirs) {
+    const root = path.resolve(expandHome(baseDir))
+    const resolvedRoot = await canonicalizePathForContainment(root, { allowMissing: true })
+    const resolvedPath = path.isAbsolute(expandedPath)
+      ? absoluteTarget
+      : await canonicalizePathForContainment(path.resolve(root, expandedPath), { allowMissing: true })
+    // Exact comparison avoids case folding on case-sensitive macOS volumes.
+    if (resolvedRoot && resolvedPath && !isOutsidePath(path.relative(resolvedRoot, resolvedPath))) return resolvedPath
   }
+  throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
+}
 
-  return resolvedPath
+export async function getRelativePath(canonicalTargetPath: string, baseDirs: readonly string[]): Promise<string> {
+  for (const baseDir of baseDirs) {
+    try {
+      const root = await canonicalizePathForContainment(path.resolve(expandHome(baseDir)), { allowMissing: true })
+      if (root && !isOutsidePath(path.relative(root, canonicalTargetPath)))
+        return path.relative(root, canonicalTargetPath)
+    } catch {
+      // Display must not make an otherwise successful operation fail.
+    }
+  }
+  return canonicalTargetPath
 }
 
 // ============================================================================
