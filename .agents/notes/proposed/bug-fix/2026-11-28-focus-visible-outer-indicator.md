@@ -28,7 +28,7 @@ Keyboard focus follows shadcn's two-part design: an opaque `--ring` border carri
 6. Popup containers that Radix focuses as a landing point opt out in their packages/ui primitive with `outline-none`: menu, context menu, popover, hover card, dialog, alert dialog, sheet, drawer, and Select content. Radix Menu focuses its content on every open, and Chromium marks a script focus as `:focus-visible` after keyboard input or before any input.
 7. Items that receive focus inside a popup list follow shadcn. These are the `menuitem` and `option` items of menus, Select, and Command. The accent background shows the current item, and no halo is drawn. Checked state does not use a background: `SelectItem` drops `data-[state=checked]:bg-primary/10` and keeps its check mark.
 8. Where a container clips the halo (scroll viewports, `overflow: hidden`), the container gets padding. Where a sibling paints over the halo, the focused control is raised. Both are established during the keyboard walkthrough.
-9. `DESIGN.md` § Focus is rewritten to these rules. Tests from #17436 that assert the absence of outline utilities in class strings are deleted.
+9. `DESIGN.md` § Focus is rewritten to these rules.
 
 The work ships as a stack: (1) this Spec, `DESIGN.md`, the global rule, the token, and the packages/ui primitives; (2) renderer call sites; (3) the keyboard walkthrough, padding, and stacking fixes.
 

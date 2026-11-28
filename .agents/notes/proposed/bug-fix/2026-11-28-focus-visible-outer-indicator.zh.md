@@ -28,7 +28,7 @@ Status: proposed
 6. Radix 当作焦点落脚点来聚焦的弹出容器，在各自的 packages/ui primitive 里用 `outline-none` 退出：菜单、右键菜单、Popover、HoverCard、Dialog、AlertDialog、Sheet、Drawer 和 Select 的内容容器。Radix Menu 每次打开都会聚焦内容容器，而 Chromium 在键盘输入之后或尚无任何输入时，会把脚本聚焦标记为 `:focus-visible`。
 7. 在弹出列表内获得焦点的条目沿用 shadcn 的做法，即菜单、Select 和 Command 里的 `menuitem` 与 `option` 条目：用 accent 背景表示当前项，不画外圈。选中态不使用背景：`SelectItem` 删除 `data-[state=checked]:bg-primary/10`，保留对勾。
 8. 容器裁切外圈时（滚动视口、`overflow: hidden`），给容器加内边距；相邻元素盖住外圈时，提升获得焦点的控件的层级。两者都在键盘走查中确定。
-9. 按以上规则重写 `DESIGN.md` § Focus。删除 #17436 中断言 class 字符串里没有 outline 工具类的测试。
+9. 按以上规则重写 `DESIGN.md` § Focus。
 
 这项工作以 PR 栈交付：（1）本 Spec、`DESIGN.md`、全局规则、token 和 packages/ui primitive；（2）渲染进程调用点；（3）键盘走查、内边距和层级修正。
 
