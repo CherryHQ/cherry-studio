@@ -312,15 +312,19 @@ const BasicDataSettings: React.FC = () => {
       if (decisions === null) return
 
       const result = await ipcApi.request('model_settings.import_apply', { handle: preview.handle, decisions })
-      if (result.failed.length > 0) {
-        toast.warning(t('settings.data.model_settings.import_partial', { count: result.failed.length }))
+      const importDetails = [...result.failed, ...(result.warnings ?? [])]
+      if (importDetails.length > 0) {
+        toast.warning(t('settings.data.model_settings.import_partial', { count: importDetails.length }))
         await popup.info({
           title: t('settings.data.model_settings.import_error'),
           content: (
             <ul className="max-h-80 list-disc space-y-2 overflow-y-auto break-all pl-5">
-              {result.failed.map((failure, index) => (
+              {importDetails.map((failure, index) => (
                 <li key={`${failure.kind}:${failure.id}:${index}`}>
-                  {failure.kind}: {failure.id}, {failure.reason}
+                  {t(`settings.data.model_settings.conflict_${failure.kind}`)}: {failure.id},{' '}
+                  {failure.reason === 'provider_not_imported' || failure.reason === 'adapter_family_dropped'
+                    ? t(`settings.data.model_settings.${failure.reason}`)
+                    : failure.reason}
                 </li>
               ))}
             </ul>

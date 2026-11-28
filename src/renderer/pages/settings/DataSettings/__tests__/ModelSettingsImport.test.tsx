@@ -3,7 +3,15 @@ import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-libra
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ request: vi.fn(), show: vi.fn(), info: vi.fn(), warning: vi.fn() }))
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      ({
+        'settings.data.model_settings.conflict_model': '模型',
+        'settings.data.model_settings.provider_not_imported': '无法导入此模型的服务商。'
+      })[key] ?? key
+  })
+}))
 vi.mock('@cherrystudio/ui', () => {
   const Box = ({ children }: { children?: ReactNode }) => <div>{children}</div>
   return {
@@ -106,5 +114,5 @@ it('applies only the opaque handle and shows each failed item kind, id and reaso
   expect(mocks.request).toHaveBeenCalledWith('model_settings.import_apply', { handle: 'opaque', decisions: {} })
   const { content } = mocks.info.mock.calls[0][0]
   render(content)
-  expect(screen.getByText('model: relay::gpt, provider_not_imported')).toBeInTheDocument()
+  expect(screen.getByText('模型: relay::gpt, 无法导入此模型的服务商。')).toBeInTheDocument()
 })

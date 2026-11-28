@@ -86,7 +86,11 @@ function toExportedModel(row: UserModelRow): ExportedModel {
     group: row.group ?? undefined,
     capabilities: row.capabilities ?? undefined,
     inputModalities:
-      row.inputModalitiesExplicit || row.inputModalities?.length ? (row.inputModalities ?? undefined) : undefined,
+      row.presetModelId && row.inputModalities !== null
+        ? row.inputModalities
+        : row.inputModalitiesExplicit || row.inputModalities?.length
+          ? row.inputModalities
+          : null,
     outputModalities: row.outputModalities ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
@@ -211,7 +215,28 @@ class ModelSettingsBackupService {
     const result: ModelSettingsImportResult = { created: 0, replaced: 0, skipped: 0, failed: [] }
     const failedProviderIds = new Set<string>()
 
-    for (const provider of document.providers) {
+    for (const rawProvider of document.providers) {
+      const provider = {
+        ...rawProvider,
+        endpointConfigs: rawProvider.endpointConfigs
+          ? Object.fromEntries(
+              Object.entries(rawProvider.endpointConfigs).map(([endpoint, config]) => {
+                const family = config?.adapterFamily
+                if (family && family !== 'newapi' && family !== 'gateway') {
+                  result.warnings ??= []
+                  if (!result.warnings.some((warning) => warning.id === rawProvider.providerId))
+                    result.warnings.push({
+                      kind: 'provider',
+                      id: rawProvider.providerId,
+                      reason: 'adapter_family_dropped'
+                    })
+                  return [endpoint, withoutKeys(config, ['adapterFamily'])]
+                }
+                return [endpoint, config]
+              })
+            )
+          : undefined
+      }
       const exists = existingProviderIds.has(provider.providerId)
       if (exists && decisions[providerKey(provider.providerId)] !== 'replace') {
         result.skipped++
@@ -260,7 +285,9 @@ class ModelSettingsBackupService {
   }
 
   private validateDocumentIds(document: ModelSettingsDocument): void {
-    for (const provider of document.providers) createUniqueModelId(provider.providerId, 'validation')
+    for (const provider of document.providers) {
+      if (!provider.providerId) throw new Error('providerId cannot be empty')
+    }
     for (const model of document.models) createUniqueModelId(model.providerId, model.modelId)
   }
 
@@ -372,7 +399,8 @@ class ModelSettingsBackupService {
   }
 
   private createModel(model: ExportedModel): void {
-    const { isEnabled, isHidden, ...dto } = model
+    const { isEnabled, isHidden, inputModalities, ...fields } = model
+    const dto = { ...fields, inputModalities: inputModalities ?? undefined }
     modelService.create([{ dto, registryData: lookupRegistryForCreate(dto.providerId, dto.modelId) }])
     this.restoreInheritedInputModalities(model)
     if (isEnabled === false || isHidden === true) {
@@ -381,7 +409,7 @@ class ModelSettingsBackupService {
   }
 
   private restoreInheritedInputModalities(model: ExportedModel): void {
-    if (model.inputModalities !== undefined) return
+    if (model.inputModalities !== null) return
     application
       .get('DbService')
       .getDb()
@@ -397,7 +425,8 @@ class ModelSettingsBackupService {
       model.providerId,
       model.modelId,
       definedOnly({
-        ...withoutKeys(model, ['providerId', 'modelId', 'presetModelId']),
+        ...withoutKeys(model, ['providerId', 'modelId', 'presetModelId', 'inputModalities']),
+        inputModalities: model.inputModalities ?? undefined,
         contextWindow: model.contextWindow ?? null,
         maxInputTokens: model.maxInputTokens ?? null,
         maxOutputTokens: model.maxOutputTokens ?? null

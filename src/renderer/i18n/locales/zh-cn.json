@@ -4511,6 +4511,8 @@
   "settings.data.markdown_export.title": "Markdown 导出",
   "settings.data.message_title.use_topic_naming.help": "开启后，使用快速模型为导出的消息命名标题。该项也会影响所有通过 Markdown 导出的方式",
   "settings.data.message_title.use_topic_naming.title": "使用快速模型为导出的消息命名标题",
+  "settings.data.model_settings.provider_not_imported": "无法导入此模型的服务商。",
+  "settings.data.model_settings.adapter_family_dropped": "已忽略不支持的适配器提示。",
   "settings.data.model_settings.conflict_model": "模型",
   "settings.data.model_settings.conflict_provider": "服务商",
   "settings.data.model_settings.conflicts_description": "请选择替换或保留每个已有项。选择“跳过”的项目不会被修改。",

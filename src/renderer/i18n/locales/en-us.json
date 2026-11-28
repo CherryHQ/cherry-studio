@@ -4511,6 +4511,8 @@
   "settings.data.markdown_export.title": "Markdown Export",
   "settings.data.message_title.use_topic_naming.help": "When enabled, use the quick model to name the title for exported messages. This setting also affects all export methods through Markdown.",
   "settings.data.message_title.use_topic_naming.title": "Use the quick model to name the title for the exported message",
+  "settings.data.model_settings.provider_not_imported": "The provider could not be imported.",
+  "settings.data.model_settings.adapter_family_dropped": "An unsupported adapter hint was ignored.",
   "settings.data.model_settings.conflict_model": "Model",
   "settings.data.model_settings.conflict_provider": "Provider",
   "settings.data.model_settings.conflicts_description": "Choose whether to replace or keep each existing item. Items left on Skip are not changed.",

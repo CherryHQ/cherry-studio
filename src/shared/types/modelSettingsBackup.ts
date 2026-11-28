@@ -16,13 +16,15 @@ const ExportedProviderSchema = CreateProviderSchema.omit({ logo: true }).extend(
     .partialRecord(
       z.enum(objectValues(ENDPOINT_TYPE)),
       EndpointConfigOverrideSchema.extend({
-        adapterFamily: z.enum(['newapi', 'gateway']).optional()
+        adapterFamily: z.string().optional()
       })
     )
     .optional()
 })
 
 const ExportedModelSchema = CreateModelSchema.extend({
+  // Omission preserves a destination override. Null explicitly restores inheritance.
+  inputModalities: CreateModelSchema.shape.inputModalities.unwrap().nullable().optional(),
   isEnabled: z.boolean().optional(),
   isHidden: z.boolean().optional()
 })
@@ -57,6 +59,9 @@ export const ModelSettingsImportResultSchema = z.object({
   created: z.number().int().nonnegative(),
   replaced: z.number().int().nonnegative(),
   skipped: z.number().int().nonnegative(),
+  warnings: z
+    .array(z.object({ kind: z.literal('provider'), id: z.string(), reason: z.literal('adapter_family_dropped') }))
+    .optional(),
   failed: z.array(
     z.object({
       kind: z.enum(['provider', 'model']),

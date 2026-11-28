@@ -228,7 +228,7 @@ describe('ModelSettingsBackupService', () => {
     dialogMock.showSaveDialog.mockResolvedValue({ canceled: false, filePath })
     await modelSettingsBackupService.exportToFile()
     const exported = ModelSettingsDocumentSchema.parse(JSON.parse(readFileSync(filePath, 'utf-8')))
-    expect(exported.models[0].inputModalities).toEqual(explicit ? [] : undefined)
+    expect(exported.models[0].inputModalities).toEqual(explicit ? [] : null)
     dbh.db
       .update(userModelTable)
       .set({ inputModalities: ['text'], inputModalitiesExplicit: true })
@@ -237,6 +237,63 @@ describe('ModelSettingsBackupService', () => {
     const row = dbh.db.select().from(userModelTable).all()[0]
     expect(row.inputModalitiesExplicit).toBe(explicit)
     expect(row.inputModalities).toEqual(explicit ? [] : null)
+  })
+
+  it('preserves an existing modality override when an older backup omits it', () => {
+    seedRelay()
+    dbh.db
+      .update(userModelTable)
+      .set({ inputModalities: ['image'], inputModalitiesExplicit: true })
+      .run()
+    modelSettingsBackupService.applyImport(document([], [relayModel()]), { 'model:relay::gpt': 'replace' })
+    expect(dbh.db.select().from(userModelTable).all()[0]).toMatchObject({
+      inputModalities: ['image'],
+      inputModalitiesExplicit: true
+    })
+  })
+
+  it('exports a historical preset explicit-empty override even when the migration flag is false', async () => {
+    seedRelay()
+    dbh.db
+      .update(userModelTable)
+      .set({ presetModelId: 'catalog-model', inputModalities: [], inputModalitiesExplicit: false })
+      .run()
+    const filePath = path.join(workDir, 'preset.json')
+    dialogMock.showSaveDialog.mockResolvedValue({ canceled: false, filePath })
+    await modelSettingsBackupService.exportToFile()
+    expect(JSON.parse(readFileSync(filePath, 'utf-8')).models[0].inputModalities).toEqual([])
+  })
+
+  it('restores a standalone provider whose ID contains the composite separator', async () => {
+    const filePath = path.join(workDir, 'standalone.json')
+    writeFileSync(filePath, JSON.stringify(document([{ providerId: 'team::relay', name: 'Team Relay' }])))
+    dialogMock.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [filePath] })
+    const preview = await modelSettingsBackupService.pickImportFile('owner')
+    expect(modelSettingsBackupService.applyPreview(preview!.handle, {}, 'owner').created).toBe(1)
+    expect(dbh.db.select().from(userProviderTable).all()[0].providerId).toBe('team::relay')
+  })
+
+  it('drops unknown adapter hints with an item warning and imports unrelated settings', () => {
+    const parsed = ModelSettingsDocumentSchema.parse(
+      document(
+        [
+          {
+            ...relayProvider('Relay'),
+            endpointConfigs: {
+              'openai-chat-completions': { adapterFamily: 'future-adapter', baseUrl: 'https://relay.test' }
+            }
+          }
+        ],
+        [relayModel()]
+      )
+    )
+    const result = modelSettingsBackupService.applyImport(parsed, {})
+    expect(result.created).toBe(2)
+    expect(result.failed).toEqual([])
+    expect(result.warnings).toEqual([{ kind: 'provider', id: 'relay', reason: 'adapter_family_dropped' }])
+    expect(
+      dbh.db.select().from(userProviderTable).all()[0].endpointConfigs?.['openai-chat-completions']?.adapterFamily
+    ).toBeUndefined()
   })
 
   it('rejects every invalid ID before any provider write', () => {
