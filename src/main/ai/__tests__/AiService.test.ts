@@ -22,7 +22,8 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
-import type { createRetryableWrap } from '../runtime/aiSdk/retry/createRetryableWrap'
+import type { createRetryableWrap, WrapLanguageModel } from '../runtime/aiSdk/retry/createRetryableWrap'
+import type * as BuildApiKeyFallbackModelsModule from '../runtime/aiSdk/retry/buildApiKeyFallbackModels'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
 import { makeModel } from './fixtures/model'
@@ -2560,7 +2561,7 @@ describe('AiService tool approval', () => {
 
   it('clears Ollama stream error context when the primary model is reactivated', async () => {
     const service = createService()
-    mockCreateRetryableWrap.mockReturnValueOnce((model: unknown) => model)
+    mockCreateRetryableWrap.mockReturnValueOnce(((model: unknown) => model) as WrapLanguageModel)
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
@@ -2585,7 +2586,7 @@ describe('AiService tool approval', () => {
       requestOptions: { signal: new AbortController().signal }
     } as never)
 
-    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
+    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as unknown as {
       onFallbackActivated: (fallback: { streamErrorSerialization: { ollamaNumCtx: object } }) => void
       onPrimaryActivated: () => void
     }
@@ -2602,7 +2603,7 @@ describe('AiService tool approval', () => {
 
   it('updates caller-owned stream error context when fallback activates across a shallow copy', async () => {
     const service = createService()
-    mockCreateRetryableWrap.mockReturnValueOnce((model: unknown) => model)
+    mockCreateRetryableWrap.mockReturnValueOnce(((model: unknown) => model) as WrapLanguageModel)
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
@@ -2632,7 +2633,7 @@ describe('AiService tool approval', () => {
       requestOptions: { signal: new AbortController().signal }
     })
 
-    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
+    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as unknown as {
       onFallbackActivated: (fallback: { streamErrorSerialization: { ollamaNumCtx: object } }) => void
     }
     retryOptions.onFallbackActivated({
