@@ -10,7 +10,10 @@ export async function forkDurable(
   session: Pick<Harness, 'commit'>,
   input: RuntimeForkInput
 ): Promise<RuntimeForkResult> {
-  const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
+  const [{ BACKGROUND_CONTEXT }, { StorageRequestError }] = await Promise.all([
+    import('@earendil-works/chord/context'),
+    import('@earendil-works/pi-durable')
+  ])
   const identity = await durableContextIdentity()
   const selected = DurableForkCheckpointSchema.parse(input.checkpoint)
   if (selected.backendId !== input.sourceBackendId) throw new AgentSessionForkError('unsupported_checkpoint')
@@ -25,22 +28,26 @@ export async function forkDurable(
   const conversationId = await session.commit(async (tx) => {
     const source = Number(selected.conversationId) as ConversationId
     const entryId = Number(selected.entryId) as EntryId
-    const entries = new Set<string>()
-    let cursor: Parameters<typeof tx.scanEntries>[2]
-    let found = false
-    do {
-      const page = await tx.scanEntries({ conversationId: source, order: 'ascending' }, 256, cursor)
-      for (const entry of page.items) {
-        entries.add(String(entry.id))
-        if (entry.id === entryId) {
-          found = true
-          break
-        }
-      }
-      cursor = found ? undefined : page.next
-    } while (cursor)
-    if (!found || checkpoints.some((value) => !entries.has(value.entryId)))
-      throw new AgentSessionForkError('history_changed')
+    const lineage = new Map<ConversationId, number>()
+    let conversation = await tx.conversation(source)
+    if (!conversation) throw new StorageRequestError(`Unknown conversation: ${source}`)
+    let upper = Number(entryId)
+    while (!lineage.has(conversation.id)) {
+      lineage.set(conversation.id, upper)
+      const parent = conversation.parent
+      if (!parent) break
+      upper = Math.min(upper, Number(parent.at))
+      conversation = await tx.conversation(parent.conversationId)
+      if (!conversation) throw new StorageRequestError(`Unknown conversation: ${parent.conversationId}`)
+    }
+    const requiredIds = new Set<EntryId>([entryId])
+    for (const checkpoint of checkpoints) requiredIds.add(Number(checkpoint.entryId) as EntryId)
+    for (const id of requiredIds) {
+      if (Number(id) > Number(entryId)) throw new AgentSessionForkError('history_changed')
+      const entry = await tx.entry(id)
+      const bound = entry ? lineage.get(entry.conversationId) : undefined
+      if (!entry || bound === undefined || Number(entry.id) > bound) throw new AgentSessionForkError('history_changed')
+    }
     const conversations: ConversationRecord[] = []
     let next: Parameters<typeof tx.scanConversations>[2]
     do {

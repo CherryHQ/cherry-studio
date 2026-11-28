@@ -1,6 +1,7 @@
 import type {
   AiUsageRecordCostTotal,
   AiUsageRecordDailyCost,
+  AiUsageRecordGroupFilter,
   AiUsageRecordGroupIdentity,
   AiUsageRecordStatsMetrics,
   AiUsageRecordStatsResponse,
@@ -102,30 +103,15 @@ function getWindowDays(windowKey: WindowKey): number {
   return windowKey === '30d' ? 30 : windowKey === '90d' ? 90 : 365
 }
 
-export function getWindowRange(windowKey: WindowKey): BoundedTimeRange {
+export function getWindowRange(windowKey: WindowKey, endingAt: number): BoundedTimeRange {
   const days = getWindowDays(windowKey)
-  const today = startOfLocalDay(new Date())
-  const from = new Date(today)
-  from.setDate(today.getDate() - days + 1)
+  const endDay = startOfLocalDay(new Date(endingAt))
+  const from = new Date(endDay)
+  from.setDate(endDay.getDate() - days + 1)
 
   return {
     from: from.getTime(),
-    to: endOfLocalDay(today).getTime()
-  }
-}
-
-export function getPreviousWindowRange(windowKey: WindowKey): BoundedTimeRange {
-  const days = getWindowDays(windowKey)
-  const currentRange = getWindowRange(windowKey)
-  const currentFrom = startOfLocalDay(new Date(currentRange.from))
-  const previousFrom = new Date(currentFrom)
-  previousFrom.setDate(currentFrom.getDate() - days)
-  const previousTo = new Date(currentFrom)
-  previousTo.setDate(currentFrom.getDate() - 1)
-
-  return {
-    from: startOfLocalDay(previousFrom).getTime(),
-    to: endOfLocalDay(previousTo).getTime()
+    to: endOfLocalDay(endDay).getTime()
   }
 }
 
@@ -345,4 +331,45 @@ export function buildTotalChartSeries(
   })
   const otherTotal = getMetricValue(stats.other, metric)
   return [...series, { key: 'other', values: [otherTotal], total: otherTotal }].filter((item) => item.total > 0)
+}
+
+export function rangeFromPeriodKey(
+  periodKey: string,
+  rollup: UsageRollupKey,
+  bounds: BoundedTimeRange
+): BoundedTimeRange {
+  if (rollup === 'total') return bounds
+  const start = startOfLocalDay(parseDateKey(periodKey))
+  const end =
+    rollup === 'monthly'
+      ? new Date(start.getFullYear(), start.getMonth() + 1, 0)
+      : rollup === 'weekly'
+        ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6)
+        : start
+
+  return {
+    from: Math.max(start.getTime(), bounds.from),
+    to: Math.min(endOfLocalDay(end).getTime(), bounds.to)
+  }
+}
+
+export function toUsageEntryGroupFilter(
+  groupBy: GroupByKey,
+  identity: AiUsageRecordGroupIdentity
+): AiUsageRecordGroupFilter {
+  switch (groupBy) {
+    case 'provider':
+      return { providerId: identity.providerId ?? null }
+    case 'model':
+      return { providerId: identity.providerId ?? null, modelId: identity.modelId ?? null }
+    case 'source':
+      return { sourceType: identity.sourceType ?? null, sourceId: identity.sourceId ?? null }
+    case 'apiKey':
+      return {
+        providerId: identity.providerId ?? null,
+        apiKeyId: identity.apiKeyId ?? null,
+        apiKeyAttribution: identity.apiKeyAttribution ?? 'unknown',
+        authMethod: identity.authMethod ?? null
+      }
+  }
 }

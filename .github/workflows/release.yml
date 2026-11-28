@@ -153,6 +153,7 @@ jobs:
         run: |
           CI_RUN="$(gh api --method GET \
             "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f branch="$RELEASE_BRANCH" \
             -f head_sha="$RELEASE_SHA" \
             -f event=push \
             -f status=completed \
@@ -160,11 +161,12 @@ jobs:
             --jq '[.workflow_runs[] | select(.conclusion == "success")][0] // empty')"
 
           if [ -z "$CI_RUN" ]; then
-            echo "No successful CI push run found for release commit $RELEASE_SHA" >&2
+            echo "No successful CI push run found for $RELEASE_BRANCH at $RELEASE_SHA" >&2
             exit 1
           fi
 
           if [ "$(jq -r '.head_sha' <<< "$CI_RUN")" != "$RELEASE_SHA" ] || \
+             [ "$(jq -r '.head_branch' <<< "$CI_RUN")" != "$RELEASE_BRANCH" ] || \
              [ "$(jq -r '.event' <<< "$CI_RUN")" != "push" ] || \
              [ "$(jq -r '.status' <<< "$CI_RUN")" != "completed" ] || \
              [ "$(jq -r '.conclusion' <<< "$CI_RUN")" != "success" ]; then

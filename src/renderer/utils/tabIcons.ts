@@ -6,3 +6,10 @@ export function emojiTabIcon(emoji: string | null | undefined): string | undefin
   const glyph = emoji?.trim()
   return glyph ? `${TAB_ICON_EMOJI_PREFIX}${glyph}` : undefined
 }
+
+/** CLI artwork rendered with the same circular avatar as the agent directory. */
+export const TAB_ICON_CLI_PREFIX = 'cli:'
+
+export function cliTabIcon(id: string): string {
+  return `${TAB_ICON_CLI_PREFIX}${id}`
+}

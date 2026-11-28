@@ -47,7 +47,7 @@
     },
     {
       "path": "docs/dev/references/ai/ai-usage-records.md",
-      "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts","src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx","src/shared/data/types/providerBilling.ts","src/shared/utils/providerBilling.ts","src/shared/utils/providerBillingDefaults.ts","src/shared/utils/usagePricing.ts"]
+      "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts","src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx","src/renderer/pages/settings/UsageSettings","src/shared/ai/localAgentUsage.ts","src/shared/data/types/providerBilling.ts","src/shared/utils/providerBilling.ts","src/shared/utils/providerBillingDefaults.ts","src/shared/utils/usagePricing.ts"]
     },
     {
       "path": "docs/dev/references/ai/browser-use-design.md",
@@ -76,6 +76,10 @@
     {
       "path": "docs/dev/references/ai/ipc-transport.md",
       "sources": ["src/main/ai/messages/toolResultRead.ts","src/main/ipc/handlers/ai.ts","src/renderer/hooks/useStreamCommands.ts","src/renderer/hooks/useToolResult.ts","src/renderer/services/aiTransport/MessageProjectionService.ts","src/renderer/services/aiTransport/StreamDispatchService.ts","src/renderer/services/aiTransport/ToolResultService.ts","src/shared/ai/transport/stream.ts","src/shared/ipc/schemas/ai.ts"]
+    },
+    {
+      "path": "docs/dev/references/ai/local-agent-runtime.md",
+      "sources": ["packages/agent-runtime-acp/src","packages/agent-runtime-amp-acp/src","packages/agent-runtime-antigravity-acp/src","packages/agent-runtime-claude-code/src/localLaunch.ts","packages/agent-runtime-codebuddy-acp/src/cli.ts","packages/agent-runtime-codex/src","packages/agent-runtime-cursor/src","packages/agent-runtime-deepagents-acp/src","packages/agent-runtime-deepseek-harness-acp/src","packages/agent-runtime-grok-acp/src","packages/agent-runtime-junie-acp/src","packages/agent-runtime-kiro-acp/src","packages/agent-runtime-vibe-acp/src","packages/agent-runtime/src/cliLogin.ts","packages/agent-runtime/src/permissionMode.ts","src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/mcp/LocalAgentMcpBridgeService.ts","src/main/ai/runtime/LocalRuntimeDriver.ts","src/main/ai/runtime/acp","src/main/ai/runtime/claudeCode/LocalClaudeConnection.ts","src/main/ai/runtime/cli","src/main/ai/runtime/codex","src/main/ai/runtime/cursor","src/main/data/db/schemas/agentProvider.ts","src/main/data/services/AgentProviderService.ts","src/main/features/apiGateway/proxyStream.ts","src/main/services/LocalAgentAuthService.ts","src/main/services/OpenClawService.ts","src/main/services/codeCli","src/main/services/deepSeekHarness","src/main/services/localAgentCredentials.ts","src/renderer/pages/code/CodeCliPage.tsx","src/renderer/pages/code/components/LocalAgentDirectory.tsx","src/shared/ai/agentPermissionMode.ts","src/shared/ai/agentSessionCost.ts","src/shared/ai/executionIdentity.ts","src/shared/ai/localAgent.ts","src/shared/ai/localAgentModel.ts","src/shared/ai/localAgentUsage.ts","src/shared/data/presets/localAgents.ts"]
     },
     {
       "path": "docs/dev/references/ai/local-models.md",
@@ -143,7 +147,7 @@
     },
     {
       "path": "docs/dev/references/api-gateway/README.md",
-      "sources": ["src/main/ai/runtime/agentApiGateway.ts","src/main/features/apiGateway","src/main/services/PdfTranslationService.ts","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/settings/DeviceConnectionsSettings","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings"]
+      "sources": ["src/main/ai/runtime/agentApiGateway.ts","src/main/features/apiGateway","src/main/services/PdfTranslationService.ts","src/renderer/components/ApiGatewayPanel.tsx","src/renderer/hooks/useApiGateway.ts","src/renderer/pages/apiGateway","src/renderer/pages/launchpad/LaunchpadPage.tsx","src/renderer/pages/settings/DeviceConnectionsSettings","src/renderer/pages/settings/ToolSettings/ApiGatewaySettings","src/renderer/routes/app/api-gateway.tsx"]
     },
     {
       "path": "docs/dev/references/api-gateway/remote-agent-access.md",
@@ -179,7 +183,7 @@
     },
     {
       "path": "docs/dev/references/binary-manager/README.md",
-      "sources": ["scripts/download-binaries.js","src/main/ipc/handlers/binary.ts","src/main/services/binaryManager/BinaryManager.ts","src/main/services/binaryManager/claudeNpm.ts","src/main/services/binaryManager/pythonRuntime.ts","src/shared/data/presets/binaryTools.ts"]
+      "sources": ["scripts/download-binaries.js","src/main/ipc/handlers/binary.ts","src/main/services/binaryManager/BinaryManager.ts","src/main/services/binaryManager/claudeNpm.ts","src/main/services/binaryManager/pythonRuntime.ts","src/main/services/binaryManager/systemToolLocations.ts","src/shared/data/presets/binaryTools.ts"]
     },
     {
       "path": "docs/dev/references/chat/composer-rich-clipboard.md",
@@ -211,7 +215,7 @@
     },
     {
       "path": "docs/dev/references/components/image-preview.md",
-      "sources": ["packages/ui/src/lib/mermaid","src/renderer/components/Preview","src/renderer/services/MermaidRenderService.ts","src/renderer/workers/mermaid.worker.ts"]
+      "sources": ["packages/ui/src/lib/mermaid","src/renderer/components/Preview","src/renderer/services/MermaidRenderService.ts","src/renderer/services/PlantUmlRenderService.ts","src/renderer/workers/mermaid.worker.ts","src/renderer/workers/plantUml.worker.ts"]
     },
     {
       "path": "docs/dev/references/components/README.md",
@@ -231,7 +235,7 @@
     },
     {
       "path": "docs/dev/references/data/app-state-overview.md",
-      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/migrationStatus.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
+      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/migrationStatus.ts","src/main/data/services/importedSessionHistory.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
     },
     {
       "path": "docs/dev/references/data/best-practice-default-values-and-nullability.md",
