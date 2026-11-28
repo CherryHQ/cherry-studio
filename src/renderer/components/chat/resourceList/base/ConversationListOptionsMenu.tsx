@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 import type { ConversationListSort, ConversationListSortBy } from '@shared/data/types/conversationList'
 
 import { ResourceList } from './ResourceList'
@@ -72,6 +73,7 @@ export function ConversationListOptionsMenu<TMode extends string>({
 }: ConversationListOptionsMenuProps<TMode>) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [skipExitAnimation, setSkipExitAnimation] = useState(false)
   const selectedOption = options.find((option) => option.value === mode)
   const runAfterMenuClose = (action: () => void) => {
     setOpen(false)
@@ -83,6 +85,8 @@ export function ConversationListOptionsMenu<TMode extends string>({
       aria-current={action.active ? 'page' : undefined}
       className={action.active ? 'bg-accent' : undefined}
       onSelect={() => {
+        // Navigation hides the trigger before an animated exit can finish.
+        setSkipExitAnimation(true)
         setOpen(false)
         void action.onSelect()
       }}>
@@ -92,7 +96,12 @@ export function ConversationListOptionsMenu<TMode extends string>({
   )
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) setSkipExitAnimation(false)
+        setOpen(nextOpen)
+      }}>
       <Tooltip title={t('chat.list.options')} delay={500}>
         <DropdownMenuTrigger asChild>
           <ResourceList.HeaderActionButton type="button" aria-label={t('chat.list.options')}>
@@ -100,7 +109,12 @@ export function ConversationListOptionsMenu<TMode extends string>({
           </ResourceList.HeaderActionButton>
         </DropdownMenuTrigger>
       </Tooltip>
-      <DropdownMenuContent align="end" className="w-max min-w-48 max-w-(--radix-dropdown-menu-content-available-width)">
+      <DropdownMenuContent
+        align="end"
+        className={cn(
+          'w-max min-w-48 max-w-(--radix-dropdown-menu-content-available-width)',
+          skipExitAnimation && 'data-[state=closed]:animate-none!'
+        )}>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <Group size={16} />

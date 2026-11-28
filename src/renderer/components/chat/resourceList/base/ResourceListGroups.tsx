@@ -307,7 +307,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const headerContent = (
     <div
       className={cn(
-        'relative flex w-full items-center gap-1.5 transition-colors duration-150',
+        'relative flex w-full items-center gap-1.5 transition-[color] duration-150',
         hasLeadingSlot ? 'px-1.5' : 'px-2.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,

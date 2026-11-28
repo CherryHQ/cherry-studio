@@ -29,8 +29,7 @@ import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjecti
 import {
   prepareNativeSubmission,
   lookupNativeInput,
-  applyNativeSubmissionResult,
-  nativeOutcomeTerminal
+  applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -51,6 +50,7 @@ import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import { PiTurnUsage } from '../pi/PiTurnUsage'
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
 import type {
+  NativeRunCompletion,
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
@@ -132,8 +132,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly queued = new Set<string>()
   /** Product inputs whose placement was announced; each placement starts its own reply once. */
   private readonly placed = new Set<string>()
-  /** The input whose reply the host is writing. */
-  private readonly runInputs = new Set<string>()
   private readonly children = new Map<
     string,
     | { state: 'opening'; pending: Promise<DurableChildResource | undefined> }
@@ -243,8 +241,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (running) this.queued.add(input.message.id)
     else {
       this.placed.add(input.message.id)
-      this.runInputs.clear()
-      this.runInputs.add(input.message.id)
       this.failure = undefined
       this.turnUsage.reset()
     }
@@ -587,6 +583,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         }
       }
       if (!parts) this.projection.accept({ ...batch, events })
+      const completion = batch.completion
+      const nativeRun = completion && { contextId: this.context!.id, inputs: completion.inputs }
+      if (nativeRun && completion?.nextRunId !== undefined) this.events.push({ type: 'native-run-complete', nativeRun })
       // The answer before a placed input arrives in the same batch, so the boundary follows its projection.
       if (placements.length) {
         if (!this.sending) {
@@ -594,8 +593,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           this.failure = undefined
           this.turnUsage.reset()
         }
-        this.runInputs.clear()
-        for (const id of placements) this.runInputs.add(id)
         this.events.push({ type: 'run-started', inputIds: placements })
       }
       for (const answer of batch.answers ?? []) {
@@ -625,15 +622,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           active: results.status !== 'confirmed' || results.value.active
         })
       }
-      if (batch.completion && !this.compacting && !this.closing && this.sending) {
-        // Queued executions settle separately; every steer belongs to this execution.
-        const inputs = this.runInputs.size
-          ? batch.completion.inputs.filter((input) => !!input.inputId && this.runInputs.has(input.inputId))
-          : batch.completion.inputs
-        const failed = inputs.map(nativeOutcomeTerminal).find((terminal) => terminal?.status === 'error')
-        if (failed?.status === 'error') this.failure ??= failed.error
-        const aborted = inputs.some((input) => input.outcome === 'aborted')
-        this.finishTurn(aborted ? undefined : batch.completion.entryId, aborted)
+      if (completion && nativeRun && completion.nextRunId === undefined && !this.compacting) {
+        const aborted = nativeRun.inputs.some((input) => input.outcome === 'aborted')
+        this.finishTurn(aborted ? undefined : completion.entryId, aborted, nativeRun)
       }
     } catch (error) {
       this.fail(error)
@@ -645,8 +636,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.autonomous = true
     this.failure = undefined
     this.turnUsage.reset()
-    this.runInputs.clear()
-    if (recoveredInputId) this.runInputs.add(recoveredInputId)
     this.events.push({
       type: 'autonomous-turn-state',
       state: 'started',
@@ -677,7 +666,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (this.steers.delete(messageId)) {
       this.queued.delete(messageId)
       this.placed.add(messageId)
-      this.runInputs.add(messageId)
       this.events.push({ type: 'steer-boundary', inputIds: [messageId] })
       return
     }
@@ -688,16 +676,16 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     placements.push(messageId)
   }
 
-  private finishTurn(entryId?: string, aborted = false) {
+  private finishTurn(entryId?: string, aborted = false, nativeRun?: NativeRunCompletion) {
     if (this.closing || !this.sending) return
     this.sending = false
-    this.runInputs.clear()
     this.events.push(
       this.failure
         ? { type: 'error', error: this.failure }
         : {
             type: 'turn-complete',
             ...(aborted && { status: 'paused' as const }),
+            ...(nativeRun && { nativeRun }),
             ...(entryId && {
               forkAnchor: {
                 checkpoint: {
