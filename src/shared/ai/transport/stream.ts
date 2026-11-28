@@ -219,6 +219,8 @@ export type AiStreamOpenRequest = {
       fastMode?: boolean
       /** Agent sessions: a busy session answers this input after its current work instead of steering it. */
       followUp?: boolean
+      /** Agent sessions: replace this paused user input when the new attempt is saved. */
+      resendUnsentMessageId?: string
     }
   | ({
       /** Re-run the assistant under an existing user msg. */

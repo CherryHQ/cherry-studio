@@ -12,7 +12,7 @@ Pi Durable 会话忙碌时，后续消息持久化在原生队列中。用户需
 
 Work 输入区立即提交后续消息，并在队列面板按原生顺序显示。原生队列变化或会话恢复时发布当前等待的条目。消息被取用或撤回后移出面板。「排队」和「追加到当前轮」沿用原有发送控件。
 
-桌面端在提交到原生运行时前先保存完整输入。等待期间，输入留在会话分支外。原生运行时取用输入后，桌面端在一个事务里将输入加入分支并预留回复。取用前被中断的输入可以显示为未发送消息。
+桌面端在提交到原生运行时前先保存完整输入。等待期间，输入留在会话分支外。原生运行时取用输入后，桌面端在一个事务里将输入加入分支并预留回复。取用前被中断的输入可以显示为未发送消息。重发在同一个桌面事务里保存新的尝试并移除原未发送记录。旧记录已被取用的重复请求会失败，不会添加新消息。
 
 轮次自然结束时，队列继续自动出队。用户点击停止时，暂停 inbox、写入停止记录和标记中止当前 Run 在同一个事务提交。等待中的后续消息在重启后保留顺序、内容和 ID，仍可编辑、排序或撤回。继续队列会恢复已有条目的出队。空闲时主动发起的新请求可以直接运行，之前的队列继续暂停。
 
@@ -38,4 +38,4 @@ Pi Durable 后续消息在取用前可编辑和排序，队列顺序和编辑结
 - AC4 — `followups.test.ts` 验证单独移除一条等待中的原生提交。`PiDurableRuntimeConnection.test.ts` 覆盖桌面删除草稿前后的重启恢复。Electron 验证移除后该消息不会出现在对话或重启后的模型请求中。
 - AC5 — `useAgentChatRuntimeState.test.tsx` 覆盖发送请求中的「排队」与「追加到当前轮」。`AgentComposer.test.tsx`、`QueuedFollowupsDock.test.tsx` 和 `useFollowupQueue.test.ts` 覆盖原有输入区队列操作。
 - AC6 — `followups.test.ts` 重新打开已提交原生停止的会话，验证原来的排队提交得以保留。`piDurableTurnAuthority.test.ts` 验证 Stop 后两条消息跨重启留在队列，新请求可以直接运行，继续队列时每条消息只取用一次并保存各自的回复。
-- Regression — `AgentSessionSubmission.test.ts` 覆盖延迟发布到分支、重复取用事件和未发送恢复。`piDurableTurnAuthority.test.ts` 检查等待中的输入不出现在对话正文，Durable 取用后只出现一次。 真实 Electron 的崩溃用例还验证了强制结束 Main 后，排队消息仍保留在 inbox 中，重启后只获得一条回复。`PiDurableRuntimeConnection.test.ts` 覆盖产品写入已提交、原生请求 ID 尚未确认时的取用重放。
+- Regression — `AgentSessionSubmission.test.ts` 覆盖延迟发布到分支、重复取用事件和未发送恢复。`piDurableTurnAuthority.test.ts` 检查等待中的输入不出现在对话正文，Durable 取用后只出现一次。 真实 Electron 的崩溃用例还验证了强制结束 Main 后，排队消息仍保留在 inbox 中，重启后只获得一条回复。`PiDurableRuntimeConnection.test.ts` 覆盖产品写入已提交、原生请求 ID 尚未确认时的取用重放。 `AgentSessionSubmission.test.ts` 覆盖旧未发送输入的重发回滚和重复重发。

@@ -422,6 +422,49 @@ test.describe('Pi Durable turn authority in Electron', () => {
     })
   }
 
+  test('resends a stopped input with one user bubble', async ({ mainWindow: page }) => {
+    test.setTimeout(180_000)
+    const server = await startMockChatServer()
+    const route = routeRequests(server)
+    try {
+      const session = await createSession(page, server)
+      const chat = await openSession(page, session)
+      await chat.send('RETRY_ACTIVE')
+      const active = await route.next('RETRY_ACTIVE')
+      active.sendText('RETRY_ACTIVE_PARTIAL ')
+      await expect(chat.message('RETRY_ACTIVE_PARTIAL')).toBeVisible()
+
+      await chat.steer('RETRY_UNSENT_INPUT')
+      const unsent = chat.message('RETRY_UNSENT_INPUT')
+      await expect(unsent.getByRole('status')).toContainText('Waiting for the model…')
+      await chat.composer.locator('[data-ui~="chat.composer.action.pause"]').click()
+      await active.closed
+      const resend = unsent.getByRole('button', { name: 'Resend', exact: true })
+      await expect(resend).toBeVisible()
+      const original = (await rows(page, session.sessionId)).find(
+        (row) => row.role === 'user' && row.text.includes('RETRY_UNSENT_INPUT')
+      )
+      expect(original?.status).toBe('paused')
+      await resend.click()
+
+      const retried = await route.next('RETRY_UNSENT_INPUT')
+      retried.complete('RETRY_UNSENT_ANSWER')
+      await expect(chat.message('RETRY_UNSENT_ANSWER')).toBeVisible()
+      await expect(unsent).toHaveCount(1)
+      await expect(resend).toHaveCount(0)
+      const users = (await rows(page, session.sessionId)).filter(
+        (row) => row.role === 'user' && row.text.includes('RETRY_UNSENT_INPUT')
+      )
+      expect(users).toMatchObject([{ status: 'success' }])
+      expect(users[0].id).not.toBe(original?.id)
+      expect(route.unclaimed()).toEqual([])
+      await expectNoErrorCard(page, session.sessionId)
+    } finally {
+      route.close()
+      await server.close()
+    }
+  })
+
   test('stops a turn without losing subagent content and answers the next message', async ({
     mainWindow: page
   }, testInfo) => {

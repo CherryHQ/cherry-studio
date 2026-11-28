@@ -418,7 +418,8 @@ export const aiRequestSchemas = {
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           serviceTier: ServiceTierSelectionSchema.optional(),
           fastMode: z.boolean().optional(),
-          followUp: z.boolean().optional()
+          followUp: z.boolean().optional(),
+          resendUnsentMessageId: z.uuid().optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
