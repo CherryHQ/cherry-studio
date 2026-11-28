@@ -820,7 +820,65 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
+function mockNavigationChannel() {
+  const baseQuery = useQueryMock.getMockImplementation()!
+  useQueryMock.mockImplementation((path: string, ...rest: unknown[]) =>
+    path === '/agent-channels'
+      ? {
+          data: [
+            { id: 'owned-channel', type: 'telegram', name: 'Telegram', config: {}, agentId: 'agent-1', isActive: true }
+          ],
+          isLoading: false,
+          refetch: vi.fn(),
+          mutate: vi.fn()
+        }
+      : baseQuery(path, ...rest)
+  )
+}
+
 describe('edit dialogs', () => {
+  it.each(['success', 'failure'] as const)('waits for a Channel navigation save and respects %s', async (outcome) => {
+    mockNavigationChannel()
+    const save = createDeferred<AgentDetail>()
+    updateAgentMock.mockImplementationOnce(() => save.promise)
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AgentEditDialog open={open} resource={{ ...AGENT, id: 'agent-1' }} onOpenChange={setOpen} />
+    }
+    render(<Host />)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: `${AGENT.name} edited` } })
+    fireEvent.click(screen.getByRole('button', { name: /^Channels:/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.channels.agentTab.openSettings' }))
+    expect(updateAgentMock).toHaveBeenCalled()
+    expect(openSettingsTabMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeVisible()
+    if (outcome === 'failure') {
+      await act(async () => save.reject(new Error('Save failed')))
+      expect(screen.getByRole('dialog')).toBeVisible()
+      expect(openSettingsTabMock).not.toHaveBeenCalled()
+    } else {
+      await act(async () => save.resolve({ ...AGENT, name: `${AGENT.name} edited` }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/channels'))
+    }
+  })
+
+  it('saves pending agent edits before navigating to Channel settings', async () => {
+    mockNavigationChannel()
+    const user = userEvent.setup()
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AgentEditDialog open={open} resource={{ ...AGENT, id: 'agent-1' }} onOpenChange={setOpen} />
+    }
+    render(<Host />)
+    await user.type(screen.getByLabelText('Name'), ' edited')
+    await user.click(screen.getByRole('button', { name: /^Channels:/ }))
+    await user.click(screen.getByRole('button', { name: 'agent.channels.agentTab.openSettings' }))
+    expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ name: `${AGENT.name} edited` }) })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/channels'))
+  })
+
   it.each(['agent', 'assistant'] as const)(
     'waits for a pending %s save before navigating to settings',
     async (type) => {

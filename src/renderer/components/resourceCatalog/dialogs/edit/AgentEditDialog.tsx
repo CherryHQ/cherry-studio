@@ -20,6 +20,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
@@ -63,6 +64,7 @@ import { HeartbeatCard } from '../components/HeartbeatCard'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
+import { AgentChannelsTab } from './AgentChannelsTab'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle, MEMORY_FILE_LABEL_KEYS } from './AgentMemoryPanel'
 import { AgentTasksPage } from './AgentTasksPage'
 import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
@@ -709,12 +711,18 @@ function AgentEditDialogContent({
       ) : null}
       {page === 'mcp' ? <AgentMcpPage form={form} portalContainer={dialogContentElement} /> : null}
       {page === 'channels' ? (
-        <AgentChannels
-          agentId={resource.id}
-          agentType={resource.type}
-          permissionMode={values.permissionMode as AgentPermissionMode}
-          portalContainer={dialogContentElement}
-        />
+        <div className="flex flex-col gap-5">
+          <AgentChannelsTab
+            agentId={resource.id}
+            onSettingsNavigate={() => closeBeforeAction(() => openSettingsTab('/settings/channels'))}
+          />
+          <AgentChannels
+            agentId={resource.id}
+            agentType={resource.type}
+            permissionMode={values.permissionMode as AgentPermissionMode}
+            portalContainer={dialogContentElement}
+          />
+        </div>
       ) : null}
       {page === 'tasks' ? (
         <AgentTasksPage

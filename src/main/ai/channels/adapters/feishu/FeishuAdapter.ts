@@ -150,6 +150,13 @@ class FeishuStreamSession {
 }
 
 class FeishuAdapter extends ChannelAdapter {
+  private pendingQrLogin: { url: string; expiresAt: number } | null = null
+
+  override getPendingQrLogin(): { url: string; expiresAt: number } | null {
+    if (!this.pendingQrLogin || Date.now() >= this.pendingQrLogin.expiresAt) return null
+    return { ...this.pendingQrLogin }
+  }
+
   private channel: Lark.LarkChannel | null = null
   private readonly channelSubscriptions = new Map<Lark.LarkChannel, () => void>()
   private appId: string
@@ -344,6 +351,7 @@ class FeishuAdapter extends ChannelAdapter {
     registrationBegin(this.domain)
       .then(({ deviceCode, verificationUri, interval, expiresIn }) => {
         if (signal.aborted) return
+        this.pendingQrLogin = { url: verificationUri, expiresAt: Date.now() + expiresIn * 1000 }
         this.emit('qr', verificationUri)
         this.emitQrLogin(verificationUri, 'pending')
         return registrationPoll(this.domain, deviceCode, { interval, expiresIn, signal })
@@ -365,6 +373,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   private emitQrLogin(url: string, status: ChannelQrStatus, appId?: string, appSecret?: string): void {
+    if (status !== 'pending' || !url) this.pendingQrLogin = null
     this.emit('qrLogin', {
       type: 'feishu',
       data: { channelId: this.channelId, url, status, appId, appSecret }

@@ -186,6 +186,13 @@ export class ChannelManager extends BaseService {
     return this.runtimes.get(channelId)?.adapter
   }
 
+  /** Managed QR attempts report only to their owner, never through legacy replay. */
+  getLegacyPendingFeishuQr(channelId: string) {
+    if (this.qrLogins.has(channelId)) return null
+    const adapter = this.getAdapter(channelId)
+    return adapter?.channelType === 'feishu' ? adapter.getPendingQrLogin() : null
+  }
+
   getChannelLogs(channelId: string): ChannelLogEntry[] {
     return this.channelLogs.get(channelId)
   }
