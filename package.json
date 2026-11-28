@@ -388,7 +388,7 @@
     "dexie": "^4.0.8",
     "dingtalk-stream": "2.1.7-beta.1",
     "docx": "^9.0.2",
-    "dompurify": "^3.2.6",
+    "dompurify": "^3.4.17",
     "dotenv": "16.6.1",
     "dotenv-cli": "^7.4.2",
     "drizzle-kit": "^0.31.4",
