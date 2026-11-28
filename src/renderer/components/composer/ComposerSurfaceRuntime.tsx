@@ -2,6 +2,7 @@ import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
+import type { TFunction } from 'i18next'
 import { Check, ChevronRight, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, Terminal, X } from 'lucide-react'
 import React, {
   startTransition,
@@ -120,9 +121,20 @@ const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
 ] as const
 const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
 const COMMAND_COMPLETION_PANEL = 'agent-command-completion'
-type SlashCompletionCommand = SlashCommand & Pick<AgentSessionSlashCommand, 'aliases'>
+const SLASH_COMPLETION_DESCRIPTION_KEYS: Record<string, string> = {
+  '/goal': 'chat.input.slash_commands.commands.goal',
+  '/goal budget': 'chat.input.slash_commands.subcommands.goal_budget',
+  '/goal clear': 'chat.input.slash_commands.subcommands.goal_clear',
+  '/goal edit': 'chat.input.slash_commands.subcommands.goal_edit',
+  '/goal pause': 'chat.input.slash_commands.subcommands.goal_pause',
+  '/goal resume': 'chat.input.slash_commands.subcommands.goal_resume',
+  '/goal rounds': 'chat.input.slash_commands.subcommands.goal_rounds',
+  '/plan': 'chat.input.slash_commands.commands.plan',
+  '/plan off': 'chat.input.slash_commands.subcommands.plan_off'
+}
+type SlashCompletionCommand = SlashCommand & Pick<AgentSessionSlashCommand, 'aliases' | 'builtin'>
 
-function getSlashCompletion(commands: readonly SlashCompletionCommand[], query: string) {
+function getSlashCompletion(commands: readonly SlashCompletionCommand[], query: string, t: TFunction) {
   const [name, partial] = query.split(/\s+/, 2)
   const commandName = `/${name}`
   const exact = commands.find(({ command, aliases }) => command === commandName || aliases?.includes(name))
@@ -133,8 +145,13 @@ function getSlashCompletion(commands: readonly SlashCompletionCommand[], query: 
     return {
       offset: query.length + 1 - partial.length,
       items:
-        subcommands && !subcommands.includes(partial)
-          ? subcommands.filter((value) => value.startsWith(partial)).map((label) => ({ label, description: undefined }))
+        exact && subcommands && !subcommands.includes(partial)
+          ? subcommands
+              .filter((value) => value.startsWith(partial))
+              .map((label) => {
+                const key = exact.builtin !== false && SLASH_COMPLETION_DESCRIPTION_KEYS[`${exact.command} ${label}`]
+                return { label, description: key ? t(key) : undefined }
+              })
           : []
     }
   }
@@ -144,7 +161,10 @@ function getSlashCompletion(commands: readonly SlashCompletionCommand[], query: 
     .filter(
       ({ command, aliases }) => command.startsWith(commandName) || aliases?.some((alias) => alias.startsWith(name))
     )
-    .map(({ command: label, description }) => ({ label, description }))
+    .map(({ command: label, builtin, description }) => {
+      const key = builtin !== false && SLASH_COMPLETION_DESCRIPTION_KEYS[label]
+      return { label, description: key ? t(key) : description }
+    })
   return items.length ? { offset: 0, items } : undefined
 }
 
@@ -1438,7 +1458,7 @@ export default function ComposerSurfaceRuntime({
               updateSuggestion({ editor, query, range, text, items: [], exit })
             }
           }
-          const completion = isCommandQuery && query ? getSlashCompletion(agentSlashCommands, query) : undefined
+          const completion = isCommandQuery && query ? getSlashCompletion(agentSlashCommands, query, t) : undefined
           if (completion || /\s/.test(query)) {
             if (!completion?.items.length) {
               if (

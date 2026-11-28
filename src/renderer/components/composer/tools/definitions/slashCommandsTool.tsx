@@ -14,6 +14,7 @@ const SLASH_COMMAND_DESCRIPTION_KEYS: Record<string, string> = {
   '/goal': 'chat.input.slash_commands.commands.goal',
   '/insights': 'chat.input.slash_commands.commands.insights',
   '/list-agents': 'chat.input.slash_commands.commands.list_agents',
+  '/plan': 'chat.input.slash_commands.commands.plan',
   '/recap': 'chat.input.slash_commands.commands.recap',
   '/security-review': 'chat.input.slash_commands.commands.security_review',
   '/team-onboarding': 'chat.input.slash_commands.commands.team_onboarding',
