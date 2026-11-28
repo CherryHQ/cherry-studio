@@ -6,11 +6,12 @@
  * transaction primitives used by workspace deletion.
  */
 
-import { and, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentProviderBindingTable } from '@data/db/schemas/agentProvider'
 import { jobTable } from '@data/db/schemas/job'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -223,7 +224,8 @@ export class AgentTaskService {
     }
   }
 
-  completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number): boolean {
+  completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number, output: unknown): boolean {
+    if (isPlainRecord(output) && output.kind === 'skipped') return false
     const schedule = jobScheduleService.getByIdTx(tx, taskId)
     if (
       !schedule ||
@@ -269,7 +271,12 @@ export class AgentTaskService {
       missedJobs.length === 0
         ? []
         : tx
-            .select({ id: jobTable.id, status: jobTable.status, finishedAt: jobTable.finishedAt })
+            .select({
+              id: jobTable.id,
+              status: jobTable.status,
+              finishedAt: jobTable.finishedAt,
+              output: jobTable.output
+            })
             .from(jobTable)
             .where(inArray(jobTable.id, missedJobs))
             .all()
@@ -286,8 +293,14 @@ export class AgentTaskService {
     if (ids.length === 0) return { scheduleIds: [], deletedSchedules: [] }
     const owners = new Map(
       tx
-        .select({ id: agentTable.id, deletedAt: agentTable.deletedAt })
+        .select({
+          id: agentTable.id,
+          deletedAt: agentTable.deletedAt,
+          type: agentTable.type,
+          localEnabled: agentProviderBindingTable.enabled
+        })
         .from(agentTable)
+        .leftJoin(agentProviderBindingTable, eq(agentTable.id, agentProviderBindingTable.agentId))
         .where(inArray(agentTable.id, ids))
         .all()
         .map((row) => [row.id, row])
@@ -298,7 +311,8 @@ export class AgentTaskService {
       const template = schedule.jobInputTemplate
       if (!isPlainRecord(template) || typeof template.agentId !== 'string') continue
       const owner = owners.get(template.agentId)
-      const state = !owner ? 'missing' : owner.deletedAt == null ? 'active' : 'trashed'
+      const localDisabled = owner?.type === 'local' && owner.localEnabled !== true
+      const state = !owner ? 'missing' : owner.deletedAt !== null || localDisabled ? 'trashed' : 'active'
       if (this.transitionOwnerTx(tx, schedule, state, now)) changedIds.push(schedule.id)
       if (state === 'missing') orphanedSchedules.push(schedule)
       const missed = schedule.metadata.missed
@@ -306,7 +320,7 @@ export class AgentTaskService {
       if (
         job?.status === 'completed' &&
         job.finishedAt !== null &&
-        this.completeMissedRunTx(tx, schedule.id, job.id, job.finishedAt)
+        this.completeMissedRunTx(tx, schedule.id, job.id, job.finishedAt, job.output)
       ) {
         changedIds.push(schedule.id)
       }
@@ -512,7 +526,9 @@ export class AgentTaskService {
         ([scheduleId, runState]): [string, TaskRunSummary] => {
           if (runState.kind === 'running') return [scheduleId, { status: 'running' }]
           if (runState.kind === 'unfinished') return [scheduleId, { status: 'queued' }]
-          return [scheduleId, { status: runState.status, finishedAt: timestampToISO(runState.finishedAt) }]
+          const status =
+            runState.status === 'completed' && runState.outputKind === 'skipped' ? 'skipped' : runState.status
+          return [scheduleId, { status, finishedAt: timestampToISO(runState.finishedAt) }]
         }
       )
     )
@@ -630,14 +646,14 @@ export class AgentTaskService {
     // both end it as cancelled) — show the outcome before the row settles.
     const provisionalCancel = job.cancelRequested && !job.finishedAt
 
-    // jobTable has 6 states; the renderer's run log model only shows running
-    // + 3 terminal states. Collapse pending/delayed to 'running' so queued
-    // jobs are visible (matches the user's mental model of "task is in flight").
+    // Queued jobs are already in flight. Completed jobs can also record a skipped outcome.
     const status: TaskRunLogEntity['status'] = provisionalCancel
       ? 'cancelled'
       : job.status === 'pending' || job.status === 'delayed'
         ? 'running'
-        : job.status
+        : job.status === 'completed' && isPlainRecord(output) && output.kind === 'skipped'
+          ? 'skipped'
+          : job.status
 
     // Cancelled runs end at the cancel-request time — recovery stamps finishedAt
     // at sweep time, up to a process lifetime after the run actually stopped.

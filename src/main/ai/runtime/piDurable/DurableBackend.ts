@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 
+import type { AssistantMessage } from '@earendil-works/pi-ai'
 import type {
   ConversationId,
   EntryId,
@@ -17,13 +18,12 @@ import type { DurableFollowup, DurableRecoveryWork, PiDurableRuntime } from '@ch
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { openDurableStorage, prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
 import { createPiTelemetry } from '@main/ai/observability'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import { planModelTransportRetry, type RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
 import type { Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { Sequencer } from '@shared/utils/async'
@@ -35,6 +35,7 @@ import { createPiBehaviorHost } from '../pi/piBehaviorHost'
 import { type AgentRuntimeConnectInput, type AgentRuntimeEvent, unavailableNativeContext } from '../types'
 import { prepareDurableDesktop } from './durableDesktop'
 import { readDurableRequest } from './durableRequest'
+import { projectFollowupEdit } from './recoverDurableReplies'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type Behavior = Awaited<ReturnType<typeof createPiBehaviorHost>>
@@ -49,7 +50,7 @@ export interface DurableRoot {
     behavior(event: BehaviorEvent): void
     usage: Parameters<typeof createPiGatewayModelBinding>[3]
     retry: Parameters<typeof createPiGatewayModelBinding>[5]
-    placed(input: string | undefined): void
+    placed(input: string | undefined, promotion?: { replyId?: string }): void
     followups(queue: readonly DurableFollowup[]): void
   }
 }
@@ -61,6 +62,7 @@ export class DurableBackend {
   private readonly roots = new Map<string, DurableRoot>()
   private readonly preparedRoots = new Map<string, { root: DurableRoot; attaching: boolean }>()
   private readonly nativeRoots = new Map<ThreadId, string>()
+  private readonly transportFailures = new WeakMap<AssistantMessage, RecoverableModelTransportFailure>()
 
   private readonly retired = new Set<DurableRoot>()
   private readonly deferredReclaims = new Map<string, TaskId>()
@@ -128,7 +130,13 @@ export class DurableBackend {
         backendId: runtimeId(context.backendId),
         openStorage: async () => root.storage,
         harness: {
-          settings: { retry: { enabled: false, resumeInterrupted: true } },
+          settings: {
+            retry: {
+              enabled: false,
+              resumeInterrupted: true,
+              transportRetry: (message, state) => planModelTransportRetry(owner.transportFailures.get(message), state)
+            }
+          },
           telemetry: createPiTelemetry({
             isEnabled: () => application.get('PreferenceService').get('app.developer_mode.enabled'),
             getParent: (attributes) => {
@@ -160,7 +168,7 @@ export class DurableBackend {
             }
           }
         },
-        onInputPlaced: (id, thread) => owner.forThread(thread).sink?.placed(id),
+        onInputPlaced: (id, thread, promotion) => owner.forThread(thread).sink?.placed(id, promotion),
         onFollowupsChanged: (thread, queue) => {
           const root = owner.forThread(thread)
           if (root.context.nativeThreadId !== thread) return
@@ -276,7 +284,7 @@ export class DurableBackend {
           (...args) => host.sink?.usage?.(...args),
           this.models,
           (...args) => host.sink?.retry?.(...args),
-          [name, ...aliases]
+          { nativeProviders: [name, ...aliases], transportFailures: this.transportFailures }
         )
       }
       const binding = await bindModel(desktop.snapshot.model, desktop.snapshot.provider)
@@ -674,10 +682,4 @@ function rewriteRetiredExtensions(
         ? { remove: [...patch.remove] }
         : {})
   }
-}
-
-function projectFollowupEdit(context: AgentSessionContextRow, messageId: string, serialized: string): void {
-  const part = JSON.parse(serialized) as Extract<CherryMessagePart, { type: 'text' }>
-  if (part?.type !== 'text' || typeof part.text !== 'string') throw new Error('Invalid Durable follow-up text part')
-  agentSessionMessageService.applyNativeFollowupEdit(context.sessionId, context.id, messageId, part)
 }

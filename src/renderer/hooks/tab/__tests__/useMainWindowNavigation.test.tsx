@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
   attachTab: vi.fn(),
+  closeTabs: vi.fn(),
+  activeTabId: 'legacy',
   tabs: [] as Array<{ id: string; type: 'route' | 'miniapp'; url: string; title: string }>,
   initData: null as
     | { kind: 'navigation'; to: string; requestId: number }
@@ -39,7 +41,9 @@ vi.mock('../useTabs', () => ({
     openTab: mocks.openTab,
     setActiveTab: mocks.setActiveTab,
     updateTab: mocks.updateTab,
-    attachTab: mocks.attachTab
+    attachTab: mocks.attachTab,
+    closeTabs: mocks.closeTabs,
+    activeTabId: mocks.activeTabId
   })
 }))
 
@@ -56,11 +60,73 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   mocks.tabs = []
+  mocks.activeTabId = 'legacy'
   mocks.initData = null
   mocks.ipcListeners.clear()
 })
 
 describe('useMainWindowNavigation', () => {
+  it('reuses a pending settings tab while restoring CodeMate and receiving another link', () => {
+    mocks.tabs = [{ id: 'legacy', type: 'route', url: '/app/code?id=cursor', title: 'CodeMate' }]
+    mocks.openTab.mockReturnValue('settings-new')
+    const { rerender } = render(<MainWindowNavigationHarness />)
+    window.dispatchEvent(
+      new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
+        cancelable: true,
+        detail: { path: '/app/code?tool=pi' }
+      })
+    )
+    expect(mocks.openTab).toHaveBeenCalledExactlyOnceWith('/settings/local-agents?id=cursor', {
+      title: 'settings.title'
+    })
+    mocks.tabs = [
+      ...mocks.tabs,
+      { id: 'settings-new', type: 'route', url: '/settings/local-agents?id=cursor', title: 'Settings' }
+    ]
+    mocks.activeTabId = 'settings-new'
+    rerender(<MainWindowNavigationHarness />)
+    expect(mocks.updateTab).toHaveBeenCalledWith(
+      'settings-new',
+      expect.objectContaining({ url: '/settings/local-agents?tool=pi' })
+    )
+    expect(mocks.closeTabs).toHaveBeenCalledWith(['legacy'], 'settings-new')
+  })
+
+  it('closes restored CodeMate tabs and keeps the current settings tab', () => {
+    mocks.tabs = [
+      { id: 'legacy', type: 'route', url: '/app/code?id=cursor', title: 'CodeMate' },
+      { id: 'old-tool', type: 'route', url: '/app/code?tool=pi', title: 'Pi' },
+      { id: 'settings', type: 'route', url: '/settings/provider', title: 'Settings' }
+    ]
+    render(<MainWindowNavigationHarness />)
+    expect(mocks.updateTab).toHaveBeenCalledWith(
+      'settings',
+      expect.objectContaining({ url: '/settings/local-agents?id=cursor' })
+    )
+    expect(mocks.closeTabs).toHaveBeenCalledWith(['legacy', 'old-tool'], 'settings')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it.each(['', '?id=cursor', '?tool=openai-codex'])(
+    'redirects legacy CodeMate requests into existing settings: %s',
+    (search) => {
+      mocks.tabs = [{ id: 'settings', type: 'route', url: '/settings/provider', title: 'Settings' }]
+      render(<MainWindowNavigationHarness />)
+      window.dispatchEvent(
+        new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
+          cancelable: true,
+          detail: { path: '/app/code' + search }
+        })
+      )
+      expect(mocks.openTab).not.toHaveBeenCalled()
+      expect(mocks.updateTab).toHaveBeenCalledWith(
+        'settings',
+        expect.objectContaining({ url: '/settings/local-agents' + search })
+      )
+      expect(mocks.setActiveTab).toHaveBeenCalledWith('settings')
+    }
+  )
+
   it('retargets the existing Notes tab instead of opening another editor', () => {
     mocks.tabs = [{ id: 'notes-1', type: 'route', url: '/app/notes', title: 'Notes' }]
     render(<MainWindowNavigationHarness />)

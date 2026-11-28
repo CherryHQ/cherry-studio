@@ -1,12 +1,15 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
+import type { FinishReason } from 'ai'
 
 import type {
+  CompactThread,
+  InputId,
   InputLookup,
   ProductInputState,
   LivePartInput,
   OperationResult,
-  SubmitResult,
-  ThreadContextUsage
+  ThreadContextUsage,
+  ThreadInput
 } from '@cherrystudio/agent-runtime'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
@@ -14,10 +17,15 @@ import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
+import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import type { AgentSessionFollowup, AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
+import type { LocalAgentNotice, LocalAgentRuntime, LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import type { ToolTerminalDelta } from '@shared/ai/messageProjection'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
@@ -28,10 +36,11 @@ import type {
   MessageSnapshot,
   MessageStats
 } from '@shared/data/types/message'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import type { LocalLaunchTarget } from '../agentSession/localContext'
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
 
@@ -79,7 +88,7 @@ export interface AgentRuntimeTraceContext {
 export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
-  modelId: UniqueModelId
+  modelId: ExecutionId
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier frozen for this connection's turn. */
@@ -95,6 +104,7 @@ export interface AgentRuntimeConnectInput {
    *  default and ignore session model overrides, which decides which resolution a captured
    *  connection model is compared against for stale-capture pinning. */
   headless?: boolean
+  localPermissionMode?: AgentPermissionMode
   /** Explicit channel policy for this turn, independent of the Agent's stored configuration. */
   permissionModeOverride?: AgentPermissionMode
   /** Product position captured before asynchronous connection work. */
@@ -106,12 +116,16 @@ export interface AgentRuntimeConnectInput {
    * the later `steer-boundary` confirms placement without creating another execution.
    */
   onSteerInjected?: (inputIds: readonly string[]) => void
-  /** Pins a pending product input before native admission can run synchronously. */
-  onInputPrepared?: (inputId: string, contextId: string) => void
+}
+
+export interface LocalRuntimeConnectInput extends AgentRuntimeConnectInput {
+  localTarget: LocalLaunchTarget
 }
 
 export interface AgentRuntimeUserInput {
   message: AgentSessionMessageEntity
+  /** Model-only context; the original product message remains unchanged. */
+  context?: CherryUIMessage['parts']
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
   systemReminder?: boolean
@@ -120,10 +134,9 @@ export interface AgentRuntimeUserInput {
   messageSnapshot?: MessageSnapshot
 }
 
-export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder'> & {
-  /** Model-only context; the original product message remains unchanged. */
-  context?: CherryUIMessage['parts']
-}
+export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder' | 'context'>
+
+export type AgentRuntimeInput = ThreadInput<AgentRuntimeCommand & { readonly inputId: InputId }>
 
 /**
  * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live
@@ -156,8 +169,8 @@ type RuntimeStreamControl =
   | Extract<CherryUIMessageChunk, { type: 'data-retry' | 'tool-input-available' }>
   | {
       type: 'message-metadata'
-      messageMetadata: { stats: MessageStats; totalTokens?: number } & {
-        [K in Exclude<keyof CherryUIMessageMetadata, 'stats' | 'totalTokens'>]?: never
+      messageMetadata: ({ stats: MessageStats; totalTokens?: number } | { localTurnUsage: LocalAgentTurnUsage }) & {
+        [K in Exclude<keyof CherryUIMessageMetadata, 'stats' | 'totalTokens' | 'localTurnUsage'>]?: never
       }
     }
 
@@ -170,11 +183,17 @@ export type AgentControlChunk =
     >
 
 export type AgentRuntimeEvent =
-  | { type: 'message-projection'; projection: RuntimeMessageProjection }
+  | {
+      type: 'message-projection'
+      projection: RuntimeMessageProjection
+      toolOwner?: { toolCallId: string; detached: boolean }
+    }
   | (LivePartInput & { contextId: string })
+  | { type: 'local-tool-terminal'; contextId: string; itemId: string; part: number; delta: ToolTerminalDelta }
   | { type: 'response-start'; responseId: string; messageId?: string }
   | RuntimeStreamControl
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
+  | { type: 'tool-approval-withdrawn'; contextId: string; toolCallId: string; approvalId: string }
   | {
       type: 'usage'
       invocation: {
@@ -189,9 +208,10 @@ export type AgentRuntimeEvent =
           inputTokens: number
           outputTokens: number
           totalTokens: number
-          noCacheTokens: number
-          cacheReadTokens: number
-          cacheWriteTokens: number
+          reasoningTokens?: number
+          noCacheTokens?: number
+          cacheReadTokens?: number
+          cacheWriteTokens?: number
         }
         metrics?: {
           timeFirstTokenMs?: number
@@ -204,16 +224,17 @@ export type AgentRuntimeEvent =
   /** The stable input association identifies the owning Run, including a deferred placement. */
   | { type: 'run-checkpoint'; contextId: string; inputId: string; forkAnchor: RuntimeForkAnchor }
   /** `paused`: native evidence that the turn was aborted, such as a recorded user stop. */
-  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor; status?: 'paused' }
-  /** The driver could not submit a pending input. The host requeues it for the next turn. */
-  | { type: 'steer-undelivered'; inputIds: readonly string[] }
-  /** Placed inputs join the active native Run; no new execution or reply is reserved. */
+  | {
+      type: 'turn-complete'
+      forkAnchor?: RuntimeForkAnchor
+      status?: 'paused'
+      finishReason?: FinishReason
+    }
+  /** Steered inputs join the current Run. A native follow-up can start a distinct Run. */
   | { type: 'steer-boundary'; inputIds: readonly string[] }
-  /** A queued input starts a distinct native execution after the preceding answer. */
   | { type: 'run-started'; inputIds: readonly string[] }
-  | { type: 'followup-queue'; queue: AgentSessionFollowup[] }
-  | { type: 'input-submission'; contextId: string; result: SubmitResult }
-  | { type: 'input-state'; contextId: string; input: ProductInputState }
+  | { type: 'followup-queue'; queue: AgentSessionFollowup[]; steerIds?: string[]; restored?: true }
+  | { type: 'input-state'; contextId: string; input: ProductInputState; promotion?: { replyId?: string } }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string; aborted?: boolean }
@@ -221,15 +242,22 @@ export type AgentRuntimeEvent =
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
   | { type: 'api-retry'; retry: AgentSessionApiRetryInfo }
+  | { type: 'local-turn-usage'; summary: LocalAgentTurnUsage }
+  | { type: 'session-cost'; snapshot: AgentSessionCostSnapshot }
   | { type: 'context-usage'; result: OperationResult<ThreadContextUsage> }
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
+  | { type: 'session-title'; title: string }
+  | { type: 'notice'; notice: LocalAgentNotice }
+  | { type: 'local-session-info'; info: LocalAgentSessionInfo }
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
-  /** Native work retaining this connection, independently from product reply completion. */
-  | { type: 'background-work-state'; active: boolean }
+  /** Native work retaining this connection, independently from product reply completion.
+   *  `awaitingReply` defaults to `active`; false keeps detached commands alive without a pending reply. */
+  | { type: 'background-work-state'; active: boolean; awaitingReply?: boolean }
+  /** A background command's own stream chunk, routed to its detached transcript turn. */
   /** Full set of triggering native tool calls whose background results have not drained. */
   | { type: 'background-results'; result: OperationResult<readonly string[]> }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
@@ -266,13 +294,25 @@ export interface AgentRuntimeConnection {
   /** Bound product context for controls that precede the first native message. */
   readonly contextId?: string
 
+  /** Pin an unclaimed Local Agent connection before the first admitted input. */
+  claimLocalContext?(anchorMessageId: string): boolean
+
   /** Reused connections can carry another Run's settings and need reconciliation before the next admission. */
   preparedFor?(request: AgentRuntimeConnectInput): boolean
   /** Install the registered owner's callbacks on a reusable connection. */
-  bindInputs?(callbacks: Pick<AgentRuntimeConnectInput, 'onInputPrepared' | 'onSteerInjected'>): void
+  bindInputs?(callbacks: Pick<AgentRuntimeConnectInput, 'onSteerInjected'>): void
 
   predictPrompt?(signal: AbortSignal): Promise<string>
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /** Permission mode currently in effect on this connection, when the runtime can identify it. */
+  readonly effectivePermissionMode?: AgentPermissionMode
+  readonly sessionCostScope?: 'native-session'
+  readonly localRuntime?: LocalAgentRuntime
+  readonly localSessionInfo?: LocalAgentSessionInfo
+  selectModel?(modelId: string): Promise<LocalAgentSessionInfo>
+  setConfigOption?(configId: string, value: string | boolean): Promise<LocalAgentSessionInfo>
+  setMode?(configId: string, value: string): Promise<LocalAgentSessionInfo>
+  setThoughtLevel?(configId: string, value: string): Promise<LocalAgentSessionInfo>
   /** The configured Runtime owner remains resident until explicit retirement. */
   readonly retainWhileIdle?: boolean
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
@@ -280,24 +320,16 @@ export interface AgentRuntimeConnection {
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
   readonly usageCapture?: AgentSessionUsageCapture
   send(input: AgentRuntimeCommand): void | Promise<void>
+  readonly threadInput?: AgentRuntimeInput
+  readonly compact?: CompactThread
+  readonly compactWithInstructions?: true
   /** Reconcile the captured context without submitting or resuming native execution. */
   lookupInput?(contextId: string, inputId: string): Promise<OperationResult<InputLookup>>
-  /**
-   * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
-   * when the message was stashed for injection (a turn is live) — the host then folds it into the
-   * current turn instead of opening a new one; if the turn ends before it is injected the connection
-   * emits `steer-undelivered`. Returns false when there is no live turn or the message cannot be
-   * injected by this driver, so the host queues it as the next turn. Omitted ⇒ no native steer ⇒
-   * host always queues.
-   */
-  redirect?(input: AgentRuntimeCommand): boolean
-  /**
-   * Submit a user message that waits behind running native work and persists natively at once.
-   * The connection emits `run-started` when native placement starts its distinct execution;
-   * a refused submission reports `input-submission`. Returns false when no native work is running.
-   */
-  followUp?(input: AgentRuntimeCommand): boolean
-  changeFollowups?(change: AgentSessionFollowupChange): Promise<boolean>
+  changeFollowups?(
+    change: AgentSessionFollowupChange,
+    activeRun?: { inputId: string; replyId: string }
+  ): Promise<boolean>
+  acknowledgeFollowupProjection?(contextId: string, inputId: string): void
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts, permission mode included, are patched in place before the
@@ -310,7 +342,7 @@ export interface AgentRuntimeConnection {
    * pinning the host uses for `connect`.
    */
   reconcile(input: {
-    modelId: UniqueModelId
+    modelId: ExecutionId
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
@@ -320,9 +352,11 @@ export interface AgentRuntimeConnection {
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read passive, thread-scoped context usage from the harness. Unknown and unsupported
-   * results remain explicit; omitting this operation means the connection cannot report usage.
+   * results remain explicit. The host may call this after each turn.
    */
   getContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
+  /** Explicit inspection for connections that push live readings and need native history for an exact refresh. */
+  inspectContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
   /**
    * Read this session's available slash command catalog (`query.supportedCommands()`), including
    * any custom project/user commands the SDK discovered. Returns null when the runtime can't report
@@ -351,6 +385,8 @@ export interface AgentRuntimeConnection {
 
 export interface AgentSessionRuntimeDriver {
   readonly type: string
+  /** Local CLI runtimes key execution identity by agent rather than by a spawned process. */
+  getExecutionId?(agent: AgentEntity): ExecutionId | undefined
   /** Native artifact ownership and checkpoint remapping before session recovery. */
   readonly workspaceRelocation?: RuntimeWorkspaceRelocation
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */

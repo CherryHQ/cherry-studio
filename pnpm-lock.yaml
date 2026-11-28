@@ -262,18 +262,20 @@ patchedDependencies:
   '@earendil-works/pi-agent-core@1.5.2': 239db571ff5557c242bdc05ff6bb28c666d4683f93037a710544657ff6442fad
   '@earendil-works/pi-ai@1.5.2': 35ba16328f70aa23f49182d9f0488486123b4e5837382dd037b1b3c45b2d4956
   '@earendil-works/pi-coding-agent@1.5.2': 2201605bb7138565a2e0e2ea04c27a226dc78aaf4a1fb23cbe6554804d5a58e4
-  '@earendil-works/pi-durable@1.5.2': dc1a7d99daf8bc620a56ac8cd3068fce4e0fe5a351f2c4dc7e84621e36698ec1
+  '@earendil-works/pi-durable@1.5.2': 6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6
   '@elysia/node@1.4.6': ceae4c188748b0ccfb825739bdbbe02486930f53b0fb1068e21de26527488ad2
   '@larksuiteoapi/node-sdk@1.73.0': dacfb70d41f69a0d7b682b9270395fb5782898872666519f2d5181bea275bfec
   '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
   '@opeoginni/github-copilot-openai-compatible@1.0.0': e0be38439b76d1d8d7966c0f789373ed393adba22bd9b0ff333898c0c8223301
   '@pierre/diffs@1.6.1': 102caba717d9b1897e0e29c02cdee4693f8b427ef9323281a8514b2ec5307b5b
+  '@plantuml/mcp-js@0.2.4': 171a273274956477f387f2e5130ac7d47dfb25a065e5e6a436349f940b36c4e2
   '@radix-ui/react-collapsible@1.1.12': aa7a1e66a1e5ec21c0f78fafa02cb59e78717742e713ca1ac66f1afa668524c8
   '@radix-ui/react-presence@1.1.5': b83a97061150a4ec26ac412d99b57601d81169fd2b8e2f87f00470a4f88ba257
   '@tiptap/extension-drag-handle@3.26.1': 2f5c32153f059725f94906803079b90be2a4cf602befe45cd4f2e96652099096
   '@tiptap/extension-list@3.26.1': 584483147536f57383bef48109cf67a7798ae4c965a97009c61003a9c509898f
   '@tiptap/markdown@3.26.1': 040402bfe04cac716a5a9becf021732decb788b421036a01eb8244b30885ffab
+  ai-retry@1.11.1: dd62d80fe89f038df2cd7a491bd7c2a3196ec9a03c009d1ebc5805cb9cc5c2ce
   ai@6.0.185: b3aaaf464218099ceb86209aa99ff6811275c3f67adb0f3d5c35c5522e183f4c
   app-builder-lib@26.15.6: 0c97462468a75262cf0a035c308cc8fdf186541f4dfc637e87952fb2a2850181
   bonjour-service@1.3.0: ce76684812d05a0ac063923cfea7b96c9281e5ac059b6684fd8f13675aaa4d49
@@ -285,6 +287,7 @@ patchedDependencies:
   motion-dom@12.42.0: 5c9bfe486d8d0472ab803d31133ec3a7e34aa8cadde01fdd9923e2dbbc170014
   ollama-ai-provider-v2@3.3.1: cdb5584635d0af18825b289f32f904dd939cca73d2a799115ee5737e651e1ff2
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
+  pi-acp@0.0.34: 9c58399bac859433df4579ea8b4ed8b845a801a82a008e2bdaf2f6861addeb18
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
   rtf.js@3.0.9: 8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24
   sherpa-onnx-node@1.13.6: 63432398c7e4f08be86944fdaf2b39cc5a8ce719db9ae38913d794d8bdcbcf0e
@@ -317,6 +320,9 @@ importers:
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/f4c21043f557965345b527bc04179ad26d08378f#path:distribution/tts
+      '@cursor/sdk':
+        specifier: 1.5.0
+        version: 1.5.0(zod@4.6.6)
       '@earendil-works/chord':
         specifier: 1.5.2
         version: 1.5.2(esbuild@0.25.12)(react@19.3.1)(ws@8.21.3)
@@ -331,7 +337,7 @@ importers:
         version: 1.5.2(patch_hash=2201605bb7138565a2e0e2ea04c27a226dc78aaf4a1fb23cbe6554804d5a58e4)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)
       '@earendil-works/pi-durable':
         specifier: 1.5.2
-        version: 1.5.2(patch_hash=dc1a7d99daf8bc620a56ac8cd3068fce4e0fe5a351f2c4dc7e84621e36698ec1)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)
+        version: 1.5.2(patch_hash=6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)
       '@firecrawl/anydoc':
         specifier: 0.2.5
         version: 0.2.5
@@ -401,6 +407,9 @@ importers:
       range-parser:
         specifier: 1.2.1
         version: 1.2.1
+      read-cmd-shim:
+        specifier: ^6.0.0
+        version: 6.0.0
       registry-js:
         specifier: 1.16.1
         version: 1.16.1
@@ -522,6 +531,102 @@ importers:
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:packages/agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-acp
+      '@cherrystudio/agent-runtime-amp-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-amp-acp
+      '@cherrystudio/agent-runtime-antigravity-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-antigravity-acp
+      '@cherrystudio/agent-runtime-cline-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-cline-acp
+      '@cherrystudio/agent-runtime-codebuddy-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-codebuddy-acp
+      '@cherrystudio/agent-runtime-codex':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-codex
+      '@cherrystudio/agent-runtime-copilot-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-copilot-acp
+      '@cherrystudio/agent-runtime-cursor':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-cursor
+      '@cherrystudio/agent-runtime-deepagents-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-deepagents-acp
+      '@cherrystudio/agent-runtime-deepseek-harness-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-deepseek-harness-acp
+      '@cherrystudio/agent-runtime-dimcode-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-dimcode-acp
+      '@cherrystudio/agent-runtime-factory-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-factory-acp
+      '@cherrystudio/agent-runtime-glm-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-glm-acp
+      '@cherrystudio/agent-runtime-goose-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-goose-acp
+      '@cherrystudio/agent-runtime-grok-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-grok-acp
+      '@cherrystudio/agent-runtime-hermes-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-hermes-acp
+      '@cherrystudio/agent-runtime-junie-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-junie-acp
+      '@cherrystudio/agent-runtime-kimi-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-kimi-acp
+      '@cherrystudio/agent-runtime-kiro-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-kiro-acp
+      '@cherrystudio/agent-runtime-minimax-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-minimax-acp
+      '@cherrystudio/agent-runtime-muse-code-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-muse-code-acp
+      '@cherrystudio/agent-runtime-omp-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-omp-acp
+      '@cherrystudio/agent-runtime-openclaw-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-openclaw-acp
+      '@cherrystudio/agent-runtime-opencode-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-opencode-acp
+      '@cherrystudio/agent-runtime-pi-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-pi-acp
+      '@cherrystudio/agent-runtime-poolside-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-poolside-acp
+      '@cherrystudio/agent-runtime-qoder-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-qoder-acp
+      '@cherrystudio/agent-runtime-qwen-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-qwen-acp
+      '@cherrystudio/agent-runtime-snow-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-snow-acp
+      '@cherrystudio/agent-runtime-trae-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-trae-acp
+      '@cherrystudio/agent-runtime-vibe-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-vibe-acp
+      '@cherrystudio/agent-runtime-zcode-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-zcode-acp
       '@cherrystudio/ai-core':
         specifier: workspace:*
         version: link:packages/aiCore
@@ -731,7 +836,7 @@ importers:
         version: 0.2.0
       '@plantuml/mcp-js':
         specifier: 0.2.4
-        version: 0.2.4(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)
+        version: 0.2.4(patch_hash=171a273274956477f387f2e5130ac7d47dfb25a065e5e6a436349f940b36c4e2)(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -897,6 +1002,9 @@ importers:
       '@types/turndown':
         specifier: ^5.0.5
         version: 5.0.6
+      '@types/unbzip2-stream':
+        specifier: ^1.4.3
+        version: 1.4.3
       '@types/unist':
         specifier: 3.0.3
         version: 3.0.3
@@ -962,7 +1070,7 @@ importers:
         version: 8.15.0
       ai-retry:
         specifier: ^1.11.0
-        version: 1.11.1(@ai-sdk/provider-utils@4.0.64(zod@4.6.6))(@ai-sdk/provider@3.0.19)(@opentelemetry/api@1.9.1)(ai@6.0.185(patch_hash=b3aaaf464218099ceb86209aa99ff6811275c3f67adb0f3d5c35c5522e183f4c)(zod@4.6.6))(zod@4.6.6)
+        version: 1.11.1(patch_hash=dd62d80fe89f038df2cd7a491bd7c2a3196ec9a03c009d1ebc5805cb9cc5c2ce)(@ai-sdk/provider-utils@4.0.64(zod@4.6.6))(@ai-sdk/provider@3.0.19)(@opentelemetry/api@1.9.1)(ai@6.0.185(patch_hash=b3aaaf464218099ceb86209aa99ff6811275c3f67adb0f3d5c35c5522e183f4c)(zod@4.6.6))(zod@4.6.6)
       ansi-to-react:
         specifier: ^6.2.6
         version: 6.2.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1428,6 +1536,9 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      unbzip2-stream:
+        specifier: ^1.4.3
+        version: 1.4.3
       undici:
         specifier: 6.27.0
         version: 6.27.0
@@ -1659,7 +1770,7 @@ importers:
     dependencies:
       zod:
         specifier: ^4.1.5
-        version: 4.6.6
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -1720,6 +1831,9 @@ importers:
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
+      yaml:
+        specifier: 2.8.2
+        version: 2.8.2
       zod:
         specifier: 4.6.6
         version: 4.6.6
@@ -1736,6 +1850,47 @@ importers:
       vitest:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
+  packages/agent-runtime-amp-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+    devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-antigravity-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
 
   packages/agent-runtime-claude-code:
     dependencies:
@@ -1764,6 +1919,401 @@ importers:
       vitest:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
+  packages/agent-runtime-cline-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-codebuddy-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-codex:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      json-rpc-2.0:
+        specifier: 1.8.1
+        version: 1.8.1
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-copilot-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      vscode-jsonrpc:
+        specifier: 8.2.0
+        version: 8.2.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-cursor:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cursor/sdk':
+        specifier: 1.5.0
+        version: 1.5.0(zod@4.4.3)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-deepagents-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-deepseek-harness-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-dimcode-acp:
+    devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-factory-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-glm-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-goose-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      yaml:
+        specifier: 2.8.2
+        version: 2.8.2
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-grok-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-hermes-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-junie-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-kimi-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-kiro-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: ^4.4.3
+        version: 4.6.6
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-minimax-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: ^4.4.3
+        version: 4.6.6
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-muse-code-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      zod:
+        specifier: ^4.4.3
+        version: 4.6.6
+    devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-omp-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-openclaw-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-opencode-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
 
   packages/agent-runtime-pi:
     dependencies:
@@ -1805,6 +2355,37 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
 
+  packages/agent-runtime-pi-acp:
+    dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: 2.4.0
+        version: 2.4.0(@modelcontextprotocol/server@2.4.0)(zod@4.4.3)
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      pi-acp:
+        specifier: 0.0.34
+        version: 0.0.34(patch_hash=9c58399bac859433df4579ea8b4ed8b845a801a82a008e2bdaf2f6861addeb18)
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
   packages/agent-runtime-pi-durable:
     dependencies:
       '@cherrystudio/agent-behavior':
@@ -1822,7 +2403,7 @@ importers:
         version: 1.5.2(patch_hash=35ba16328f70aa23f49182d9f0488486123b4e5837382dd037b1b3c45b2d4956)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)
       '@earendil-works/pi-durable':
         specifier: 1.5.2
-        version: 1.5.2(patch_hash=dc1a7d99daf8bc620a56ac8cd3068fce4e0fe5a351f2c4dc7e84621e36698ec1)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)
+        version: 1.5.2(patch_hash=6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)
       '@earendil-works/pi-schema':
         specifier: 1.5.2
         version: 1.5.2
@@ -1838,6 +2419,129 @@ importers:
       vitest:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
+  packages/agent-runtime-poolside-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      yaml:
+        specifier: 2.8.2
+        version: 2.8.2
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-qoder-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@qoder-ai/qoder-agent-sdk':
+        specifier: 1.0.61
+        version: 1.0.61(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6)
+      '@qodercn-ai/qodercn-agent-sdk':
+        specifier: 1.0.61
+        version: 1.0.61(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6)
+    devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-qwen-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-snow-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-trae-acp:
+    devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-vibe-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-zcode-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
 
   packages/ai-sdk-provider:
     dependencies:
@@ -1956,7 +2660,7 @@ importers:
         version: 2.8.2
       zod:
         specifier: ^4.1.5
-        version: 4.6.6
+        version: 4.4.3
     devDependencies:
       '@aiden0z/pptx-renderer':
         specifier: 1.2.2
@@ -2415,6 +3119,11 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
+
+  '@agentclientprotocol/sdk@0.26.0':
+    resolution: {integrity: sha512-ialrcI+RzKOYe+fw+TfpyTdRmEoqIkXLlwbTi6XgaXXfdhNcdod7TmE1VsTnG3yTlox8TMTSMQgWbLLbz3r86Q==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@agentclientprotocol/sdk@2.4.0':
     resolution: {integrity: sha512-7qJ8nnyj7WesC5ve185ioTpB2/svQoeGV4HA4nLEhgDUrcmBe54/08VcXc/oL4p14tDbxxECZzdYmUYQ+4l+Wg==}
@@ -3043,6 +3752,9 @@ packages:
   '@braintree/sanitize-url@7.1.1':
     resolution: {integrity: sha512-i1L7noDNxtFyL5DmZafWy1wRVhGehQmzZaz1HiN5e7iylJMSZR7ekOV7NsIqa5qBldlLrsKv4HbgFUVlQrz8Mw==}
 
+  '@bufbuild/protobuf@1.10.0':
+    resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
+
   '@buttercup/fetch@0.2.1':
     resolution: {integrity: sha512-sCgECOx8wiqY8NN1xN22BqqKzXYIG2AicNLlakOAI4f0WgyLVUbAigMf8CZhBtJxdudTcB1gD5lciqi44jwJvg==}
 
@@ -3312,6 +4024,17 @@ packages:
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
     engines: {node: '>=0.1.90'}
 
+  '@connectrpc/connect-web@1.7.0':
+    resolution: {integrity: sha512-qyP0YOnUPRWwCc/VfsoydMJvkb7EyUPr2q9sHgBuJzbADjiqck1gKH5V5ZPzPhTLBvmz5UvG+wiZ5sMRQHU1MQ==}
+    peerDependencies:
+      '@bufbuild/protobuf': ^1.10.0
+      '@connectrpc/connect': 1.7.0
+
+  '@connectrpc/connect@1.7.0':
+    resolution: {integrity: sha512-iNKdJRi69YP3mq6AePRT8F/HrxWCewrhxnLMNm0vpqXAR8biwzRtO6Hjx80C6UvtKJ5sFmffQT7I4Baecz389w==}
+    peerDependencies:
+      '@bufbuild/protobuf': ^1.10.0
+
   '@copilotkit/aimock@1.48.0':
     resolution: {integrity: sha512-i6gNetBqgelSi3+Lf+y7Z1vUivxWbioImnb/FuVkVHzh7HwVyO/vQ9UA/IBcqWtsL6QOLgrr1w7KHsyyuHTiCg==}
     engines: {node: '>=20.15.0'}
@@ -3358,6 +4081,42 @@ packages:
   '@csstools/css-tokenizer@3.0.4':
     resolution: {integrity: sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw==}
     engines: {node: '>=18'}
+
+  '@cursor/sdk-darwin-arm64@1.5.0':
+    resolution: {integrity: sha512-BbNXAZNDnfSr2CVCxXO2MuKQx05tY8YqtMgy7wgfNEN4bl3K9q0ug3FvfWeeml8oj5namyNu+oHenYuzviT7sg==}
+    cpu: [arm64]
+    os: [darwin]
+    hasBin: true
+
+  '@cursor/sdk-darwin-x64@1.5.0':
+    resolution: {integrity: sha512-20ZOpKYaCFUxggUEmZsXmnsPDc3Qc7dSiBCKd94xvZ/dVhy1zpX8D7TyB2pQG5kLcQhOI72eKttoOzXiVpNr8Q==}
+    cpu: [x64]
+    os: [darwin]
+    hasBin: true
+
+  '@cursor/sdk-linux-arm64@1.5.0':
+    resolution: {integrity: sha512-96BZjj6S4zn4UeV9BCSz8ZvcH6jIGx+oon5+avhQeaTin8s1GI8vzk+/+XcQXCIUiO5CMaOvMB27/kCmN8Xcyg==}
+    cpu: [arm64]
+    os: [linux]
+    hasBin: true
+
+  '@cursor/sdk-linux-x64@1.5.0':
+    resolution: {integrity: sha512-nerO1mIGRqmF9N+u+YAwtjtFL5+5B/KS4bDLr2Npj8kOzMaB1G4t9EeZpZmM40Rs7kwb2IHmdpPZ/z9DyWJK6Q==}
+    cpu: [x64]
+    os: [linux]
+    hasBin: true
+
+  '@cursor/sdk-win32-x64@1.5.0':
+    resolution: {integrity: sha512-veeYScNOnpC7oEFkZCT96Dk3rLt/mGDeFQL/iqvvPPwYlEz3Kl0EbBd3Rjf2Q9THoUIWV5GlXsn9ZBwXwCcKww==}
+    cpu: [x64]
+    os: [win32]
+    hasBin: true
+
+  '@cursor/sdk@1.5.0':
+    resolution: {integrity: sha512-BebvKzDhzxblSDH4pslOjJQIgqBO/Z2bhaVMWAfbkfWEDy8Oz32BZhAEppFnGMcT/5PZRayReqAGteYB4XQSkw==}
+    engines: {node: '>=22.13'}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@dabh/diagnostics@2.0.8':
     resolution: {integrity: sha512-R4MSXTVnuMzGD7bzHdW2ZhhdPC/igELENcq5IjEverBvq5hn1SXCWcsi6eSsdWP0/Ur+SItRRjAktmdoX/8R/Q==}
@@ -6104,6 +6863,18 @@ packages:
   '@protobufjs/utf8@1.1.1':
     resolution: {integrity: sha512-oOAWABowe8EAbMyWKM0tYDKi8Yaox52D+HWZhAIJqQXbqe0xI/GV7FhLWqlEKreMkfDjshR5FKgi3mnle0h6Eg==}
 
+  '@qoder-ai/qoder-agent-sdk@1.0.61':
+    resolution: {integrity: sha512-nG/HWLyKJta3CtCzKh5kQe85qg1WVwKQo9EFrZKOuaVm1dGcUV2jXaZXFveMd0YmabGeD/XnduF76Z739WRVZg==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
+  '@qodercn-ai/qodercn-agent-sdk@1.0.61':
+    resolution: {integrity: sha512-XwpLkkgrc9WveqVZyiOSMs50+dw07/NWvab3xsa8v8w16zRxetV9+j9aoO0uhYXZ0aLJ0mzOr8Mf7pNKfHW7Zg==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
   '@quansync/fs@1.0.0':
     resolution: {integrity: sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ==}
 
@@ -7617,6 +8388,12 @@ packages:
   '@standard-schema/utils@0.3.0':
     resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
 
+  '@statsig/client-core@3.31.0':
+    resolution: {integrity: sha512-SuxQD6TmVszPG7FoMKwTk/uyBuVFk7XnxI3T/E0uyb7PL7GNjONtfsoh+NqBBVUJVse0CUeSFfgJPoZy1ZOslQ==}
+
+  '@statsig/js-client@3.31.0':
+    resolution: {integrity: sha512-LFa5E0LjT6sTfZv3sNGoyRLSZ1078+agdgOA+Vm1ecjG+KbSOfBLTW7hMwimrJ29slRwbYDzbtKaPJo/R37N2g==}
+
   '@storybook/addon-docs@10.6.0':
     resolution: {integrity: sha512-Fk3rUQWeGyCfL170OkmRp6Ruyv7MHPb/xrKa6YNk7FlGmlVLi5tKzh2T/0J13vWEy8wiu2MV3IBu8iRsaUR+Cw==}
     peerDependencies:
@@ -8641,6 +9418,9 @@ packages:
   '@types/statuses@2.0.6':
     resolution: {integrity: sha512-xMAgYwceFhRA2zY+XbEA7mxYbA093wdiW8Vu6gZPGWy9cmOyU9XesH1tNcEWsKFd5Vzrqx5T3D38PWx1FIIXkA==}
 
+  '@types/through@0.0.33':
+    resolution: {integrity: sha512-HsJ+z3QuETzP3cswwtzt2vEIiHBk/dCcHGhbmG5X3ecnwFD/lPrMpliGXxSCg03L9AhrdwA4Oz/qfspkDW+xGQ==}
+
   '@types/tinycolor2@1.4.6':
     resolution: {integrity: sha512-iEN8J0BoMnsWBqjVbWH/c0G0Hh7O21lpR2/+PrvAVgWdzL7eexIFm4JN/Wn10PTcmNdtS6U67r499mlWMXOxNw==}
 
@@ -8652,6 +9432,9 @@ packages:
 
   '@types/turndown@5.0.6':
     resolution: {integrity: sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==}
+
+  '@types/unbzip2-stream@1.4.3':
+    resolution: {integrity: sha512-D8X5uuJRISqc8YtwL8jNW2FpPdUOCYXbfD6zNROCTbVXK9nawucxh10tVXE3MPjnHdRA1LvB0zDxVya/lBsnYw==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -13790,6 +14573,11 @@ packages:
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
 
+  pi-acp@0.0.34:
+    resolution: {integrity: sha512-MrCp37UbpUzkTkzTIMJQf1RYrT+kr4fgGDGFoLmBN26UupuCZp0XxVIY+7XYsMo3yDnzDeZUJ0jPyM3Si6Bkkg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -14238,6 +15026,10 @@ packages:
     resolution: {integrity: sha512-BNg9EN3DD3GsDXX7Aa8O4p92sryjkmzYYgmgTAc6CA4uGLEDzFfxOxugu21akOxpcXHiEgsYkC6nPsQvLLLmEg==}
     hasBin: true
 
+  read-cmd-shim@6.0.0:
+    resolution: {integrity: sha512-1zM5HuOfagXCBWMN83fuFI/x+T/UhZ7k+KIzhrHXcQoeX5+7gmaDYjELQHmmzIodumBHeByBJT4QYS7ufAgs7A==}
+    engines: {node: ^20.17.0 || >=22.9.0}
+
   readable-stream@2.3.8:
     resolution: {integrity: sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==}
 
@@ -14554,9 +15346,6 @@ packages:
 
   sax@1.2.1:
     resolution: {integrity: sha512-8I2a3LovHTOpm7NV5yOyO8IHqgVsfK4+UuySrXU8YXkSRX7k6hCV9b3HrkKCr3nMpgj+0bmocaJJWpvp1oc7ZA==}
-
-  sax@1.4.3:
-    resolution: {integrity: sha512-yqYn1JhPczigF94DMS+shiDMjDowYO6y9+wB/4WgO0Y19jWYk0lQ4tuG5KI7kj4FTp1wxPj5IFfcrz/s1c3jjQ==}
 
   sax@1.6.0:
     resolution: {integrity: sha512-6R3J5M4AcbtLUdZmRv2SygeVaM7IhrLXu9BmnOGmmACak8fiUtOsYNWUS4uK7upbmHIBbLBeFeI//477BKLBzA==}
@@ -15063,6 +15852,9 @@ packages:
   text-hex@1.0.0:
     resolution: {integrity: sha512-uuVGNWzgJ4yhRaNSiubPY7OjISw4sw4E5Uv0wbjp+OzcbmVU/rsT8ujgcXJhn9ypzsgr5vlzpPqP+MBBKcGvbg==}
 
+  through@2.3.8:
+    resolution: {integrity: sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==}
+
   thunky@1.1.0:
     resolution: {integrity: sha512-eHY7nBftgThBqOyHGVN+l8gF0BucP09fMo0oO/Lb0w1OF80dJv+lDVpXG60WMQvkcxAkNybKsrEIE3ZtKGmPrA==}
 
@@ -15384,6 +16176,9 @@ packages:
 
   uint8arrays@6.1.1:
     resolution: {integrity: sha512-iz7JN0XCSZYA111lhFG2Ui9EhFvTNekqSRHw3lvMHq+dzwWy1OQftxFQREEh4rffU0oSoXdQHsk2TiHKVm4fsA==}
+
+  unbzip2-stream@1.4.3:
+    resolution: {integrity: sha512-mlExGW4w71ebDJviH16lQLtZS32VKqsSfk80GCfUlwT/4/hNRFsoscrF/c++9xinkMzECL1uL9DDwXqFWkruPg==}
 
   unconfig-core@7.5.0:
     resolution: {integrity: sha512-Su3FauozOGP44ZmKdHy2oE6LPjk51M/TRRjHv2HNCWiDvfvCoxC2lno6jevMA91MYAdCdwP05QnWdWpSbncX/w==}
@@ -16080,6 +16875,9 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
   zod@4.6.6:
     resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
 
@@ -16114,9 +16912,19 @@ snapshots:
 
   '@adobe/css-tools@4.4.4': {}
 
-  '@agentclientprotocol/sdk@2.4.0(@modelcontextprotocol/server@2.4.0)(zod@4.6.6)':
+  '@agentclientprotocol/sdk@0.26.0(zod@3.25.76)':
+    dependencies:
+      zod: 3.25.76
+
+  '@agentclientprotocol/sdk@2.4.0(@modelcontextprotocol/server@2.4.0)(zod@4.4.3)':
     dependencies:
       zod: 4.4.3
+    optionalDependencies:
+      '@modelcontextprotocol/server': 2.4.0
+
+  '@agentclientprotocol/sdk@2.4.0(@modelcontextprotocol/server@2.4.0)(zod@4.6.6)':
+    dependencies:
+      zod: 4.6.6
     optionalDependencies:
       '@modelcontextprotocol/server': 2.4.0
 
@@ -16128,13 +16936,13 @@ snapshots:
       '@smithy/eventstream-codec': 4.2.14
       '@smithy/util-utf8': 4.2.2
       aws4fetch: 1.0.20
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/anthropic@3.0.125(patch_hash=cc908f295d7011f21ee5a0781ace85c81fb9e11041ceb406b26152bfa495118c)(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/azure@3.0.116(zod@4.6.6)':
     dependencies:
@@ -16142,38 +16950,38 @@ snapshots:
       '@ai-sdk/openai': 3.0.137(patch_hash=ee5f22cf7482d77d24fc4fc9ad3566925a2d213caf2c401b873ab2f1af7925b8)(zod@4.6.6)
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/bytedance@1.0.29(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/cerebras@2.0.78(zod@4.6.6)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c61f57ce0116ab6ce506d2d7187900ce2c9eab5300b1dfe885a231eade8da7c6)(zod@4.6.6)
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/cohere@3.0.30(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/deepseek@2.0.62(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/deepseek@2.0.79(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/devtools@0.0.17':
     dependencies:
@@ -16186,7 +16994,7 @@ snapshots:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
       '@vercel/oidc': 3.2.0
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/google-vertex@4.0.188(supports-color@8.1.1)(zod@4.6.6)':
     dependencies:
@@ -16196,7 +17004,7 @@ snapshots:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
       google-auth-library: 10.6.2(supports-color@8.1.1)
-      zod: 4.4.3
+      zod: 4.6.6
     transitivePeerDependencies:
       - supports-color
 
@@ -16204,50 +17012,50 @@ snapshots:
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/groq@3.0.35(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/huggingface@1.0.74(zod@4.6.6)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c61f57ce0116ab6ce506d2d7187900ce2c9eab5300b1dfe885a231eade8da7c6)(zod@4.6.6)
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/mistral@3.0.30(patch_hash=3710fecbbc04d615926d406e0c6beb4fc855a1491e8014d2ada2c1ee7f86a452)(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/open-responses@1.0.34(patch_hash=86bc231455cd189f9ac1bc918c15417d443d31c542ff26619a85f2954320293b)(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/openai-compatible@2.0.72(patch_hash=c61f57ce0116ab6ce506d2d7187900ce2c9eab5300b1dfe885a231eade8da7c6)(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/openai@3.0.137(patch_hash=ee5f22cf7482d77d24fc4fc9ad3566925a2d213caf2c401b873ab2f1af7925b8)(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/perplexity@3.0.29(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/provider-utils@4.0.64(zod@4.6.6)':
     dependencies:
@@ -16255,7 +17063,7 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.1
       undici: 6.28.0
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/provider@3.0.19':
     dependencies:
@@ -16273,14 +17081,14 @@ snapshots:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c61f57ce0116ab6ce506d2d7187900ce2c9eab5300b1dfe885a231eade8da7c6)(zod@4.6.6)
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@ai-sdk/xai@3.0.126(zod@4.6.6)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c61f57ce0116ab6ce506d2d7187900ce2c9eab5300b1dfe885a231eade8da7c6)(zod@4.6.6)
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@aiany/sqlite-vec-darwin-arm64@0.1.10-alpha.4.aiany.2':
     optional: true
@@ -16346,7 +17154,7 @@ snapshots:
     dependencies:
       '@anthropic-ai/sdk': 0.93.0(zod@4.6.6)
       '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
     optionalDependencies:
       '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.311
       '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.311
@@ -16361,7 +17169,7 @@ snapshots:
     dependencies:
       '@anthropic-ai/sdk': 0.93.0(zod@4.6.6)
       '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
     optionalDependencies:
       '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.311
       '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.311
@@ -16377,13 +17185,13 @@ snapshots:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.1.1
     optionalDependencies:
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@anthropic-ai/sdk@0.93.0(zod@4.6.6)':
     dependencies:
       json-schema-to-ts: 3.1.1
     optionalDependencies:
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
@@ -17208,6 +18016,8 @@ snapshots:
 
   '@braintree/sanitize-url@7.1.1': {}
 
+  '@bufbuild/protobuf@1.10.0': {}
+
   '@buttercup/fetch@0.2.1':
     optionalDependencies:
       node-fetch: 3.3.2
@@ -17376,12 +18186,12 @@ snapshots:
   '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.6.6)':
     optionalDependencies:
       ws: 8.21.3
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@cherrystudio/remote-protocol@0.1.0(zod@4.6.6)':
     dependencies:
       json-canonicalize: 3.0.1
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@chevrotain/cst-dts-gen@11.1.2':
     dependencies:
@@ -17634,6 +18444,15 @@ snapshots:
 
   '@colors/colors@1.6.0': {}
 
+  '@connectrpc/connect-web@1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+
+  '@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0)':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+
   '@copilotkit/aimock@1.48.0(vitest@5.0.1)':
     optionalDependencies:
       vitest: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@8.1.1))(msw@2.12.7(@types/node@24.10.4)(typescript@5.9.3))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
@@ -17663,6 +18482,49 @@ snapshots:
       '@csstools/css-tokenizer': 3.0.4
 
   '@csstools/css-tokenizer@3.0.4': {}
+
+  '@cursor/sdk-darwin-arm64@1.5.0':
+    optional: true
+
+  '@cursor/sdk-darwin-x64@1.5.0':
+    optional: true
+
+  '@cursor/sdk-linux-arm64@1.5.0':
+    optional: true
+
+  '@cursor/sdk-linux-x64@1.5.0':
+    optional: true
+
+  '@cursor/sdk-win32-x64@1.5.0':
+    optional: true
+
+  '@cursor/sdk@1.5.0(zod@4.4.3)':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+      '@connectrpc/connect-web': 1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))
+      '@statsig/js-client': 3.31.0
+      zod: 4.4.3
+    optionalDependencies:
+      '@cursor/sdk-darwin-arm64': 1.5.0
+      '@cursor/sdk-darwin-x64': 1.5.0
+      '@cursor/sdk-linux-arm64': 1.5.0
+      '@cursor/sdk-linux-x64': 1.5.0
+      '@cursor/sdk-win32-x64': 1.5.0
+
+  '@cursor/sdk@1.5.0(zod@4.6.6)':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+      '@connectrpc/connect-web': 1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))
+      '@statsig/js-client': 3.31.0
+      zod: 4.6.6
+    optionalDependencies:
+      '@cursor/sdk-darwin-arm64': 1.5.0
+      '@cursor/sdk-darwin-x64': 1.5.0
+      '@cursor/sdk-linux-arm64': 1.5.0
+      '@cursor/sdk-linux-x64': 1.5.0
+      '@cursor/sdk-win32-x64': 1.5.0
 
   '@dabh/diagnostics@2.0.8':
     dependencies:
@@ -17880,7 +18742,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.5.2(patch_hash=dc1a7d99daf8bc620a56ac8cd3068fce4e0fe5a351f2c4dc7e84621e36698ec1)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)':
+  '@earendil-works/pi-durable@1.5.2(patch_hash=6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)':
     dependencies:
       '@earendil-works/chord': 1.5.2(esbuild@0.25.12)(react@19.3.1)(ws@8.21.3)
       '@earendil-works/pi-ai': 1.5.2(patch_hash=35ba16328f70aa23f49182d9f0488486123b4e5837382dd037b1b3c45b2d4956)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6))(supports-color@10.2.2)(ws@8.21.3)(zod@4.6.6)
@@ -17900,7 +18762,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-durable@1.5.2(patch_hash=dc1a7d99daf8bc620a56ac8cd3068fce4e0fe5a351f2c4dc7e84621e36698ec1)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)':
+  '@earendil-works/pi-durable@1.5.2(patch_hash=6433a0ed813c200a626f9f9d2899644590af880ab869c6aa7a44de7b28f8bee6)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(esbuild@0.25.12)(react@19.3.1)(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)':
     dependencies:
       '@earendil-works/chord': 1.5.2(esbuild@0.25.12)(react@19.3.1)(ws@8.21.3)
       '@earendil-works/pi-ai': 1.5.2(patch_hash=35ba16328f70aa23f49182d9f0488486123b4e5837382dd037b1b3c45b2d4956)(@modelcontextprotocol/sdk@1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6))(supports-color@8.1.1)(ws@8.21.3)(zod@4.6.6)
@@ -18291,7 +19153,7 @@ snapshots:
       '@eslint-react/eff': 1.53.1
       '@typescript-eslint/utils': 8.51.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       ts-pattern: 5.9.0
-      zod: 4.4.3
+      zod: 4.6.6
     transitivePeerDependencies:
       - eslint
       - supports-color
@@ -18303,7 +19165,7 @@ snapshots:
       '@eslint-react/kit': 1.53.1(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       '@typescript-eslint/utils': 8.51.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       ts-pattern: 5.9.0
-      zod: 4.4.3
+      zod: 4.6.6
     transitivePeerDependencies:
       - eslint
       - supports-color
@@ -19150,18 +20012,18 @@ snapshots:
       eventsource-parser: 3.1.1
       jose: 6.1.3
       pkce-challenge: 5.0.1
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@modelcontextprotocol/core@2.4.0':
     dependencies:
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@modelcontextprotocol/ext-apps@2.0.4(@modelcontextprotocol/client@2.4.0)(@modelcontextprotocol/core@2.4.0)(@modelcontextprotocol/server@2.4.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.6)':
     dependencies:
       '@modelcontextprotocol/client': 2.4.0
       '@modelcontextprotocol/core': 2.4.0
       '@standard-schema/spec': 1.1.0
-      zod: 4.4.3
+      zod: 4.6.6
     optionalDependencies:
       '@modelcontextprotocol/server': 2.4.0
       react: 19.3.1
@@ -19184,7 +20046,7 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.4.3
+      zod: 4.6.6
       zod-to-json-schema: 3.25.1(zod@4.6.6)
     optionalDependencies:
       '@cfworker/json-schema': 4.1.1
@@ -19208,7 +20070,7 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.4.3
+      zod: 4.6.6
       zod-to-json-schema: 3.25.1(zod@4.6.6)
     optionalDependencies:
       '@cfworker/json-schema': 4.1.1
@@ -19242,7 +20104,7 @@ snapshots:
   '@modelcontextprotocol/server@2.4.0':
     dependencies:
       '@modelcontextprotocol/core': 2.4.0
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@mozilla/readability@0.6.0': {}
 
@@ -19577,7 +20439,7 @@ snapshots:
   '@openrouter/ai-sdk-provider@2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=b3aaaf464218099ceb86209aa99ff6811275c3f67adb0f3d5c35c5522e183f4c)(zod@4.6.6))(zod@4.6.6)':
     dependencies:
       ai: 6.0.185(patch_hash=b3aaaf464218099ceb86209aa99ff6811275c3f67adb0f3d5c35c5522e183f4c)(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   '@opentelemetry/api-logs@0.200.0':
     dependencies:
@@ -20236,7 +21098,7 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
       shiki: 4.5.0
 
-  '@plantuml/mcp-js@0.2.4(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)':
+  '@plantuml/mcp-js@0.2.4(patch_hash=171a273274956477f387f2e5130ac7d47dfb25a065e5e6a436349f940b36c4e2)(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.7)
       '@viz-js/viz': 3.31.0
@@ -20282,6 +21144,22 @@ snapshots:
   '@protobufjs/pool@1.1.0': {}
 
   '@protobufjs/utf8@1.1.1': {}
+
+  '@qoder-ai/qoder-agent-sdk@1.0.61(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6)':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6)
+      zod: 4.6.6
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
+
+  '@qodercn-ai/qodercn-agent-sdk@1.0.61(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6)':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6)
+      zod: 4.6.6
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
 
   '@quansync/fs@1.0.0':
     dependencies:
@@ -21811,6 +22689,12 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
+  '@statsig/client-core@3.31.0': {}
+
+  '@statsig/js-client@3.31.0':
+    dependencies:
+      '@statsig/client-core': 3.31.0
+
   '@storybook/addon-docs@10.6.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(storybook@10.6.0(@types/react@19.2.7)(prettier@3.8.1)(react@19.3.1))':
     dependencies:
       '@mdx-js/react': 3.1.1(@types/react@19.2.7)(react@19.3.1)
@@ -22185,7 +23069,7 @@ snapshots:
       jiti: 2.7.0
       magic-string: 0.30.21
       prettier: 3.8.1
-      zod: 4.4.3
+      zod: 4.6.6
     transitivePeerDependencies:
       - supports-color
 
@@ -22199,7 +23083,7 @@ snapshots:
       '@tanstack/router-utils': 1.162.2(supports-color@8.1.1)
       chokidar: 5.0.0
       unplugin: 3.3.0(esbuild@0.25.12)(rolldown@1.2.6)(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
-      zod: 4.4.3
+      zod: 4.6.6
     optionalDependencies:
       '@tanstack/react-router': 1.170.33(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       vite: 8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
@@ -22864,6 +23748,10 @@ snapshots:
 
   '@types/statuses@2.0.6': {}
 
+  '@types/through@0.0.33':
+    dependencies:
+      '@types/node': 24.10.4
+
   '@types/tinycolor2@1.4.6': {}
 
   '@types/triple-beam@1.3.5': {}
@@ -22872,6 +23760,10 @@ snapshots:
     optional: true
 
   '@types/turndown@5.0.6': {}
+
+  '@types/unbzip2-stream@1.4.3':
+    dependencies:
+      '@types/through': 0.0.33
 
   '@types/unist@2.0.11': {}
 
@@ -23888,12 +24780,12 @@ snapshots:
 
   agent-base@9.0.0: {}
 
-  ai-retry@1.11.1(@ai-sdk/provider-utils@4.0.64(zod@4.6.6))(@ai-sdk/provider@3.0.19)(@opentelemetry/api@1.9.1)(ai@6.0.185(patch_hash=b3aaaf464218099ceb86209aa99ff6811275c3f67adb0f3d5c35c5522e183f4c)(zod@4.6.6))(zod@4.6.6):
+  ai-retry@1.11.1(patch_hash=dd62d80fe89f038df2cd7a491bd7c2a3196ec9a03c009d1ebc5805cb9cc5c2ce)(@ai-sdk/provider-utils@4.0.64(zod@4.6.6))(@ai-sdk/provider@3.0.19)(@opentelemetry/api@1.9.1)(ai@6.0.185(patch_hash=b3aaaf464218099ceb86209aa99ff6811275c3f67adb0f3d5c35c5522e183f4c)(zod@4.6.6))(zod@4.6.6):
     dependencies:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
       ai: 6.0.185(patch_hash=b3aaaf464218099ceb86209aa99ff6811275c3f67adb0f3d5c35c5522e183f4c)(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
 
@@ -23903,7 +24795,7 @@ snapshots:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
       '@opentelemetry/api': 1.9.1
-      zod: 4.4.3
+      zod: 4.6.6
 
   ajv-formats@3.0.1(ajv@8.20.0):
     optionalDependencies:
@@ -25666,7 +26558,7 @@ snapshots:
       '@babel/parser': 7.29.7
       eslint: 9.39.5(jiti@2.7.0)(supports-color@8.1.1)
       hermes-parser: 0.25.1
-      zod: 4.4.3
+      zod: 4.6.6
       zod-validation-error: 4.0.2(zod@4.6.6)
     transitivePeerDependencies:
       - supports-color
@@ -28692,7 +29584,7 @@ snapshots:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
       ai: 6.0.185(patch_hash=b3aaaf464218099ceb86209aa99ff6811275c3f67adb0f3d5c35c5522e183f4c)(zod@4.6.6)
-      zod: 4.4.3
+      zod: 4.6.6
 
   on-finished@2.4.1:
     dependencies:
@@ -29128,6 +30020,12 @@ snapshots:
   peek-readable@4.1.0: {}
 
   pend@1.2.0: {}
+
+  pi-acp@0.0.34(patch_hash=9c58399bac859433df4579ea8b4ed8b845a801a82a008e2bdaf2f6861addeb18):
+    dependencies:
+      '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
+      cross-spawn: 7.0.6
+      zod: 3.25.76
 
   picocolors@1.1.1: {}
 
@@ -29613,6 +30511,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  read-cmd-shim@6.0.0: {}
+
   readable-stream@2.3.8:
     dependencies:
       core-util-is: 1.0.3
@@ -30082,8 +30982,6 @@ snapshots:
       truncate-utf8-bytes: 1.0.2
 
   sax@1.2.1: {}
-
-  sax@1.4.3: {}
 
   sax@1.6.0: {}
 
@@ -30694,6 +31592,8 @@ snapshots:
 
   text-hex@1.0.0: {}
 
+  through@2.3.8: {}
+
   thunky@1.1.0: {}
 
   tiktok-video-element@0.1.2: {}
@@ -31052,6 +31952,11 @@ snapshots:
   uint8arrays@6.1.1:
     dependencies:
       multiformats: 14.0.5
+
+  unbzip2-stream@1.4.3:
+    dependencies:
+      buffer: 5.7.1
+      through: 2.3.8
 
   unconfig-core@7.5.0:
     dependencies:
@@ -31498,7 +32403,7 @@ snapshots:
       '@ai-sdk/provider': 3.0.19
       '@ai-sdk/provider-utils': 4.0.64(zod@4.6.6)
     optionalDependencies:
-      zod: 4.4.3
+      zod: 4.6.6
 
   vscode-jsonrpc@8.2.0: {}
 
@@ -31837,7 +32742,7 @@ snapshots:
 
   zod-to-json-schema@3.25.1(zod@4.6.6):
     dependencies:
-      zod: 4.4.3
+      zod: 4.6.6
 
   zod-to-json-schema@3.25.1(zod@4.6.7):
     dependencies:
@@ -31845,9 +32750,11 @@ snapshots:
 
   zod-validation-error@4.0.2(zod@4.6.6):
     dependencies:
-      zod: 4.4.3
+      zod: 4.6.6
 
   zod@3.25.76: {}
+
+  zod@4.4.3: {}
 
   zod@4.6.6: {}
 

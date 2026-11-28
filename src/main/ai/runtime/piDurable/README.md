@@ -10,11 +10,13 @@ shell configuration and tool rendering. Each native provider call passes protoco
 gateway in process, which owns upstream credentials and billing without an internal HTTP/JSON/SSE round trip. Root and child bindings share
 the backend model registry and are restored before native execution resumes. Each binding uses its own native provider registration, preserving other models' routes,
 request options and usage callbacks even when their Cherry Provider is the same.
-The desktop Harness disables native provider retries for roots and children. The shared
-[gateway binding](../pi/README.md#model-requests) uses `ai-retry` before the first content chunk.
-A final failure retains its upstream error; later user input can start a new run.
-The patched Harness applies its native retry budget and backoff to generation interrupted
-by host exit so reopened work can resume.
+For roots and children, the [gateway binding](../pi/README.md#model-requests) relays typed
+transport failures from Cherry's AI execution layer. That layer sets the retry budget and delay for
+resets and interruptions, and keeps planning attempts while the network is explicitly offline or
+suspended. Other eligible upstream failures use `ai-retry` before content. The Harness persists each
+retry plan, handles cancellation, and resumes the original run with its committed tool results. Partial
+output stays in history as an aborted attempt and is excluded from subsequent model context. A final
+failure retains its upstream error. Reopening also resumes generation interrupted by host exit.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
 prompt and selected skills. `durableMcp.ts` connects Cherry-selected MCP servers through
@@ -82,8 +84,8 @@ snapshots, activity changes and input changes.
 An `aborted` outcome, including one caused by user Stop, settles the turn as paused; `failed` and
 `unanswered` outcomes report an error carrying their native reason.
 A message sent while native work runs is submitted with Durable's `follow-up` busy policy and
-persisted at once. The Work composer sends it immediately when the descriptor declares
-`nativeFollowUp` and displays the native waiting order in the follow-up dock. Durable places it at the next run
+persisted at once. The Work composer sends it immediately instead of holding it in its follow-up
+dock, when the connected runtime exposes its durable follow-up operation; the dock shows the native waiting order. Durable places it at the next run
 boundary, in the same batch as the preceding answer. The connection announces the placement with
 `run-started` after that batch's projection, so the preceding answer stays in its reply and Main
 opens a new one. The event marks the placement as a follow-up: Main holds it while the previous reply
@@ -92,15 +94,14 @@ its continuation. Durable reports the preceding input's outcome only when the ru
 settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
 cycle completion aggregates only the inputs owned by the current Run. A follow-up whose submission
 fails before it reaches Durable moves to Main's queue.
-`/compact` still waits in Main's queue, and input is refused while compacting.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.
 
-Manual compaction remains an active desktop submission until native work settles.
-Its completion card requires a committed summary; an idle snapshot or a declined
-summary cannot report successful compaction. Stop and shutdown retain their native
-cancellation and ownership semantics.
+The connected Composer invokes thread `compact()` while idle. Main holds the session
+until the native task settles and any summary submission is placed. The operation
+creates no chat input or reply. Automatic compaction can still attach its committed
+summary marker to the current reply.
 
 ## Stop, close and reopen
 
@@ -134,9 +135,11 @@ cancellation and ownership semantics.
   with a terminal status is not rebuilt. At startup Main reads terminal native evidence by the original input and
   commits the recovered body to the corresponding product Run. The driver owns one scheduler per
   physical store with unfinished work. It installs the affected roots and child writers before
-  resuming and keeps unresolved stores eligible for another recovery. Startup also restores the unsent
-  status of inputs withdrawn before placement by matching the submission request ID to the user
-  message bound to the native root. This works for stores with no remaining work.
+  resuming and keeps unresolved stores eligible for another recovery. Interactive follow-up admission
+  records a pending conversation update in the native transaction. Startup reads those request IDs
+  even when the store has no execution work, publishes placed inputs, and restores withdrawals as
+  unsent. The desktop retires the ID after the product transaction succeeds. A cold session open
+  checks any saved input left before native admission against its original binding.
 - Closing a child panel only detaches its projection subscription.
 
 Background continuation keeps one child identity. Independent continuation of an ended

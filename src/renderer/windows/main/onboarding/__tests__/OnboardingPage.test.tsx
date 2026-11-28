@@ -534,8 +534,16 @@ describe('OnboardingPage', () => {
     await openModelSelection()
 
     const onDefaultModelSelected = modelSettingsPropsMock.mock.lastCall?.[0]?.onDefaultModelSelected
+    // A missing callback must not satisfy this negative assertion vacuously.
+    expect(onDefaultModelSelected).toBeTypeOf('function')
     await act(async () => {
-      await onDefaultModelSelected?.({ id: 'openai::gpt-4o', providerId: 'openai' })
+      await onDefaultModelSelected({ id: 'openai::gpt-4o', providerId: 'openai' })
+    })
+    // The replacement decision reads both collections; they must have completed
+    // before the no-PATCH assertion means anything.
+    await waitFor(() => {
+      expect(dataApiMocks.get).toHaveBeenCalledWith('/assistants', expect.anything())
+      expect(dataApiMocks.get).toHaveBeenCalledWith('/agents', expect.anything())
     })
 
     expect(dataApiMocks.patch).not.toHaveBeenCalled()
