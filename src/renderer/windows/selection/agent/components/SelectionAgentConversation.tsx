@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { createComposerUserMessageParts } from '@renderer/components/composer/composerDraft'
 import type { ComposerSerializedDraft } from '@renderer/components/composer/tokens'
@@ -12,6 +13,7 @@ import {
   toConversationDraft
 } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -23,8 +25,6 @@ import { useAgentChatRuntimeState } from '@renderer/pages/agents/useAgentChatRun
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { getSelectionAgentIssue } from '@renderer/utils/selectionAction'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
@@ -63,7 +63,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   const { t } = useTranslation()
   const { session } = useSession(sessionId)
   const { agent, isLoading: agentLoading } = useAgent(session?.agentId ?? null)
-  const { model } = useModelById(agent?.model)
+  const { model, isLoading: modelLoading } = useModelById(session?.model ?? agent?.model)
   const workspacePath = session?.workspace?.type === 'user' ? session.workspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const runtime = useAgentChatRuntimeState({
@@ -76,7 +76,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   })
 
   // A recreated Cherry Assistant may still have no usable model; the first message waits until one is set.
-  const missingModel = Boolean(agent && !agentLoading && getSelectionAgentIssue(agent) === 'no_model')
+  const missingModel = Boolean(agent && !agentLoading && !modelLoading && !model)
   const firstMessageSentRef = useRef(false)
   const { sendMessage } = runtime
   useEffect(() => {
@@ -90,7 +90,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   }, [agent, firstMessage, model, sendMessage, session, sessionId])
 
   // Until the first turn shows up the window is still starting, even though nothing streams yet.
-  const topicId = buildAgentSessionTopicId(sessionId)
+  const topicId = useAgentSessionStreamTopic(sessionId)
   const { status, awaitingApprovalAnchors } = useTopicStreamStatus(topicId)
   const [turnSeen, setTurnSeen] = useState(false)
   if (status && !turnSeen) setTurnSeen(true)
@@ -143,7 +143,17 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
     <ChatSidePaddingProvider sidePaddingPx={SIDE_PADDING_PX} messageEndInsetPx={MESSAGE_END_INSET_PX}>
       <div className="flex h-full min-h-0 flex-col">
         <SelectionAgentHeader
-          avatar={agent ? getAgentAvatarFromConfiguration(agent.configuration) : undefined}
+          avatar={
+            agent ? (
+              <AssistantAvatarImage
+                src={agent.avatarSrc}
+                alt=""
+                size={22}
+                className="rounded-sm object-cover"
+                fallback={getAgentAvatarFromConfiguration(agent.configuration)}
+              />
+            ) : undefined
+          }
           title={agent?.name ?? ''}
           subtitle={session?.name || undefined}
           onOpenInMainWindow={() => void openInMainWindow()}
@@ -193,6 +203,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
             editBusy={runtime.editBusy}
             cancelEditing={runtime.cancelEditing}
             resendEditedMessage={runtime.resendEditedMessage}
+            providerQuotaExhausted={runtime.providerQuotaExhausted}
             steerWhileBusy
           />
         )}

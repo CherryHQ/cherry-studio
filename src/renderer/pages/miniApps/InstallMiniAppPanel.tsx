@@ -16,6 +16,7 @@ import {
   InputGroupInput
 } from '@cherrystudio/ui'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -36,10 +37,11 @@ const looksLikeUrl = (value: string): boolean => {
  * The "local mini app" tab of the add dialog: pick a package file, or load one by
  * address. Either opens the consent dialog on top; installing closes the add dialog.
  */
-export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) => {
+export const InstallMiniAppPicker: FC<{ open?: boolean; onClose: () => void }> = ({ open = true, onClose }) => {
   const { t } = useTranslation()
   const [manifestUrl, setManifestUrl] = useState('')
   const { preview, busy, error, settle, cancelPreview, confirm } = useMiniAppInstallPreview(onClose)
+  const previewDialog = useExitPresence(open ? preview : null)
   const packageDropzone = useMiniAppPackageDrop(settle)
 
   const handlePick = () =>
@@ -100,7 +102,20 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
         </Button>
       </DialogFooter>
 
-      {preview && <InstallConsentDialog preview={preview} busy={busy} onCancel={cancelPreview} onConfirm={confirm} />}
+      {previewDialog.value && (
+        <InstallConsentDialog
+          key={
+            previewDialog.value.kind === 'upgrade'
+              ? previewDialog.value.update.updateToken
+              : previewDialog.value.installToken
+          }
+          open={open && preview !== null}
+          preview={previewDialog.value}
+          busy={busy}
+          onCancel={cancelPreview}
+          onConfirm={confirm}
+        />
+      )}
     </>
   )
 }
@@ -109,17 +124,26 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
  * A builtin tile's "install": previews that app on mount and shows nothing but the
  * consent dialog. A preview that fails has no picker to report into, so it toasts.
  */
-const InstallMiniAppPanel: FC<{ builtinAppId: string; onClose?: () => void }> = ({ builtinAppId, onClose }) => {
+const InstallMiniAppPanel: FC<{ builtinAppId: string; open?: boolean; onClose?: () => void }> = ({
+  builtinAppId,
+  open = true,
+  onClose
+}) => {
   const { t } = useTranslation()
   const done = useCallback(() => onClose?.(), [onClose])
   const { preview, busy, error, settle, cancelPreview, confirm } = useMiniAppInstallPreview(done)
+  const previewDialog = useExitPresence(open ? preview : null)
 
   useEffect(() => {
+    if (!open) {
+      cancelPreview()
+      return
+    }
     void settle(
       () => ipcApi.request('mini_app.install.preview_builtin', { appId: builtinAppId }),
       'miniApp.install.preview_error'
     )
-  }, [builtinAppId, settle])
+  }, [builtinAppId, cancelPreview, open, settle])
 
   useEffect(() => {
     if (!error) return
@@ -127,10 +151,16 @@ const InstallMiniAppPanel: FC<{ builtinAppId: string; onClose?: () => void }> = 
     done()
   }, [done, error, t])
 
-  if (!preview) return null
+  if (!previewDialog.value) return null
   return (
     <InstallConsentDialog
-      preview={preview}
+      key={
+        previewDialog.value.kind === 'upgrade'
+          ? previewDialog.value.update.updateToken
+          : previewDialog.value.installToken
+      }
+      open={open && preview !== null}
+      preview={previewDialog.value}
       busy={busy}
       onCancel={() => {
         cancelPreview()

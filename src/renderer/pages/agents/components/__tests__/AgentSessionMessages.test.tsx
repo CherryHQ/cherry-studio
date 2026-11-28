@@ -6,6 +6,14 @@ import AgentSessionMessages from '../AgentSessionMessages'
 
 const useAgentMessageListProviderValueMock = vi.hoisted(() => vi.fn(() => ({ state: {}, actions: {}, meta: {} })))
 const ipcRequestMock = vi.hoisted(() => vi.fn(() => Promise.resolve(undefined)))
+const ipcListenMock = vi.hoisted(() =>
+  vi.fn<
+    (
+      event: string,
+      listener: (event: { sessionId: string; info?: { resume: boolean }; restoreUnavailable?: boolean }) => void
+    ) => () => void
+  >(() => () => {})
+)
 
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
   default: () => <div data-testid="message-list" />
@@ -35,16 +43,15 @@ vi.mock('../../messages/agentMessageListAdapter', () => ({
   useAgentMessageListProviderValue: useAgentMessageListProviderValueMock
 }))
 
-// The mount effect fires ipcApi.request('ai.agent.session.prewarm' / 'ai.agent.session.close_warm');
-// the lease test below asserts on those calls.
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: ipcRequestMock, on: vi.fn(() => () => {}) }
+  ipcApi: { request: ipcRequestMock, on: ipcListenMock }
 }))
 
 describe('AgentSessionMessages', () => {
   beforeEach(() => {
     useAgentMessageListProviderValueMock.mockClear()
     ipcRequestMock.mockClear()
+    ipcListenMock.mockClear()
   })
 
   it('normalizes blank agent avatars before passing the assistant profile to the message list', () => {
@@ -61,10 +68,10 @@ describe('AgentSessionMessages', () => {
 
     expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        assistantProfile: {
+        assistantProfile: expect.objectContaining({
           name: 'Blank avatar agent',
           avatar: '🤖'
-        }
+        })
       })
     )
   })
@@ -86,7 +93,29 @@ describe('AgentSessionMessages', () => {
     )
   })
 
-  it('acquires the session warm lease on mount and releases it only on unmount', () => {
+  it('allows continuation of a local task even when the native thread cannot resume', () => {
+    const checked = vi.fn()
+    const view = render(
+      <AgentSessionMessages
+        agentId="local"
+        sessionId="session-1"
+        messages={[]}
+        partsByMessageId={{}}
+        isLoading={false}
+        onLocalRestoreChecked={checked}
+      />
+    )
+    const listener = ipcListenMock.mock.calls[0][1]
+    expect(checked).toHaveBeenLastCalledWith(false)
+    listener({ sessionId: 'session-1', info: { resume: false } })
+    expect(checked).toHaveBeenLastCalledWith(false)
+    listener({ sessionId: 'session-1', restoreUnavailable: true })
+    expect(checked).toHaveBeenLastCalledWith(true)
+    view.unmount()
+    expect(ipcRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('can mount and unmount a history view without issuing an execution command', () => {
     const view = render(
       <AgentSessionMessages
         agentId="agent-1"
@@ -97,43 +126,7 @@ describe('AgentSessionMessages', () => {
       />
     )
 
-    expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.prewarm', { sessionId: 'session-1' })
-    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.agent.session.close_warm', { sessionId: 'session-1' })
-
     view.unmount()
-    expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.close_warm', { sessionId: 'session-1' })
-  })
-
-  it('anchors background status to the latest assistant with content instead of an empty pending placeholder', () => {
-    const settledAssistant = {
-      id: 'assistant-settled',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'Main answer' }]
-    }
-    const pendingAssistant = {
-      id: 'assistant-pending',
-      role: 'assistant',
-      parts: []
-    }
-
-    render(
-      <AgentSessionMessages
-        agentId="agent-1"
-        sessionId="session-1"
-        messages={[settledAssistant, { id: 'user-follow-up', role: 'user', parts: [] }, pendingAssistant] as any}
-        partsByMessageId={{
-          'assistant-settled': [{ type: 'text', text: 'Main answer' }] as any
-        }}
-        isLoading={false}
-      />
-    )
-
-    expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        messageTail: expect.objectContaining({
-          messageId: 'assistant-settled'
-        })
-      })
-    )
+    expect(ipcRequestMock).not.toHaveBeenCalled()
   })
 })

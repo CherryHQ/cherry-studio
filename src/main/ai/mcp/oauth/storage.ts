@@ -18,6 +18,17 @@ import { LegacyOAuthStorageSchema, OAuthSecretDataSchema, OAuthStorageSchema } f
 const logger = loggerService.withContext('Mcp:OAuthStorage')
 const LEGACY_ISSUER = 'legacy'
 const volatileSecrets = new Map<string, OAuthSecretData>()
+const volatileStorage = new Map<string, OAuthStorageData>()
+const UNWRITABLE_STORAGE_ERROR_CODES = new Set(['EPERM', 'EACCES', 'EROFS'])
+
+function isStorageAccessError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    UNWRITABLE_STORAGE_ERROR_CODES.has(error.code)
+  )
+}
 
 export interface OAuthSecretCipher {
   isAvailable(): boolean
@@ -49,7 +60,18 @@ const storagePath = (configDir: string, serverUrlHash: string) => path.join(conf
 export async function deleteOAuthStorage(serverUrlHash: string, configDir: string): Promise<void> {
   const filePath = storagePath(configDir, serverUrlHash)
   volatileSecrets.delete(filePath)
-  await fs.rm(filePath, { force: true })
+  volatileStorage.delete(filePath)
+  try {
+    await fs.rm(filePath, { force: true })
+  } catch (error) {
+    if (isStorageAccessError(error)) {
+      logger.warn('OAuth storage path is not accessible while deleting; cleared in-memory credentials only', {
+        filePath
+      })
+      return
+    }
+    throw error
+  }
 }
 
 export class JsonFileStorage implements IOAuthStorage {
@@ -90,6 +112,12 @@ export class JsonFileStorage implements IOAuthStorage {
       return this.cache
     }
 
+    const volatile = volatileStorage.get(this.filePath)
+    if (volatile) {
+      this.cache = volatile
+      return volatile
+    }
+
     try {
       const raw: unknown = JSON.parse(await fs.readFile(this.filePath, 'utf-8'))
       const validated = OAuthStorageSchema.parse(raw)
@@ -120,6 +148,15 @@ export class JsonFileStorage implements IOAuthStorage {
         await this.writeStorage(initial)
         return initial
       }
+      if (isStorageAccessError(error)) {
+        const initial: OAuthStorageData = { lastUpdated: Date.now() }
+        this.cache = initial
+        volatileStorage.set(this.filePath, initial)
+        logger.warn('OAuth storage directory is not readable; keeping OAuth state in memory for this session', {
+          filePath: this.filePath
+        })
+        return initial
+      }
       logger.error('Error reading OAuth storage:', error as Error)
       throw new Error(`Failed to read OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -148,13 +185,13 @@ export class JsonFileStorage implements IOAuthStorage {
   }
 
   private async writeStorage(data: OAuthStorageData): Promise<void> {
+    const nextData: OAuthStorageData = {
+      ...data,
+      lastUpdated: Date.now()
+    }
     try {
       await fs.mkdir(path.dirname(this.filePath), { recursive: true })
 
-      const nextData: OAuthStorageData = {
-        ...data,
-        lastUpdated: Date.now()
-      }
       if (this.secretCache) {
         if (this.cipher.isAvailable()) {
           nextData.encryptedCredentials = this.cipher.encrypt(JSON.stringify(this.secretCache))
@@ -169,8 +206,22 @@ export class JsonFileStorage implements IOAuthStorage {
       const tempPath = `${this.filePath}.tmp`
       await fs.writeFile(tempPath, JSON.stringify(nextData, null, 2))
       await fs.rename(tempPath, this.filePath)
+      volatileStorage.delete(this.filePath)
       this.cache = nextData
     } catch (error) {
+      if (isStorageAccessError(error)) {
+        const volatileData: OAuthStorageData = { ...nextData }
+        if (this.secretCache) {
+          delete volatileData.encryptedCredentials
+          volatileSecrets.set(this.filePath, this.secretCache)
+        }
+        this.cache = volatileData
+        volatileStorage.set(this.filePath, volatileData)
+        logger.warn('OAuth storage directory is not writable; keeping OAuth state in memory for this session', {
+          filePath: this.filePath
+        })
+        return
+      }
       logger.error('Error writing OAuth storage:', error as Error)
       throw new Error(`Failed to write OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }

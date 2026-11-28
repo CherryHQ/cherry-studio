@@ -133,7 +133,6 @@ describe('AnalyticsService data collection preference', () => {
 
     expect(service.isActivated).toBe(false)
     expect(MockAnalyticsClient).not.toHaveBeenCalled()
-    expect(captured.prefHandlers['app.privacy.policy_version']).toBeDefined()
 
     await service.trackAppUpdate()
     expect(mockTrackAppUpdate).not.toHaveBeenCalled()
@@ -206,12 +205,9 @@ describe('AnalyticsService data collection preference', () => {
     expect(posthog.capture).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['cn', 'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna'],
-    ['global', 'phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n']
-  ] as const)(
-    'sends %s edition usage insights to that edition’s PostHog project in release builds',
-    async (edition, key) => {
+  it.each(['cn', 'global'] as const)(
+    'sends %s release events to the shared production project with their edition',
+    async (edition) => {
       vi.stubEnv('DEV', false)
       vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')
       vi.mocked(getAppEdition).mockReturnValue(edition)
@@ -219,7 +215,18 @@ describe('AnalyticsService data collection preference', () => {
       await service._doInit()
       await vi.waitFor(() => expect(service.isActivated).toBe(true))
 
-      expect(posthog.constructor).toHaveBeenCalledWith(key, expect.anything())
+      service.trackEvent('subscription_entry_view', { source: 'settings' })
+
+      expect(posthog.constructor).toHaveBeenCalledWith(
+        'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna',
+        expect.objectContaining({ host: 'https://us.i.posthog.com' })
+      )
+      expect(posthog.capture).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'subscription_entry_view',
+          properties: expect.objectContaining({ app_edition: edition })
+        })
+      )
     }
   )
 
@@ -262,8 +269,7 @@ describe('AnalyticsService data collection preference', () => {
   it('re-activates when re-enabled during an in-flight async deactivate', async () => {
     const service = new AnalyticsService()
     await service._doInit()
-    expect(captured.prefHandlers['app.privacy.data_collection.enabled']).toBeDefined()
-    expect(captured.prefHandlers['app.privacy.policy_version']).toBeDefined()
+
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
 

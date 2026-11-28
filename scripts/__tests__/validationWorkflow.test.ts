@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -9,6 +9,7 @@ import { parse } from 'yaml'
 import { createPlan } from '../validation/plan.mjs'
 
 const workflow = parse(readFileSync('.github/workflows/ci.yml', 'utf8'))
+const repairWorkflow = parse(readFileSync('.github/workflows/nightly-ci-repair.yml', 'utf8'))
 const verify = (gate: string, jobs: unknown, steps?: unknown) =>
   spawnSync(process.execPath, ['scripts/validation/verify.mjs', gate], {
     env: { ...process.env, VALIDATION_JOBS: JSON.stringify(jobs), VALIDATION_STEPS: JSON.stringify(steps) }
@@ -18,8 +19,209 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
+describe('Nightly CI repair', () => {
+  it('only runs Claude for a failed scheduled main run from the upstream repository', () => {
+    expect(repairWorkflow.on.workflow_run).toEqual({
+      workflows: [workflow.name],
+      types: ['completed'],
+      branches: ['main']
+    })
+    const matches = new Function('github', `return (${repairWorkflow.jobs.repair.if})`)
+    const repository = 'CherryHQ/cherry-studio'
+    const failedRun = {
+      head_repository: { full_name: repository },
+      head_branch: 'main',
+      event: 'schedule',
+      conclusion: 'failure'
+    }
+    const eligible = (overrides = {}, repo = repository) =>
+      matches({ repository: repo, event: { workflow_run: { ...failedRun, ...overrides } } })
+    expect(eligible()).toBe(true)
+    for (const event of ['pull_request', 'push', 'workflow_dispatch']) expect(eligible({ event })).toBe(false)
+    for (const conclusion of ['success', 'cancelled']) expect(eligible({ conclusion })).toBe(false)
+    expect(eligible({ head_branch: 'release/v2.0.0' })).toBe(false)
+    expect(eligible({ head_repository: { full_name: 'fork/cherry-studio' } })).toBe(false)
+    expect(eligible({ head_repository: { full_name: 'fork/cherry-studio' } }, 'fork/cherry-studio')).toBe(false)
+  })
+
+  it('publishes only against the failed commit and rejects workflow edits', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-nightly-repair-'))
+    directories.push(cwd)
+    const git = (...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' })
+    git('init', '-q')
+    git('config', 'user.email', 'test@example.com')
+    git('config', 'user.name', 'Test')
+    mkdirSync(join(cwd, '.github/workflows'), { recursive: true })
+    writeFileSync(join(cwd, '.github/workflows/ci.yml'), 'name: CI\n')
+    writeFileSync(join(cwd, 'source.ts'), 'export const value = 1\n')
+    git('add', '.')
+    git('-c', 'commit.gpgsign=false', 'commit', '-qm', 'base')
+    const failed = git('rev-parse', 'HEAD').trim()
+    const output = join(cwd, '.git', 'output')
+    const apply = repairWorkflow.jobs['open-pr'].steps.find((step: { id?: string }) => step.id === 'apply').run
+    const run = (sha: string) => {
+      writeFileSync(output, '')
+      return spawnSync('bash', ['-e', '-o', 'pipefail', '-c', apply], {
+        cwd,
+        env: {
+          ...process.env,
+          FAILED_SHA: sha,
+          RUNNER_TEMP: join(cwd, '.git'),
+          GITHUB_OUTPUT: output,
+          GITHUB_STEP_SUMMARY: output
+        }
+      })
+    }
+    const patch = (path: string, contents: string) => {
+      writeFileSync(join(cwd, path), contents)
+      writeFileSync(join(cwd, '.git', 'nightly-repair.patch'), git('diff', '--binary'))
+      git('restore', path)
+    }
+    patch('source.ts', 'export const value = 2\n')
+    expect(run('0'.repeat(40)).status).toBe(0)
+    expect(readFileSync(output, 'utf8')).not.toContain('ready=true')
+    expect(git('diff', '--cached')).toBe('')
+    expect(run(failed).status).toBe(0)
+    expect(readFileSync(output, 'utf8')).toContain('ready=true')
+    expect(git('show', ':source.ts')).toContain('value = 2')
+    git('restore', '--staged', '--worktree', 'source.ts')
+    patch('.github/workflows/ci.yml', 'name: changed\n')
+    expect(run(failed).status).toBe(1)
+    expect(readFileSync(output, 'utf8')).not.toContain('ready=true')
+  })
+})
+
+describe('nine-runner full validation', () => {
+  it('uses seven Linux runners and one runner per native platform', () => {
+    const jobs = Object.values<{
+      'runs-on': string
+      steps: { uses?: string }[]
+      strategy?: { matrix: { os?: string[]; shard?: number[] } }
+    }>(workflow.jobs)
+    const runners = jobs
+      .filter((job) => job.steps.some((step) => step.uses === './.github/actions/setup-validation'))
+      .flatMap((job) => {
+        const matrix = job.strategy?.matrix
+        return matrix?.os ?? Array.from({ length: matrix?.shard?.length ?? 1 }, () => job['runs-on'])
+      })
+
+    expect(runners.sort()).toEqual([
+      'macos-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'windows-2022'
+    ])
+  })
+
+  it('runs the complete selected package group without shard filters', () => {
+    const job = workflow.jobs['package-test']
+    expect(job.steps.find((step: { run?: string }) => step.run?.startsWith('pnpm check')).run).toBe(
+      'pnpm check --group packages'
+    )
+  })
+
+  it('covers both main/preload shards without cancelling siblings on failure', () => {
+    const job = workflow.jobs['main-test-shard']
+    expect(job.strategy).toEqual({ 'fail-fast': false, matrix: { shard: [1, 2] } })
+    expect(job.steps.find((step: { run?: string }) => step.run?.startsWith('pnpm check')).run).toBe(
+      'pnpm check --group main --shard=${{ matrix.shard }}/2'
+    )
+    expect(workflow.jobs['general-test'].needs).toContain('main-test-shard')
+  })
+
+  it('covers all three renderer shards without cancelling siblings on failure', () => {
+    const job = workflow.jobs['renderer-test-shard']
+    expect(job.strategy).toEqual({ 'fail-fast': false, matrix: { shard: [1, 2, 3] } })
+    expect(job.steps.find((step: { run?: string }) => step.run?.startsWith('pnpm check')).run).toBe(
+      'pnpm check --group renderer --shard=${{ matrix.shard }}/3'
+    )
+    expect(workflow.jobs['render-test'].needs).toContain('renderer-test-shard')
+  })
+})
+
+describe('CI preparation and preflight', () => {
+  it.each([
+    { exitCode: 0, skipBuild: false },
+    { exitCode: 7, skipBuild: false },
+    { exitCode: 0, skipBuild: true }
+  ])('only marks workspace exports prepared after building them: %j', ({ exitCode, skipBuild }) => {
+    const action = parse(readFileSync('.github/actions/setup-validation/action.yml', 'utf8'))
+    const install = action.runs.steps.find((step: { name?: string }) => step.name === 'Install dependencies')
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-install-'))
+    directories.push(cwd)
+    writeFileSync(join(cwd, 'pnpm'), '#!/bin/sh\nexit "$INSTALL_EXIT"\n', { mode: 0o755 })
+    const envFile = join(cwd, 'environment')
+    const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', install.run], {
+      env: {
+        ...process.env,
+        PATH: `${cwd}:${process.env.PATH}`,
+        INSTALL_EXIT: String(exitCode),
+        GITHUB_ENV: envFile,
+        VALIDATION_SKIP_WORKSPACE_BUILD: String(skipBuild)
+      }
+    })
+    expect(result.status).toBe(exitCode)
+    expect(existsSync(envFile) ? readFileSync(envFile, 'utf8') : '').toBe(
+      exitCode === 0 && !skipBuild ? 'VALIDATION_WORKSPACE_PREPARED=true\n' : ''
+    )
+  })
+
+  it('checks formatting without installing workspace dependencies', () => {
+    const format = workflow.jobs.changes.steps.find((step: { name?: string }) => step.name === 'Check formatting')
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-preflight-'))
+    directories.push(cwd)
+    const log = join(cwd, 'arguments')
+    writeFileSync(join(cwd, 'pnpm'), '#!/bin/sh\nprintf "%s\\n" "$@" > "$COMMAND_LOG"\n', { mode: 0o755 })
+    const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', format.run], {
+      env: { ...process.env, PATH: `${cwd}:${process.env.PATH}`, COMMAND_LOG: log }
+    })
+    expect(result.status).toBe(0)
+    const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
+    expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual([
+      'dlx',
+      `oxfmt@${manifest.devDependencies.oxfmt}`,
+      '--check',
+      '.'
+    ])
+    const setup = workflow.jobs['basic-checks'].steps.find((step: { id?: string }) => step.id === 'dependencies')
+    expect(
+      new Function('needs', 'cancelled', `return (${setup.if})`)(
+        { changes: { result: 'failure', outputs: { repository: 'true', types: 'true', lint: 'true', i18n: 'true' } } },
+        () => false
+      )
+    ).toBe(false)
+  })
+
+  it('reuses CI preflight formatting while still checking documentation', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-format-'))
+    directories.push(cwd)
+    const pnpm = join(cwd, 'pnpm.cjs')
+    writeFileSync(pnpm, 'process.stdout.write(JSON.stringify(process.argv.slice(2)) + "\\n")\n')
+    const args = ['scripts/validation/run.mjs', '--group', 'repository']
+    const options = {
+      encoding: 'utf8' as const,
+      env: { ...process.env, npm_execpath: pnpm, VALIDATION_PLAN: JSON.stringify(createPlan(['README.md'])) }
+    }
+    const local = spawnSync(process.execPath, args, options)
+    expect(local.status).toBe(0)
+    expect(local.stdout).toContain('["format:check"]')
+    const repository = workflow.jobs['basic-checks'].steps.find(
+      (step: { id?: string }) => step.id === 'repository-checks'
+    )
+    const ci = spawnSync(process.execPath, [args[0], ...repository.run.split(' ').slice(2)], options)
+    expect(ci.status).toBe(0)
+    expect(ci.stdout).not.toContain('["format:check"]')
+    expect(ci.stdout).toContain('["docs:check"]')
+  })
+})
+
 describe('CI validation planning', () => {
-  it('uses the whole PR and push range even when the last commit only changes docs', () => {
+  it('runs full validation for release pushes, nightly and manual runs while scoping PR and main checks', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-plan-'))
     directories.push(cwd)
     const git = (...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -43,12 +245,19 @@ describe('CI validation planning', () => {
     git('checkout', 'main')
     git('-c', 'commit.gpgsign=false', 'merge', '--no-ff', 'feature', '-m', 'merge')
     const script = workflow.jobs.changes.steps.find((step: { id?: string }) => step.id === 'plan').run
-    const run = (event: string, before = base) => {
+    const run = (event: string, before = base, ref = 'refs/heads/main') => {
       const output = join(cwd, '.git', 'validation-output')
       writeFileSync(output, '')
       execFileSync('bash', ['-e', '-o', 'pipefail', '-c', script], {
         cwd,
-        env: { ...process.env, VALIDATION_PLAN: '', EVENT_NAME: event, BEFORE_SHA: before, GITHUB_OUTPUT: output }
+        env: {
+          ...process.env,
+          VALIDATION_PLAN: '',
+          EVENT_NAME: event,
+          BEFORE_SHA: before,
+          GITHUB_REF: ref,
+          GITHUB_OUTPUT: output
+        }
       })
       return JSON.parse(
         readFileSync(output, 'utf8')
@@ -59,15 +268,25 @@ describe('CI validation planning', () => {
     }
     for (const event of ['pull_request', 'push']) {
       const plan = run(event)
-      expect(plan.projects).toContain('renderer')
-      expect(plan.projects).not.toContain('main')
+      expect(plan.tasks).toEqual(expect.arrayContaining(['docs', 'lint', 'types-web']))
+      expect(plan.projects).toEqual([])
+      expect(plan.platform).toBe(false)
     }
-    for (const event of ['schedule', 'workflow_dispatch']) expect(run(event).projects).toContain('main')
-    expect(run('push', '0000000000000000000000000000000000000000').projects).toContain('main')
+    expect(workflow.on.schedule.length).toBeGreaterThan(0)
+    const full = createPlan([], 'Full validation')
+    const releaseRef = 'refs/heads/release/v2.0.0'
+    for (const plan of [run('push', base, releaseRef), run('schedule'), run('workflow_dispatch')]) {
+      expect(plan).toMatchObject({ tasks: full.tasks, projects: full.projects, platform: true })
+    }
+    const fallback = run('push', '0000000000000000000000000000000000000000')
+    expect(fallback.tasks).toContain('types-node')
+    expect(fallback.projects).toEqual([])
+    expect(fallback.platform).toBe(false)
     git('checkout', '-qb', 'docs-only', base)
     writeFileSync(join(cwd, 'README.md'), 'docs only')
     commit('docs only')
-    expect(run('push').projects).toEqual([])
+    expect(run('pull_request', base).tasks).toEqual(['format', 'docs'])
+    expect(run('push', base, releaseRef)).toMatchObject({ projects: full.projects, platform: true })
   })
 
   it('fails test gates on missing classification and failed, cancelled, skipped or missing dependencies', () => {
@@ -89,6 +308,23 @@ describe('CI validation planning', () => {
       jobs.changes.outputs.plan = JSON.stringify(createPlan(['README.md']))
       for (const dependency of job.needs.filter((id: string) => id !== 'changes')) jobs[dependency].result = 'skipped'
       expect(verify(gate, jobs)).toBe(0)
+    }
+  })
+
+  it('accepts omitted native jobs for portable changes while requiring Linux consumer tests', () => {
+    const jobs = Object.fromEntries(
+      workflow.jobs['general-test'].needs.map((dependency: string) => [dependency, { result: 'success' }])
+    )
+    jobs.changes = {
+      result: 'success',
+      outputs: { plan: JSON.stringify(createPlan(['packages/web-search/src/providers/tavily.ts'])) }
+    }
+    jobs['platform-test'].result = 'skipped'
+    expect(verify('general', jobs)).toBe(0)
+    for (const dependency of ['main-test-shard', 'package-test']) {
+      jobs[dependency].result = 'skipped'
+      expect(verify('general', jobs)).not.toBe(0)
+      jobs[dependency].result = 'success'
     }
   })
 
@@ -166,7 +402,7 @@ describe('basic checks in one runner', () => {
   ])('preserves %s selection and readiness for %s', (group, id) => {
     const needs = { changes: { outputs: { [group]: 'true' } } }
     const step = job.steps.find((step: { id?: string }) => step.id === id)
-    if (id !== 'i18n-sync') expect(step.run).toBe(`pnpm check --group ${group}`)
+    if (id !== 'i18n-sync' && id !== 'repository-checks') expect(step.run).toBe(`pnpm check --group ${group}`)
     const condition = step.if.replaceAll('steps.i18n-sync', "steps['i18n-sync']")
     const selected = (outcome: string, cancelled: boolean) =>
       new Function('needs', 'steps', 'cancelled', 'success', `return (${condition})`)(

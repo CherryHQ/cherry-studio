@@ -15,6 +15,7 @@ import {
 
 export function AgentGroupMoreMenu({
   agentId,
+  isLocalAgent,
   assistantIconType,
   deleteAgentDisabled,
   deleteSessionsOnly,
@@ -31,6 +32,7 @@ export function AgentGroupMoreMenu({
   sidebarPinned
 }: {
   agentId: string
+  isLocalAgent: boolean
   assistantIconType: AssistantIconType
   deleteAgentDisabled?: boolean
   deleteSessionsOnly?: boolean
@@ -49,6 +51,7 @@ export function AgentGroupMoreMenu({
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
     agentId,
+    isLocalAgent,
     assistantIconType,
     deleteAgentDisabled,
     deleteSessionsOnly,
@@ -83,6 +86,10 @@ export function AgentGroupMoreMenu({
 }
 
 export function WorkdirGroupMoreMenu({
+  canPin,
+  pinned,
+  pinDisabled,
+  onTogglePin,
   canDelete,
   canRename,
   deleteDisabled,
@@ -95,6 +102,10 @@ export function WorkdirGroupMoreMenu({
 }: {
   canDelete: boolean
   canRename: boolean
+  canPin: boolean
+  pinned: boolean
+  pinDisabled?: boolean
+  onTogglePin: (group: ResourceListGroup) => void | Promise<void>
   deleteDisabled?: boolean
   group: ResourceListGroup
   onDelete: (group: ResourceListGroup) => void | Promise<void>
@@ -105,6 +116,10 @@ export function WorkdirGroupMoreMenu({
 }) {
   const { t } = useTranslation()
   const actionContext: WorkdirGroupActionContext = {
+    canPin,
+    pinned,
+    pinDisabled,
+    onTogglePin,
     canDelete,
     canRename,
     deleteDisabled,

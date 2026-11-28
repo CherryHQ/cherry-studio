@@ -7,7 +7,7 @@ import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 
 import type { SlashCommand } from './slashCommands'
 
@@ -15,6 +15,7 @@ export interface AgentRuntimeCapabilities {
   /** i18n key for runtime selector option. */
   labelKey: string
   labelFallback: string
+  /** Cherry permission modes. Native controls come from the connected CLI. */
   permissionModes: readonly AgentPermissionMode[]
   /** plan/small model fields. */
   modelTiers: boolean
@@ -35,7 +36,7 @@ export interface AgentRuntimeCapabilities {
   /** providerMetadata.cherry.transport tag stamped by the runtime's stream adapter. */
   transport: string
   /** Edit-dialog catalog rows. */
-  builtinTools: () => readonly {
+  builtinTools: (platform?: string) => readonly {
     id: string
     labelKey: string
     descriptionKey: string
@@ -91,8 +92,10 @@ const PI_CAPABILITIES = {
     isPiCompatibleModel(provider, model) &&
     !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
   transport: 'pi-agent',
-  builtinTools: () =>
-    PI_BUILTIN_TOOLS.map((tool) => ({
+  builtinTools: (platform?: string) =>
+    PI_BUILTIN_TOOLS.filter(
+      (tool) => platform === undefined || !('platform' in tool) || tool.platform === platform
+    ).map((tool) => ({
       id: tool.name,
       labelKey: `agent.tools.builtin.${tool.name}.label`,
       descriptionKey: `agent.tools.builtin.${tool.name}.description`,
@@ -101,6 +104,22 @@ const PI_CAPABILITIES = {
 } as const satisfies AgentRuntimeCapabilities
 
 export const AGENT_RUNTIME_CAPABILITIES = {
+  local: {
+    labelKey: 'local_agents.title',
+    labelFallback: 'Local agents',
+    permissionModes: [],
+    modelTiers: false,
+    heartbeat: false,
+    knowledgeBases: false,
+    mcp: false,
+    skills: false,
+    claudeRegistryTools: false,
+    slashCommands: [],
+    createDefaults: { permissionMode: 'default' },
+    isModelCompatible: () => false,
+    transport: 'local-agent',
+    builtinTools: () => []
+  },
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
     labelFallback: 'Claude Agent',
@@ -132,6 +151,12 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     ...PI_CAPABILITIES,
     labelKey: 'library.config.agent.field.runtime.option.pi_durable',
     labelFallback: 'Pi Durable',
-    builtinTools: () => PI_CAPABILITIES.builtinTools().filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
+    builtinTools: (platform?: string) =>
+      PI_CAPABILITIES.builtinTools(platform).filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
   }
 } as const satisfies Record<AgentType, AgentRuntimeCapabilities>
+
+export function isAgentModelSelectable(agentType: AgentType | undefined, model: Model, provider?: Provider): boolean {
+  const compatible = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].isModelCompatible : undefined
+  return !isNonChatModel(model) && (compatible?.(provider, model) ?? true)
+}

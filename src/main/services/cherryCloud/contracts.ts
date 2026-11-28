@@ -57,7 +57,9 @@ const entitlementSchema = z.looseObject({
 
 const quotaPoolSchema = z.looseObject({
   model_ids: z.array(z.string().min(1)),
-  windows: z.array(z.looseObject({ remaining_units: z.number().int().nonnegative() })).min(1)
+  windows: z
+    .array(z.looseObject({ limit_units: z.number().int().nonnegative(), used_units: z.number().int().nonnegative() }))
+    .min(1)
 })
 
 export const accountSnapshotSchema = z.looseObject({
@@ -85,6 +87,11 @@ export const exchangeDesktopAuthorizationResponseSchema = z.looseObject({
 
 export const refreshProductSessionResponseSchema = z.looseObject({
   token_set: tokenSetSchema
+})
+
+export const amdDesktopEntryResponseSchema = z.looseObject({
+  entry_url: z.url(),
+  expires_in: z.number()
 })
 
 const cloudModelIdSchema = z
@@ -120,7 +127,15 @@ export const cloudModelListSchema = z.looseObject({
       context_window: z.number().int().positive(),
       max_output_tokens: z.number().int().positive(),
       capabilities: cloudModelCapabilitiesSchema,
-      available_features: z.array(cherryCloudModelFeatureSchema).min(1)
+      available_features: z.array(cherryCloudModelFeatureSchema).min(1),
+      /** `amd` marks AMD free models, served with the account's own AMD key instead of a plan entitlement. */
+      provider: z.string().nullish(),
+      activation_required: z.boolean().nullish(),
+      /** Same-origin API path that issues the browser activation link; never a page to open directly. */
+      activation_endpoint: z.string().nullish(),
+      /** Served by a server-side key outside any plan; `requires_login: false` also admits signed-out callers. */
+      standalone: z.boolean().nullish(),
+      requires_login: z.boolean().nullish()
     })
   )
 })

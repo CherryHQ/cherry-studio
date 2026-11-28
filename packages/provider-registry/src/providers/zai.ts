@@ -1,3 +1,4 @@
+import { glmSamplingParameterSupport } from './parameterSupports'
 import { openaiCompatible } from './types'
 
 export default openaiCompatible({
@@ -12,5 +13,9 @@ export default openaiCompatible({
     models: 'https://docs.z.ai/models',
     official: 'https://z.ai'
   },
-  presetProviderId: 'zhipu'
+  presetProviderId: 'zhipu',
+  overrides: ['glm-5', 'glm-5.1', 'glm-5.2', 'glm-5.2-fast', 'glm-5.3', 'glm-5.3-flash'].map((apiModelId) => ({
+    apiModelId,
+    parameterSupport: glmSamplingParameterSupport
+  }))
 })

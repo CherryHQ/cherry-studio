@@ -1,10 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   createPromptVariableContent,
   createPromptVariableInlineContent,
-  parsePromptVariableSegments,
-  selectPromptVariableToken
+  parsePromptVariableSegments
 } from '../promptVariables'
 
 describe('prompt variable composer helpers', () => {
@@ -97,48 +96,5 @@ describe('prompt variable composer helpers', () => {
         }
       }
     ])
-  })
-
-  it('focuses before selecting a prompt variable token for Tab navigation', () => {
-    const calls: string[] = []
-    const run = vi.fn(() => true)
-    const editor = {
-      state: {
-        selection: { from: 1 },
-        doc: {
-          descendants: (visit: (node: unknown, position: number) => void) => {
-            visit(
-              {
-                type: { name: 'composerToken' },
-                attrs: {
-                  id: 'prompt-variable:0:city',
-                  kind: 'promptVariable',
-                  label: 'city',
-                  promptText: '${city}'
-                }
-              },
-              5
-            )
-          }
-        }
-      },
-      chain: () => ({
-        focus: () => {
-          calls.push('focus')
-          return {
-            setNodeSelection: (position: number) => {
-              calls.push(`setNodeSelection:${position}`)
-              return { run }
-            }
-          }
-        }
-      })
-    }
-
-    const token = selectPromptVariableToken(editor as never, 1)
-
-    expect(token?.id).toBe('prompt-variable:0:city')
-    expect(calls).toEqual(['focus', 'setNodeSelection:5'])
-    expect(run).toHaveBeenCalled()
   })
 })

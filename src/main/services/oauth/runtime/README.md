@@ -12,6 +12,10 @@ owns the flow (authorize → callback → token exchange → persist → refresh
 the provider's enablement: a successful sign-in flips the provider `isEnabled`
 on, and logout flips it off (and resets `authConfig` to `api-key`).
 
+`authenticatedFetch` reports missing credentials and terminal refresh failures as
+HTTP 401 errors carrying the provider identity. Transient refresh failures retain
+their retry behavior and do not clear the saved session.
+
 It is **provider-scoped**, not a general OAuth system. The hard coupling is to
 the *provider* row in SQLite: tokens persist into that row's `authConfig`
 (`ProviderAuthConfigOAuthTokenStore` → `providerService.update(providerId, …)`),
@@ -29,7 +33,7 @@ create a leaky mega-abstraction:
 | GitHub Copilot | `src/main/services/CopilotService.ts` | Device flow (RFC 8628) — no redirect/callback; encrypted-file storage. |
 | Nutstore | `src/main/services/nutstore/` | Proprietary SSO with custom encryption — not standard OAuth. |
 | Feishu / WeChat | `src/main/ai/channels/adapters/` | Proprietary device/binary protocols — not OAuth. |
-| Silicon / PPIO / 302 / AIHubMix / AIOnly | `src/renderer/utils/oauth.ts` | One-shot popup that returns an **API key** (no token session / refresh). |
+| PPIO / 302 / AIHubMix / AIOnly | `src/renderer/utils/oauth.ts` | One-shot popup that returns an **API key** (no token session / refresh). |
 
 **Do not** route any of the above through this runtime. If you think you need to,
 re-read the table.
@@ -118,5 +122,6 @@ Hydra before releasing the client. The listener must bind before the browser ope
 token storage; access and refresh tokens remain in the main process. Other
 windows may observe completion through `oauth.sign_in.attach`, which returns only
 the account id. Cancellation requires a request registered by the calling window.
-API-key retrieval has a 30-second timeout; failure retains the stored OAuth tokens
-and releases the login so the user can retry.
+API-key retrieval has a 30-second timeout. An empty key list completes sign-in and
+lets the user create a key before trying again. A retrieval error retains the stored
+OAuth tokens and releases the login so the user can retry.

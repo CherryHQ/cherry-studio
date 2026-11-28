@@ -14,9 +14,10 @@ The file domain separates these runtime capabilities:
 
 - `FileManager` manages persistent `FileEntry` records and entry-owned file operations.
 - `DirectoryTreeManager` manages live, in-memory directory mirrors for renderer consumers.
+- `FileObservationService` owns native observation scopes shared by directory projections and file consumers.
 - `FileEditService` owns pinned editing leases and conditional writes; the renderer owns drafts through its [file editing session manager](./file-editing.md).
 
-FileManager and directory trees share the watcher primitive. A directory tree does not create
+File observation forwards file-presence changes into the existing dangling cache. A directory tree does not create
 `FileEntry` rows and a `FileEntry` does not join a directory tree automatically.
 
 This document describes the current module boundary. FileManager implementation details live in
@@ -59,8 +60,8 @@ Creation is intentionally asymmetric: `createInternalEntry` always creates a new
 dispatches handle-based requests to either FileManager or a path helper.
 
 `DirectoryTreeManager` is a separate `WhenReady` service. It owns builders, consumers, and the
-`file.tree.mutation` stream. `DirectoryTreeBuilder` uses the generic watcher in
-`src/main/services/file/watcher.ts`, but neither tree class depends on the file-entry database.
+`file.tree.mutation` stream. `DirectoryTreeBuilder` uses a lease from
+[FileObservationService](./file-observation.md); neither tree class depends on the file-entry database.
 
 `FileEntryService` and `FileRefService` are synchronous, direct-import data services. The former is
 the `file_entry` repository; the latter is a read-only projection across business-owned reference
@@ -153,6 +154,9 @@ currently cover binary reads, optimistic writes, metadata, path and dangling-sta
 internal-entry batch creation, trash operations, rename, open/reveal, and the directory-tree
 protocol.
 
+`file.select_folder` opens the native directory picker with an optional absolute starting path.
+It returns the selected absolute path or `null` when the user cancels.
+
 `file.validate_notes_directory` is a transport adapter for the existing Notes-directory selection
 policy in `src/main/services/notesDirectory.ts`, shared with legacy `FileStorage`. This stateless
 Notes-owned module belongs to the business tier, outside foundation helpers and the generic
@@ -186,7 +190,8 @@ External entries are best-effort references to user-owned paths:
 - `rename(id, newName)` renames the physical file within its current parent and updates the row;
 - `trash` and `restore` reject external entries;
 - `permanentDelete(id)` removes only the row and leaves the user's file on disk;
-- missing paths are reported through `DanglingState`, not treated as permission to delete the row.
+- missing paths are reported through `DanglingState`; only an explicit removal can detach a missing
+  translation original whose persistent references are all optional source references.
 
 UI copy must distinguish removing an external reference from deleting an internal managed file or
 an arbitrary path on disk.
@@ -238,15 +243,15 @@ identified by `FileEntryId`.
 
 ## 6. Lifecycle
 
-Both `FileManager` and `DirectoryTreeManager` are registered in
+`FileManager`, `FileEditService`, `FileObservationService`, and `DirectoryTreeManager` are registered in
 `src/main/core/application/serviceRegistry.ts` at `Phase.WhenReady`.
 
 - FileManager initializes the external-entry reverse index, registers remaining legacy handlers,
   registers content-hash backfill work, and starts its cleanup interval.
-- DirectoryTreeManager creates resources on demand and closes consumers, builders, watchers, and
-  WebContents listeners during shutdown.
+- DirectoryTreeManager closes tree consumers and builders, releasing their observation leases.
+- FileObservationService closes file subscriptions and native scopes during shutdown.
 
-Production code resolves either service through `application.get(...)`; direct construction is a
+Production code resolves these services through `application.get(...)`; direct construction is a
 test seam.
 
 ## 7. Source Map

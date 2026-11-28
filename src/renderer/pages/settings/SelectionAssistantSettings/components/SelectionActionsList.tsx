@@ -4,6 +4,7 @@ import { ReorderableList } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import { SettingDivider, SettingGroup } from '@renderer/components/SettingsPrimitives'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
@@ -62,6 +63,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
 
   const { theme } = useTheme()
   const [isCompact] = usePreference('feature.selection.compact')
+  const userModal = useExitPresence(isUserModalOpen ? true : null)
 
   if (actionItems.length === 0) {
     setActionItems(DefaultPreferences.default['feature.selection.action_items'])
@@ -114,7 +116,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         }
       />
 
-      {isUserModalOpen && (
+      {userModal.isPresent && (
         <SelectionActionUserModal
           isModalOpen={isUserModalOpen}
           editingAction={userEditingAction}

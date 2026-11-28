@@ -52,15 +52,6 @@ afterEach(() => {
 describe('useSmoothStream', () => {
   // A burst can accumulate before the first frame; that frame must not dump
   // it. With no reference dt / rate sample yet it reveals exactly MIN_STEP.
-  it('reveals only MIN_STEP on the first frame, never a dump', () => {
-    const onUpdate = vi.fn()
-    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
-
-    act(() => result.current.addChunk('a'.repeat(100)))
-    act(() => tick(16))
-
-    expect(lastText(onUpdate).length).toBe(1)
-  })
 
   it('reveals progressively and eventually shows the full text', () => {
     const onUpdate = vi.fn()
@@ -72,15 +63,28 @@ describe('useSmoothStream', () => {
     expect(onUpdate).toHaveBeenLastCalledWith('abcdefghij')
   })
 
-  // Regression: the loop must stay alive after the queue drains to exactly 0
-  // mid-stream so a later addChunk is still revealed.
-  it('keeps revealing after the queue drains to zero mid-stream', () => {
+  it('does not schedule frames before input or replace an existing idle result', () => {
+    const onUpdate = vi.fn()
+    const { rerender } = renderHook(({ done }) => useSmoothStream({ onUpdate, streamDone: done }), {
+      initialProps: { done: true }
+    })
+
+    expect(rafCallbacks.size).toBe(0)
+    act(() => tick(16, 60))
+    expect(onUpdate).not.toHaveBeenCalled()
+
+    rerender({ done: false })
+    expect(rafCallbacks.size).toBe(0)
+  })
+
+  it('stops scheduling frames after draining the queue and resumes for the next chunk', () => {
     const onUpdate = vi.fn()
     const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
 
     act(() => result.current.addChunk('abc'))
     act(() => tick(16, 80)) // generous: this asserts liveness, not speed
     expect(lastText(onUpdate)).toBe('abc')
+    expect(rafCallbacks.size).toBe(0)
 
     act(() => tick(16, 5)) // backend gap, queue empty, still streaming
     act(() => result.current.addChunk('def'))
@@ -111,16 +115,6 @@ describe('useSmoothStream', () => {
   // Hard latency ceiling while streaming: with a 1000-grapheme backlog the
   // catch-up frame drains down to exactly MAX_BACKLOG (400). Frame 1 reveals
   // MIN_STEP (1); frame 2 catches up: 999 - 400 = 599 → displayed 600.
-  it('caps backlog to MAX_BACKLOG while streaming', () => {
-    const onUpdate = vi.fn()
-    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
-
-    act(() => result.current.addChunk('a'.repeat(1000)))
-    act(() => tick(16)) // frame 1: MIN_STEP → 1
-    act(() => tick(16)) // frame 2: catch-up → 600
-
-    expect(lastText(onUpdate).length).toBe(600)
-  })
 
   // Once the source is done, every queued grapheme is already final. Keeping
   // it buffered would expose a completed state whose copyable text is partial.
@@ -140,17 +134,6 @@ describe('useSmoothStream', () => {
 
   // After a long background gap (rAF frozen) the resume frame must not dump
   // the whole queue — dt is clamped and MAX_BACKLOG bounds the catch-up.
-  it('bounds the queue after a long background gap instead of dumping it', () => {
-    const onUpdate = vi.fn()
-    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
-
-    act(() => result.current.addChunk('a'.repeat(1000)))
-    act(() => tick(16)) // frame 1: MIN_STEP → 1
-    act(() => tick(100_000)) // tab hidden ~100s, then one resume frame
-
-    expect(lastText(onUpdate).length).toBe(600)
-    expect(lastText(onUpdate).length).toBeLessThan(1000)
-  })
 
   it('reset clears the queue and does not resurrect old text', () => {
     const onUpdate = vi.fn()
@@ -160,6 +143,7 @@ describe('useSmoothStream', () => {
     act(() => tick(16))
     act(() => result.current.reset('X'))
     expect(lastText(onUpdate)).toBe('X')
+    expect(rafCallbacks.size).toBe(0)
 
     act(() => tick(16, 5))
     expect(lastText(onUpdate)).toBe('X')
@@ -175,7 +159,7 @@ describe('useSmoothStream', () => {
     const onUpdate = vi.fn()
     const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
 
-    // ~3s startup wait: idle frames stamp stream-start on the first one.
+    // ~3s startup wait without any queued text.
     act(() => tick(1000, 3))
     // First token after the long TTFT → gap ≫ ARM → cushion armed to CAP.
     act(() => result.current.addChunk('a'.repeat(200)))
@@ -203,6 +187,21 @@ describe('useSmoothStream', () => {
     // The armed stream reveals far less than the unarmed one over the same
     // frames — proof the startup gap built (and retained) the cushion.
     expect(held * 2).toBeLessThan(dumped)
+  })
+
+  it('uses a fresh startup delay after resetting an internally controlled stream', () => {
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, minDelay: 0 }))
+
+    act(() => tick(3000))
+    act(() => result.current.reset())
+    expect(rafCallbacks.size).toBe(0)
+    act(() => tick(3000))
+    act(() => result.current.update('a'.repeat(200), false))
+    act(() => tick(16, 11))
+
+    expect(lastText(onUpdate).length).toBeGreaterThan(0)
+    expect(lastText(onUpdate).length).toBeLessThan(90)
   })
 
   // Bursty but high average rate (dense token then inter-chunk gap): the

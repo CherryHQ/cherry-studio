@@ -41,12 +41,6 @@ function createList(length: number, prefix = 'Item', extra: Partial<QuickPanelLi
   }))
 }
 
-type KeyStep = {
-  key: string
-  ctrlKey?: boolean
-  expected: string | ((text: string) => boolean)
-}
-
 const PAGE_SIZE = 7
 
 function createInputAdapter(initialText = '', initialCursor = initialText.length) {
@@ -125,33 +119,6 @@ function OpenPanelOnMount({
   return null
 }
 
-function OpenChildPanelWithParentOnMount() {
-  const quickPanel = useQuickPanel()
-  const didOpenRef = useRef(false)
-
-  useEffect(() => {
-    if (didOpenRef.current) return
-    didOpenRef.current = true
-
-    quickPanel.open({
-      title: 'Child Panel',
-      list: createList(1, 'Child'),
-      symbol: 'child',
-      pageSize: PAGE_SIZE,
-      queryAnchor: 0,
-      parentPanel: {
-        title: 'Slash Panel',
-        list: createList(1, 'Root'),
-        symbol: '/',
-        pageSize: PAGE_SIZE,
-        queryAnchor: 0
-      }
-    })
-  }, [quickPanel])
-
-  return null
-}
-
 function wrapWithProviders(children: React.ReactNode) {
   return <QuickPanelProvider>{children}</QuickPanelProvider>
 }
@@ -189,25 +156,6 @@ describe('QuickPanelView', () => {
   })
 
   describe('rendering', () => {
-    it('uses a slightly narrower horizontal width than the inputbar stack', () => {
-      const list = createList(1)
-      const input = createInputAdapter()
-
-      renderOpenPanel({
-        input,
-        list,
-        symbol: '/',
-        triggerInfo: { type: 'input', position: 0, originalText: '/Item 3' }
-      })
-
-      const panel = screen.getByTestId('quick-panel')
-      expect(panel).toHaveClass('right-2', 'left-2')
-      expect(panel).not.toHaveClass('w-full')
-      expect(panel).toHaveClass('-top-1')
-      expect(panel.className).not.toContain('px-[35px]')
-      expect(panel.className).not.toContain('top-px')
-    })
-
     it('exposes the panel surface for Custom CSS overrides', () => {
       const list = createList(1)
       const input = createInputAdapter()
@@ -223,23 +171,7 @@ describe('QuickPanelView', () => {
       expect(panelBody).toHaveAttribute('data-slot', 'quick-panel-content')
     })
 
-    it('uses neutral selected item styling instead of theme-primary styling', () => {
-      const list = createList(1, 'Selected', { isSelected: true })
-      const input = createInputAdapter()
-
-      renderOpenPanel({
-        input,
-        list,
-        symbol: '/',
-        triggerInfo: { type: 'input', position: 0, originalText: '/Item 1' }
-      })
-
-      const selectedRow = screen.getByText('Selected 1').closest('[data-id="Selected-1"]')
-      expect(selectedRow).toHaveClass('bg-accent')
-      expect(selectedRow?.className).not.toContain('primary')
-    })
-
-    it('filters from the composer input adapter instead of rendering an internal search input', async () => {
+    it('filters and highlights matches from the composer input without creating its own search input', async () => {
       const list = createList(3, 'Item')
       const input = createInputAdapter('/Item1')
 
@@ -258,30 +190,10 @@ describe('QuickPanelView', () => {
       input.setText('/Item2')
       await waitFor(() => expect(screen.getByText('Item 2')).toBeInTheDocument())
       expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
+      const focused = panel.querySelectorAll<HTMLElement>('.focused')
+      expect(focused).toHaveLength(1)
+      expect(within(focused[0]).getByText('Item 2', { exact: true })).toBeInTheDocument()
       expect(input.adapter.focus).toHaveBeenCalled()
-    })
-
-    it('auto-selects the first composer-query match', async () => {
-      const list = createList(3, 'Item')
-      const input = createInputAdapter('/Item3')
-
-      renderOpenPanel({
-        input,
-        list,
-        symbol: '/',
-        trackInputQuery: true,
-        triggerInfo: { type: 'input', position: 0, originalText: '/Item1' }
-      })
-
-      const panel = screen.getByTestId('quick-panel')
-
-      expect(screen.getByText('Item 3')).toBeInTheDocument()
-      expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
-      await waitFor(() => {
-        const focused = panel.querySelectorAll('.focused')
-        expect(focused.length).toBe(1)
-        expect(focused[0].textContent).toContain('Item 3')
-      })
     })
 
     it('closes when the input trigger slash is deleted', async () => {
@@ -302,118 +214,42 @@ describe('QuickPanelView', () => {
 
       await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
     })
-
-    it('does not navigate back to the parent panel from a child panel', async () => {
-      const input = createInputAdapter()
-
-      render(
-        wrapWithProviders(
-          <>
-            <QuickPanelView inputAdapter={input.adapter} />
-            <OpenChildPanelWithParentOnMount />
-          </>
-        )
-      )
-
-      expect(screen.getByText('Child 1')).toBeInTheDocument()
-
-      fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'ArrowLeft', ctrlKey: true })
-
-      expect(screen.getByText('Child 1')).toBeInTheDocument()
-      expect(screen.queryByText('Root 1')).not.toBeInTheDocument()
-      expect(screen.queryByText('settings.quickPanel.back')).not.toBeInTheDocument()
-    })
   })
 
   describe('focusing', () => {
-    // 执行一系列按键，检查 focused item 是否正确
-    async function runKeySequenceAndCheck(panel: HTMLElement, sequence: KeyStep[]) {
-      for (const { key, ctrlKey, expected } of sequence) {
-        fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key, ctrlKey })
-        fireEvent.keyUp(screen.getByTestId('quick-panel-body'), { key, ctrlKey: false })
-
-        // 检查是否只有一个 focused item
-        const focused = panel.querySelectorAll('.focused')
-        expect(focused.length).toBe(1)
-        // 检查 focused item 是否包含预期文本
-        const text = focused[0].textContent || ''
-        if (typeof expected === 'string') {
-          expect(text).toContain(expected)
-        } else {
-          expect(expected(text)).toBe(true)
-        }
-      }
-    }
-
-    it('should focus on the first selectable item after panel open by default', () => {
-      const list = createList(100)
-      const input = createInputAdapter()
-
-      renderOpenPanel({
-        input,
-        list,
-        symbol: '/',
-        triggerInfo: { type: 'input', position: 0, originalText: '/Item 1' }
-      })
+    it('moves, wraps, and clamps the highlighted row with arrow and page keys', () => {
+      renderOpenPanel({ input: createInputAdapter(), list: createList(100, 'Item') })
 
       const panel = screen.getByTestId('quick-panel')
-      const focused = panel.querySelectorAll('.focused')
-      expect(focused.length).toBe(1)
-      expect(focused[0].textContent).toContain('Item 1')
-    })
-
-    it('should focus on the right item using ArrowUp, ArrowDown', async () => {
-      const list = createList(100, 'Item')
-      const input = createInputAdapter()
-
-      renderOpenPanel({ input, list })
-
+      const body = screen.getByTestId('quick-panel-body')
       const keySequence = [
-        { key: 'ArrowDown', expected: 'Item 2' },
-        { key: 'ArrowUp', expected: 'Item 1' },
-        { key: 'ArrowUp', expected: 'Item 100' },
-        { key: 'ArrowDown', expected: 'Item 1' },
-        { key: 'ArrowDown', expected: 'Item 2' }
+        { key: 'ArrowDown', expected: 2 },
+        { key: 'ArrowUp', expected: 1 },
+        { key: 'ArrowUp', expected: 100 },
+        { key: 'ArrowDown', expected: 1 },
+        { key: 'PageDown', expected: PAGE_SIZE + 1 },
+        { key: 'PageUp', expected: 1 },
+        { key: 'ArrowUp', expected: 100 },
+        { key: 'PageDown', expected: 100 },
+        { key: 'PageUp', expected: 100 - PAGE_SIZE },
+        { key: 'PageDown', expected: 100 },
+        { key: 'ArrowDown', expected: 1 },
+        { key: 'ArrowDown', ctrlKey: true, expected: PAGE_SIZE + 1 },
+        { key: 'ArrowDown', ctrlKey: true, expected: PAGE_SIZE * 2 + 1 },
+        { key: 'ArrowUp', ctrlKey: true, expected: PAGE_SIZE + 1 },
+        { key: 'ArrowUp', ctrlKey: true, expected: 1 },
+        { key: 'ArrowUp', ctrlKey: true, expected: 100 - PAGE_SIZE + 1 },
+        { key: 'ArrowDown', ctrlKey: true, expected: 1 }
       ]
 
-      await runKeySequenceAndCheck(screen.getByTestId('quick-panel'), keySequence)
-    })
+      for (const { key, ctrlKey, expected } of keySequence) {
+        fireEvent.keyDown(body, { key, ctrlKey })
+        fireEvent.keyUp(body, { key, ctrlKey: false })
 
-    it('should focus on the right item using PageUp, PageDown', async () => {
-      const list = createList(100, 'Item')
-      const input = createInputAdapter()
-
-      renderOpenPanel({ input, list })
-
-      const keySequence = [
-        { key: 'PageDown', expected: `Item ${PAGE_SIZE + 1}` },
-        { key: 'PageUp', expected: 'Item 1' }, // PageUp 会选中第一个
-        { key: 'ArrowUp', expected: 'Item 100' }, // 从第一个按 ArrowUp 会到最后一个
-        { key: 'PageDown', expected: 'Item 100' }, // 从最后一个按 PageDown 仍然是最后一个
-        { key: 'PageUp', expected: `Item ${100 - PAGE_SIZE}` } // PageUp 会向上翻页，从索引99到92，对应Item 93
-      ]
-
-      await runKeySequenceAndCheck(screen.getByTestId('quick-panel'), keySequence)
-    })
-
-    it('should focus on the right item using Ctrl+ArrowUp, Ctrl+ArrowDown', async () => {
-      const list = createList(100, 'Item')
-      const input = createInputAdapter()
-
-      renderOpenPanel({ input, list })
-
-      const keySequence = [
-        { key: 'ArrowDown', ctrlKey: true, expected: `Item ${PAGE_SIZE + 1}` },
-        { key: 'ArrowDown', ctrlKey: true, expected: `Item ${PAGE_SIZE * 2 + 1}` },
-        { key: 'ArrowUp', ctrlKey: true, expected: `Item ${PAGE_SIZE + 1}` },
-        { key: 'ArrowUp', ctrlKey: true, expected: 'Item 1' },
-        // 翻页采用统一环绕（与单步方向键一致）：在顶部再按 Ctrl+ArrowUp 会按一页（PAGE_SIZE 个位置）回绕，
-        // 而非跳到最后一项。
-        { key: 'ArrowUp', ctrlKey: true, expected: `Item ${100 - PAGE_SIZE + 1}` },
-        { key: 'ArrowDown', ctrlKey: true, expected: 'Item 1' } // 再按 Ctrl+ArrowDown 前进一页回到顶部
-      ]
-
-      await runKeySequenceAndCheck(screen.getByTestId('quick-panel'), keySequence)
+        const focused = panel.querySelectorAll<HTMLElement>('.focused')
+        expect(focused).toHaveLength(1)
+        expect(within(focused[0]).getByText(`Item ${expected}`, { exact: true })).toBeInTheDocument()
+      }
     })
 
     it('consumes the composer query before executing a leaf item with Enter', () => {

@@ -17,6 +17,8 @@ const { values } = parseArgs({
     committed: { type: 'boolean' },
     group: { type: 'string' },
     shard: { type: 'string' },
+    'format-checked': { type: 'boolean' },
+    'no-tests': { type: 'boolean' },
     'github-output': { type: 'boolean' }
   }
 })
@@ -31,6 +33,7 @@ if (process.env.VALIDATION_PLAN) {
   if (
     !Array.isArray(plan.tasks) ||
     !Array.isArray(plan.projects) ||
+    typeof plan.platform !== 'boolean' ||
     plan.tasks.some((task) => !Object.hasOwn(checkTasks, task)) ||
     plan.projects.some((project) => !testProjects.includes(project))
   )
@@ -44,11 +47,12 @@ if (process.env.VALIDATION_PLAN) {
     plan = createPlan([], `Full validation: comparison history unavailable (${values.base})`)
   }
 }
+if (values['no-tests']) plan = { ...plan, projects: [], platform: false }
 
 if (values['github-output']) {
   if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required')
   const scope = createHash('sha256')
-    .update(JSON.stringify([plan.tasks, plan.projects]))
+    .update(JSON.stringify([plan.tasks, plan.projects, plan.platform]))
     .digest('hex')
   appendFileSync(
     process.env.GITHUB_OUTPUT,
@@ -66,10 +70,12 @@ else {
 if (values.plan || values['github-output']) process.exit(0)
 
 const tasks = plan.tasks.filter(
-  (task) => !values.group || values.group === 'checks' || checkTasks[task].group === values.group
+  (task) =>
+    !(task === 'format' && values['format-checked']) &&
+    (!values.group || values.group === 'checks' || checkTasks[task].group === values.group)
 )
 const projects =
-  values.group === 'platform' && plan.projects.includes('main')
+  values.group === 'platform' && plan.platform
     ? ['main', 'shared', 'system-speech']
     : plan.projects.filter((project) => {
         if (!values.group || values.group === 'tests') return true
@@ -91,12 +97,11 @@ function run(args) {
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 if (tasks.some((task) => task.startsWith('types-')) || projects.length) {
-  run(['run', 'postinstall'])
+  if (process.env.VALIDATION_WORKSPACE_PREPARED !== 'true') run(['run', 'postinstall'])
   if (tasks.some((task) => task.startsWith('types-'))) run(['--filter', '@cherrystudio/ai-sdk-provider', 'build'])
 }
 for (const task of tasks) run(checkTasks[task].args)
 if (projects.length) {
-  if (projects.includes('main')) run(['rebuild:node'])
   const files =
     values.group === 'platform'
       ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'native/system-speech'], {

@@ -25,7 +25,6 @@ import type {
 
 interface HistoryTopBarProps {
   mode: HistoryRecordsMode
-  /** Left navbar slot (the shared sidebar toggle). */
   toolbarLeading?: ReactNode
   searchText: string
   searchPlaceholder: string

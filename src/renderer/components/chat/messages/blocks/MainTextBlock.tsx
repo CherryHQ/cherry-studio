@@ -6,6 +6,7 @@ import type { Components } from 'streamdown'
 import { Flex, type MarkdownSource } from '@cherrystudio/ui'
 import type { ChatInputTokenKind, ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
+import { useProjectionPart } from '@renderer/hooks/agent/useProjectionPart'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
@@ -20,7 +21,7 @@ import {
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 
@@ -32,6 +33,7 @@ import { useScrollAnchor } from './useScrollAnchor'
 interface Props {
   id: string
   content: string
+  livePart?: CherryMessagePart
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   isStreaming: boolean
   citations?: Citation[]
@@ -346,9 +348,10 @@ function CollapsibleUserMessageContent({
 
 const MainTextBlock: React.FC<Props> = ({
   id,
-  content,
+  content: initialContent,
+  livePart,
   inlineHtmlPreviewMode,
-  isStreaming,
+  isStreaming: streaming,
   citations = EMPTY_CITATIONS,
   citationReferences,
   messageCitations,
@@ -363,6 +366,9 @@ const MainTextBlock: React.FC<Props> = ({
   onPlayoutSettledChange,
   onUserContentExpandedChange
 }) => {
+  const current = useProjectionPart(id, livePart)
+  const content = current?.type === 'text' ? current.text : initialContent
+  const isStreaming = streaming && !(current?.type === 'text' && current.state === 'done')
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
   const userMessagePreview = useMemo(

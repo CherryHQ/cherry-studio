@@ -5,6 +5,7 @@ import { agentHandlers } from './agent'
 import { aiHandlers } from './ai'
 import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
+import { assistantHandlers } from './assistant'
 import { backupHandlers } from './backup'
 import { binaryHandlers } from './binary'
 import { browserHandlers } from './browser'
@@ -14,6 +15,7 @@ import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
 import { computerUseHandlers } from './computerUse'
+import { conversationImportHandlers } from './conversationImport'
 import { decisionsHandlers } from './decisions'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
@@ -22,6 +24,7 @@ import { doctorAgentHandlers } from './doctorAgent'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
+import { fileObservationHandlers } from './fileObservation'
 import { fileProcessingHandlers } from './fileProcessing'
 import { hermesDashboardHandlers } from './hermesDashboard'
 import { knowledgeHandlers } from './knowledge'
@@ -76,6 +79,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...cherryCloudHandlers,
   ...citationHandlers,
   ...codeCliHandlers,
+  ...conversationImportHandlers,
   ...computerUseHandlers,
   ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
@@ -84,6 +88,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,
+  ...fileObservationHandlers,
   ...fileProcessingHandlers,
   ...hermesDashboardHandlers,
   ...knowledgeHandlers,
@@ -97,6 +102,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...ovmsHandlers,
   ...pdfjsHandlers,
   ...printHandlers,
+  ...assistantHandlers,
   ...profileHandlers,
   ...proxyHandlers,
   ...providerHandlers,

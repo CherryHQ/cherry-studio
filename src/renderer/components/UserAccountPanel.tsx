@@ -110,11 +110,13 @@ export function UserAccountPanel({
   useEffect(() => {
     if (offersSubscription) trackSubscriptionEntryView('account_panel')
   }, [offersSubscription])
+  // The avatar dot leads here, so a click while it is still showing is credited to it as well.
+  const subscribeDetails = showSubscribeDot ? { via: 'avatar_dot' as const } : {}
   const handleSubscriptionClick = () => {
     if (cloudStatusLoadState === 'error') {
       void loadCloudStatus()
     } else if (!isCloudSignedIn) {
-      void startCherryCloudSubscription('account_panel')
+      void startCherryCloudSubscription('account_panel', subscribeDetails)
     } else if (!isPlansReady && !paidPlanName) {
       void reloadPlans().catch(() => {})
     } else if (plans) {
@@ -122,7 +124,7 @@ export function UserAccountPanel({
       if (paidPlanName) {
         openSettingsTab('/settings/profile')
       } else {
-        void startCherryCloudSubscription('account_panel')
+        void startCherryCloudSubscription('account_panel', subscribeDetails)
       }
     }
   }
@@ -192,7 +194,7 @@ export function UserAccountPanel({
   )
 
   return (
-    <ColFlex className="w-56 p-1.5">
+    <ColFlex className="w-56 p-1.5 [&_button]:transition-[color]">
       <ColFlex className="pb-1">
         <Button
           type="button"

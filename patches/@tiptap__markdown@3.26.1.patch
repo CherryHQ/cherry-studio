@@ -1,8 +1,15 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 5812dcd0b4..8cdda3f5df 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
-@@ -231,7 +231,8 @@ var MarkdownManager = class {
+@@ -125,6 +125,7 @@
+    * @param options.extensions An array of Tiptap extensions to register for markdown parsing and rendering.
+    */
+   constructor(options) {
++    this.renderAncestors = [];
+     this.activeParseLexer = null;
+     /**
+      * Order in which extensions were registered. Used to resolve mark nesting
+@@ -231,7 +232,8 @@
    createTokenizerHelpers(lexer) {
      return {
        inlineTokens: (src) => lexer.inlineTokens(src),
@@ -12,7 +19,63 @@ index 5812dcd0b4..8cdda3f5df 100644
      };
    }
    tokenizeInline(src) {
-@@ -805,7 +806,7 @@ var MarkdownManager = class {
+@@ -612,19 +614,51 @@
+         });
+       } else if (token.type === "html") {
+         const raw = ((_b = (_a = token.raw) != null ? _a : token.text) != null ? _b : "").toString();
+-        const isClosing = /^<\/[\s]*[\w-]+/i.test(raw);
+-        const openMatch = raw.match(/^<[\s]*([\w-]+)(\s|>|\/|$)/i);
++        const isClosing = /^<\/[ \t\n\f\r]*[\w-]+/i.test(raw);
++        const openMatch = raw.match(/^<[ \t\n\f\r]*([\w-]+)([ \t\n\f\r]|>|\/|$)/i);
+         if (!isClosing && openMatch && !/\/>$/.test(raw)) {
+           const tagName = openMatch[1];
+           const escapedTagName = this.escapeRegex(tagName);
+-          const closingRegex = new RegExp(`^<\\/\\s*${escapedTagName}\\b`, "i");
++          const closingRegex = new RegExp(`^<\\/[ \\t\\n\\f\\r]*${escapedTagName}\\b`, "i");
++          const openingRegex = new RegExp(`^<[ \\t\\n\\f\\r]*${escapedTagName}\\b`, "i");
++          let pairNestedMath = false;
++          if (tagName.toLowerCase() === 'span' || tagName.toLowerCase() === 'div') {
++            let cursor = raw.indexOf(tagName) + tagName.length;
++            while (cursor < raw.length) {
++              while (/[ \t\n\f\r]/.test(raw[cursor] ?? '')) cursor++;
++              if (cursor >= raw.length || raw[cursor] === '>' || raw[cursor] === '/') break;
++              const start = cursor;
++              while (cursor < raw.length && !/[ \t\n\f\r=/>]/.test(raw[cursor])) cursor++;
++              const attribute = raw.slice(start, cursor).toLowerCase();
++              while (/[ \t\n\f\r]/.test(raw[cursor] ?? '')) cursor++;
++              let value = '';
++              if (raw[cursor] === '=') {
++                cursor++;
++                while (/[ \t\n\f\r]/.test(raw[cursor] ?? '')) cursor++;
++                const quote = raw[cursor] === '"' || raw[cursor] === "'" ? raw[cursor++] : null;
++                const valueStart = cursor;
++                while (cursor < raw.length && (quote ? raw[cursor] !== quote : !/[ \t\n\f\r>]/.test(raw[cursor]))) cursor++;
++                value = raw.slice(valueStart, cursor);
++                if (quote && raw[cursor] === quote) cursor++;
++              }
++              if (attribute === 'data-type') {
++                if (value.includes('&')) {
++                  value = new DOMParser().parseFromString(raw, 'text/html').body.firstElementChild?.getAttribute('data-type') ?? '';
++                }
++                pairNestedMath = value === (tagName.toLowerCase() === 'span' ? 'inline-math' : 'block-math');
++                break;
++              }
++            }
++          }
++          let depth = 1;
+           let foundIndex = -1;
+           const parts = [raw];
+           for (let j = i + 1; j < tokens.length; j += 1) {
+             const t = tokens[j];
+             const tRaw = ((_d = (_c = t.raw) != null ? _c : t.text) != null ? _d : "").toString();
+             parts.push(tRaw);
+-            if (t.type === "html" && closingRegex.test(tRaw)) {
++            if (pairNestedMath && t.type === "html" && openingRegex.test(tRaw) && !/\/>$/.test(tRaw)) depth++;
++            if (t.type === "html" && closingRegex.test(tRaw) && --depth === 0) {
+               foundIndex = j;
+               break;
+             }
+@@ -805,13 +839,13 @@
        return this.htmlAsLiteralText(html, !!token.block);
      }
      try {
@@ -21,7 +84,58 @@ index 5812dcd0b4..8cdda3f5df 100644
        if (parsed.type === "doc" && parsed.content) {
          if (token.block) {
            return parsed.content;
-@@ -1011,6 +1012,21 @@ var MarkdownManager = class {
+         }
+-        if (parsed.content.length === 1 && parsed.content[0].type === "paragraph" && parsed.content[0].content) {
+-          return parsed.content[0].content;
++        if (parsed.content.length === 1 && parsed.content[0].type === "paragraph") {
++          return parsed.content[0].content || [];
+         }
+         return parsed.content;
+       }
+@@ -930,7 +964,8 @@
+     if (isInsideCode) {
+       return text;
+     }
+-    return this.escapeMarkdownSyntax(_core.encodeHtmlEntities.call(void 0, text));
++    const inLinkLabel = (node.marks || []).some((mark) => mark.type === "enhancedLink" || mark.type === "link");
++    return this.escapeMarkdownSyntax(_core.encodeHtmlEntities.call(void 0, text), inLinkLabel);
+   }
+   /**
+    * Backslash-escape characters that have special meaning in markdown inline
+@@ -941,8 +976,10 @@
+    * Characters inside code blocks/code marks are skipped by the caller
+    * (`encodeTextForMarkdown`) via the existing `isInsideCode` guard.
+    */
+-  escapeMarkdownSyntax(text) {
+-    return text.replace(/([\\`*_[\]~])/g, "\\$1");
++  escapeMarkdownSyntax(text, escapeClosingBracket = false) {
++    return escapeClosingBracket
++      ? text.replace(/([\\`*_\[\]~])/g, "\\$1")
++      : text.replace(/([\\`*_\[~])/g, "\\$1");
+   }
+   renderNodeToMarkdown(node, parentNode, index = 0, level = 0, meta = {}) {
+     var _a;
+@@ -987,11 +1024,17 @@
+       previousNode,
+       meta: {
+         parentAttrs: parentNode == null ? void 0 : parentNode.attrs,
++        parentNode,
++        grandparentType: this.renderAncestors.at(-2)?.type,
+         ...meta
+       }
+     };
+-    const rendered = ((_a = handler.renderMarkdown) == null ? void 0 : _a.call(handler, node, helpers, context)) || "";
+-    return rendered;
++    this.renderAncestors.push(node);
++    try {
++      return ((_a = handler.renderMarkdown) == null ? void 0 : _a.call(handler, node, helpers, context)) || "";
++    } finally {
++      this.renderAncestors.pop();
++    }
+   }
+   /**
+    * Render a node or an array of nodes. Parent type controls how children
+@@ -1011,6 +1054,21 @@
     * This handles cases where marks span across multiple text nodes.
     */
    renderNodesWithMarkBoundaries(nodes, parentNode, separator = "", level = 0) {
@@ -44,10 +158,9 @@ index 5812dcd0b4..8cdda3f5df 100644
      const activeMarks = /* @__PURE__ */ new Map();
      const reopenWithHtmlOnNextOpen = /* @__PURE__ */ new Set();
 diff --git a/dist/index.js b/dist/index.js
-index f29ad96882..11527901c7 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -11,7 +11,8 @@ import {
+@@ -11,7 +11,8 @@
    decodeHtmlEntities,
    encodeHtmlEntities,
    flattenExtensions,
@@ -57,7 +170,15 @@ index f29ad96882..11527901c7 100644
    getExtensionField,
    getSchema,
    marksEqual,
-@@ -231,7 +232,8 @@ var MarkdownManager = class {
+@@ -125,6 +126,7 @@
+    * @param options.extensions An array of Tiptap extensions to register for markdown parsing and rendering.
+    */
+   constructor(options) {
++    this.renderAncestors = [];
+     this.activeParseLexer = null;
+     /**
+      * Order in which extensions were registered. Used to resolve mark nesting
+@@ -231,7 +233,8 @@
    createTokenizerHelpers(lexer) {
      return {
        inlineTokens: (src) => lexer.inlineTokens(src),
@@ -67,7 +188,63 @@ index f29ad96882..11527901c7 100644
      };
    }
    tokenizeInline(src) {
-@@ -805,7 +807,7 @@ var MarkdownManager = class {
+@@ -612,19 +615,51 @@
+         });
+       } else if (token.type === "html") {
+         const raw = ((_b = (_a = token.raw) != null ? _a : token.text) != null ? _b : "").toString();
+-        const isClosing = /^<\/[\s]*[\w-]+/i.test(raw);
+-        const openMatch = raw.match(/^<[\s]*([\w-]+)(\s|>|\/|$)/i);
++        const isClosing = /^<\/[ \t\n\f\r]*[\w-]+/i.test(raw);
++        const openMatch = raw.match(/^<[ \t\n\f\r]*([\w-]+)([ \t\n\f\r]|>|\/|$)/i);
+         if (!isClosing && openMatch && !/\/>$/.test(raw)) {
+           const tagName = openMatch[1];
+           const escapedTagName = this.escapeRegex(tagName);
+-          const closingRegex = new RegExp(`^<\\/\\s*${escapedTagName}\\b`, "i");
++          const closingRegex = new RegExp(`^<\\/[ \\t\\n\\f\\r]*${escapedTagName}\\b`, "i");
++          const openingRegex = new RegExp(`^<[ \\t\\n\\f\\r]*${escapedTagName}\\b`, "i");
++          let pairNestedMath = false;
++          if (tagName.toLowerCase() === 'span' || tagName.toLowerCase() === 'div') {
++            let cursor = raw.indexOf(tagName) + tagName.length;
++            while (cursor < raw.length) {
++              while (/[ \t\n\f\r]/.test(raw[cursor] ?? '')) cursor++;
++              if (cursor >= raw.length || raw[cursor] === '>' || raw[cursor] === '/') break;
++              const start = cursor;
++              while (cursor < raw.length && !/[ \t\n\f\r=/>]/.test(raw[cursor])) cursor++;
++              const attribute = raw.slice(start, cursor).toLowerCase();
++              while (/[ \t\n\f\r]/.test(raw[cursor] ?? '')) cursor++;
++              let value = '';
++              if (raw[cursor] === '=') {
++                cursor++;
++                while (/[ \t\n\f\r]/.test(raw[cursor] ?? '')) cursor++;
++                const quote = raw[cursor] === '"' || raw[cursor] === "'" ? raw[cursor++] : null;
++                const valueStart = cursor;
++                while (cursor < raw.length && (quote ? raw[cursor] !== quote : !/[ \t\n\f\r>]/.test(raw[cursor]))) cursor++;
++                value = raw.slice(valueStart, cursor);
++                if (quote && raw[cursor] === quote) cursor++;
++              }
++              if (attribute === 'data-type') {
++                if (value.includes('&')) {
++                  value = new DOMParser().parseFromString(raw, 'text/html').body.firstElementChild?.getAttribute('data-type') ?? '';
++                }
++                pairNestedMath = value === (tagName.toLowerCase() === 'span' ? 'inline-math' : 'block-math');
++                break;
++              }
++            }
++          }
++          let depth = 1;
+           let foundIndex = -1;
+           const parts = [raw];
+           for (let j = i + 1; j < tokens.length; j += 1) {
+             const t = tokens[j];
+             const tRaw = ((_d = (_c = t.raw) != null ? _c : t.text) != null ? _d : "").toString();
+             parts.push(tRaw);
+-            if (t.type === "html" && closingRegex.test(tRaw)) {
++            if (pairNestedMath && t.type === "html" && openingRegex.test(tRaw) && !/\/>$/.test(tRaw)) depth++;
++            if (t.type === "html" && closingRegex.test(tRaw) && --depth === 0) {
+               foundIndex = j;
+               break;
+             }
+@@ -805,13 +840,13 @@
        return this.htmlAsLiteralText(html, !!token.block);
      }
      try {
@@ -76,7 +253,58 @@ index f29ad96882..11527901c7 100644
        if (parsed.type === "doc" && parsed.content) {
          if (token.block) {
            return parsed.content;
-@@ -1011,6 +1013,21 @@ var MarkdownManager = class {
+         }
+-        if (parsed.content.length === 1 && parsed.content[0].type === "paragraph" && parsed.content[0].content) {
+-          return parsed.content[0].content;
++        if (parsed.content.length === 1 && parsed.content[0].type === "paragraph") {
++          return parsed.content[0].content || [];
+         }
+         return parsed.content;
+       }
+@@ -930,7 +965,8 @@
+     if (isInsideCode) {
+       return text;
+     }
+-    return this.escapeMarkdownSyntax(encodeHtmlEntities(text));
++    const inLinkLabel = (node.marks || []).some((mark) => mark.type === "enhancedLink" || mark.type === "link");
++    return this.escapeMarkdownSyntax(encodeHtmlEntities(text), inLinkLabel);
+   }
+   /**
+    * Backslash-escape characters that have special meaning in markdown inline
+@@ -941,8 +977,10 @@
+    * Characters inside code blocks/code marks are skipped by the caller
+    * (`encodeTextForMarkdown`) via the existing `isInsideCode` guard.
+    */
+-  escapeMarkdownSyntax(text) {
+-    return text.replace(/([\\`*_[\]~])/g, "\\$1");
++  escapeMarkdownSyntax(text, escapeClosingBracket = false) {
++    return escapeClosingBracket
++      ? text.replace(/([\\`*_\[\]~])/g, "\\$1")
++      : text.replace(/([\\`*_\[~])/g, "\\$1");
+   }
+   renderNodeToMarkdown(node, parentNode, index = 0, level = 0, meta = {}) {
+     var _a;
+@@ -987,11 +1025,17 @@
+       previousNode,
+       meta: {
+         parentAttrs: parentNode == null ? void 0 : parentNode.attrs,
++        parentNode,
++        grandparentType: this.renderAncestors.at(-2)?.type,
+         ...meta
+       }
+     };
+-    const rendered = ((_a = handler.renderMarkdown) == null ? void 0 : _a.call(handler, node, helpers, context)) || "";
+-    return rendered;
++    this.renderAncestors.push(node);
++    try {
++      return ((_a = handler.renderMarkdown) == null ? void 0 : _a.call(handler, node, helpers, context)) || "";
++    } finally {
++      this.renderAncestors.pop();
++    }
+   }
+   /**
+    * Render a node or an array of nodes. Parent type controls how children
+@@ -1011,6 +1055,21 @@
     * This handles cases where marks span across multiple text nodes.
     */
    renderNodesWithMarkBoundaries(nodes, parentNode, separator = "", level = 0) {
@@ -99,10 +327,9 @@ index f29ad96882..11527901c7 100644
      const activeMarks = /* @__PURE__ */ new Map();
      const reopenWithHtmlOnNextOpen = /* @__PURE__ */ new Set();
 diff --git a/src/MarkdownManager.ts b/src/MarkdownManager.ts
-index 0d1c9fd5c8..86747543d4 100644
 --- a/src/MarkdownManager.ts
 +++ b/src/MarkdownManager.ts
-@@ -15,7 +15,8 @@ import {
+@@ -15,7 +15,8 @@
    decodeHtmlEntities,
    encodeHtmlEntities,
    flattenExtensions,
@@ -112,11 +339,78 @@ index 0d1c9fd5c8..86747543d4 100644
    getExtensionField,
    getSchema,
    marksEqual,
-@@ -985,9 +986,12 @@ export class MarkdownManager {
+@@ -51,6 +52,7 @@
+
+ export class MarkdownManager {
+   private markedInstance: typeof marked
++  private renderAncestors: JSONContent[] = []
+   private activeParseLexer: Lexer | null = null
+   private registry: Map<string, MarkdownExtensionSpec[]>
+   private nodeTypeRegistry: Map<string, MarkdownExtensionSpec[]>
+@@ -735,15 +737,46 @@
+         const raw = (token.raw ?? token.text ?? '').toString()
+
+         // Quick checks for opening vs. closing tag
+-        const isClosing = /^<\/[\s]*[\w-]+/i.test(raw)
+-        const openMatch = raw.match(/^<[\s]*([\w-]+)(\s|>|\/|$)/i)
++        const isClosing = /^<\/[ \t\n\f\r]*[\w-]+/i.test(raw)
++        const openMatch = raw.match(/^<[ \t\n\f\r]*([\w-]+)([ \t\n\f\r]|>|\/|$)/i)
+
+         // oxlint-disable-next-line prefer-string-starts-ends-with
+         if (!isClosing && openMatch && !/\/>$/.test(raw)) {
+           // Try to find the corresponding closing html token for this tag
+           const tagName = openMatch[1]
+           const escapedTagName = this.escapeRegex(tagName)
+-          const closingRegex = new RegExp(`^<\\/\\s*${escapedTagName}\\b`, 'i')
++          const closingRegex = new RegExp(`^<\\/[ \\t\\n\\f\\r]*${escapedTagName}\\b`, 'i')
++          const openingRegex = new RegExp(`^<[ \\t\\n\\f\\r]*${escapedTagName}\\b`, 'i')
++          let pairNestedMath = false
++          if (tagName.toLowerCase() === 'span' || tagName.toLowerCase() === 'div') {
++            let cursor = raw.indexOf(tagName) + tagName.length
++            while (cursor < raw.length) {
++              while (/[ \t\n\f\r]/.test(raw[cursor] ?? '')) cursor++
++              if (cursor >= raw.length || raw[cursor] === '>' || raw[cursor] === '/') break
++              const start = cursor
++              while (cursor < raw.length && !/[ \t\n\f\r=/>]/.test(raw[cursor])) cursor++
++              const attribute = raw.slice(start, cursor).toLowerCase()
++              while (/[ \t\n\f\r]/.test(raw[cursor] ?? '')) cursor++
++              let value = ''
++              if (raw[cursor] === '=') {
++                cursor++
++                while (/[ \t\n\f\r]/.test(raw[cursor] ?? '')) cursor++
++                const quote = raw[cursor] === '"' || raw[cursor] === "'" ? raw[cursor++] : null
++                const valueStart = cursor
++                while (cursor < raw.length && (quote ? raw[cursor] !== quote : !/[ \t\n\f\r>]/.test(raw[cursor]))) cursor++
++                value = raw.slice(valueStart, cursor)
++                if (quote && raw[cursor] === quote) cursor++
++              }
++              if (attribute === 'data-type') {
++                if (value.includes('&')) {
++                  value = new DOMParser().parseFromString(raw, 'text/html').body.firstElementChild?.getAttribute('data-type') ?? ''
++                }
++                pairNestedMath = value === (tagName.toLowerCase() === 'span' ? 'inline-math' : 'block-math')
++                break
++              }
++            }
++          }
++          let depth = 1
+           let foundIndex = -1
+
+           // Collect intermediate raw parts to reconstruct full HTML fragment
+@@ -752,7 +785,8 @@
+             const t = tokens[j]
+             const tRaw = (t.raw ?? t.text ?? '').toString()
+             parts.push(tRaw)
+-            if (t.type === 'html' && closingRegex.test(tRaw)) {
++            if (pairNestedMath && t.type === 'html' && openingRegex.test(tRaw) && !/\/>$/.test(tRaw)) depth++
++            if (t.type === 'html' && closingRegex.test(tRaw) && --depth === 0) {
+               foundIndex = j
+               break
+             }
+@@ -985,9 +1019,12 @@
        return this.htmlAsLiteralText(html, !!token.block)
      }
--
-+
+
 -    // Use generateJSON to parse the HTML using extensions' parseHTML rules
 +    // Preserve inline Markdown whitespace when parsing its HTML representation.
      try {
@@ -125,11 +419,69 @@ index 0d1c9fd5c8..86747543d4 100644
 +        slice: false,
 +        parseOptions: { preserveWhitespace: token.block ? false : 'full' },
 +      }).toJSON()
--
-+
+
        // If the result is a doc node, extract its content
        if (parsed.type === 'doc' && parsed.content) {
-@@ -1271,6 +1275,25 @@ export class MarkdownManager {
+@@ -1000,10 +1037,9 @@
+         // If there's only one paragraph with content, unwrap it
+         if (
+           parsed.content.length === 1 &&
+-          parsed.content[0].type === 'paragraph' &&
+-          parsed.content[0].content
++          parsed.content[0].type === 'paragraph'
+         ) {
+-          return parsed.content[0].content
++          return parsed.content[0].content || []
+         }
+
+         return parsed.content
+@@ -1154,7 +1190,8 @@
+       return text
+     }
+
+-    return this.escapeMarkdownSyntax(encodeHtmlEntities(text))
++    const inLinkLabel = (node.marks || []).some(mark => mark.type === 'enhancedLink' || mark.type === 'link')
++    return this.escapeMarkdownSyntax(encodeHtmlEntities(text), inLinkLabel)
+   }
+
+   /**
+@@ -1166,8 +1203,10 @@
+    * Characters inside code blocks/code marks are skipped by the caller
+    * (`encodeTextForMarkdown`) via the existing `isInsideCode` guard.
+    */
+-  private escapeMarkdownSyntax(text: string): string {
+-    return text.replace(/([\\`*_[\]~])/g, '\\$1')
++  private escapeMarkdownSyntax(text: string, escapeClosingBracket: boolean = false): string {
++    return escapeClosingBracket
++      ? text.replace(/([\\`*_\[\]~])/g, '\\$1')
++      : text.replace(/([\\`*_\[~])/g, '\\$1')
+   }
+
+   renderNodeToMarkdown(
+@@ -1228,14 +1267,19 @@
+       previousNode,
+       meta: {
+         parentAttrs: parentNode?.attrs,
++        parentNode,
++        grandparentType: this.renderAncestors.at(-2)?.type,
+         ...meta,
+       },
+     }
+
+     // First render the node itself (this will render children recursively)
+-    const rendered = handler.renderMarkdown?.(node, helpers, context) || ''
+-
+-    return rendered
++    this.renderAncestors.push(node)
++    try {
++      return handler.renderMarkdown?.(node, helpers, context) || ''
++    } finally {
++      this.renderAncestors.pop()
++    }
+   }
+
+   /**
+@@ -1271,6 +1315,25 @@
      separator = '',
      level = 0,
    ): string {

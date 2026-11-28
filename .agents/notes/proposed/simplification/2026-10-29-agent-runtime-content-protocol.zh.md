@@ -24,7 +24,7 @@ proposed [运行时边界所有权后续方案](2026-11-05-agent-runtime-boundar
 
 [SDK 流协议](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol)和 [reader 文档](https://ai-sdk.dev/docs/ai-sdk-ui/reading-ui-message-streams)说明了这种模型的复用方式。其当前页面描述的是更新版本，因此实现兼容性必须核对已安装的 `6.0.185` 源码，尤其是 `ui-message-chunks.ts`、`ui-messages.ts` 和 `read-ui-message-stream.ts`。
 
-现有观察契约中的内容部分拟调整为：
+第一轮迁移采用下述内容观察结构。[Timeline 契约](../architecture/2026-11-19-agent-session-timeline-and-context-transfer.md) 已替换这套观察结构，并保留 SDK 内容模型。
 
 ```typescript
 import type { UIMessage, UIMessageChunk } from 'ai'
@@ -161,7 +161,7 @@ Claude 恢复区分初始历史基线与包含未交付原生执行事实的 ove
 - 已实现公共 SDK 累积器、三个适配器的内容映射、root 消息来源、Main child 回复组合和第二版来源 checkpoint。旧 Pi item-to-chunk 适配器及 Renderer 重新分组已删除。原生持久化和共享 projection IPC 保持原有契约。
 - 针对内容迁移的包、Main/SQLite、Renderer 和投影交付测试通过；21 个可移植 fixture 和 83 个本机 transcript 重放案例通过，本机内容未提交。原生 Claude 桌面集成还验证了回复归属和计费。Node/web 及四个 Runtime 包的类型检查通过。
 - 首轮 Durable 真实模型检查发现驱动漏声明内容来源：模型已有输出，但宿主选用了旧 chunk 消费者，丢弃了消息投影。最初的修复在连接前声明来源。已获批准的后续重构会彻底移除可选标志和智能体 fallback。Renderer 现有的空成功消息兜底生成了误导性的“无响应”错误，这是独立的 `main` 问题。
-- 真实模型检查还发现了起始输入边界遗漏：Pi 现从原生 custom-message 条目保留 behavior 子任务输入；Claude 的实时 SDK feed 不转发起始 prompt，因此首次接入时读取一次原生 child 存档，后续仍由观察事件驱动。
+- Pi 从原生 custom-message 条目保留 behavior 子任务输入。Claude Code 2.1.311 的实时流会发送前台子任务的首条用户消息。后台子任务从 `task_started.prompt` 取得起始指令，以子线程 ID 标识。两条路径都能在读档前工作。恢复时，原生首条消息的 UUID 和实时来源对应同一条产品消息及其 parts。
 - Pi 后台活动不再保持父回复流打开。Pi 和 Durable 的本地 `/goal` 回答使用宿主消息投影，在移除旧内容 chunk 消费者后仍保留命令回复。修复前复现了三项回归；修复后，相关桌面与 root 投影的 39 项测试通过。
 - 通过网关调用真实 DeepSeek 模型，Pi、Durable 和 Claude 均通过后台子任务场景：父任务先结束，child 输出保持独立，组合后的一条 assistant 回复在窗口刷新后保留相同 ID 和内容。Pi 与 Durable 还呈现了部分文本和 preliminary Bash 输出；当前安装的 Claude SDK 转发完整 child 内容块，本轮未观察到 child 逐 token 增量或 preliminary Bash 输出。
 - 增量投影验证补充了装饰／转发工作量上限、有序批量更新、装饰失败、仅元数据变化的 root/child 刷新和实时快照别名的契约覆盖。`projectionCost.test.ts` 在 20／1,000 条历史消息以及一个／十个独立投影下，为每个投影重放 40 次 upsert。1,000 条历史、十个投影场景中，装饰次数和转发消息数均从 400,400 降至 400，内容保持不变。这些是 Main 投影操作数，不包括原生 SDK 累积、IPC、数据库写入或 Renderer 成本。21 个可移植样本和 83 个本机 transcript 样本也通过了内容及持久化／重新打开检查。

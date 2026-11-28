@@ -634,15 +634,17 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   }
 
   const readParsedCellValue: CellValueReader = (sheetName, row, col) => {
-    const dateSerial = formulaDateSerialsBySheet.get(sheetName)?.get(row * FORMULA_DATE_KEY_STRIDE + col)
+    const sheetKey = sheetName.toLowerCase()
+    const dateSerial = formulaDateSerialsBySheet.get(sheetKey)?.get(row * FORMULA_DATE_KEY_STRIDE + col)
     if (dateSerial !== undefined) return dateSerial
-    return sheetCellsByName.get(sheetName)?.[`${row}:${col}`]?.raw ?? null
+    return sheetCellsByName.get(sheetKey)?.[`${row}:${col}`]?.raw ?? null
   }
 
   const sheetPartPaths = await sheetPartPathsPromise
   for (const worksheet of workbook.worksheets) {
     const cells: Record<string, CellRenderModel> = {}
-    sheetCellsByName.set(worksheet.name, cells)
+    const sheetKey = worksheet.name.toLowerCase()
+    sheetCellsByName.set(sheetKey, cells)
 
     let maxRow = 0
     let maxCol = 0
@@ -697,7 +699,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
             cellModel.text = formatCellValue(dateResult ?? rawResult, cell.numFmt, date1904)
             // Keep date math numeric without duplicating every ordinary cell into a second value table.
             if (dateResult) {
-              setFormulaDateSerial(worksheet.name, rowNumber, colNumber, dateToExcelSerial(dateResult))
+              setFormulaDateSerial(sheetKey, rowNumber, colNumber, dateToExcelSerial(dateResult))
             }
           } else if (formulaText) {
             // Formula text without a cached value enters the second-pass evaluator.
@@ -751,7 +753,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.text = formatCellValue(value, cell.numFmt, date1904)
           cells[key] = cellModel
           // numfmt renders in the 1900 system, so formulas use that serial regardless of date1904.
-          setFormulaDateSerial(worksheet.name, rowNumber, colNumber, dateToExcelSerial(value))
+          setFormulaDateSerial(sheetKey, rowNumber, colNumber, dateToExcelSerial(value))
           return
         }
 
@@ -920,22 +922,22 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     // The evaluator has memoization and cycle detection, so re-entry is safe.
     const pendingByKey = new Map<string, PendingFormulaCell>()
     for (const pending of pendingFormulas) {
-      pendingByKey.set(`${pending.sheetName}!${pending.row}:${pending.col}`, pending)
+      pendingByKey.set(`${pending.sheetName.toLowerCase()}!${pending.row}:${pending.col}`, pending)
     }
 
     // eslint-disable-next-line prefer-const -- evalContext and evaluator reference each other, so declare before assign.
     let evaluator: ReturnType<typeof createFormulaEvaluator>
     const evalContext: EvalContext = {
       getCellValue(ref: FormulaCellRef) {
-        const refKey = `${ref.sheet}!${ref.row}:${ref.col}`
+        const refKey = `${ref.sheet.toLowerCase()}!${ref.row}:${ref.col}`
         const pending = pendingByKey.get(refKey)
         if (pending) {
-          // Memoization makes completed cells O(1). Cycles/failures are classified by the evaluator as unevaluated -> null.
-          const outcome = evaluator.evaluate(pending.formula, { sheet: ref.sheet, row: ref.row, col: ref.col })
+          const outcome = evaluator.evaluate(pending.formula, { sheet: pending.sheetName, row: ref.row, col: ref.col })
           if (outcome.state === 'evaluated') {
             return outcome.value ?? null
           }
-          return null
+          // The parser treats null as a blank cell and may silently count it as zero.
+          throw new Error(`Cannot evaluate referenced formula at ${refKey}`)
         }
         return readParsedCellValue(ref.sheet, ref.row, ref.col)
       }
@@ -948,7 +950,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         row: pending.row,
         col: pending.col
       })
-      const cellsForSheet = sheetCellsByName.get(pending.sheetName)
+      const cellsForSheet = sheetCellsByName.get(pending.sheetName.toLowerCase())
       if (!cellsForSheet) continue
       const key = `${pending.row}:${pending.col}`
       const cellModel = cellsForSheet[key]

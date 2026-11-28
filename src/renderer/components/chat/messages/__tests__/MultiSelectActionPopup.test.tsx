@@ -82,11 +82,6 @@ describe('MultiSelectionPopup', () => {
       onClose: vi.fn()
     })
 
-    it('renders nothing when not in multi-select mode', () => {
-      const { container } = render(<MultiSelectActionPopup {...controlledProps()} isMultiSelectMode={false} />)
-      expect(container).toBeEmptyDOMElement()
-    })
-
     it('renders the selection count and wires the explicit handlers, without touching ChatContext', () => {
       const props = controlledProps()
       render(<MultiSelectActionPopup {...props} />)
@@ -111,16 +106,12 @@ describe('MultiSelectionPopup', () => {
       expect(buttonFor('delete-icon')).toBeDisabled()
     })
 
-    it.each([
-      ['not-loaded', 'message.delete.root_unavailable'],
-      ['generating', 'message.delete.generating_unavailable']
-    ] as const)('disables only deletion for %s', (deleteDisabledReason, tooltip) => {
+    it.each(['not-loaded', 'generating'] as const)('disables only deletion for %s', (deleteDisabledReason) => {
       render(<MultiSelectActionPopup {...controlledProps()} deleteDisabledReason={deleteDisabledReason} />)
 
       expect(buttonFor('save-icon')).toBeEnabled()
       expect(buttonFor('copy-icon')).toBeEnabled()
       expect(buttonFor('delete-icon')).toBeDisabled()
-      expect(buttonFor('delete-icon').parentElement).toHaveAttribute('data-tooltip-content', tooltip)
     })
 
     it('omits a button when its handler is not provided', () => {

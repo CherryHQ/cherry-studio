@@ -30,6 +30,7 @@ function discardRetainedUpload(bundleId: string) {
 }
 
 interface DiagnosticUploadPanelProps {
+  readonly chatTopicId?: string
   readonly description: string
   readonly onBusyChange?: (busy: boolean) => void
   readonly onClose: () => void
@@ -42,6 +43,7 @@ export interface DiagnosticUploadPanelHandle {
 
 export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   ref,
+  chatTopicId,
   description,
   onBusyChange,
   onClose,
@@ -50,6 +52,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   const { t } = useTranslation()
   const uploadFormId = useId()
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
+  const [includeChatRecords, setIncludeChatRecords] = useState(false)
   const [acknowledged, setAcknowledged] = useState(true)
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
@@ -177,7 +180,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
         description: normalizedDescription,
-        includeChatRecords: true,
+        ...(includeChatRecords && chatTopicId ? { chatTopicId } : {}),
         includeLogs: true,
         includeTraces: true,
         range: '24h'
@@ -236,7 +239,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
-      <ScrollArea viewportProps={{ className: 'px-6 py-2' }} className="min-h-0">
+      <ScrollArea contentProps={{ className: 'px-6 py-2' }} className="min-h-0">
         {result ? (
           <UploadResultContent
             result={result}
@@ -278,6 +281,18 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
               />
               <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
             </label>
+
+            {chatTopicId ? (
+              <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-chat-history">
+                <Checkbox
+                  id="diagnostic-chat-history"
+                  checked={includeChatRecords}
+                  disabled={isBusy}
+                  onCheckedChange={(checked) => setIncludeChatRecords(checked === true)}
+                />
+                <span>{t('settings.about.diagnostics.report.include_chat_history')}</span>
+              </label>
+            ) : null}
           </form>
         )}
       </ScrollArea>

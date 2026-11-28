@@ -10,8 +10,8 @@ const PLATFORM_NAMES = {
   win32: 'windows'
 }
 
-function validateEditionArtifacts({ distDirectory, edition, platform, productName, version }) {
-  const expected = getExpectedReleaseArtifacts({ edition, platform, productName, version })
+function validateEditionArtifacts({ distDirectory, edition, platform, productName, version, architecture }) {
+  const expected = getExpectedReleaseArtifacts({ edition, platform, productName, version, architecture })
 
   for (const fileName of expected.files) {
     const filePath = path.join(distDirectory, fileName)
@@ -27,6 +27,11 @@ function validateEditionArtifacts({ distDirectory, edition, platform, productNam
     }
 
     const updateInfo = parse(fs.readFileSync(manifestPath, 'utf8'))
+    if (updateInfo?.version !== version) {
+      throw new Error(
+        `Update manifest version mismatch in ${manifest.file}: expected ${version}, found ${updateInfo?.version ?? 'missing'}`
+      )
+    }
     const urls = Array.isArray(updateInfo?.files) ? updateInfo.files.map((file) => file.url) : []
     for (const url of manifest.urls) {
       if (!urls.includes(url)) {

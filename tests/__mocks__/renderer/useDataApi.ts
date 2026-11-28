@@ -54,7 +54,7 @@ type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELE
  * Create mock data based on API path
  */
 function createMockDataForPath(path: string): any {
-  if (path === '/skills' || path === '/api-gateway/paired-devices') return []
+  if (path === '/skills' || path === '/api-gateway/paired-devices' || path === '/agent-channels') return []
   if (path === '/providers/:providerId/api-keys') {
     return { keys: [] }
   }
@@ -394,6 +394,30 @@ function defaultMockUseWriteInfiniteCache<TPath extends ApiPath>(
 export const mockUseWriteInfiniteCache = vi.fn(defaultMockUseWriteInfiniteCache) as Mock &
   typeof defaultMockUseWriteInfiniteCache
 
+function defaultMockUseWriteInfinitePage<TPath extends ApiPath>(
+  path: TPath,
+  options?: Omit<MockInfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>
+) {
+  type Page = Extract<ResponseForPath<TPath, 'GET'>, CursorPaginationResponse<unknown>>
+  const key = buildMockInfiniteQueryKey(path, options as MockInfiniteQueryOptions<TPath>)
+  return useCallback(
+    async (index: number, update: (page: Page) => Page['items']) => {
+      const pages = mockInfiniteQueryStore.get(key) as Page[] | undefined
+      const page = pages?.[index]
+      if (!pages || !page) return
+      const items = update(page)
+      if (items === page.items) return
+      const nextPages = pages.slice()
+      nextPages[index] = { ...page, items }
+      setMockInfiniteQueryPages(key, nextPages)
+    },
+    [key]
+  )
+}
+
+export const mockUseWriteInfinitePage = vi.fn(defaultMockUseWriteInfinitePage) as Mock &
+  typeof defaultMockUseWriteInfinitePage
+
 /**
  * Mock useInfiniteFlatItems helper.
  * Mirrors production: flattens `pages[].items` honoring optional reverse flags.
@@ -541,6 +565,7 @@ export const MockUseDataApi = {
   useReadCache: mockUseReadCache,
   useWriteCache: mockUseWriteCache,
   useWriteInfiniteCache: mockUseWriteInfiniteCache,
+  useWriteInfinitePage: mockUseWriteInfinitePage,
   prefetch: mockPrefetch
 }
 
@@ -564,6 +589,7 @@ export const MockUseDataApiUtils = {
     mockUseReadCache.mockClear()
     mockUseWriteCache.mockClear()
     mockUseWriteInfiniteCache.mockClear()
+    mockUseWriteInfinitePage.mockClear()
     mockPrefetch.mockClear()
     mockCacheStore.clear()
     mockInfiniteQueryStore.clear()

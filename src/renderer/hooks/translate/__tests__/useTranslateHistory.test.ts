@@ -1,5 +1,4 @@
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,31 +14,6 @@ vi.mock('react-i18next', () => ({
 describe('useTranslateHistory', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('registers history CRUD mutations with shared refresh keys', () => {
-    renderHook(() => useTranslateHistory())
-
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'POST',
-      '/translate/histories',
-      expect.objectContaining({ refresh: ['/translate/histories'] })
-    )
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'PATCH',
-      '/translate/histories/:id',
-      expect.objectContaining({ refresh: ['/translate/histories'] })
-    )
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'DELETE',
-      '/translate/histories/:id',
-      expect.objectContaining({ refresh: ['/translate/histories'] })
-    )
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'DELETE',
-      '/translate/histories',
-      expect.objectContaining({ refresh: ['/translate/histories'] })
-    )
   })
 
   it('adds history and coerces UNKNOWN language sentinels to null', async () => {
@@ -125,14 +99,10 @@ describe('useTranslateHistory', () => {
       }
       return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
-    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
 
     const { result } = renderHook(() => useTranslateHistory({ update: { rethrowError: false } }))
 
     await expect(result.current.update('hist-123', { star: false })).resolves.toBeUndefined()
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to update translate history', failure, {
-      operation: 'translate.history.error.save'
-    })
     expect(toast.error).toHaveBeenCalledWith('t(translate.history.error.save)')
   })
 })

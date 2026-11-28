@@ -1,12 +1,12 @@
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 
-export interface ProjectionSource {
-  snapshot(): MessageProjectionView
-  subscribe(listener: (update: MessageProjectionUpdate) => void): () => void
+export interface ProjectionSource<Update = MessageProjectionUpdate> {
+  snapshot(): MessageProjectionView | null
+  subscribe(listener: (update: Update) => void): () => void
 }
 
 /** Window-scoped delivery leases do not control the lifetime of native work. */
-export class ProjectionSubscriptions {
+export class ProjectionSubscriptions<Update = MessageProjectionUpdate> {
   private readonly windows = new Map<Electron.WebContents, Map<string, () => void>>()
 
   detach(sender: Electron.WebContents, id: string): void {
@@ -17,8 +17,8 @@ export class ProjectionSubscriptions {
   async attach(
     sender: Electron.WebContents,
     id: string,
-    resolve: () => ProjectionSource | null | Promise<ProjectionSource | null>,
-    send: (update: MessageProjectionUpdate) => void
+    resolve: () => ProjectionSource<Update> | null | Promise<ProjectionSource<Update> | null>,
+    send: (update: Update) => void
   ): Promise<MessageProjectionView | null> {
     this.detach(sender, id)
     let subscriptions = this.windows.get(sender)
@@ -31,19 +31,20 @@ export class ProjectionSubscriptions {
         this.windows.delete(sender)
       })
     }
-    const marker = () => {}
-    subscriptions.set(id, marker)
+    let stop = () => {}
+    subscriptions.set(id, stop)
     try {
       const source = await resolve()
-      if (sender.isDestroyed() || subscriptions.get(id) !== marker) return null
+      if (sender.isDestroyed() || subscriptions.get(id) !== stop) return null
       if (!source) {
         subscriptions.delete(id)
         return null
       }
-      subscriptions.set(id, source.subscribe(send))
+      stop = source.subscribe(send)
+      subscriptions.set(id, stop)
       return source.snapshot()
     } catch (error) {
-      if (subscriptions.get(id) === marker) subscriptions.delete(id)
+      if (subscriptions.get(id) === stop) this.detach(sender, id)
       throw error
     }
   }

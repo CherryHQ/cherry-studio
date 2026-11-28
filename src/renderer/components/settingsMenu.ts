@@ -3,6 +3,7 @@ import {
   Archive,
   AudioLines,
   Bell,
+  Bot,
   Cloud,
   Command,
   Crop,
@@ -50,9 +51,15 @@ export interface SettingsMenuEntry {
   /** i18n key of the menu title — always searchable as the section baseline */
   titleKey: string
   icon: ReactNode
+  /** Optional badge label i18n key rendered on the right of the menu item */
+  badgeKey?: string
+  /** Optional tooltip i18n key for the menu item's badge */
+  badgeTooltipKey?: string
   /** Group title key (`settings.menuGroups.*`); omitted for the ungrouped head section */
   groupKey?: string
 }
+
+export const BUILTIN_TOOLS_GROUP_KEY = 'settings.menuGroups.builtinTools'
 
 /**
  * Single source of truth for the settings sidebar menu.
@@ -63,6 +70,13 @@ export interface SettingsMenuEntry {
 export const settingsMenu: readonly SettingsMenuEntry[] = [
   { route: '/settings/profile', titleKey: 'settings.profile.title', icon: createElement(UserRound) },
   { route: '/settings/provider', titleKey: 'settings.provider.title', icon: createElement(Cloud) },
+  {
+    route: '/settings/local-agents',
+    titleKey: 'local_agents.title',
+    icon: createElement(Bot),
+    badgeKey: 'local_agents.beta_badge',
+    badgeTooltipKey: 'local_agents.beta_tooltip'
+  },
   { route: '/settings/model', titleKey: 'settings.model', icon: createElement(Package) },
   {
     route: '/settings/local-models',
@@ -86,37 +100,37 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/prompts',
     titleKey: 'settings.prompts.title',
     icon: createElement(Zap),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/computer-use',
     titleKey: 'settings.computerUse.title',
     icon: createElement(MousePointer2),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/browser',
     titleKey: 'settings.browser.title',
     icon: createElement(Globe),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/websearch',
     titleKey: 'settings.tool.websearch.title',
     icon: createElement(Search),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/file-processing',
     titleKey: 'settings.tool.file_processing.features.document_to_markdown.title',
     icon: createElement(FileCode),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/ocr',
     titleKey: 'settings.tool.file_processing.features.image_to_text.title',
     icon: createElement(ScanText),
-    groupKey: 'settings.menuGroups.capabilities'
+    groupKey: BUILTIN_TOOLS_GROUP_KEY
   },
   {
     route: '/settings/general',

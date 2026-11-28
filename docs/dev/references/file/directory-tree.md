@@ -2,10 +2,12 @@
 description: Live directory-tree snapshots, watcher mutations, IpcApi ownership, and renderer mirror lifecycle
 sources:
   - src/main/services/file/tree
+  - src/main/services/file/observation
   - src/main/services/file/watcher.ts
   - src/shared/utils/file/tree.ts
   - src/shared/ipc/schemas/file.ts
   - src/renderer/hooks/useDirectoryTree.ts
+  - src/renderer/services/DirectoryTreeSession.ts
 ---
 
 # Directory Tree Architecture
@@ -19,23 +21,25 @@ artifact file tree.
 
 ## 1. Positioning
 
-`DirectoryTreeBuilder` owns one in-memory tree, its absolute-path index, initial scan, and watcher.
-`DirectoryTreeManager` owns builder sharing and renderer consumers. `useDirectoryTree` owns a
-private `DirectoryTreeSession` for the renderer mirror and snapshot-to-stream handshake, and
-subscribes React to its external snapshot. The session is not an app-level service or public API.
+`DirectoryTreeBuilder` owns one in-memory tree, its absolute-path index, initial scan, and an
+observation lease. `DirectoryTreeManager` owns builder sharing and renderer consumers.
+`DirectoryTreeSession` owns the renderer mirror and snapshot-to-stream handshake; both
+`useDirectoryTree` and lazy artifact directories use that session implementation.
+[File observation](./file-observation.md) owns the native watchers independently of tree visibility.
 
 The primitive is separate from FileManager because its identity and lifecycle differ:
 
 - a node is identified by its current path, not a persistent entry ID;
 - the complete tree is rebuilt from disk;
-- a watcher exists only while a consumer needs the tree;
+- a tree projection exists only while a tree consumer needs it; other file consumers can keep observing;
 - filesystem changes update the tree but do not register managed entries.
 
 ### 1.1 Relationship to DirectoryWatcher
 
-The builder is the only production caller of `createDirectoryWatcher()` today. The watcher lives
-at `src/main/services/file/watcher.ts` and returns synchronously; the builder then subscribes with
-`onEvent()` and awaits the `ready` event before exposing the initial snapshot.
+`FileObservationService` acquires native watchers through its private `WatchScope` helper. One
+service-owned Node Worker runs the native watcher operations, including synchronous closure. The
+builder receives the service explicitly from the manager, acquires a compatible scope, and awaits
+readiness before scanning. It releases the lease when disposed and never creates a native watcher.
 
 Chokidar reports a filesystem rename as `unlink` plus `add`. The generic watcher does not provide
 rename detection. Identity-preserving `renamed` mutations only come from the explicit
@@ -45,16 +49,23 @@ rename detection. Identity-preserving `renamed` mutations only come from the exp
 
 ```text
 src/main/services/file/
-├── watcher.ts
+├── observation/
+│   ├── FileObservationService.ts
+│   └── WatchScope.ts
+├── watcher.ts                    # Main adapter and shared worker host
+├── watcherProtocol.ts            # private worker messages and structured filters
+├── watcherWorker.ts              # worker entry and scope routing
+├── nativeWatcher.ts              # chokidar handles, filtering and fallback
 └── tree/
-    ├── builder.ts                 # scan, tree/index mutation, watcher lifecycle
+    ├── builder.ts                 # scan, tree/index mutation, observation lease
     ├── DirectoryTreeManager.ts    # shared builders and per-window consumers
     ├── gitignore.ts               # shared ignore predicate/default ripgrep globs
     └── search.ts                  # directory listing and fuzzy search
 
 src/shared/utils/file/tree.ts      # options, DTOs, mutation types, TreeNode classes
 src/shared/ipc/schemas/file.ts     # file.tree.* request/event contracts
-src/renderer/hooks/useDirectoryTree.ts # React subscription and private retained session
+src/renderer/hooks/useDirectoryTree.ts # React subscription
+src/renderer/services/DirectoryTreeSession.ts # retained mirror and handoff
 ```
 
 ### 2.1 Shared Contract
@@ -70,12 +81,11 @@ by their owning consumers.
 
 ## 3. Building a Tree
 
-`createDirectoryTree(rootPath, options)` is asynchronous. It resolves only after both the initial
+`createDirectoryTree(rootPath, options, observations)` is asynchronous. It resolves only after both the initial
 scan and watcher setup complete. After that, `root`, `snapshot()`, and `getNode(path)` are ready.
 
-The builder starts the watcher before the scan finishes and serializes early watcher events behind
-the scan. This closes the gap where a path could change after scan enumeration but before watcher
-attachment.
+The builder awaits observation readiness, scans, and then applies buffered events before exposing
+the baseline. Changes during scan enumeration are reconciled before the initial snapshot is returned.
 
 ### 3.1 Options
 
@@ -159,6 +169,7 @@ The shared `TreeMutationEvent` union is:
 - `added`: path, kind, basename, parent path, and optional stats;
 - `removed`: path;
 - `updated`: path and stats, only for a watched `change` when `withStats` is enabled;
+- `status`: `stale` or `unavailable` coverage, requiring a new baseline;
 - `renamed`: old path, new path, and basename, only from explicit rename coordination.
 
 Events are not batched. Callers doing expensive derived work should manage that cost in their
@@ -187,6 +198,10 @@ Each create request receives its own `treeId`, but the manager shares one builde
 normalized `(rootPath, options)`. Option keys and extension-array order are canonicalized for the
 dedupe key, and concurrent creates share the same in-flight build.
 
+`file.tree.create` accepts an optional `refresh` flag. It retires the cached shared projection, marks other consumers stale so they reacquire a baseline, and scans the requested scope again. Recreating a subscription without this flag can reuse a warm cached projection.
+
+`DirectoryTreeSession.refresh()` coalesces explicit requests and reacquires the snapshot/activation handoff. It retains the displayed snapshot during that request and after failure. The artifact model refreshes the root and retained lazy-directory sessions, reruns an active search, and keeps expansion, selection and query ownership in the caller. The command does not force a whole-workspace recursive scan or reload an open editor.
+
 ## 6. Resource Lifecycle
 
 When WindowManager destroys the owning managed window (`onWindowDestroyed`), all of its tree IDs
@@ -198,8 +213,9 @@ described in §3.2.
 
 - An unreadable root, missing ripgrep binary, or watcher setup failure rejects tree creation.
 - With `watchMissingRoot`, `ENOENT` for the root is an empty valid state; other errors still fail.
-- A watcher error after activation logs and disposes the main-side builder. The current protocol
-  has no terminal push telling an already-mounted renderer that its last snapshot is stale.
+- A watcher error or system resume emits a `status` mutation with `unavailable` or `stale` coverage
+  before disposing the builder. The renderer releases the obsolete stream and takes a new snapshot.
+  Activation has at most three attempts; a failed recovery leaves an error, and focus/visibility return retries.
 - Shutdown during an in-flight create maps `DirectoryTreeStoppedError` to a domain IpcError so the
   renderer can stop quietly.
 
@@ -231,7 +247,8 @@ The `onMutation` callback remains a business-side subscription during the grace 
 activation replay and brief Activity suspension. Once the hook renders a different root, events
 from the previous root are no longer forwarded to that callback. Rendering and expensive projections
 belong to React subscribers; callbacks that need filesystem events must not be conditional on view visibility.
-Revision gaps remain terminal, so retaining the mirror never hides missed mutations.
+Revision gaps retire the old stream and trigger a fresh snapshot; callbacks from the retired stream are ignored.
+Lazy artifact directories replace their children from these snapshots instead of merging an independent listing cache.
 
 Options are sampled when a root mounts. Changing the options object while `rootPath` is unchanged
 does not rebuild the tree.

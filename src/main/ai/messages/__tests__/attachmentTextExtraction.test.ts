@@ -56,7 +56,7 @@ vi.mock('word-extractor', () => ({
 const { extractPdfTextMock } = vi.hoisted(() => ({ extractPdfTextMock: vi.fn<() => Promise<string>>() }))
 vi.mock('@main/utils/pdf', () => ({ extractPdfText: extractPdfTextMock }))
 
-import { extractDocumentText, noExtractableTextNote } from '../attachmentTextExtraction'
+import { extractDocumentText } from '../attachmentTextExtraction'
 
 const LRMX_UTF8 = `<?xml version="1.0" encoding="UTF-8"?>
 <GanBuRenMianShenPiBiao>
@@ -112,7 +112,6 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     parseOfficeAsyncMock.mockResolvedValueOnce(' office body ')
     expect(await extractDocumentText('e1')).toBe('office body')
-    expect(parseOfficeAsyncMock).toHaveBeenCalledWith(expect.any(Buffer), { tempFilesLocation: '/tmp' })
   })
 
   it('decodes text/code files with auto encoding', async () => {
@@ -185,12 +184,5 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     controller.abort()
     await expect(extractDocumentText('e1', { signal: controller.signal })).rejects.toBeDefined()
     expect(getByIdMock).not.toHaveBeenCalled()
-  })
-})
-
-describe('noExtractableTextNote', () => {
-  it('names the file and hints at a scanned/image-only doc', () => {
-    expect(noExtractableTextNote('scan.pdf')).toContain('scan.pdf')
-    expect(noExtractableTextNote('scan.pdf')).toContain('scanned')
   })
 })

@@ -9,7 +9,7 @@ const Gpt51CodexMax = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const Gpt51CodexMaxIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt51CodexMax, {
   Avatar: Gpt51CodexMaxAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#ecccdc'
 })
 
 export default Gpt51CodexMaxIcon

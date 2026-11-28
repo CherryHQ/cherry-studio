@@ -7,8 +7,9 @@
 
 import type { Span } from '@opentelemetry/api'
 
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { AiStreamRequest } from '../../types'
@@ -30,7 +31,7 @@ type PreparedLiveExecutionChange =
 export interface PreparedDispatch {
   topicId: string
   models: ReadonlyArray<{
-    modelId: UniqueModelId
+    modelId: ExecutionId
     request: AiStreamRequest
     runtimeTimingSeed?: MessageRuntimeTiming
     /** Renderer readers must not seed this execution from cached anchor parts. */

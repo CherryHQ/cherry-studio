@@ -52,4 +52,30 @@ describe('provider billing persistence', () => {
       providerService.update('group', { providerSettings: { billing: { periods: [] } } }).settings.billing?.periods
     ).toEqual([])
   })
+
+  it('persists calendar conditions and removes them through merge patch', () => {
+    providerService.create(
+      CreateProviderSchema.parse({
+        providerId: 'calendar',
+        name: 'Calendar',
+        providerSettings: {
+          billing: { ...billing, calendar: 'cn-weekdays', source: 'deepseek' }
+        }
+      })
+    )
+    expect(providerService.getByProviderId('calendar').settings.billing).toMatchObject({
+      calendar: 'cn-weekdays',
+      source: 'deepseek'
+    })
+    const updated = providerService.update(
+      'calendar',
+      UpdateProviderSchema.parse({
+        providerSettings: {
+          billing: { calendar: null, source: null }
+        }
+      })
+    )
+    expect(updated.settings.billing).toEqual(billing)
+    expect(dbh.db.select().from(userProviderTable).get()?.providerSettings?.billing).toEqual(billing)
+  })
 })

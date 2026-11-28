@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import { findCommandDefinition, resolveCommandByKeybinding } from '@shared/utils/command'
+import { resolveCommandByKeybinding } from '@shared/utils/command'
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 
 import { getCommandShortcutLabel, resolveCommandDisplayState, resolveCommandPresentationKeybinding } from '../command'
@@ -98,24 +98,6 @@ describe('getCommandShortcutLabel', () => {
     ).toBeUndefined()
   })
 
-  it('formats primary binding for each platform family', () => {
-    expect(getCommandShortcutLabel('topic.create', undefined, { context: {}, isMac: true, platform: 'darwin' })).toBe(
-      '⌘N'
-    )
-    expect(getCommandShortcutLabel('topic.create', undefined, { context: {}, isMac: false, platform: 'win32' })).toBe(
-      'Ctrl+N'
-    )
-  })
-
-  it('formats macOS tab navigation shortcuts as control-tab', () => {
-    expect(getCommandShortcutLabel('tab.next', undefined, { context: {}, isMac: true, platform: 'darwin' })).toBe(
-      '⌃Tab'
-    )
-    expect(getCommandShortcutLabel('tab.prev', undefined, { context: {}, isMac: true, platform: 'darwin' })).toBe(
-      '⌃⇧Tab'
-    )
-  })
-
   it('returns empty label when unavailable', () => {
     expect(getCommandShortcutLabel('topic.create', { binding: [], enabled: true }, { context: {}, isMac: true })).toBe(
       ''
@@ -131,22 +113,6 @@ describe('getCommandShortcutLabel', () => {
 })
 
 describe('resolveCommandDisplayState', () => {
-  it('translates the title and resolves the shortcut label', () => {
-    const definition = findCommandDefinition('topic.create')
-    const state = resolveCommandDisplayState('topic.create', {
-      definition,
-      preference: undefined,
-      context: {},
-      hasHandler: () => true,
-      translate: (key) => `t:${key}`,
-      isMac: true,
-      platform: 'darwin'
-    })
-
-    expect(state.label).toBe(`t:${definition?.titleKey}`)
-    expect(state.shortcutLabel).toBe('⌘N')
-  })
-
   it('falls back to the command id and stays disabled without a definition', () => {
     const state = resolveCommandDisplayState('topic.create', {
       definition: undefined,

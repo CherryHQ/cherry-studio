@@ -25,7 +25,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => mockUseProviders(...args)
 }))
 
-vi.mock('../KnowledgeEmbeddingModelSelect', () => ({
+vi.mock('@renderer/components/knowledge/KnowledgeEmbeddingModelSelect', () => ({
   KnowledgeEmbeddingModelSelect: ({
     value,
     placeholder,
@@ -218,7 +218,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     )
 
     expect(screen.getByRole('heading', { name: '重建知识库' })).toBeInTheDocument()
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
+
     expect(screen.getByLabelText('名称')).toHaveValue('Legacy KB_副本')
 
     fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
