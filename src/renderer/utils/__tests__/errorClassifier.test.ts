@@ -920,6 +920,8 @@ describe('getLocalModelResolutionFailure', () => {
 
   it.each([
     ["Model with id 'openai/gpt-test' not found", { modelId: 'openai/gpt-test' }],
+    ["Provider with id 'team's-relay' not found", { providerId: "team's-relay" }],
+    ["Provider with id 'team\nrelay' not found", { providerId: 'team\nrelay' }],
     ['Cannot resolve modelId: not-a-real-model', { modelId: 'not-a-real-model' }],
     ['Cannot resolve modelId="gpt-test" providerId="openai"', { providerId: 'openai', modelId: 'gpt-test' }],
     ['Cannot resolve modelId [gpt-test,other-model]', { modelId: 'gpt-test' }]

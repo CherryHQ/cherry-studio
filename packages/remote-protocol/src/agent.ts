@@ -9,6 +9,8 @@ export {
   messageSummarySchema,
   messageListItemSchema,
   messageUsageSchema,
+  modelOptionSchema,
+  modelSelectionSchema,
   modelSummarySchema,
   partSchema,
   executionSchema,
