@@ -54,12 +54,18 @@ type ExitListener = (code: number | null, signal: NodeJS.Signals | null) => void
 type ErrorListener = (error: Error) => void
 
 function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics): void {
+  // Structured-only: `terminalReason` carries the stderr tail / raw spawn message and may embed
+  // secrets or private paths, so it stays on the diagnostics object (and the main-process
+  // diagnostic record) and never in this log line. `executable` is the runtime path Cherry
+  // resolved (options.command), safe to log and required by #21898 to identify the component.
   logger.warn('Claude Code process failed', {
     reference: diagnostics.reference,
     category: diagnostics.category,
     exitCode: diagnostics.exitCode,
     exitSignal: diagnostics.exitSignal,
-    spawnFailed: diagnostics.spawnFailed
+    spawnFailed: diagnostics.spawnFailed,
+    executable: diagnostics.executable,
+    spawnErrorCode: diagnostics.spawnErrorCode
   })
 }
 
@@ -196,6 +202,10 @@ export class ClaudeCodeProcessManager extends BaseService {
 
   spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
     resetClaudeCodeProcessDiagnostics(diagnostics)
+    // Remember which executable the spawn was attempted against so both the main-process log
+    // and the spawn-failure terminalReason identify the resolved runtime file (#21898). The path
+    // never crosses IPC: `createClaudeCodeProcessExitError` only forwards the safe exit status.
+    if (typeof options.command === 'string' && options.command) diagnostics.executable = options.command
     const spawnOptions: Parameters<SpawnProcess>[2] = {
       cwd: options.cwd,
       env: options.env,

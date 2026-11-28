@@ -6,8 +6,18 @@ vi.mock('@renderer/services/toast', (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => import('@cherrystudio/ui/components/primitives/toast'))
 
 vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string) => enUS[key as keyof typeof enUS] ?? key }
+  default: {
+    t: (key: string, values?: Record<string, string>) => {
+      const template = enUS[key as keyof typeof enUS] ?? key
+      if (!values || typeof template !== 'string') return template
+      return Object.entries(values).reduce((acc, [k, v]) => acc.replace(`{{${k}}}`, String(v)), template)
+    },
+    exists: (key: string) => key in enUS
+  }
 }))
+
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { toast } from '../toast'
 
@@ -66,4 +76,35 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   expect(shown.action?.label).toBe(enUS['toast.error.retry'])
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
+})
+
+describe('admission runtime errors', () => {
+  const admissionPayload = {
+    name: 'ClaudeCodeRuntimeUnavailableError',
+    message: 'Claude Agent is not ready.',
+    stack: null,
+    i18nKey: 'claude_code_runtime_missing',
+    detailI18nKey: 'claude_code_runtime_missing_detail'
+  }
+
+  it('shows the localized runtime-missing recovery copy instead of the legacy message', () => {
+    const admissionError = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, admissionPayload.message, admissionPayload)
+    const key = toast.errorFromException(admissionError)
+    expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
+      title: enUS['error.claude_code_runtime_missing'],
+      details: enUS['error.claude_code_runtime_missing_detail']
+    })
+  })
+
+  it('prefers the runtime copy even when the failed message carries a model provider', () => {
+    const admissionError = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, admissionPayload.message, admissionPayload)
+    const key = toast.errorFromException(admissionError, {
+      provider: { id: 'anthropic', name: 'Anthropic' },
+      modelName: 'claude-sonnet-4-5'
+    })
+    expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
+      title: enUS['error.claude_code_runtime_missing'],
+      details: enUS['error.claude_code_runtime_missing_detail']
+    })
+  })
 })

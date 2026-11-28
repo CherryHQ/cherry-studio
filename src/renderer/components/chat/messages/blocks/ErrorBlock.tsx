@@ -55,7 +55,22 @@ const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }>
 
   if (isUnattributedClaudeCodeExit(error)) return null
   const claudeCodeExitMessage = getClaudeCodeExitMessage(error, t)
-  if (claudeCodeExitMessage !== undefined) return claudeCodeExitMessage
+  if (claudeCodeExitMessage !== undefined) {
+    // A spawn failure carries its own recovery copy (see processExitDiagnostics): the exit status
+    // above keeps the diagnostic reference while the detail tells the user how to re-provision.
+    const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
+    if (typeof detailKey === 'string' && detailKey === 'claude_code_spawn_failed_detail') {
+      const detailFullKey = `error.${detailKey}`
+      if (i18n.exists(detailFullKey)) {
+        return (
+          <span>
+            {claudeCodeExitMessage} {t(detailFullKey)}
+          </span>
+        )
+      }
+    }
+    return claudeCodeExitMessage
+  }
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
@@ -165,9 +180,12 @@ const MessageErrorInfo: React.FC<{
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
+  // Claude runtime keys never interpolate a provider, so they stay preferred even when the
+  // failed message carries a model provider (the runtime, not the provider, is at fault).
+  const isClaudeRuntimeKey = typeof errorI18nKey === 'string' && errorI18nKey.startsWith('claude_code_')
   const localizedErrorMessage = useMemo(() => {
     if (cherryCloudQuotaRejection) return t('models.detail.quota_insufficient_for_request')
-    if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
+    if (hasAppOwnedI18nKey && (!providerId || isClaudeRuntimeKey)) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
       if (!modelId && failedProviderId) return t('error.diagnosis.provider_unavailable', { provider: failedProviderId })
@@ -181,6 +199,7 @@ const MessageErrorInfo: React.FC<{
   }, [
     cherryCloudQuotaRejection,
     hasAppOwnedI18nKey,
+    isClaudeRuntimeKey,
     appOwnedErrorKey,
     classification.i18nKey,
     error,
