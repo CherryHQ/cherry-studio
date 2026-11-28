@@ -86,6 +86,8 @@ export function SidebarSortableList<T>({
       onDragEnd={markDragSettled}
       onDragCancel={markDragSettled}
       onSortEnd={onReorder}
+      // The row wrapper is the keyboard drag stop; sidebar entries are rounded-full, so its focus halo is too.
+      itemStyle={{ borderRadius: 9999 }}
       renderItem={(item) => children(item, guardClick)}
     />
   )
