@@ -24,7 +24,7 @@ Status: proposed
 2. packages/ui 的 base 层（由 `packages/ui/scripts/build-theme-css.ts` 生成）为所有元素绘制外圈：在 `:focus-visible` 时画一圈 3px、40% 透明度的 `--ring` 实线 outline，不偏移。外圈用 outline 而不是 `box-shadow`，因此不会和 `shadow-*` 工具类互相影响，强制颜色模式也会保留它。删除 app 层的 `*:focus` 重置。所有渲染进程窗口都通过 `@cherrystudio/ui/styles/theme.css` 获得这条规则，包括只引入 `tailwind.css` 的截图、划词工具栏和划词胶囊窗口。
 3. 有可见边框的控件在键盘聚焦时用 `focus-visible:border-ring` 把边框换成 `--ring`，替换原来的 `focus-visible:border-primary`。包括 Input、Textarea、Select 触发器、Checkbox、RadioGroup 选项和 outline 样式的 Button。状态占用边框时（例如勾选的复选框、选中的单选项、无效的输入框），状态胜出，只剩外圈标出焦点。这个损失予以接受。
 4. 没有可见边框的控件保留现有的聚焦填充或文字变化，并加上外圈。包括填充、幽灵和链接样式的 Button、Tabs 触发器，以及 `menu-list` 的按钮。删除 `Switch` 的内嵌光圈，Switch 只靠外圈标出焦点。
-5. 控件去掉会隐藏外圈的 `outline-none` 或 `outline-hidden`。文本输入控件在指针点击后也会匹配 `:focus-visible`，这是浏览器行为，予以接受。
+5. 控件去掉会隐藏外圈的 `outline-none` 或 `outline-hidden`。文本输入控件在指针点击后也会匹配 `:focus-visible`，这是浏览器行为，予以接受。由另一个元素替获得焦点的元素显示焦点时，例如包住输入框的搜索栏、卡片按钮里的预览框，由那个元素画边框和外圈，获得焦点的元素退出。作为临时界面里唯一控件的文本框（弹出搜索、查找浮层、快捷助手输入框），以及原地编辑的文本框（原地重命名、属性编辑），也退出外圈，由光标表示焦点，与 shadcn 的 `CommandInput` 一致。聊天输入框（composer）和 CodeMirror 这类编辑器画布本来就已退出。
 6. Radix 当作焦点落脚点来聚焦的弹出容器，在各自的 packages/ui primitive 里用 `outline-none` 退出：菜单、右键菜单、Popover、HoverCard、Dialog、AlertDialog、Sheet、Drawer 和 Select 的内容容器。Radix Menu 每次打开都会聚焦内容容器，而 Chromium 在键盘输入之后或尚无任何输入时，会把脚本聚焦标记为 `:focus-visible`。
 7. 在弹出列表内获得焦点的条目沿用 shadcn 的做法，即菜单、Select 和 Command 里的 `menuitem` 与 `option` 条目：用 accent 背景表示当前项，不画外圈。选中态不使用背景：`SelectItem` 删除 `data-[state=checked]:bg-primary/10`，保留对勾。
 8. 容器裁切外圈时（滚动视口、`overflow: hidden`），给容器加内边距；相邻元素盖住外圈时，提升获得焦点的控件的层级。两者都在键盘走查中确定。
@@ -46,10 +46,11 @@ Status: proposed
 - 从用户主题色派生并按亮度夹紧（亮色主题为 `oklch(from var(--primary) min(l, 0.55) c h)`）在 38 色扫描中都能达到 3:1。没有采用，因为设计 token 体系让焦点色独立于运行时主题色，维护者选择保留这个边界。
 - 全局 `:not([tabindex="-1"])` 排除被否决，因为 `tabindex` 并不能说明元素是不是落脚点。Select 选项和 roving 组里未获焦的条目同样带 `tabindex="-1"`。知道自己的容器是落脚点的，是弹出组件的 primitive。
 - 给弹出列表条目画外圈，会被滚动视口裁切，也会压到相邻条目。由 `aria-activedescendant` 驱动的列表从不把 DOM 焦点移到条目上（cmdk `Command`、`EntitySelector`），那里只能靠高亮。
+- 给所有文本框都画外圈，包括临时界面里和原地编辑的文本框，被否决：这些文本框本来就设计成没有可见的框，光标已经表示了焦点。
 
 ## 验收标准
 
-- AC1 — 在走查路线上，用键盘到达的每个控件在所有状态下都在边缘外侧紧贴显示一圈 3px、40% 透明度的 `--ring` 外圈，包括智能体永久删除弹窗里勾选后的复选框、开启的 Switch、选中的单选项、无效的输入框和当前标签页，亮色和暗色主题均如此。（verification: Electron 键盘走查）
+- AC1 — 在走查路线上，除第 5 条规定退出的文本框外，用键盘到达的每个控件在所有状态下都在边缘外侧紧贴显示一圈 3px、40% 透明度的 `--ring` 外圈，包括智能体永久删除弹窗里勾选后的复选框、开启的 Switch、选中的单选项、无效的输入框和当前标签页，亮色和暗色主题均如此。（verification: Electron 键盘走查）
 - AC2 — 键盘聚焦时，有可见边框且边框未被状态占用的控件把边框换成 `--ring`，没有边框的控件保留其聚焦填充或文字变化。（verification: Electron 键盘走查）
 - AC3 — 用指针点击按钮、复选框、单选项、Switch、标签页或弹出触发器时，不画外圈，也不出现 `--ring` 边框；弹出层打开时，触发器上也不出现这两者。（verification: Electron 指针走查）
 - AC4 — 用键盘或指针打开菜单、右键菜单、Popover、Dialog、Sheet、Drawer 或 Select 时，弹出容器周围不画外圈。（verification: Electron 走查）
@@ -57,6 +58,7 @@ Status: proposed
 - AC6 — 在亮色和暗色主题下，无论用户选择什么主题色，不透明的 `--ring` 对页面背景的对比度都至少为 3:1。（verification: 基于构建后 token 的无头 Chromium 对比度检查；macOS 上 Electron 暗色主题抽查）
 - AC7 — 在走查路线上，没有外圈被滚动视口或溢出容器裁切，也没有相邻元素盖住外圈。（verification: Electron 键盘走查）
 - AC8 — `DESIGN.md` § Focus 写明 `--ring` 边框、外圈、弹出容器的退出方式和弹出列表的高亮方式，不再禁止外圈。（verification: 文档检查）
+- AC9 — 快捷助手输入框、侧边栏里的原地重命名输入框和弹出搜索框获得焦点时不显示外圈；知识库召回测试的搜索栏在其输入框获得焦点时，在搜索栏外框上显示 `--ring` 边框和外圈。（verification: Electron 走查）
 
 ## 风险
 

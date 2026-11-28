@@ -197,8 +197,11 @@ Keyboard focus uses two channels, both colored by `--ring`:
   marks focus.
 - Borderless controls, such as filled, ghost, and link buttons, tabs, and menu-list rows, keep their focus-visible
   fill, text, or underline change alongside the halo.
-- A wrapper that draws the border for an inner control, such as an input group, also draws the halo, and the inner
-  control opts out.
+- When another element shows focus for the focused one, such as an input group or search bar around its input, or
+  a preview frame inside a card button, that element draws the border and halo, and the focused element opts out.
+- Text fields that are the only control of a transient surface (a popup search, a find overlay, the quick assistant
+  input) or that edit in place (inline rename, property editors) opt out with `outline-none`; the caret marks focus.
+  Editor canvases such as the composer and CodeMirror opt out the same way.
 - Popup containers that receive focus programmatically (menus, popovers, dialogs, sheets, drawers, select content)
   opt out with `outline-none` in their primitive. Popup list items (menu items, select options, command items) use
   the `accent` highlight instead of the halo, and a checked option shows only its check mark.
