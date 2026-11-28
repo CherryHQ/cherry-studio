@@ -22,8 +22,8 @@ LOCAL SPEECH RECOGNITION ARTIFACTS
 - Silero VAD v4, Silero Team, MIT, pinned at
   915dd3d639b8333a52e001af095f87c5b7f1e0ac:
   https://github.com/snakers4/silero-vad/blob/915dd3d639b8333a52e001af095f87c5b7f1e0ac/LICENSE
-- sherpa-onnx 1.13.6, k2-fsa contributors, Apache-2.0, pinned at
-  1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911:
+- sherpa-onnx 2.0.3, k2-fsa contributors, Apache-2.0, pinned at
+  38016c6e0622e90bf417c35e8b47e0eb805af417:
   https://github.com/k2-fsa/sherpa-onnx
 - ONNX Runtime 1.27.1, Microsoft Corporation, MIT, pinned at
   df2ba1cf8108aa63627cf4cdf8f807880b938616:
