@@ -23,7 +23,6 @@ const webSearchTool = defineTool({
     actions: [] as const
   },
 
-
   condition: ({ assistant, session }) => session?.agentType !== 'local' && Boolean(assistant),
   composer: {
     runtime: ({ context }) => (
