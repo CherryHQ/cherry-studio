@@ -43,7 +43,7 @@ interface FolderProps {
 function Folder(props: FolderProps) {
   return (
     <div
-      className="flex max-w-full cursor-pointer items-center gap-2 px-1 transition-colors hover:bg-accent"
+      className="flex max-w-full cursor-pointer items-center gap-2 px-1 transition-[color] hover:bg-accent"
       onClick={() => props.onClick(props.path)}>
       <NutstoreFolderIcon className={folderIconClassName} />
       <span className="min-w-0 flex-1 truncate">{props.name}</span>

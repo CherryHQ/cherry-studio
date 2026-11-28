@@ -1,8 +1,13 @@
-import { Check, Filter } from 'lucide-react'
-import { useState } from 'react'
+import { Filter } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger
+} from '@cherrystudio/ui'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
 
@@ -31,12 +36,11 @@ export default function ProviderListHeaderFilterMenu({
   onFilterChange
 }: ProviderListHeaderFilterMenuProps) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
   const hasActiveFilter = filterMode !== 'all'
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
         <button
           type="button"
           aria-label={t('settings.provider.filter.label')}
@@ -50,23 +54,16 @@ export default function ProviderListHeaderFilterMenu({
             )}
           />
         </button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-fit min-w-32 rounded-xl p-1.5">
-        <MenuList className="gap-1">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-fit min-w-32 rounded-xl p-1.5">
+        <DropdownMenuRadioGroup value={filterMode}>
           {FILTER_MENU_OPTIONS.map(({ mode, labelKey }) => (
-            <MenuItem
-              key={mode}
-              label={t(labelKey)}
-              className="h-8 rounded-lg px-2.5 text-sm"
-              icon={<Check className={cn('size-3.5', filterMode === mode ? 'opacity-100' : 'opacity-0')} />}
-              onClick={() => {
-                onFilterChange(mode)
-                setOpen(false)
-              }}
-            />
+            <DropdownMenuRadioItem key={mode} value={mode} onSelect={() => onFilterChange(mode)}>
+              {t(labelKey)}
+            </DropdownMenuRadioItem>
           ))}
-        </MenuList>
-      </PopoverContent>
-    </Popover>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

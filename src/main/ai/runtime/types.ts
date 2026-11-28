@@ -5,6 +5,7 @@ import type {
   CompactThread,
   InputId,
   InputLookup,
+  InputState,
   ProductInputState,
   LivePartInput,
   OperationResult,
@@ -182,6 +183,11 @@ export type AgentControlChunk =
       { type: 'tool-approval-request' | 'data-compaction-anchor' | 'data-agent-task-event' }
     >
 
+export interface NativeRunCompletion {
+  readonly contextId: string
+  readonly inputs: readonly InputState[]
+}
+
 export type AgentRuntimeEvent =
   | {
       type: 'message-projection'
@@ -229,12 +235,15 @@ export type AgentRuntimeEvent =
       forkAnchor?: RuntimeForkAnchor
       status?: 'paused'
       finishReason?: FinishReason
+      nativeRun?: NativeRunCompletion
     }
+  /** A native run ended while its foreground execution continues. */
+  | { type: 'native-run-complete'; nativeRun: NativeRunCompletion }
   /** Steered inputs join the current Run. A native follow-up can start a distinct Run. */
   | { type: 'steer-boundary'; inputIds: readonly string[] }
   | { type: 'run-started'; inputIds: readonly string[] }
-  | { type: 'followup-queue'; queue: AgentSessionFollowup[]; restored?: true }
-  | { type: 'input-state'; contextId: string; input: ProductInputState }
+  | { type: 'followup-queue'; queue: AgentSessionFollowup[]; paused?: boolean; steerIds?: string[]; restored?: true }
+  | { type: 'input-state'; contextId: string; input: ProductInputState; promotion?: { replyId?: string } }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string; aborted?: boolean }
@@ -325,7 +334,10 @@ export interface AgentRuntimeConnection {
   readonly compactWithInstructions?: true
   /** Reconcile the captured context without submitting or resuming native execution. */
   lookupInput?(contextId: string, inputId: string): Promise<OperationResult<InputLookup>>
-  changeFollowups?(change: AgentSessionFollowupChange): Promise<boolean>
+  changeFollowups?(
+    change: AgentSessionFollowupChange,
+    activeRun?: { inputId: string; replyId: string }
+  ): Promise<boolean>
   acknowledgeFollowupProjection?(contextId: string, inputId: string): void
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
