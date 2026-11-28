@@ -54,6 +54,20 @@ it('shows the website favicon and falls back to a globe when it is missing or fa
   expect(globe()).not.toBeInTheDocument()
 })
 
+it('renders CLI Web UI tabs with a local circular icon at the tab size, without a network image', () => {
+  const tab: Tab = {
+    id: 'kilo',
+    type: 'route',
+    url: '/app/mini-app/local-agent-web-kilo',
+    title: 'Kilo',
+    icon: 'cli:kilo'
+  }
+  const { container } = render(<TabIcon tab={tab} size={16} />)
+  expect(container.querySelector('img')).not.toBeInTheDocument()
+  expect(container.querySelector('[data-slot="cli-icon"] svg')).toBeInTheDocument()
+  expect(container.querySelector('[data-slot="cli-icon"]')).toHaveStyle({ width: '16px', height: '16px' })
+})
+
 // Catches a chat tab showing a broken image instead of the assistant's saved emoji.
 it('shows the saved assistant emoji when the chat tab avatar fails to load', () => {
   function ChatTab() {

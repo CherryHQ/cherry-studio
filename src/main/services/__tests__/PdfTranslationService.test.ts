@@ -191,7 +191,7 @@ describe('PdfTranslationService', () => {
 
     expect(binaryManager.getToolSnapshots).toHaveBeenCalledTimes(1)
     expect(apiGateway.createScopedCredential).toHaveBeenCalledWith({
-      path: '/v1/chat/completions',
+      paths: ['/v1/chat/completions'],
       model: 'openai:gpt-4.1'
     })
     expect(mocks.spawn).toHaveBeenCalledWith(

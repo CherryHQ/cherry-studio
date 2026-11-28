@@ -340,7 +340,7 @@ export function AgentSessionDetailsSections({
           <OpenTargetButton
             targetPath={workspacePath}
             pathKind="directory"
-            className="h-7 shrink-0 border-0"
+            className="h-7 shrink-0"
             menuAction="select"
             primaryShortcut={<CommandShortcut command="agent.workspace.open" />}
             menuContentProps={{ className: 'w-70 max-w-[calc(100vw_-_24px)]', alignOffset: -16 }}

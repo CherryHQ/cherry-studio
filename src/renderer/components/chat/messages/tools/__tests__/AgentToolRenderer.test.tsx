@@ -178,6 +178,7 @@ describe('AgentExecutionTimeline', () => {
     'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
     'agent.askUserQuestion.title': 'Questions from Agent',
     'agent.askUserQuestion.answered': 'answered',
+    'agent.askUserQuestion.skipInterview': 'Skip interview and plan',
     'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
     'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report',
     'agent.sidebar_title': 'Agents',
@@ -583,6 +584,19 @@ describe('AgentExecutionTimeline', () => {
   })
 
   describe('pending without streaming', () => {
+    it('retains the chosen interview action when a completed question with no answers is reopened', () => {
+      const questions = [{ question: 'Choose a database', header: 'Database', options: [], multiSelect: false }]
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'done',
+        toolCallId: 'call-plan-interview',
+        arguments: { responseMode: 'native-request', questions },
+        response: { questions, answers: {}, interviewAction: 'skip-interview' }
+      })
+      render(<AgentExecutionTimeline toolResponse={toolResponse} />)
+      expect(screen.getByText('Skip interview and plan')).toBeVisible()
+    })
+
     it('shows a completed AskUserQuestion message card when no answer was submitted', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },

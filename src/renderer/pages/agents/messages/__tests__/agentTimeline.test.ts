@@ -24,6 +24,16 @@ const run: CherryUIMessage = {
 }
 
 describe('Agent timeline display', () => {
+  it('keeps a paused imported reply as one historical record when native part IDs are available', () => {
+    const history: CherryUIMessage = {
+      ...run,
+      metadata: { status: 'paused', provenance: { source: 'claude-code', sourceOrder: 1 } }
+    }
+    const rows = projectAgentTimeline([history, input('follow-up', 4)], (message) => message)
+    expect(rows.map((row) => row.id)).toEqual(['run', 'follow-up'])
+    expect(rows[0].partIds).toEqual(run.partIds)
+  })
+
   it('places new output after each placed input while keeping the original tool in its segment', () => {
     const rows = projectAgentTimeline(
       [input('prompt', 1), run, input('first', 4), input('second', 6)],
@@ -77,6 +87,36 @@ describe('Agent timeline display', () => {
     expect(rows.map(({ id }) => id)).toEqual(['prompt', 'run', 'steer'])
     expect(rows[1].parts).toEqual(text.parts)
   })
+})
+
+it('shows the waiting Run identity after its latest placed input before any output', () => {
+  const pending: CherryUIMessage = {
+    id: 'run',
+    role: 'assistant',
+    metadata: { status: 'pending' },
+    partIds: [],
+    parts: []
+  }
+  const prompt = input('prompt', 1)
+  const waiting = projectAgentTimeline([prompt, pending], (message) => message)
+  expect(waiting.find((row) => row.showHeader)?.id).toBe('run')
+
+  const steer = { ...input('steer', 3), timeline: { pos: 3, replyId: 'run' } }
+  const queued = { ...input('queued'), timeline: { replyId: 'run' } }
+  const messages = [prompt, pending, steer, queued]
+  const steered = projectAgentTimeline(messages, (message) => message, waiting)
+  expect(steered.map((row) => row.id)).toEqual(['prompt', 'steer', 'run', 'queued'])
+  expect(steered.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run'])
+
+  const streaming: CherryUIMessage = {
+    ...pending,
+    partIds: ['answer'],
+    partPositions: [4],
+    parts: [{ type: 'text', text: 'Reply after steer', state: 'streaming' }]
+  }
+  const output = projectAgentTimeline(messages, (message) => (message.id === pending.id ? streaming : message), steered)
+  expect(output.map((row) => row.id)).toEqual(steered.map((row) => row.id))
+  expect(output.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run'])
 })
 
 it('assigns one identity header and one action boundary across all content segments of a Run', () => {

@@ -29,4 +29,10 @@ describe('context overflow classification', () => {
       false
     )
   })
+
+  it('requires upstream evidence for a plain stream error', () => {
+    const payload = { message: 'The request cannot be processed', providerErrorCategory: 'context_length' }
+    expect(isContextOverflowError(payload)).toBe(false)
+    expect(isContextOverflowError({ ...payload, error: { code: 'context_length_exceeded' } })).toBe(true)
+  })
 })

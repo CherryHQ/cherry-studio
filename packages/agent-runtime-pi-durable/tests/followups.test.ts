@@ -129,9 +129,9 @@ it('publishes admissions and doc-only edits to a live queue observer', async () 
     })
   )
   confirmed(await runtime.resume())
-  await driver.input.submit({ inputId: runtimeId('Active'), text: 'Active', whenBusy: 'reject' })
+  await driver.input.submit!({ inputId: runtimeId('Active'), text: 'Active' })
   await started
-  await driver.input.submit({ inputId: runtimeId('Next'), text: 'Next', whenBusy: 'follow-up' })
+  await driver.input.followUp!.submit({ inputId: runtimeId('Next'), text: 'Next' })
   expect(observed.at(-1)).toEqual([{ inputId: 'Next', revision: 0 }])
   expect(
     await driver.durable.changeFollowups({

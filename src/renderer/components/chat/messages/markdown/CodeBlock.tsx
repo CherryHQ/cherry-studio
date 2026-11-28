@@ -8,7 +8,7 @@ import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsC
 import { INLINE_CODE_CLASS, useMarkdownCode } from '@renderer/components/markdown'
 import { getCodeBlockId } from '@renderer/utils/markdownLight'
 
-import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
+import { useOptionalMessageListActions, useOptionalMessageRenderConfig } from '../MessageListProvider'
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
 import { classifyHtmlArtifactSource } from './plugins/remarkHtmlArtifact'
 
@@ -40,7 +40,7 @@ const CodeBlock: React.FC<Props> = ({
 }) => {
   const children = rawChildren ?? ''
   const { text, language, isIncomplete } = useMarkdownCode(children, className, sourceFormat)
-  const { codeFancyBlock } = useMessageRenderConfig()
+  const { codeFancyBlock } = useOptionalMessageRenderConfig()
 
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])

@@ -4,6 +4,7 @@ import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '.
 import type { ServiceTierSelection, UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
+import type { ExecutionId } from '../executionIdentity'
 
 export const aiStreamAdmissionReasons = {
   SINGLE_MODEL_REQUIRED: 'SINGLE_MODEL_REQUIRED',
@@ -41,7 +42,7 @@ export interface AiChatRequestBody extends AssistantTurnOptions {
 export interface StreamChunkPayload {
   topicId: string
   /** Multi-model: source model that produced this chunk. Frontend demuxes by this plus anchorMessageId. */
-  executionId?: UniqueModelId
+  executionId?: ExecutionId
   /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
   attemptId?: number
   /** Last source chunk covered by this payload, monotonic within a managed execution attempt. */
@@ -77,7 +78,7 @@ export type TopicStreamStatus =
  * a row (temporary topic).
  */
 export interface ActiveExecution {
-  executionId: UniqueModelId
+  executionId: ExecutionId
   /** Unique runtime attempt, monotonic within the Main-process lifetime; newer attempts have larger values. */
   attemptId: number
   anchorMessageId?: string
@@ -155,7 +156,7 @@ export interface StreamDonePayload {
   topicId: string
   /** Submitted Agent user row that owns this execution, including queued follow-ups. */
   userMessageId?: string
-  executionId?: UniqueModelId
+  executionId?: ExecutionId
   attemptId?: number
   /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
   topicAttemptWatermark?: number
@@ -170,7 +171,7 @@ export interface StreamErrorPayload {
   /** Submitted Agent user row that owns this execution, including queued follow-ups. */
   userMessageId?: string
   /** Multi-model: which model's execution errored. */
-  executionId?: UniqueModelId
+  executionId?: ExecutionId
   attemptId?: number
   /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
   topicAttemptWatermark?: number

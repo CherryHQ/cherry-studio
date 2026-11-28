@@ -36,6 +36,10 @@ import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { omitCompactedAnthropicThinking, usesAnthropicMessagesSdk } from '@main/ai/messages/anthropicThinking'
+import { countToolSetTokens } from '@main/ai/messages/attachmentBudget'
+import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
+import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
+import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
@@ -81,7 +85,7 @@ export function resolveInFlightTruncateThreshold(
 }
 
 /** Exported for direct middleware testing. Returns null when the layer is off. */
-export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptions | null {
+export function buildContextOptions(scope: RequestScope, toolTokens = 0): ContextMiddlewareOptions | null {
   const settings = scope.contextSettings
   if (scope.request.contextOwner === 'caller' || !settings.enabled) return null
 
@@ -142,6 +146,20 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
   // comparison against it was silently false).
   if (settings.compress.enabled && !scope.compressionModel && contextWindow !== null) {
     logger.debug('compress enabled but no model resolved — sliding-window fallback only')
+    const outputReservation =
+      scope.requestedMaxOutputTokens ??
+      resolveRequestedMaxOutputTokens(
+        scope.request.callOverrides?.maxOutputTokens,
+        undefined,
+        scope.assistant,
+        scope.model,
+        scope.endpointType
+      )
+    const fixedTokens = tokenxTokenizer.count(scope.system ?? '') + toolTokens
+    options.contextWindow = Math.max(1, resolveInputRoom(contextWindow, outputReservation) - fixedTokens)
+    const dialect = resolveModelTokenDialect(scope.provider, scope.model)
+    options.estimateHistoryTokens = (history) =>
+      estimateModelMessagesSync(toAISDK(history), { dialect, tokenizer: tokenxTokenizer })
     options.onBeforeCompress = (history, tokenInfo) => {
       const kept = dropOldestUntilUnderBudget(history, tokenInfo)
       return kept !== history && usesAnthropicMessagesSdk(scope.aiSdkProviderId, scope)
@@ -249,8 +267,14 @@ function createContextBuildPlugin(scope: RequestScope) {
   return definePlugin({
     name: 'context-build',
     enforce: 'pre',
-    configureContext: (context) => {
-      const options = buildContextOptions(scope)
+    configureContext: async (context) => {
+      const toolTokens =
+        scope.contextSettings.compress.enabled &&
+        !scope.compressionModel &&
+        resolveContextWindow(scope.model.contextWindow)
+          ? await countToolSetTokens(scope.tools, tokenxTokenizer, scope.request.callOverrides?.activeTools)
+          : 0
+      const options = buildContextOptions(scope, toolTokens)
       if (!options) return
       context.middlewares = context.middlewares || []
       context.middlewares.push(createContextMiddleware(options))

@@ -34,6 +34,7 @@ import { projectAgentNonTextPart } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { extractAgentContextId, extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import type {
@@ -104,7 +105,7 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
     ...message,
     parts: message.parts.map((part) => {
       if (!isToolUIPart(part) || !part.approval) return part
-      const approved = exec.resolvedToolApprovals?.get(part.toolCallId)
+      const approved = exec.resolvedToolApprovals?.get(part.approval.id)
       if (approved === false) {
         return {
           ...part,
@@ -114,9 +115,21 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
           approval: { ...part.approval, approved: false as const }
         }
       }
-      return approved === true && part.state === 'approval-requested'
-        ? { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
-        : part
+      if (!approved) return part
+      if (part.state === 'output-available' || part.state === 'output-error') {
+        return { ...part, approval: { ...part.approval, approved } }
+      }
+      // The SDK can retain the approval ID when a tool repeats its input.
+      if (part.state === 'approval-requested' || part.state.startsWith('input-')) {
+        return {
+          ...part,
+          state: 'approval-responded',
+          output: undefined,
+          errorText: undefined,
+          approval: { ...part.approval, approved }
+        }
+      }
+      return part
     })
   }
 }
@@ -161,7 +174,7 @@ function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error',
 
 /** A single model's request inside a `send()` call. */
 export interface SendModelSpec {
-  modelId: UniqueModelId
+  modelId: ExecutionId
   request: ManagedAiStreamRequest
   runtimeTimingSeed?: MessageRuntimeTiming
   seedFromEmpty?: boolean
@@ -198,7 +211,7 @@ export interface SendResult {
 export interface StartRuntimeTurnInput {
   taskIds?: readonly string[]
   topicId: string
-  modelId: UniqueModelId
+  modelId: ExecutionId
   request: ManagedAiStreamRequest
   runtimeTimingSeed?: MessageRuntimeTiming
   listeners: StreamListener[]
@@ -211,7 +224,7 @@ export interface StartRuntimeTurnInput {
 // poking `activeStreams`.
 
 export interface ExecutionSnapshot {
-  readonly modelId: UniqueModelId
+  readonly modelId: ExecutionId
   readonly attemptId: number
   readonly anchorMessageId?: string
   readonly seedFromEmpty?: boolean
@@ -875,7 +888,7 @@ export class AiStreamManager extends BaseService {
    * Multi-model is detected from `models.length > 1`.
    */
   send(input: SendInput): SendResult {
-    const inputModelIds = new Set<UniqueModelId>()
+    const inputModelIds = new Set<ExecutionId>()
     for (const { modelId } of input.models) {
       if (inputModelIds.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
@@ -994,7 +1007,7 @@ export class AiStreamManager extends BaseService {
     if (existing) this.evictStream(input.topicId)
 
     const isMultiModel = input.models.length > 1
-    const executions = new Map<UniqueModelId, StreamExecution>()
+    const executions = new Map<ExecutionId, StreamExecution>()
 
     for (const { modelId, request, runtimeTimingSeed, seedFromEmpty, rootSpan, abortController } of input.models) {
       const exec = this.createAndLaunchExecution(
@@ -1076,6 +1089,7 @@ export class AiStreamManager extends BaseService {
     source?: SourceSnapshot | null
     /** Per-request retry limit; `0` also disables model fallback. */
     maxRetries?: number
+    utilityTask?: boolean
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -1091,6 +1105,7 @@ export class AiStreamManager extends BaseService {
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       ...(input.resolvedModel ? { resolvedModel: input.resolvedModel } : {}),
+      ...(input.utilityTask ? { utilityTask: true } : {}),
       messages,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
@@ -1209,7 +1224,7 @@ export class AiStreamManager extends BaseService {
    */
   async awaitExecutionRetry(
     topicId: string,
-    modelId: UniqueModelId,
+    modelId: ExecutionId,
     anchorMessageId: string,
     parentAnchorId: string,
     compatibleSiblingsGroupId?: number
@@ -1366,7 +1381,7 @@ export class AiStreamManager extends BaseService {
    * Clear a live runtime tool approval as soon as the user responds, before the
    * tool's eventual output chunk arrives. Returns whether a tracked approval changed.
    */
-  resolveToolApproval(topicId: string, toolCallId: string, approved: boolean): boolean {
+  resolveToolApproval(topicId: string, toolCallId: string, approvalId: string, approved: boolean): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
 
@@ -1376,7 +1391,7 @@ export class AiStreamManager extends BaseService {
       const pendingApprovals = exec.pendingApprovalToolCallIds
       if (!pendingApprovals?.delete(toolCallId)) continue
       exec.runtimeTiming.finishApproval({ toolCallId })
-      ;(exec.resolvedToolApprovals ??= new Map()).set(toolCallId, approved)
+      ;(exec.resolvedToolApprovals ??= new Map()).set(approvalId, approved)
       changed = true
       if (approved) {
         // AI SDK has no UI-stream approval-response chunk. Replaying the input advances the part
@@ -1501,7 +1516,7 @@ export class AiStreamManager extends BaseService {
   // tests invoke them directly to simulate chunk/done/error.
 
   /** Multi-model: chunks carry `sourceModelId` for renderer demux. */
-  onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk, expectedExecution?: StreamExecution): void {
+  onChunk(topicId: string, modelId: ExecutionId, chunk: UIMessageChunk, expectedExecution?: StreamExecution): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) return
 
@@ -1640,7 +1655,7 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Called when one execution finishes. Topic-level done only when ALL executions finished. */
-  async onExecutionDone(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
+  async onExecutionDone(topicId: string, modelId: ExecutionId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
@@ -1709,7 +1724,7 @@ export class AiStreamManager extends BaseService {
     }
   }
 
-  async onExecutionPaused(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
+  async onExecutionPaused(topicId: string, modelId: ExecutionId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
@@ -1761,7 +1776,7 @@ export class AiStreamManager extends BaseService {
   /** Called when one execution errors. */
   async onExecutionError(
     topicId: string,
-    modelId: UniqueModelId,
+    modelId: ExecutionId,
     error: SerializedError,
     expectedExecution?: StreamExecution,
     originalError?: unknown
@@ -1846,7 +1861,7 @@ export class AiStreamManager extends BaseService {
    * to `error` separately and the original terminal event is suppressed. Persistence listeners
    * are skipped because they just failed and would loop. No-op once the stream has drained.
    */
-  broadcastTopicError(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
+  broadcastTopicError(topicId: string, modelId: ExecutionId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     const exec = modelId ? stream.executions.get(modelId) : undefined
@@ -1882,7 +1897,7 @@ export class AiStreamManager extends BaseService {
    * continuation turn never opened), write the terminal status, and run the terminal lifecycle so the
    * status cache settles and the stream is evicted. Mirrors the chat path's `failChatContinuation`.
    */
-  terminateHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
+  terminateHeldTopicStream(topicId: string, modelId: ExecutionId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     const exec = modelId ? stream.executions.get(modelId) : undefined
@@ -2110,7 +2125,7 @@ export class AiStreamManager extends BaseService {
       // backwards-compat convenience pointing at the first iteration; both
       // are undefined-safe when the stream errored before any execution
       // accumulated content.
-      const finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>> = {}
+      const finalMessages: Partial<Record<ExecutionId, CherryUIMessage>> = {}
       let firstFinalMessage: CherryUIMessage | undefined
       for (const exec of stream.executions.values()) {
         const message = exec.readMessage?.() ?? exec.finalMessage
@@ -2223,7 +2238,7 @@ export class AiStreamManager extends BaseService {
    */
   private createAndLaunchExecution(
     topicId: string,
-    modelId: UniqueModelId,
+    modelId: ExecutionId,
     request: ManagedAiStreamRequest,
     siblingsGroupId?: number,
     runtimeTimingSeed?: MessageRuntimeTiming,
@@ -2276,7 +2291,7 @@ export class AiStreamManager extends BaseService {
 
   private async runExecutionLoop(
     topicId: string,
-    modelId: UniqueModelId,
+    modelId: ExecutionId,
     request: ManagedAiStreamRequest,
     exec: StreamExecution
   ): Promise<void> {
@@ -2395,7 +2410,9 @@ export class AiStreamManager extends BaseService {
           resetIdle()
           const active = this.activeStreams.get(topicId)
           const projection = this.projections.get(topicId)
-          if (change.type === 'part-put' || change.type === 'part-add') {
+          if (change.type === 'part-put' && change.terminalPatch) {
+            projection?.relayAgentPart(modelId, exec.attemptId, change.terminalPatch)
+          } else if (change.type === 'part-put' || change.type === 'part-add') {
             const { patch, ref } = projectAgentNonTextPart(topicId, change)
             projection?.relayAgentPart(modelId, exec.attemptId, patch)
             if (ref) projection?.invalidateToolResults([ref])
@@ -2463,7 +2480,11 @@ export class AiStreamManager extends BaseService {
       }
       const fromThrow = serializeError(result.threw.error)
       const serialized =
-        result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow) && !fromThrow.i18nKey
+        result.streamErrorText !== undefined &&
+        !signal.aborted &&
+        !hasHttpMetadata(fromThrow) &&
+        !fromThrow.providerErrorCategory &&
+        !fromThrow.i18nKey
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
       if (fromThrow.reportingHandled === true) serialized.reportingHandled = true

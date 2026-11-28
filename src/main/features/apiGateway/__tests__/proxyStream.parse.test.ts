@@ -87,6 +87,7 @@ vi.mock('../adapters', () => ({
 }))
 
 import { processMessage } from '../proxyStream'
+import { grokBuildRoutes } from '../routes/grokBuild'
 
 beforeEach(() => {
   BaseService.resetInstances()
@@ -207,6 +208,28 @@ describe('processMessage model-id parsing', () => {
     mockAvailableModel('openai', 'gpt-4')
     await resolveValid('openai:gpt-4')
     expect(captured.opts?.contextOwner).toBe('caller')
+  })
+
+  it.each([
+    ['session_title', 'none'],
+    ['lookup', undefined]
+  ])('applies the Grok title default by requested tool (%s) on a non-DeepSeek provider', async (name, effort) => {
+    mockAvailableModel('openai', 'gpt-4')
+    const response = grokBuildRoutes.handle(
+      new Request('http://localhost/agents/grok-build/session-summary/chat/completions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'openai:gpt-4',
+          messages: [{ role: 'user', content: 'Give this session a title' }],
+          tool_choice: { type: 'function', function: { name } }
+        })
+      })
+    )
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts?.reasoningEffort).toBe(effort)
+    void captured.opts!.listener!.onDone({} as any)
+    expect((await response).status).toBe(200)
   })
 
   it('keeps later colons in the model id (split on FIRST colon only)', async () => {

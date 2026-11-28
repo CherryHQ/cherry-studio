@@ -4,14 +4,16 @@ import { useTranslation } from 'react-i18next'
 import type { Pluggable } from 'unified'
 
 import {
-  useMessageRenderConfig,
-  useOptionalMessageListActions
+  useOptionalMessageListActions,
+  useOptionalMessageRenderConfig
 } from '@renderer/components/chat/messages/MessageListProvider'
 import { AppMarkdown, MarkdownHostProvider } from '@renderer/components/markdown'
 import type { FileLocation } from '@renderer/types/fileLocation'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isWin } from '@renderer/utils/platform'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { toFileUrl } from '@shared/utils/file'
 
 import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
@@ -33,7 +35,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
   linkifyFilePaths = false
 }) => {
   const { t } = useTranslation()
-  const { mathEnableSingleDollar } = useMessageRenderConfig()
+  const { mathEnableSingleDollar } = useOptionalMessageRenderConfig()
   const actions = useOptionalMessageListActions()
   const isStreaming = block.status === 'streaming'
   const content =
@@ -78,6 +80,41 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
     [actions, t]
   )
 
+  const resolveImageSrc = useMemo(() => {
+    const resolvePath = actions?.resolvePath
+    if (!resolvePath) return undefined
+    return (src: string): string | null => {
+      if (!src || src.trim() !== src || /^[/?#]|^[a-z][a-z0-9+.-]*:|[\\\p{Cc}]|%2f|%5c/iu.test(src)) {
+        return src
+      }
+      const relativePath = src.replace(/[?#].*$/, '')
+      let decodedPath: string
+      try {
+        decodedPath = decodeURIComponent(relativePath)
+      } catch {
+        return null
+      }
+      if (
+        !decodedPath ||
+        decodedPath === '.' ||
+        decodedPath.startsWith('/') ||
+        decodedPath.endsWith('/') ||
+        decodedPath.includes('\\') ||
+        decodedPath.split('/').some((segment) => segment === '..')
+      ) {
+        return null
+      }
+      try {
+        const parsedPath = AbsoluteFilePathSchema.safeParse(resolvePath(decodedPath))
+        if (!parsedPath.success) return null
+        const fragment = src.includes('#') ? src.slice(src.indexOf('#')) : ''
+        return `${toFileUrl(parsedPath.data)}${fragment}`
+      } catch {
+        return null
+      }
+    }
+  }, [actions?.resolvePath])
+
   return (
     <ChatMarkdownRenderProvider
       blockId={block.id}
@@ -87,6 +124,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
       openFilePath={openFilePath}>
       <MarkdownHostProvider
         openFilePath={openFilePath}
+        resolveImageSrc={resolveImageSrc}
         openExternalUrl={actions?.openExternalUrl}
         copyRichContent={actions?.copyRichContent}
         exportTableAsExcel={actions?.exportTableAsExcel}

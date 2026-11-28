@@ -42,6 +42,7 @@ import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
+import { type NativeFileSupport, resolveNativeFileSupport } from '../../../messages/nativeFileSupport'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
 import { applyHttpTrace, type AgentRuntimeTraceContext } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
@@ -86,7 +87,7 @@ import { createCustomParamsFetch, selectCustomBodyParameters } from './customPar
 import type { RequestFeature } from './feature'
 import { hasAnchorRow } from './features/contextBuild'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
-import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
+import { providerErrorBoundaryPlugin } from './features/providerErrorBoundary'
 import type { RequestScope, SdkConfig } from './scope'
 
 const logger = loggerService.withContext('buildAgentParams')
@@ -144,7 +145,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride
+    request.apiKeyOverride,
+    request.utilityTask
   )
   const replayRouteId = getReplayRouteId(provider.id, resolvedEndpoint.endpointType, sdkConfig)
   applyHttpTrace(sdkConfig.providerSettings, {
@@ -322,7 +324,26 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     toolOutputCharCap: contextSettings.truncateThreshold
   }
 
+  const mcpInstructions = request.contextOwner === 'caller' ? '' : buildMcpInstructionsContext(mcpServerIds)
+  const system =
+    request.contextOwner === 'caller'
+      ? request.system
+      : request.system !== undefined
+        ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
+        : await assembleSystemPrompt({
+            assistant,
+            model,
+            tools,
+            deferredEntries,
+            hasCitableTools,
+            webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
+            mcpInstructions
+          })
+
   const scope: RequestScope = {
+    system,
+    tools,
+    requestedMaxOutputTokens,
     request,
     signal,
     registry,
@@ -354,21 +375,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const mcpInstructions = request.contextOwner === 'caller' ? '' : buildMcpInstructionsContext(mcpServerIds)
-  const system =
-    request.contextOwner === 'caller'
-      ? request.system
-      : request.system !== undefined
-        ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
-        : await assembleSystemPrompt({
-            assistant,
-            model,
-            tools,
-            deferredEntries,
-            hasCitableTools,
-            webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
-            mcpInstructions
-          })
   const options = buildAgentOptions(
     scope,
     contributions,
@@ -404,7 +410,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType,
     credentialReceipt,
     tools,
-    plugins: contributions.modelAdapters,
+    // The innermost adapter classifies failures before recovery or retry can observe them.
+    plugins: [...contributions.modelAdapters, providerErrorBoundaryPlugin],
     system,
     options,
     hookParts,

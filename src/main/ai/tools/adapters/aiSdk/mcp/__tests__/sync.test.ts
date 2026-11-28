@@ -1,6 +1,11 @@
 import type { Tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toModelMessages } from '@main/ai/messages/messageRules'
+import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
+import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
+import type { Assistant } from '@shared/data/types/assistant'
+
 import { ToolRegistry } from '../../registry'
 import type { ToolEntry } from '../../types'
 
@@ -32,7 +37,7 @@ vi.mock('@main/data/services/McpServerService', () => ({
 }))
 
 // Import AFTER vi.mock so the mocks bind correctly.
-const { syncMcpToolsToRegistry } = await import('../mcpTools')
+const { resolveCachedMcpTools, syncMcpToolsToRegistry } = await import('../mcpTools')
 
 function mcpTool(serverId: string, name: string, description = '') {
   return {
@@ -53,6 +58,41 @@ describe('syncMcpToolsToRegistry', () => {
   beforeEach(() => {
     listTools.mockReset()
     list.mockReset()
+  })
+
+  it('prices cached MCP image results as media on a vision model with a text-only tool route', async () => {
+    list.mockReturnValue({ items: [activeServer('s1')] })
+    const entry = mcpTool('s1', 'image')
+    listTools.mockReturnValue([entry])
+    const assistant = { settings: { mcpMode: 'manual' }, mcpServerIds: ['s1'] } as Assistant
+    const data = 'QkFTRTY0'.repeat(10_000)
+    const messages = await toModelMessages(
+      [
+        {
+          id: 'reply',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'dynamic-tool',
+              toolName: entry.id,
+              toolCallId: 'call-id',
+              state: 'output-available',
+              input: {},
+              output: { content: [{ type: 'image', mimeType: 'image/png', data }] }
+            }
+          ]
+        }
+      ],
+      { image: true, audio: false, video: false },
+      resolveCachedMcpTools(assistant),
+      { image: false, audio: false, video: false }
+    )
+    expect(messages[1]).toMatchObject({
+      role: 'tool',
+      content: [{ toolCallId: 'call-id', output: { type: 'content', value: [{ type: 'text' }] } }]
+    })
+    expect(messages[2]).toMatchObject({ role: 'user', content: [{ type: 'text' }, { type: 'image' }] })
+    expect(estimateModelMessagesSync(messages, { dialect: 'openai', tokenizer: tokenxTokenizer })).toBeLessThan(2_000)
   })
 
   it('registers tools from every active server', async () => {

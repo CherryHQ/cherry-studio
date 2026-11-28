@@ -261,6 +261,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     // so a single-string stop isn't passed through as a bogus array downstream.
     const stop = params.stop
     const stopSequences = typeof stop === 'string' ? [stop] : Array.isArray(stop) ? stop : undefined
+    const choice = params.tool_choice
 
     return {
       // Prefer max_completion_tokens (current param for newer/o-series models); fall back to legacy
@@ -269,7 +270,12 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
       maxOutputTokens: params.max_completion_tokens ?? params.max_tokens ?? undefined,
       temperature: params.temperature ?? undefined,
       topP: params.top_p ?? undefined,
-      stopSequences
+      stopSequences,
+      ...(choice === 'auto' || choice === 'none' || choice === 'required'
+        ? { toolChoice: choice }
+        : typeof choice === 'object' && choice?.type === 'function' && typeof choice.function?.name === 'string'
+          ? { toolChoice: { type: 'tool', toolName: choice.function.name } }
+          : {})
     }
   }
 

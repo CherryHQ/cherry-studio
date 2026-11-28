@@ -28,6 +28,7 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { savedChildView } from '@main/ai/agentSession/childArchive'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
+import { bindNativeInput } from '@main/ai/agentSession/nativeSubmission'
 import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
@@ -332,7 +333,14 @@ it('joins native steer to the shared answer while keeping foreground child histo
     })
   expect(refresh).not.toHaveBeenCalled()
   const second = test.input('Use the revised requirement')
-  expect(connection.redirect!({ ...second, systemReminder: true })).toBe(true)
+  bindNativeInput(test.sessionId, connection.contextId!, second.message)
+  await expect(
+    connection.threadInput!.steer!.submit({
+      inputId: runtimeId(second.message.id),
+      ...second,
+      systemReminder: true
+    })
+  ).resolves.toMatchObject({ status: 'acknowledged' })
   await expect
     .poll(() =>
       test.nativeInputs.some((state) => state.inputId === second.message.id && state.facts.includes('dispatch-started'))
@@ -399,7 +407,13 @@ it('accepts steer across native completion and closes the actual subprocess', as
   request.reply.finish()
   await test.wait('turn-complete')
   const second = test.input('Next')
-  expect(connection.redirect!(second)).toBe(true)
+  bindNativeInput(test.sessionId, connection.contextId!, second.message)
+  await expect(
+    connection.threadInput!.steer!.submit({
+      inputId: runtimeId(second.message.id),
+      ...second
+    })
+  ).resolves.toMatchObject({ status: 'acknowledged' })
   const next = await test.request()
   next.reply.block({ type: 'text', text: 'Second answer' })
   next.reply.finish()
@@ -820,7 +834,7 @@ it.each(['rejected', 'unsupported', 'unknown'] as const)(
     const connection = await test.connect()
     const user = test.input('not accepted')
     const handle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
-    vi.spyOn(handle.claude, 'submit').mockResolvedValue({
+    vi.spyOn(handle.claude.input!.followUp!, 'submit').mockResolvedValue({
       status,
       inputId: runtimeId(user.message.id),
       error: { operation: 'submit', code: 'fixture', message: status }
