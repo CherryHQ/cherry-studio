@@ -814,7 +814,7 @@ it('uses final turn usage for one non-streamed invocation and projects its compl
     const root = confirmed(await test.runtime().create(test.options))
     const view = await observe(root)
     const id = inputId()
-    await root.input!.submit({ inputId: id, text: 'Reply without partials', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: id, text: 'Reply without partials' })
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Non-streamed answer' })
     request.reply.finish()
@@ -837,7 +837,7 @@ it('defers a non-streamed steer boundary past trailing blocks of the interrupted
     test.send(original)
     await expect.poll(() => textOf(test.view.snapshot)).toContain('Original')
     const id = inputId()
-    await test.root.input!.submit({ inputId: id, text: 'Steer', whenBusy: 'steer' })
+    await test.root.input!.steer!.submit({ inputId: id, text: 'Steer' })
     test.send({
       type: 'command_lifecycle',
       command_uuid: id,
