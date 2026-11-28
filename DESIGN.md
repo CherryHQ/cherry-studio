@@ -187,18 +187,30 @@ semantic roles. Exact state styling belongs to the shared component.
 
 ### Focus
 
-Keyboard focus must be visible and should reuse a component's existing border, fill, text, underline, or an inset
-indicator. Avoid adding a second frame outside the control.
+Keyboard focus uses two channels, both colored by `--ring`:
 
-- Text-entry controls may change their existing border while editing or keyboard-focused.
-- Buttons, menu items, tabs, links, and selectable rows should use their established hover vocabulary for
-  focus-visible feedback.
-- Controls that cannot express focus through an existing surface may use an inset ring or inset shadow.
-- Do not remove focus feedback, and do not use non-inset focus rings, positive outline offsets, or focus shadows
-  that extend beyond the component bounds.
+- **Halo:** the shared base layer draws a 3px outline of `--ring` at 40% alpha directly outside the edge of every
+  `:focus-visible` element. Do not add per-call-site focus rings, outlines, or shadows, and do not remove the halo
+  from a focusable control with `outline-none`.
+- **Border:** bordered controls change their border to the opaque `--ring` (`focus-visible:border-ring`), which
+  carries the contrast. A state that owns the border, such as checked or invalid, may keep it; the halo still
+  marks focus.
+- Borderless controls, such as filled, ghost, and link buttons, tabs, and menu-list rows, keep their focus-visible
+  fill, text, or underline change alongside the halo.
+- When another element shows focus for the focused one, such as an input group or search bar around its input, or
+  a preview frame inside a card button, that element draws the border and halo, and the focused element opts out.
+- Text fields that are the only control of a transient surface (a popup search, a find overlay, the quick assistant
+  input) or that edit in place (inline rename, property editors) opt out with `outline-none`; the caret marks focus.
+  Editor canvases such as the composer and CodeMirror opt out the same way.
+- Popup containers that receive focus programmatically (menus, popovers, dialogs, sheets, drawers, select content)
+  opt out with `outline-none` in their primitive. Popup list items (menu items, select options, command items) use
+  the `accent` highlight instead of the halo, and a checked option shows only its check mark.
 
-Pointer focus, an open popup, or a pressed control does not automatically justify a theme-colored border.
-Persistent states such as selected, checked, active, and invalid may use a border when it communicates that state.
+`--ring` derives from the brand color rather than the user's theme color, so no theme color can hide focus.
+
+Pointer focus, an open popup, or a pressed control shows neither the halo nor a ring-colored border. Text-entry
+controls match `:focus-visible` on click, so they show both while editing. Persistent states such as selected,
+checked, active, and invalid may use a border when it communicates that state.
 
 ### State and motion
 

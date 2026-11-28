@@ -38,7 +38,9 @@
   --cs-border-selected: oklch(0 0 0 / 0.3);
 
   /* Ring (Focus) */
-  --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
+  /* Brand hue at the highest in-gamut chroma that still reaches 3:1 on white (3.05:1);
+     brand-600 falls short (2.78:1) and brand-700 reads too dull. */
+  --cs-ring: oklch(0.645 0.195 146);
 
   /* UI Element Colors */
   --cs-secondary: oklch(0 0 0 / 0.05); /* Secondary Button Background */
@@ -120,8 +122,9 @@
   --cs-border-strong: oklch(1 0 0 / 0.2);
   --cs-border-selected: oklch(1 0 0 / 0.3);
 
-  /* Ring (Focus) - 保持不变 */
-  --cs-ring: oklch(0.76 0.204 131 / 0.4);
+  /* Ring (Focus) */
+  /* Brand hue at the highest in-gamut chroma that reaches 3:1 on the dark background (#181818, 3.02:1). */
+  --cs-ring: oklch(0.49 0.145 146);
 
   /* UI Element Colors - Dark Mode */
   --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */

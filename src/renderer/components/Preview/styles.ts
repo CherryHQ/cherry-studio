@@ -28,7 +28,7 @@ export const PreviewContainer = ({
     className: cn(
       'relative min-h-[8rem] [&_.special-preview]:min-h-[8rem]',
       '[&_.preview-toolbar]:transform-gpu [&_.preview-toolbar]:opacity-0 [&_.preview-toolbar]:transition-opacity [&_.preview-toolbar]:duration-300 [&_.preview-toolbar]:ease-in-out [&_.preview-toolbar]:will-change-[opacity]',
-      '[&:hover_.preview-toolbar]:opacity-100',
+      '[&:hover_.preview-toolbar]:opacity-100 [&_.preview-toolbar:focus-within]:opacity-100',
       className
     ),
     ...props

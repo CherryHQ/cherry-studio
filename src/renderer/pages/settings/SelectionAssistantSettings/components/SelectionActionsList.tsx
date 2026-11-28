@@ -98,7 +98,8 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         onReorder={handleReorderRows}
         isItemDragDisabled={(row) => row === ACTIONS_DIVIDER || (row.enabled && enabledItems.length === 1)}
         gap={8}
-        itemStyle={{ cursor: 'default' }}
+        // The row wrapper is the keyboard drag stop; match the card's rounded-md so its focus halo follows the card.
+        itemStyle={{ cursor: 'default', borderRadius: 'var(--radius-md)' }}
         className="mb-4"
         renderItem={(row) =>
           row === ACTIONS_DIVIDER ? (

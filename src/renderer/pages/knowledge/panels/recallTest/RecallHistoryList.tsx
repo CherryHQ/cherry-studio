@@ -19,7 +19,7 @@ const RecallHistoryList = () => {
         <Button
           type="button"
           variant="ghost"
-          className="h-auto min-h-0 rounded-none p-0 text-xs leading-4 text-muted-foreground shadow-none transition-colors hover:bg-transparent hover:text-destructive"
+          className="h-auto min-h-0 rounded p-0 text-xs leading-4 text-muted-foreground shadow-none transition-colors hover:bg-transparent hover:text-destructive"
           onClick={clearHistory}>
           {t('knowledge.recall.history_clear')}
         </Button>
@@ -30,14 +30,14 @@ const RecallHistoryList = () => {
           key={item.id}
           className="group/hist flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left transition-[color] hover:bg-accent"
           onClick={() => selectHistory(item)}>
-          <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded text-left">
             <History className="size-3.5 shrink-0 text-foreground-tertiary" />
             <span className="min-w-0 flex-1 truncate text-sm leading-5 text-foreground">{item.query}</span>
           </button>
           <button
             type="button"
             aria-label={t('knowledge.recall.history_remove')}
-            className="shrink-0 cursor-default text-muted-foreground opacity-0 transition-all group-hover/hist:opacity-100 hover:text-destructive"
+            className="shrink-0 cursor-default rounded text-muted-foreground opacity-0 transition-all group-hover/hist:opacity-100 hover:text-destructive focus-visible:opacity-100"
             onClick={(event) => {
               event.stopPropagation()
               removeHistory(item.id)

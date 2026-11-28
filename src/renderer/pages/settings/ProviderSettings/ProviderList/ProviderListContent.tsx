@@ -2,7 +2,10 @@ import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ReorderableList, ScrollArea, Sortable } from '@cherrystudio/ui'
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import {
+  providerListClasses,
+  providerListSortableItemStyle
+} from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
 
 import { groupProvidersByPreset, restoreProviderStatusSlots } from './providerGrouping'
@@ -142,6 +145,7 @@ export default function ProviderListContent({
         if (next !== providers) return onReorder(next)
       }}
       onReorderError={onReorderError}
+      itemStyle={providerListSortableItemStyle}
       className="w-full"
       gap="0.5rem"
       restrictions={{ scrollableAncestor: true }}
@@ -206,6 +210,7 @@ export default function ProviderListContent({
         onDragCancel={handleDragEnd}
         onSortEnd={handleSortEnd}
         collisionDetection="closest-center"
+        itemStyle={providerListSortableItemStyle}
         className="w-full"
         gap="0.5rem"
         restrictions={{ scrollableAncestor: true }}

@@ -325,15 +325,18 @@ export function AgentSessionDetailsSections({
   const content: Record<string, ReactNode> = {
     workspace: workspaceLabel && (
       <div className="flex min-w-0 items-center gap-2 px-3 py-2">
-        <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
         <Tooltip asChild content={workspacePath || workspaceLabel}>
           <span
             tabIndex={0}
-            className={cn(
-              'min-w-0 flex-1 truncate rounded-sm text-xs font-medium focus-visible:bg-accent focus-visible:outline-none',
-              workspaceType === 'system' || !workspacePath ? 'text-muted-foreground' : 'text-foreground'
-            )}>
-            {workspaceLabel}
+            className="-ml-2 flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-2 focus-visible:bg-accent">
+            <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+            <span
+              className={cn(
+                'min-w-0 truncate text-xs font-medium',
+                workspaceType === 'system' || !workspacePath ? 'text-muted-foreground' : 'text-foreground'
+              )}>
+              {workspaceLabel}
+            </span>
           </span>
         </Tooltip>
         {workspacePath && (

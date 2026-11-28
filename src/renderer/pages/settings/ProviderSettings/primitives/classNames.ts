@@ -39,7 +39,10 @@ export const actionClasses = {
 } as const
 
 const providerListItemFrame =
-  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-0.5 text-left shadow-none outline-none transition-[color,border-color] focus-visible:ring-0'
+  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-0.5 text-left shadow-none transition-[color,border-color]'
+
+/** The sortable row wrapper is the keyboard drag stop; keep its focus halo on the frame's rounded-[10px]. */
+export const providerListSortableItemStyle = { borderRadius: 10 } as const
 
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
@@ -49,7 +52,9 @@ export const providerListClasses = {
   searchInlineAddButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-2.5 pt-2.5',
-  searchWrap: 'flex h-8 items-center gap-1 rounded-[10px] border border-input bg-background py-1 pl-2.5 pr-1',
+  // Lifted while focused: the positioned rows scrolling under it would otherwise paint over the halo.
+  searchWrap:
+    'flex h-8 items-center gap-1 rounded-[10px] border border-input bg-background py-1 pl-2.5 pr-1 has-[input:focus-visible]:border-ring has-[input:focus-visible]:outline-3 has-[input:focus-visible]:relative has-[input:focus-visible]:z-10',
   searchIcon: 'mr-0.5 size-3.5 shrink-0 text-muted-foreground',
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground',

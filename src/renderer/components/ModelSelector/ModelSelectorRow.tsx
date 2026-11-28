@@ -7,7 +7,7 @@ export const MODEL_SELECTOR_ROW_CLASS =
   'group relative flex h-8 w-full items-center gap-1 rounded-[10px] px-2 py-1 text-left text-xs transition-[color]'
 
 export const MODEL_SELECTOR_ROW_ACTION_BUTTON_CLASS =
-  'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 shadow-none transition hover:bg-accent hover:text-accent-foreground hover:opacity-100! group-hover:opacity-60 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
+  'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 shadow-none transition hover:bg-accent hover:text-accent-foreground hover:opacity-100! group-hover:opacity-60 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
 
 export const MODEL_SELECTOR_ROW_PINNED_ACTION_BUTTON_CLASS = '-rotate-45 opacity-100'
 export const MODEL_SELECTOR_ROW_ACTIVE_ACTION_COLOR_CLASS = 'text-foreground!'

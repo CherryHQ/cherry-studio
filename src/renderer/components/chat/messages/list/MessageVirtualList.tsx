@@ -63,8 +63,8 @@ function hasIndependentKeyboardFocusOwner(target: EventTarget | null, scroller: 
   return owner instanceof HTMLElement && owner !== scroller
 }
 
-function focusScrollerForKeyboard(scroller: HTMLElement): void {
-  scroller.focus({ preventScroll: true })
+function focusScrollerForKeyboard(scroller: HTMLElement, focusVisible?: boolean): void {
+  scroller.focus({ preventScroll: true, focusVisible })
 }
 
 function isDocumentFocusUnowned(ownerDocument: Document): boolean {
@@ -186,7 +186,8 @@ export function MessageVirtualList<T>({
         isDocumentFocusUnowned(scrollerElement.ownerDocument) &&
         !hasIndependentKeyboardFocusOwner(event.target, scrollerElement)
       )
-        focusScrollerForKeyboard(scrollerElement)
+        // A wheel is pointer input, so this focus must not show the keyboard focus halo.
+        focusScrollerForKeyboard(scrollerElement, false)
       onWheel(event)
     }
     scrollerElement.addEventListener('wheel', handleWheel, { passive: true })
@@ -210,8 +211,6 @@ export function MessageVirtualList<T>({
         pointerType: event.pointerType,
         lastClientY: event.clientY
       }
-      if (!nestedScroller && !hasIndependentKeyboardFocusOwner(event.target, scrollerElement))
-        focusScrollerForKeyboard(scrollerElement)
       if (event.target === scrollerElement) beginScrollbarDrag()
     }
     const onPointerMove = (event: PointerEvent) => {

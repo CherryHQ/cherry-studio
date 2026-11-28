@@ -23,8 +23,8 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({
 
   return (
     <NavbarHeader className="home-navbar relative" style={{ height: 'var(--navbar-height)' }}>
-      <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
-        <div data-navbar-left-occupant className="flex min-w-0 flex-1 items-center overflow-hidden">
+      <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between">
+        <div data-navbar-left-occupant className="flex min-w-0 flex-1 items-center">
           {showSidebarControls && (
             <ConversationSidebarToggleButton
               sidebarOpen={showSidebar}

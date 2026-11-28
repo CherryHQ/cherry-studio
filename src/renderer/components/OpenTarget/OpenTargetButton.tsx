@@ -22,7 +22,8 @@ import { OpenTargetIcon } from './OpenTargetIcon'
 import { getOpenTargetBadge, getOpenTargetLabel } from './openTargetPresentation'
 
 const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
-const SPLIT_BUTTON_GROUP_CLASS = 'h-8 overflow-hidden rounded-md border border-border-subtle'
+const SPLIT_BUTTON_GROUP_CLASS =
+  'h-8 rounded-md border border-border-subtle [&>:first-child]:rounded-l-md [&>:last-child]:rounded-r-md'
 const SPLIT_BUTTON_CLASS = 'h-full rounded-none p-0'
 
 export interface OpenTargetButtonProps {

@@ -68,7 +68,8 @@ vi.mock('react-i18next', () => ({
 }))
 vi.mock('@renderer/utils/style', () => ({ cn: (...args: any[]) => args.filter(Boolean).join(' ') }))
 vi.mock('@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives', () => ({
-  providerListClasses: new Proxy({}, { get: () => '' })
+  providerListClasses: new Proxy({}, { get: () => '' }),
+  providerListSortableItemStyle: {}
 }))
 
 import { reorderVisibleSubset } from '../../../../../../../packages/ui/src/components/composites/reorderable-list/reorder-visible-subset'

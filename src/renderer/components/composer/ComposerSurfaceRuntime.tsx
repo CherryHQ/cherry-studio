@@ -2586,7 +2586,7 @@ export default function ComposerSurfaceRuntime({
           data-ui="part:composer-actions"
           data-composer-toolbar=""
           className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
-          <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
+          <div className="-m-[3px] flex min-w-0 flex-1 items-center overflow-hidden p-[3px]">{leftControls}</div>
           <div className="flex flex-row items-center gap-1">
             {sendAccessoryElement}
             {sendAction}

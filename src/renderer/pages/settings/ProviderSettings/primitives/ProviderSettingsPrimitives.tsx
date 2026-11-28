@@ -17,6 +17,7 @@ export {
   oauthCardClasses,
   providerDetailColumnClasses,
   providerListClasses,
+  providerListSortableItemStyle,
   providerSettingsTypography,
   sectionHeadingClasses
 } from './classNames'

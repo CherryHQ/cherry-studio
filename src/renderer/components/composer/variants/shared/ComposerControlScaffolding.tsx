@@ -6,7 +6,10 @@ import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useOverflowIconOnly } from '@renderer/hooks/useOverflowIconOnly'
 import { cn } from '@renderer/utils/style'
 
-export const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
+// The cancelled 3px padding keeps focus halos inside the clip; overflow stays hidden (not clip) so focusing a
+// clipped control scrolls it into view.
+export const COMPOSER_TOOLBAR_CLASS =
+  '-m-[3px] box-content flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden p-[3px]'
 export const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
 export const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
   'h-8 shrink-0 gap-1.5 rounded-lg border border-transparent bg-transparent px-2.5 text-xs font-medium text-foreground shadow-none hover:bg-accent active:bg-accent disabled:bg-transparent disabled:text-foreground-disabled [&_.lucide:not(.lucide-custom)]:text-muted-foreground hover:[&_.lucide:not(.lucide-custom)]:text-foreground'
@@ -18,7 +21,7 @@ export const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0
 export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 /** The top bar's Assistant / Agent avatar, a button of its own that toggles the profile pane. */
 export const COMPOSER_PROFILE_AVATAR_BUTTON_CLASS =
-  'flex size-7 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-accent'
+  'flex size-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent aria-pressed:bg-accent'
 
 type RenderContextControls = (args: { side: 'top' | 'bottom'; iconOnly: boolean }) => ReactNode
 

@@ -56,7 +56,7 @@ const IconButton = ({
       title={rest.title}
       className={cn(
         "flex shrink-0 items-center justify-center transition-colors [&_svg:not([class*='text-'])]:text-current",
-        'focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none',
+        'focus-visible:bg-accent focus-visible:text-foreground',
         'disabled:cursor-not-allowed disabled:opacity-60',
         SIZE_CLASS[size],
         toneClass(tone, active),

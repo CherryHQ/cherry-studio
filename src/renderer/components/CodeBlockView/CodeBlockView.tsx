@@ -481,7 +481,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
         'code-block relative w-full min-w-0 overflow-clip rounded-lg',
         isInSpecialView ? 'bg-transparent' : 'border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
-        '[&_.code-toolbar.show]:opacity-100 [&:hover_.code-toolbar]:opacity-100',
+        '[&_.code-toolbar.show]:opacity-100 [&:hover_.code-toolbar]:opacity-100 [&_.code-toolbar:focus-within]:opacity-100',
         isInSpecialView
           ? '[&_.code-toolbar]:rounded-none [&_.code-toolbar]:bg-transparent'
           : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-muted'

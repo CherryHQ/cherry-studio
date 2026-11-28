@@ -89,7 +89,7 @@ function QueuedFollowupRow({
         <DraftTokenChips item={item} hasText={Boolean(previewText)} />
       </div>
       {item.editing && <Badge variant="secondary">{t('chat.input.followup_queue.editing')}</Badge>}
-      <div className="text-muted-foreground flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="text-muted-foreground flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
         {onSteer ? (
           <Tooltip
             placement="top"
@@ -233,10 +233,13 @@ export function QueuedFollowupsDock({
         transition={transition}
         className="relative"
         style={{ height: isExpanded ? 'auto' : 0 }}>
-        <motion.div layout="position" layoutDependency={isExpanded} transition={transition}>
+        {/* flow-root stops the scroll area's negative margin from collapsing into the dock when collapsed. */}
+        <motion.div layout="position" layoutDependency={isExpanded} transition={transition} className="flow-root">
+          {/* The cancelled 3px padding keeps the rows' drag-stop focus halos inside the scroll viewport. */}
           <ScrollArea
             type="auto"
-            className="max-h-40 transition-[opacity,transform]"
+            className="-m-[3px] max-h-[calc(10rem+6px)] transition-[opacity,transform]"
+            contentProps={{ className: 'p-[3px]' }}
             style={{
               opacity: isExpanded ? 1 : 0,
               transform: isExpanded ? 'translateY(0px)' : 'translateY(4px)',
@@ -255,6 +258,8 @@ export function QueuedFollowupsDock({
               }
               direction="vertical"
               gap={4}
+              // The row wrapper is the keyboard drag stop; match the row's rounded-[12px] so its halo does too.
+              itemStyle={{ borderRadius: 12 }}
               renderItem={(item, _index, { dragging }) => (
                 <QueuedFollowupRow
                   item={item}

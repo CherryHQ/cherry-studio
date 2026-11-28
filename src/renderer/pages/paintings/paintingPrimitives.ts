@@ -24,7 +24,7 @@ export const paintingClasses = {
     'group relative flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-[12px] bg-secondary p-0 leading-none transition hover:bg-secondary-hover',
   historyItemActive: 'bg-background',
   historyDelete:
-    'absolute -top-1 -right-1 z-20 flex size-5 cursor-pointer items-center justify-center rounded-full border border-border-subtle bg-background/95 text-destructive opacity-0 shadow-sm transition group-hover:opacity-100',
+    'absolute -top-1 -right-1 z-20 flex size-5 cursor-pointer items-center justify-center rounded-full border border-border-subtle bg-background/95 text-destructive opacity-0 shadow-sm transition group-hover:opacity-100 focus-visible:opacity-100',
   promptModeTabsList: 'h-8 rounded-full border border-border-subtle bg-background-subtle p-0.5 shadow-none',
   promptModeTabsTrigger:
     'h-7 rounded-full px-2.5 text-xs text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
