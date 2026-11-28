@@ -92,6 +92,7 @@ import {
   buildApiKeyFallbackModels,
   buildFallbackModels,
   createRetryableWrap,
+  MAX_OUTPUT_TOKEN_RETRIES,
   readRetryPolicy,
   recoverableModelTransportFailure
 } from './runtime/aiSdk'
@@ -199,23 +200,35 @@ function resolveTextRetryPolicy(
 
 function createCallerRetryWrap(
   maxRetries: number | undefined,
+  recoverOutputTokens: boolean | undefined,
   onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent'],
   callerHandlesTransportRetry?: boolean
 ): ReturnType<typeof createRetryableWrap> {
-  if (maxRetries === undefined || maxRetries <= 0) return undefined
+  const retryTransient = maxRetries !== undefined && maxRetries > 0
+  if (!retryTransient && !recoverOutputTokens) return undefined
+  const maxAttempts = retryTransient ? Math.max(1, Math.trunc(maxRetries)) : MAX_OUTPUT_TOKEN_RETRIES
   return createRetryableWrap({
     retryPolicy: {
       ...readRetryPolicy(),
-      enabled: true,
-      maxAttempts: Math.max(1, Math.trunc(maxRetries)),
+      enabled: retryTransient,
+      maxAttempts,
       fallbackModelIds: []
     },
+    outputTokenRetries: Math.min(maxAttempts, MAX_OUTPUT_TOKEN_RETRIES),
     fallbacks: [],
     onRetryEvent,
     shouldRetryError: callerHandlesTransportRetry
       ? (error) => recoverableModelTransportFailure(error) === undefined
       : undefined
   })
+}
+
+function resolveOutputTokenRetries(maxRetries: number | undefined, retryPolicy: ReturnType<typeof readRetryPolicy>) {
+  return Math.min(
+    MAX_OUTPUT_TOKEN_RETRIES,
+    retryPolicy.enabled ? retryPolicy.maxAttempts : MAX_OUTPUT_TOKEN_RETRIES,
+    maxRetries === undefined ? MAX_OUTPUT_TOKEN_RETRIES : Math.max(0, Math.trunc(maxRetries))
+  )
 }
 
 function createCaptureContext(input: {
@@ -767,6 +780,7 @@ export class AiService extends BaseService {
       request.contextOwner === 'caller'
         ? createCallerRetryWrap(
             request.requestOptions?.maxRetries,
+            request.retryOutputTokenLimit,
             (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event }),
             !!reportTransportFailure
           )
@@ -797,6 +811,7 @@ export class AiService extends BaseService {
         primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
+        outputTokenRetries: resolveOutputTokenRetries(request.requestOptions?.maxRetries, retryPolicy),
         diagnosticContext: {
           chatId: request.conversation.topicId,
           messageId: request.messageId,
@@ -999,7 +1014,9 @@ export class AiService extends BaseService {
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel =
-      request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
+      request.contextOwner === 'caller'
+        ? createCallerRetryWrap(request.requestOptions?.maxRetries, request.retryOutputTokenLimit)
+        : undefined
     let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
@@ -1025,6 +1042,7 @@ export class AiService extends BaseService {
         primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
+        outputTokenRetries: resolveOutputTokenRetries(request.requestOptions?.maxRetries, retryPolicy),
         diagnosticContext: { assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
           request,
