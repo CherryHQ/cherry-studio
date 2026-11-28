@@ -31,6 +31,7 @@ import {
   CreateAssistantToolInputSchema,
   SelfUpdateToolInputSchema
 } from '@main/ai/agents/agentConfigToolSchemas'
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '@main/ai/agents/agentTaskDefaults'
 import {
   createAgentChannel,
   createAgentChannelAndWaitForQr,
@@ -161,7 +162,7 @@ const CronInputSchema = z.object({
       .min(0)
       .optional()
       .describe(
-        'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use 0 for no timeout.'
+        `Timeout in minutes before the task is aborted. Default is ${DEFAULT_AGENT_TASK_TIMEOUT_MINUTES} on add; omit on update to keep the current timeout. Use 0 for no timeout.`
       )
   ),
   reuse_session: z

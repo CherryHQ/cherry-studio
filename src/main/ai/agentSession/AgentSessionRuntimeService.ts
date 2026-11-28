@@ -170,6 +170,7 @@ import {
 import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
 import { childTimelines } from './childTimelines'
 import { validateEditedInput } from './editInput'
+import { resolveAgentIdleTtlMs } from './idleTtl'
 import { resolveLocalContext, resolveLocalSessionBinding } from './localContext'
 import { bindNativeInput, markLocalInput, nativeOutcomeTerminal } from './nativeSubmission'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
@@ -178,7 +179,8 @@ import { RootMessageProjection } from './RootMessageProjection'
 import { readSessionHistory } from './sessionHistory'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
-const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+const idleTtlMs = (): number =>
+  resolveAgentIdleTtlMs(application.get('PreferenceService').get('agent.session.idle_ttl_minutes'))
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 /** Stream abort reasons that mean the user stopped the work, as opposed to teardown. */
 const USER_STOP_REASONS: ReadonlySet<unknown> = new Set(['user-requested', 'remote-cancel'])
@@ -4878,7 +4880,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (lastResumeToken) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
       }
-    }, DEFAULT_IDLE_TTL_MS)
+    }, idleTtlMs())
     entry.idleTimer.unref?.()
   }
 

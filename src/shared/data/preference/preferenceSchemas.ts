@@ -51,6 +51,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'agent.session.display_mode': PreferenceTypes.AgentSessionDisplayMode
     // target-key-definitions/complex/complex
+    'agent.session.idle_ttl_minutes': number
+    // target-key-definitions/complex/complex
     'agent.session.position': PreferenceTypes.TopicTabPosition
     // target-key-definitions/complex/complex
     'agent.session.sort': PreferenceTypes.ConversationListSort
@@ -749,6 +751,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'agent.input.toolbar.pinned_tools': ['composer:new-session', 'skills', 'permission-mode'],
     'agent.language': null,
     'agent.session.display_mode': 'agent',
+    'agent.session.idle_ttl_minutes': 5,
     'agent.session.position': 'left',
     'agent.session.sort': { by: 'lastActivityAt', direction: 'desc' },
     'agent.skills.external_export.enabled': false,
