@@ -14,13 +14,14 @@
  *
  * Renderer-backed delete actions use narrower contracts:
  * - `permanentDeleteFromTrash` accepts only unreferenced trashed internal rows.
- * - `removeExternalFromLibrary` accepts only unreferenced external rows and
- *   never removes their user-owned paths.
+ * - `removeExternalFromLibrary` preserves user-owned paths and protects
+ *   referenced rows, except missing originals with only optional translation refs.
  */
 
 import type { DbOrTx } from '@data/db/types'
+import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import { loggerService } from '@logger'
-import { remove as fsRemove } from '@main/utils/file'
+import { remove as fsRemove, getPathStatus } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { BatchMutationResult } from '@shared/types/file'
@@ -159,16 +160,6 @@ async function permanentDeleteFromTrashLocked(deps: FileManagerDeps, id: FileEnt
   await cleanupDeletedEntry(deps, entry)
 }
 
-function removeExternalFromLibraryTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
-  const entry = deps.fileEntryService.getByIdTx(tx, id)
-  if (entry.origin !== 'external') {
-    throw DataApiErrorFactory.invalidOperation('remove file from library', `File entry ${id} must be an external file`)
-  }
-  assertUnreferenced(deps, tx, id, 'remove file from library')
-  deps.fileEntryService.deleteTx(tx, id)
-  return entry
-}
-
 export async function removeExternalFromLibrary(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
   return deps.contentWriteLock.runExclusive(id, () =>
     runPathMutationExclusive(() => removeExternalFromLibraryLocked(deps, id))
@@ -176,8 +167,28 @@ export async function removeExternalFromLibrary(deps: FileManagerDeps, id: FileE
 }
 
 async function removeExternalFromLibraryLocked(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
-  const entry = deps.fileEntryService.withWriteTx((tx) => removeExternalFromLibraryTx(deps, tx, id))
-  await cleanupDeletedEntry(deps, entry)
+  const entry = deps.fileEntryService.getById(id)
+  const operation = 'remove file from library'
+  if (entry.origin !== 'external') {
+    throw DataApiErrorFactory.invalidOperation(operation, `File entry ${id} must be an external file`)
+  }
+  const pathStatus = await getPathStatus(entry.externalPath)
+  const isMissing = !pathStatus.ok && pathStatus.reason === 'missing'
+  const removed = deps.fileEntryService.withWriteTx((tx) => {
+    const current = deps.fileEntryService.getByIdTx(tx, id)
+    if (current.origin !== 'external' || current.externalPath !== entry.externalPath) {
+      throw DataApiErrorFactory.invalidOperation(operation, `File entry ${id} changed during removal`)
+    }
+    const refCount = deps.fileRefService.countPersistentRefsByEntryIdTx(tx, id)
+    // The FK cascade may detach optional source refs while preserving the history and its required target.
+    const removableRefCount = isMissing ? translateHistoryService.countSourceFileRefsTx(tx, id) : 0
+    if (refCount !== removableRefCount) {
+      throw DataApiErrorFactory.invalidOperation(operation, `File entry ${id} is still referenced`)
+    }
+    deps.fileEntryService.deleteTx(tx, id)
+    return current
+  })
+  await cleanupDeletedEntry(deps, removed)
 }
 
 function aggregateWriteTx<T>(

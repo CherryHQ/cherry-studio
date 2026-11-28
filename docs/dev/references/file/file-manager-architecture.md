@@ -238,6 +238,9 @@ not retry blindly.
 - `trash` and `restore` only update internal entries' `deletedAt` state.
 - `permanentDelete` deletes the row first. It then best-effort unlinks an internal blob; an external
   path is never removed by this entry operation.
+- `batchRemoveFromLibrary` removes unreferenced external entries. If a fresh filesystem probe
+  confirms the original is missing, it can also remove entries held only by optional translation
+  source references. The removal transaction preserves the history and its required target.
 - `deleteUnreferencedInternalEntry` checks persistent refs and deletes an internal row in one
   transaction. Missing, external, and referenced entries are preserved. `ProfileService` uses it
   only after replacing its Preference reference.
