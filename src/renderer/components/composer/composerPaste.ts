@@ -22,6 +22,7 @@ export const PASTED_TEXT_FILE_EXTENSION = '.txt'
 
 interface ComposerPlainTextPasteOptions {
   inlineLongText?: boolean
+  longTextThreshold?: number
   literalFencedCode?: boolean
   insertionState?: EditorState
   promptVariableStartIndex?: number
@@ -208,7 +209,8 @@ function findPastedFencedCodeLines(text: string, state?: EditorState): ReadonlyS
 export function getComposerPlainTextPasteOverride(text: string, options: ComposerPlainTextPasteOptions) {
   if (!text) return null
 
-  if (!options.inlineLongText && text.length > LONG_TEXT_PASTE_THRESHOLD) {
+  const threshold = options.longTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD
+  if (!options.inlineLongText && text.length > threshold) {
     return null
   }
 

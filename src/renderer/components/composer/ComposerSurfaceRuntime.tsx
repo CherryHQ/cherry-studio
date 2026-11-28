@@ -1881,6 +1881,7 @@ export default function ComposerSurfaceRuntime({
 
       const pasteOptions = {
         inlineLongText: !shouldDelegateLongTextPaste,
+        longTextThreshold: pasteLongTextThreshold,
         literalFencedCode: editor ? hasMarkdownLivePreview(editor.state) : false,
         insertionState: editor?.state,
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
