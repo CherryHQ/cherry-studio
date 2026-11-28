@@ -3,7 +3,8 @@ import type { TFunction } from 'i18next'
 import type { PermissionModeCard } from '@renderer/types/agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -22,9 +23,16 @@ export function getAgentAvatarFromConfiguration(
 }
 
 export function getAgentDescriptionForDisplay(
-  agent: { description?: string | null; configuration?: AgentConfiguration | null },
+  agent: Pick<AgentEntity, 'localRuntime'> & {
+    description?: string | null
+    configuration?: AgentConfiguration | null
+  },
   t: TFunction
 ): string {
+  if (agent.localRuntime) {
+    const preset = LOCAL_AGENT_PRESETS.find((p) => p.id === agent.localRuntime?.presetId)
+    return `${t('local_agents.badge')} · ${preset?.name ?? 'ACP'}`
+  }
   if (agent.description) return agent.description
   // Builtin contract: an empty DB description means the bundle/UI owns the localized
   // default. A non-empty user edit is user-owned and is never overwritten.

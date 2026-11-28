@@ -130,26 +130,16 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        connection unless it declares `retainOnStop`; a retained connection stays open and emits
        `stop-confirmed` after the stopped turn's terminal event. Keep this separate from durable
        shutdown and recovery.
-     - `redirect(input)` — native mid-turn steering; without it the host
-       queues follow-ups as the next turn. If implemented, you must emit
-       `steer-boundary` with input IDs when native placement is evidenced. Keep original product
-       snapshots/headless policy on the existing session entry, including unknown admission across
-       replacement. Prepare the native binding before dispatch, fence stale callbacks by generation,
-       and reconcile retained inputs without automatically resending. Pi/Durable associate steered inputs with the active Run
-       synchronously before the next provider request; Claude command-start alone is not placement. A driver that returns unplaced inputs
-       for the next turn emits `steer-undelivered`; Pi instead records native queued
-       inputs as aborted when execution ends without placing them, without automatic resend.
-       Claude uses native next-priority admission across the turn boundary and never
-       returns an accepted input for host resend. If native completion precedes placement, emit
-       `run-started` for that distinct execution instead of joining the completed Run.
-     - `followUp(input)` — native admission for a message sent while native work runs. The
-       runtime persists the input in its own queue at once, so it survives a crash; the host
-       prefers `redirect` for an open turn, then `followUp`, then its own queue. Emit
-       `run-started` with the input ID when the runtime starts a distinct execution, after
-       the content that answers the input before it, so each input gets its own reply. Report a
-       refused submission through `input-submission`, and emit `steer-undelivered` for one that
-       fails before it reaches the runtime. Return false when no native work runs or the text is a
-       host command such as `/compact`. Pi Durable implements it.
+     - `threadInput.steer.submit({ inputId, message })` binds native steering. Main saves the
+       input's context before dispatch. Return explicit rejection only when the input was not
+       admitted. A missing receipt keeps the original binding. Emit `steer-boundary` with input
+       IDs once native placement is evidenced. The existing Run and reply keep ownership.
+     - `threadInput.followUp` declares the queue's persistence and submits live follow-ups with
+       the same input contract. The Composer sends directly to a durable queue. When native work
+       places a follow-up, emit `run-started` after the preceding answer
+       so the next input gets its own reply.
+     - `compact()` runs a standalone idle-thread operation. Report success from the matching
+       native outcome without creating a chat turn.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` — retain the connection while native background work exists.
@@ -175,24 +165,19 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `compaction-start` / `compaction-complete` / `compaction-error`
        events if the runtime compacts its own history.
 
-3. **System prompt adapter** — call the runtime-neutral
+3. **System prompt adapter** — for Cherry-managed prompt runtimes, call the runtime-neutral
    `buildAgentPrompt()` from `src/main/ai/agents/prompt/buildAgentPrompt.ts`, then map its
-   `{ base, append }` result into the SDK's native prompt representation. Pass resolved
-   channel state and capability-gated citation guidance into the common materializer.
+   `{ base, append }` result into the SDK's native prompt representation. Pass references to callable tools and capability-gated citation guidance into the common materializer.
    Do not copy instruction precedence, built-in Agent fallback/provisioning, prompt-variable
    resolution, channel security, artifact reporting, or language guidance into the driver.
    Keep only native mechanics in the adapter: the SDK base prompt, cwd/project-context
    carrier, tool snippets, skills transport, and the representation of base/append.
    See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
 
-4. **Content producer** — choose one source per execution. Common runtime adapters
-   expose AI SDK `RuntimeMessage` values through observation. Native deltas use
-   `RuntimeMessageStream` before observer fanout; authoritative native snapshots
-   can produce messages directly. Main uses `ThreadMessageProjection` and product
-   decorators such as `pi/PiMessageMetadata.ts` and `claudeCode/ClaudeMessageMetadata.ts`,
-   then publishes replacement-aware product views. Keep lifecycle/approval controls separate;
-   do not produce the same text and tools through both sources. Import the transport
-   constant from the descriptor rather than re-declaring its string.
+4. **Content producer** — establish the native source in its execution context with
+   `message-projection` before the first live update. Address text, reasoning and tool
+   changes by source and block. Main owns durable part IDs and forwards changes to
+   subscribers. Publish approval, usage and lifecycle controls independently.
 
 5. **Register the driver** in `src/main/ai/runtime/registerDrivers.ts`
    (called from `AgentSessionRuntimeService.onInit`). Do **not** create a
@@ -202,6 +187,11 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 6. **Path keys** — if the runtime needs disk state (config home, session
    files), add `feature.agents.<name>.*` keys to the path registry
    (`src/main/core/paths/`) instead of building paths ad hoc.
+
+[Local CLI runtimes](./local-agent-runtime.md#ownership-and-routing) use native
+configuration. Their drivers may supply a provider-free `getExecutionId(agent)`
+(`undefined` makes the Agent unroutable). Set `sessionCostScope: 'native-session'`
+when cumulative cost follows the connection's resume token.
 
 ## Step 3 — renderer
 
@@ -217,7 +207,7 @@ known exceptions, only if you need them:
 
 These are the choices nothing enforces:
 
-- **Cherry prompt policy is runtime-neutral.** Every driver must consume
+- **Cherry prompt policy is runtime-neutral.** Every Cherry-managed prompt driver must consume
   `buildAgentPrompt()` rather than assembling its own Cherry policy. A runtime may
   supply native workspace/context mechanics, but it may not omit or fork instruction authority,
   built-in Agent resolution, channel security, citation/artifact guidance, or response language.
@@ -262,5 +252,4 @@ These are the choices nothing enforces:
 - `pnpm build:check` for this broad cross-process change.
 - Manual smoke: create an agent of the new type (selector shows the label),
   open a session, run a turn with a mutating tool (approval prompt
-  appears), send a mid-turn follow-up (steers or queues per your `redirect` and
-  `followUp` support), restart the app and resume the session.
+  appears), send a mid-turn follow-up (steers or queues according to the bound `threadInput` operations), restart the app and resume the session.

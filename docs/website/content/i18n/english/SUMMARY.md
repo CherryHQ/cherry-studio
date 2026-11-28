@@ -61,6 +61,7 @@
   * [Agent Introduction](advanced-basic/agent.md)
   * [Agent Workspace](advanced-basic/agent-workspace/README.md)
     * [Creating Agents and Model Roles](advanced-basic/agent-workspace/create-agent.md)
+    * [Connect a Local Agent](advanced-basic/agent-workspace/local-agents.md)
     * [Working Directory, Tasks, and Files](advanced-basic/agent-workspace/workspaces-tasks-files.md)
     * [Model Roles and Agent Image Generation](advanced-basic/agent-workspace/models-image.md)
     * [Built-in Tools, Knowledge Bases, Skills, and MCP](advanced-basic/agent-workspace/tools-knowledge-skills-mcp.md)

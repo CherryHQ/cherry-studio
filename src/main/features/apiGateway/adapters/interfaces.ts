@@ -135,6 +135,8 @@ export interface StreamAdapterOptions {
    * HTTP gateway keeps its normalized usage payloads unchanged.
    */
   exposeReportedOutputUsage?: boolean
+  /** Restore a client tool call's name and optional namespace (OpenAI Responses MCP namespace tools). */
+  resolveClientToolCall?: (toolName: string) => { name: string; namespace?: string }
   captureReplay?: (blocks: readonly ClaudeCodeReplayBlock[]) => void
 }
 
@@ -160,6 +162,9 @@ export interface IMessageConverter<TInputParams = unknown> {
 
   /** Restore a provider-safe tool name before returning a tool call to the API client. */
   toClientToolName?(toolName: string): string
+
+  /** Restore a client tool call's name and optional namespace before returning it to the API client. */
+  resolveClientToolCall?(toolName: string): { name: string; namespace?: string }
 
   /** Wire-safe (normalized) name for a client tool name; identity when already compatible. */
   toProviderToolName?(toolName: string): string

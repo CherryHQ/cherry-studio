@@ -12,7 +12,7 @@ const previewLoad = vi.hoisted(() => Promise.withResolvers<void>())
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false, codeFancyBlock: true }),
+  useOptionalMessageRenderConfig: () => ({ mathEnableSingleDollar: false, codeFancyBlock: true }),
   useOptionalMessageListActions: () => undefined
 }))
 

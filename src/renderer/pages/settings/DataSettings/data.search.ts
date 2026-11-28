@@ -128,6 +128,38 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.data.import_settings.title'
   },
   {
+    anchorId: 'import-local-dsh',
+    titleKey: 'code.cli_tools.deepseek_harness',
+    panel: 'import_settings',
+    groupKey: 'history_import.title',
+    aliases: ['dsh']
+  },
+  {
+    anchorId: 'import-local-workbuddy',
+    titleKey: 'history_import.source.workbuddy',
+    panel: 'import_settings',
+    groupKey: 'history_import.title',
+    aliases: ['workbuddy']
+  },
+  {
+    anchorId: 'import-local-opencode',
+    titleKey: 'history_import.source.opencode',
+    panel: 'import_settings',
+    groupKey: 'history_import.title'
+  },
+  {
+    anchorId: 'import-local-codex',
+    titleKey: 'history_import.source.codex',
+    panel: 'import_settings',
+    groupKey: 'history_import.title'
+  },
+  {
+    anchorId: 'import-local-claude-code',
+    titleKey: 'history_import.title',
+    panel: 'import_settings',
+    groupKey: 'settings.data.import_settings.title'
+  },
+  {
     anchorId: 'import-claude',
     titleKey: 'settings.data.import_settings.claude',
     panel: 'import_settings',
