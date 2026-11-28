@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import UPNG from '@pdf-lib/upng'
 import sharp from 'sharp'
 import type * as SharpModule from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -198,6 +199,53 @@ describe('attachment image padding', () => {
     expect(await materializeNativeFilePart(part)).toEqual(part)
   })
 
+  it('downscales an oversized image before applying the minimum-edge padding', async () => {
+    const part = partFor(await input(4000, 4))
+
+    const result = await materializeNativeFilePart(part)
+
+    const output = Buffer.from(result!.url.split(',')[1], 'base64')
+    expect(await sharp(output).metadata()).toMatchObject({ format: 'png', width: 2000, height: 15 })
+  })
+
+  it('retains compliant animated WebP bytes unchanged', async () => {
+    const raw = Buffer.concat([
+      Buffer.alloc(1000 * 1000 * 4, 80),
+      Buffer.alloc(1000 * 1000 * 4, 160),
+      Buffer.alloc(1000 * 1000 * 4, 240)
+    ])
+    const bytes = await sharp(raw, { raw: { width: 1000, height: 3000, channels: 4, pageHeight: 1000 } })
+      .webp({ delay: [100, 100, 100] })
+      .toBuffer()
+    const part = filePart({ url: `data:image/webp;base64,${bytes.toString('base64')}`, mediaType: 'image/webp' })
+
+    expect(await materializeNativeFilePart(part)).toEqual(part)
+  })
+
+  it('preserves APNG frames while downscaling an oversized attachment', async () => {
+    const width = 3000
+    const height = 1000
+    const frame = (red: number) => {
+      const rgba = new Uint8Array(width * height * 4)
+      for (let index = 0; index < rgba.length; index += 4) {
+        rgba[index] = red
+        rgba[index + 3] = 255
+      }
+      return rgba.buffer
+    }
+    const bytes = Buffer.from(UPNG.encode([frame(40), frame(200)], width, height, 0, [100, 200]))
+    const part = partFor(bytes)
+
+    const result = await materializeNativeFilePart(part)
+
+    const output = Buffer.from(result!.url.split(',')[1], 'base64')
+    const decoded = UPNG.decode(output.buffer.slice(output.byteOffset, output.byteOffset + output.byteLength))
+    expect(decoded.width).toBe(2000)
+    expect(decoded.height).toBe(667)
+    expect(decoded.frames.map((entry) => entry.delay)).toEqual([100, 200])
+    expect(UPNG.toRGBA8(decoded)).toHaveLength(2)
+  })
+
   it('pads a percent-encoded image', async () => {
     const bytes = await input(4, 4)
     const part = partFor(bytes)
@@ -252,6 +300,43 @@ describe('attachment image padding', () => {
     expect(pixels[((15 + 5) * 15 + 5) * 3]).toBe(200)
   })
 
+  it('keeps an APNG animated when it only needs minimum-edge padding', async () => {
+    const width = 20
+    const height = 4
+    const frame = (red: number) => {
+      const rgba = new Uint8Array(width * height * 4)
+      for (let index = 0; index < rgba.length; index += 4) {
+        rgba[index] = red
+        rgba[index + 3] = 255
+      }
+      return rgba.buffer
+    }
+    const bytes = Buffer.from(UPNG.encode([frame(40), frame(200)], width, height, 0, [100, 200]))
+    const part = partFor(bytes)
+
+    const result = await materializeNativeFilePart(part)
+
+    const output = Buffer.from(result!.url.split(',')[1], 'base64')
+    const decoded = UPNG.decode(output.buffer.slice(output.byteOffset, output.byteOffset + output.byteLength))
+    expect([decoded.width, decoded.height]).toEqual([20, 15])
+    expect(decoded.frames.map((entry) => entry.delay)).toEqual([100, 200])
+    const frames = UPNG.toRGBA8(decoded)
+    expect(frames).toHaveLength(2)
+    // Frame contents survive the padding: red levels intact inside the centered content region.
+    expect(new Uint8Array(frames[0])[5 * 20 * 4]).toBe(40)
+    expect(new Uint8Array(frames[1])[5 * 20 * 4]).toBe(200)
+  })
+
+  it('drops an APNG attachment whose frame expansion exceeds the decode budget', async () => {
+    // 3000×3000×8 frames would expand to ~288 MB of RGBA buffers in the main process.
+    const big = await sharp({ create: { width: 3000, height: 3000, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const part = partFor(injectActlChunk(big, 8))
+
+    expect(await materializeNativeFilePart(part)).toBeNull()
+  })
+
   it('normalizes managed, legacy, and rescued files without altering stored bytes', async () => {
     const bytes = await input(4, 4)
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-pad-'))
@@ -299,3 +384,26 @@ describe('materializeNativeFilePart — repeated history images', () => {
     expect(first[2]).toBeNull()
   })
 })
+
+function crc32(buffer: Buffer): number {
+  let crc = 0xffffffff
+  for (const byte of buffer) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit++) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+/** Insert an animation control chunk after the IHDR, declaring the given frame count. */
+function injectActlChunk(png: Buffer, frameCount: number): Buffer {
+  const ihdrEnd = 8 + 4 + 4 + 13 + 4
+  const actl = Buffer.alloc(4 + 4 + 8 + 4)
+  actl.writeUInt32BE(8, 0)
+  actl.write('acTL', 4, 'ascii')
+  actl.writeUInt32BE(frameCount, 8)
+  actl.writeUInt32BE(0, 12)
+  actl.writeUInt32BE(crc32(actl.subarray(4, 16)), 16)
+  return Buffer.concat([png.subarray(0, ihdrEnd), actl, png.subarray(ihdrEnd)])
+}

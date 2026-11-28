@@ -52,10 +52,11 @@ Decided per file part in `prepareChatMessages`
   also normalizes the `mediaType` to the on-disk MIME. The provider gets the real
   file as a user-message part. (The function is named for the boundary: provider
   File-API upload for large files would slot in behind the same signature.)
-  Locally decoded PNG, JPEG, WebP, and GIF images with a short edge below the
-  15 px attachment compatibility target are padded with opaque white before
-  the request bytes leave the main process; stored FileEntry and persisted message
-  part bytes remain unchanged. Compliant images and inputs outside the strict
+  Locally decoded PNG, JPEG, WebP, and GIF images whose longest edge exceeds the
+  2000 px model-bound target are resized down before the request bytes leave the
+  main process, preserving format and animation; images with a short edge below
+  the 15 px attachment compatibility target are then padded with opaque white.
+  Stored FileEntry and persisted message part bytes remain unchanged. Compliant images and inputs outside the strict
   decoder, including remote URLs and AVIF/HEIC, pass through unchanged; images
   that cannot be padded are also sent unchanged. Each decision (valid, rejected or
   padded) is cached by a SHA-256 digest of the data URL in a bounded 512-entry

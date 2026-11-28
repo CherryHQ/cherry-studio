@@ -323,6 +323,7 @@
     "@opentelemetry/sdk-trace-node": "^2.0.0",
     "@opeoginni/github-copilot-openai-compatible": "^1.0.0",
     "@paddleocr/api-sdk": "^0.2.0",
+    "@pdf-lib/upng": "^1.0.1",
     "@pierre/diffs": "1.6.1",
     "@pierre/highlights": "0.2.0",
     "@plantuml/mcp-js": "0.2.4",

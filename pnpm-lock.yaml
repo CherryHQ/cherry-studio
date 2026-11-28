@@ -828,6 +828,9 @@ importers:
       '@paddleocr/api-sdk':
         specifier: ^0.2.0
         version: 0.2.0
+      '@pdf-lib/upng':
+        specifier: ^1.0.1
+        version: 1.0.1
       '@pierre/diffs':
         specifier: 1.6.1
         version: 1.6.1(patch_hash=102caba717d9b1897e0e29c02cdee4693f8b427ef9323281a8514b2ec5307b5b)(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
