@@ -177,6 +177,7 @@ import { WenxinIcon } from './wenxin'
 import { WorkersAiIcon } from './workers-ai'
 import { XiaoyiIcon } from './xiaoyi'
 import { XinghuoIcon } from './xinghuo'
+import { WorldrouterIcon } from './worldrouter'
 import { XirangIcon } from './xirang'
 import { YouIcon } from './you'
 import { YuanbaoIcon } from './yuanbao'
@@ -354,6 +355,7 @@ export const PROVIDER_ICON_CATALOG = {
   'workers-ai': WorkersAiIcon,
   xiaoyi: XiaoyiIcon,
   xinghuo: XinghuoIcon,
+  worldrouter: WorldrouterIcon,
   xirang: XirangIcon,
   you: YouIcon,
   yuanbao: YuanbaoIcon,

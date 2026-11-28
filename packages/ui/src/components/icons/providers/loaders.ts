@@ -177,6 +177,7 @@ export const PROVIDER_ICON_LOADERS = {
   'workers-ai': () => import('./workers-ai').then(({ WorkersAiIcon }) => WorkersAiIcon),
   xiaoyi: () => import('./xiaoyi').then(({ XiaoyiIcon }) => XiaoyiIcon),
   xinghuo: () => import('./xinghuo').then(({ XinghuoIcon }) => XinghuoIcon),
+  worldrouter: () => import('./worldrouter').then(({ WorldrouterIcon }) => WorldrouterIcon),
   xirang: () => import('./xirang').then(({ XirangIcon }) => XirangIcon),
   you: () => import('./you').then(({ YouIcon }) => YouIcon),
   yuanbao: () => import('./yuanbao').then(({ YuanbaoIcon }) => YuanbaoIcon),

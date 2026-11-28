@@ -14,8 +14,8 @@ describe('resolveIconTypes', () => {
 })
 
 describe('resolveActiveLogoDirs', () => {
-  it('preserves the hand-written OpenCode provider alongside generated providers', () => {
-    expect(resolveActiveLogoDirs('providers', ['openai'])).toEqual(new Set(['openai', 'opencode']))
+  it('preserves the hand-written OpenCode and WorldRouter providers alongside generated providers', () => {
+    expect(resolveActiveLogoDirs('providers', ['openai'])).toEqual(new Set(['openai', 'opencode', 'worldrouter']))
   })
 })
 

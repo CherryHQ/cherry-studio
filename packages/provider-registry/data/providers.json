@@ -771,6 +771,27 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "WorldRouter - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://inference-api.worldrouter.ai/v1"
+        }
+      },
+      "id": "worldrouter",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.worldrouter.ai/",
+          "docs": "https://www.worldrouter.ai/docs/quickstart",
+          "models": "https://www.worldrouter.ai/models",
+          "official": "https://www.worldrouter.ai/"
+        }
+      },
+      "name": "WorldRouter"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenDance - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2969,5 +2990,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "39c6a7ea7688c9f9"
 }
