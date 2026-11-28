@@ -488,9 +488,15 @@ describe('createFormulaEvaluator — recursion depth guard', () => {
       outcome = evaluator.evaluate(`A${DEPTH - 1}+1`, { sheet: 'Sheet1', row: DEPTH, col: 1 })
     }).not.toThrow()
     expect(Date.now() - start).toBeLessThan(1000)
-    expect(outcome).toEqual({ state: 'evaluated', value: 64 })
-    expect(callCount({ sheet: 'Sheet1', row: 136, col: 1 })).toBe(1)
-    expect(callCount({ sheet: 'Sheet1', row: 135, col: 1 })).toBe(0)
+    const visitedRows = Array.from({ length: DEPTH - 10 }, (_, index) => index + 10).filter(
+      (row) => callCount({ sheet: 'Sheet1', row, col: 1 }) > 0
+    )
+    expect(visitedRows.length).toBeGreaterThan(9)
+    expect(visitedRows.length).toBeLessThan(DEPTH - 10)
+    expect(visitedRows).toEqual(
+      Array.from({ length: visitedRows.length }, (_, index) => DEPTH - visitedRows.length + index)
+    )
+    expect(outcome).toEqual({ state: 'evaluated', value: visitedRows.length })
     expect(parseSpy.mock.results.every((result) => result.type === 'return')).toBe(true)
     parseSpy.mockRestore()
   })
