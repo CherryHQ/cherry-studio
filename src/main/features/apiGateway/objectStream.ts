@@ -2,11 +2,11 @@ import { randomUUID } from 'node:crypto'
 
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import type { ObjectTransportResponse, ObjectTransports } from '@earendil-works/pi-ai'
-import { RetryError } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { StreamListener } from '@main/ai/streamManager'
+import { unwrapRetryError } from '@main/ai/utils/retryError'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { RetryPartDataSchema } from '@shared/data/types/uiParts'
 
@@ -292,7 +292,7 @@ async function openObjectMessage<T>(
       }
     },
     onError: (result, error) => {
-      const terminal = RetryError.isInstance(error) ? error.lastError : error
+      const terminal = unwrapRetryError(error)
       fail(
         objectGatewayError(terminal, terminal === error ? result.error : serializeError(terminal), request.outputFormat)
       )

@@ -1,9 +1,10 @@
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
-import { APICallError, RetryError } from 'ai'
+import { APICallError } from 'ai'
 import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
 
 import { loggerService } from '@logger'
+import { unwrapRetryError } from '@main/ai/utils/retryError'
 import { isDev } from '@main/core/platform'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
@@ -27,7 +28,7 @@ function record(value: unknown): Record<string, unknown> | undefined {
 
 /** Retain provider response details only for authenticated in-process runtime requests. */
 export function internalGatewayError(error: unknown, fallback: SerializedError): SerializedError {
-  if (RetryError.isInstance(error)) error = error.lastError
+  error = unwrapRetryError(error)
   if (!(error instanceof Error) && !APICallError.isInstance(error)) return fallback
   const api = APICallError.isInstance(error) ? error : undefined
   let body: Record<string, unknown> = {}

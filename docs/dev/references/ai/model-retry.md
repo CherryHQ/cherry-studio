@@ -29,6 +29,9 @@ preserving any explicit thinking budget. Up to three retries share the
 same-model attempt limit. Chat uses this recovery even when transient retry is
 disabled, unless the call explicitly sets `maxRetries: 0`. Public gateway calls
 retain their no-retry policy. The reduction applies to the current model call.
+After key failover, the replacement credential shares its attempt count across
+budget reduction and transient retry. Pre-content stream errors use the options
+that opened the failing stream, including any preceding reduction.
 
 ```text
 AiService.streamText/generateText

@@ -16,7 +16,7 @@
  * content chunk is emitted; mid-stream errors surface as stream errors.
  */
 import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
+import { APICallError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
 import {
   isErrorAttempt,
   type LanguageModel,
@@ -31,6 +31,7 @@ import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { getPendingReplayRoute, ToolContinuationRouteError } from '../../../provider/replayRoute'
+import { unwrapRetryError } from '../../../utils/retryError'
 import { outputTokenRetry } from './outputTokenRetry'
 import type { RetryPolicy } from './retryPolicy'
 
@@ -118,8 +119,7 @@ function apiKeyFallbackRetryable(
   let nextFallbackIndex = 0
   return (context) => {
     if (!isErrorAttempt(context.current)) return undefined
-    const attemptError = context.current.error
-    const terminalError = RetryError.isInstance(attemptError) ? attemptError.lastError : attemptError
+    const terminalError = unwrapRetryError(context.current.error)
     if (
       !APICallError.isInstance(terminalError) ||
       (terminalError.statusCode !== 401 && terminalError.statusCode !== 429)
@@ -210,26 +210,13 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       }
     )
   }
-  const retries: Retries<LanguageModel> = [
+  const sameModelRetries: Retryable<LanguageModel>[] = [
     ...outputRetries,
-    ...(options.retryPolicy.enabled
-      ? [
-          // Same-model transient retry on retryable errors: honors Retry-After headers,
-          // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
-          // holds since retryCount >= 1.)
-          retryTransient,
-          // Cross-model fallback, tried in user-configured order (one attempt each).
-          // Resolved lazily on first failure (memoized) so the happy path pays nothing;
-          // each fallback carries its own middleware + params (a per-retry override).
-          // Error-only (like a plain-model fallback): ai-retry also evaluates function
-          // retryables on *result* attempts (content-filter etc.), so guard on
-          // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
-          ...fallbackResolvers.map((fallback) =>
-            lazyFallbackRetryable(fallback, options.onFallbackActivated, undefined, true)
-          )
-        ]
-      : [])
+    ...(options.retryPolicy.enabled ? [retryTransient] : [])
   ]
+  const crossModelRetries = options.retryPolicy.enabled
+    ? fallbackResolvers.map((fallback) => lazyFallbackRetryable(fallback, options.onFallbackActivated, undefined, true))
+    : []
 
   return (base) => {
     const primary = options.onPrimaryActivated
@@ -250,11 +237,11 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       retryActive = false
       options.onRetryEvent?.({ state: 'settled' })
     }
-    const wrapApiKeyFallback: WrapLanguageModel | undefined = options.retryPolicy.enabled
+    const wrapApiKeyFallback: WrapLanguageModel | undefined = sameModelRetries.length
       ? (model) =>
           createRetryableModel({
             model,
-            retries: [retryTransient],
+            retries: sameModelRetries,
             onRetry: (context) => {
               const event = describeAttempt(context)
               logger.info('retrying model call', { ...options.diagnosticContext, ...event })
@@ -315,7 +302,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
               retryActive = true
               options.onRetryEvent?.(event)
             },
-            ...(!retries.length && {
+            ...(!sameModelRetries.length && {
               onSuccess: settleRetryStatus,
               onFailure: settleRetryStatus
             })
@@ -366,6 +353,14 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
           })
         }
       })
+    const retries: Retries<LanguageModel> = [
+      // Replacement credentials have already run both same-model rules together.
+      ...sameModelRetries.map<Retryable<LanguageModel>>(
+        (rule) => (context) =>
+          activeApiKeyFallback && context.current.model === keyPoolModel ? undefined : rule(context)
+      ),
+      ...crossModelRetries
+    ]
     const retryModel = retries.length > 0 ? wrapWithRetries(keyPoolModel, retries) : keyPoolModel
 
     if (!options.primaryReplayRouteId) return retryModel

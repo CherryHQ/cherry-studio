@@ -1,3 +1,4 @@
+import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { APICallError, generateText, type ModelMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
@@ -187,6 +188,64 @@ describe('createRetryableWrap', () => {
       content: [{ type: 'text', text: 'ok' }]
     })
     expect(budgets).toEqual([8192, 4096, 4096])
+  })
+
+  it.each([503, 400])(
+    'uses the effective budget of a lowered stream that emits HTTP %s before content',
+    async (status) => {
+      const budgets: (number | undefined)[] = []
+      const nextBudget = status === 400 ? 2048 : 4096
+      const doStream = vi.fn(async ({ maxOutputTokens }: LanguageModelV3CallOptions) => {
+        budgets.push(maxOutputTokens)
+        if (budgets.length === 1) throw budgetError('max_tokens must be at most 4096', { max_tokens: maxOutputTokens })
+        if (budgets.length === 2) {
+          const error =
+            status === 400
+              ? budgetError('max_tokens must be at most 2048', { max_tokens: maxOutputTokens })
+              : new APICallError({
+                  message: 'temporary failure',
+                  url: 'https://api.test/v1',
+                  requestBodyValues: { max_tokens: maxOutputTokens },
+                  statusCode: 503,
+                  responseHeaders: { 'retry-after': '0.001' }
+                })
+          return streamResult([
+            { type: 'stream-start', warnings: [] },
+            { type: 'error', error }
+          ])
+        }
+        return streamResult([{ type: 'text-delta', id: 'text', delta: 'ok' }])
+      })
+      const wrap = createRetryableWrap({
+        fallbacks: [],
+        retryPolicy: { ...policy(), maxAttempts: 3 },
+        outputTokenRetries: 3
+      })!
+      const result = await wrap(makeFakeLanguageModel('primary', vi.fn(), doStream)).doStream({
+        prompt: [],
+        maxOutputTokens: 8192
+      })
+      expect(await collectStream(result.stream)).toEqual([{ type: 'text-delta', id: 'text', delta: 'ok' }])
+      expect(budgets).toEqual([8192, 4096, nextBudget])
+    }
+  )
+
+  it('does not resend an unchanged OpenAI completion budget when the provider option owns the field', async () => {
+    const budgets: number[] = []
+    const providerFetch: typeof fetch = async (_url, init) => {
+      budgets.push(JSON.parse(String(init?.body)).max_completion_tokens)
+      return Response.json({ error: { message: 'max_completion_tokens must be at most 4096' } }, { status: 400 })
+    }
+    const model = createOpenAI({ apiKey: 'fixture', fetch: providerFetch }).chat('o3')
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    await expect(
+      wrap(model).doGenerate({
+        prompt: [],
+        maxOutputTokens: 8192,
+        providerOptions: { openai: { maxCompletionTokens: 8192 } }
+      })
+    ).rejects.toMatchObject({ statusCode: 400 })
+    expect(budgets).toEqual([8192])
   })
 
   it('does not dispatch a reduced request after cancellation', async () => {

@@ -1,6 +1,8 @@
-import { APICallError, RetryError } from 'ai'
+import { APICallError } from 'ai'
 import { isErrorAttempt, type LanguageModel, type Retryable } from 'ai-retry'
 import { isPlainObject } from 'es-toolkit'
+
+import { unwrapRetryError } from '../../../utils/retryError'
 
 export const MAX_OUTPUT_TOKEN_RETRIES = 3
 const MAX_ERROR_LENGTH = 16 * 1024
@@ -52,10 +54,13 @@ function lowerBudget(errorBody: string, current: number, fallbackMessage: string
 export function outputTokenRetry(maxRetries: number): Retryable<LanguageModel> {
   return ({ current }) => {
     if (!isErrorAttempt(current) || current.options.abortSignal?.aborted) return
-    const error = RetryError.isInstance(current.error) ? current.error.lastError : current.error
+    const error = unwrapRetryError(current.error)
     if (!APICallError.isInstance(error) || (error.statusCode !== 400 && error.statusCode !== 422)) return
     const body = error.requestBodyValues
     if (!isPlainObject(body)) return
+    if (body.max_completion_tokens != null && current.options.providerOptions?.openai?.maxCompletionTokens != null) {
+      return
+    }
 
     const requested = OUTPUT_TOKEN_KEYS.map((key) => body[key]).filter((value) => value != null)
     if (isPlainObject(body.generationConfig) && body.generationConfig.maxOutputTokens != null) {

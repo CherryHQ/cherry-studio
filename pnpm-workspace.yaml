@@ -145,6 +145,7 @@ patchedDependencies:
   "@earendil-works/pi-durable@1.5.2": patches/@earendil-works__pi-durable@1.5.2.patch
   "@radix-ui/react-collapsible@1.1.12": patches/@radix-ui__react-collapsible@1.1.12.patch
   "@radix-ui/react-presence@1.1.5": patches/@radix-ui__react-presence@1.1.5.patch
+  ai-retry@1.11.1: patches/ai-retry@1.11.1.patch
 
 allowBuilds:
   "@google/genai": false
