@@ -142,7 +142,7 @@ export function answerVerdict(
   args: JsonValue | undefined
 ): { readonly block?: string; readonly args?: JsonValue } {
   if (answer.kind === 'denied') return { block: deniedReason(answer.feedback) }
-  if (answer.kind === 'unavailable') return { block: NOBODY_TO_APPROVE }
+  if (answer.kind === 'unavailable' || answer.kind === 'recheck') return { block: NOBODY_TO_APPROVE }
   const edited = answer.args ?? args
   return edited === undefined ? {} : { args: edited }
 }

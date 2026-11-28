@@ -946,12 +946,19 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       (input.reasoningEffort ?? 'default') !== (this.input.reasoningEffort ?? 'default') ||
       (input.serviceTier ?? 'standard') !== (this.input.serviceTier ?? 'standard') ||
       Boolean(input.fastMode) !== Boolean(this.input.fastMode)
-    )
+    ) {
+      if (!this.failure && permissionChanged) {
+        const result = await this.handle?.pi.permissionModeChanged()
+        if (result && result.status !== 'confirmed') return 'failed'
+      }
+      if (!this.failure && changed) await toolApprovalRegistry.reevaluate(this.input.sessionId, this.context?.id)
       return 'rebuild'
+    }
     if (permissionChanged) {
       const result = await this.handle?.pi.permissionModeChanged()
       if (result && result.status !== 'confirmed') return 'failed'
     }
+    if (changed) await toolApprovalRegistry.reevaluate(this.input.sessionId, this.context?.id)
     return changed ? 'patched' : 'current'
   }
 

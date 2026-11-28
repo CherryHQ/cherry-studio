@@ -31,6 +31,8 @@ export type {
   GateFacts
 } from './core/facts'
 export { callKeyOf, ENTRY_KINDS } from './core/facts'
+export { decideApproval } from './core/approval/approval'
+export type { ApprovalDecision } from './core/approval/approval'
 export type {
   CallRef,
   ToolCategory,

@@ -15,6 +15,8 @@ export type DispatchDecision = {
   /** Marks a reason the user actually supplied, so drivers can attribute it to the user rather
    *  than to the host (registry/abort strings must stay unattributed). */
   reasonSource?: 'user'
+  /** Set when a policy/permission-mode re-evaluation settled the pending approval instead of a user click. */
+  reevaluated?: boolean
   updatedInput?: Record<string, unknown>
 }
 
@@ -27,6 +29,7 @@ type PendingApproval = {
   originalInput: Record<string, unknown>
   presentation: 'stream' | 'message' | 'application'
   resolve: (decision: DispatchDecision) => void
+  reevaluate?: () => Promise<DispatchDecision | undefined>
   signal?: AbortSignal
   abortListener?: () => void
 }
@@ -43,6 +46,12 @@ export type AbortedApproval = ApprovalRegistration & {
   reason: string
 }
 
+/** An approval settled automatically when permission mode or live policy changed. */
+export type ResolvedApproval = ApprovalRegistration & {
+  approvalId: string
+  decision: DispatchDecision
+}
+
 /**
  * Main-side dispatcher for tool-approval decisions. Holds each pending tool
  * request until the renderer's `ai.tool.respond_approval` request arrives, then
@@ -52,12 +61,19 @@ export type AbortedApproval = ApprovalRegistration & {
 class ToolApprovalRegistry {
   private readonly pending = new Map<string, PendingApproval>()
   private readonly _onAborted = new Emitter<AbortedApproval>()
+  private readonly _onAutoResolved = new Emitter<ResolvedApproval>()
 
   /**
    * Fired once for each pending approval cancelled by its signal or registry cleanup.
    * Listeners retire any persisted card parked at `approval-requested`.
    */
   public readonly onAborted: Event<AbortedApproval> = this._onAborted.event
+
+  /**
+   * Fired once for each pending approval settled automatically by `reevaluate()` (e.g., on
+   * permission-mode change) so listeners can clear live/persisted approval cards.
+   */
+  public readonly onAutoResolved: Event<ResolvedApproval> = this._onAutoResolved.event
 
   /**
    * Register a pending approval. Returns `true` when the request is now pending a
@@ -161,6 +177,46 @@ class ToolApprovalRegistry {
 
   hasSession(sessionId: string): boolean {
     return [...this.pending.values()].some((entry) => entry.sessionId === sessionId)
+  }
+
+  /**
+   * Re-evaluate pending tool approvals for `sessionId` (optionally scoped to `contextId`) after a
+   * live permission-mode or tool-policy update. Entries without a `reevaluate` callback (such as
+   * `AskUserQuestion`) or whose callback returns `undefined` remain pending.
+   */
+  async reevaluate(sessionId: string, contextId?: string): Promise<number> {
+    const candidates = [...this.pending.values()].filter(
+      (entry) =>
+        entry.sessionId === sessionId &&
+        (contextId === undefined || entry.contextId === contextId) &&
+        entry.reevaluate !== undefined
+    )
+    if (candidates.length === 0) return 0
+
+    const evaluations = await Promise.all(
+      candidates.map(async (entry) => ({
+        entry,
+        decision: await entry.reevaluate!().catch((error) => {
+          logger.warn('Failed to re-evaluate pending tool approval', {
+            sessionId,
+            approvalId: entry.approvalId,
+            toolName: entry.toolName,
+            error
+          })
+          return undefined
+        })
+      }))
+    )
+
+    let count = 0
+    for (const { entry, decision } of evaluations) {
+      if (!decision || this.pending.get(entry.approvalId) !== entry) continue
+      const registration = this.dispatch(entry.approvalId, decision)
+      if (!registration) continue
+      count++
+      this._onAutoResolved.fire({ ...registration, approvalId: entry.approvalId, decision })
+    }
+    return count
   }
 
   private cancel(approvalIds: readonly string[], reason: string): number {

@@ -2071,6 +2071,88 @@ describe('desktop Pi Durable connection', () => {
     expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
   })
 
+  it('releases a parked write approval when switching default → bypassPermissions mid-turn', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply([toolCallPart('write-1', 'write', { path: 'durable-released.txt', content: 'ok' })], 'toolUse'),
+      assistantReply('durable write completed')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('write file') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+    expect(existsSync(join(directory, 'durable-released.txt'))).toBe(false)
+    expect(toolApprovalRegistry.size()).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'bypassPermissions' }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+
+    await done(events, APPROVAL_WAIT.timeout)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(toolApprovalRegistry.size()).toBe(0)
+    expect(readFileSync(join(directory, 'durable-released.txt'), 'utf8')).toBe('ok')
+  })
+
+  it('leaves a parked bash approval pending when switching default → acceptEdits mid-turn', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply([toolCallPart('bash-stay', 'bash', { command: 'printf kept > durable-kept.txt' })], 'toolUse'),
+      assistantReply('done')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('run bash') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'acceptEdits' }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+
+    expect(toolApprovalRegistry.size()).toBe(1)
+    expect(toolApprovalRegistry.peek(approvals()[0].request.approvalId)).toBeDefined()
+    expect(existsSync(join(directory, 'durable-kept.txt'))).toBe(false)
+  })
+
+  it('keeps AskUserQuestion pending when switching default → bypassPermissions mid-turn', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask-keep', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Which option?',
+                header: 'Option',
+                options: [
+                  { label: 'A', description: 'First' },
+                  { label: 'B', description: 'Second' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply('answered A')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('ask me') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'bypassPermissions' }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+
+    expect(toolApprovalRegistry.size()).toBe(1)
+    expect(toolApprovalRegistry.peek(approvals()[0].request.approvalId)).toBeDefined()
+
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Which option?': 'A' } }
+    })
+    await done(events, APPROVAL_WAIT.timeout)
+    expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('A')
+  })
+
   it('applies a channel override for its turn and restores Agent permissions for the next turn', async () => {
     input.permissionModeOverride = 'default'
     input.headless = true

@@ -55,8 +55,26 @@ export function gateHandlers(host: HostPorts): GateHandlers {
           throw error
         })
       if (answer === undefined) return { block: ASK_WITHDRAWN }
-      const verdict = answerVerdict(answer, decision.args)
       const policy = hostFacts.commandPolicy
+      if (answer.kind === 'recheck') {
+        const latest = await currentFacts(host, ref, tool)
+        const checked = decideApproval(
+          call,
+          latest,
+          host.settings.permissionMode(call.thread),
+          host.settings.attendance(call.thread),
+          facts.plan
+        )
+        if (checked.kind === 'block') return { block: checked.reason }
+        if (checked.kind === 'allow') {
+          if (JSON.stringify(call.args) !== originalArguments) {
+            return { block: policy?.changedReason ?? ASK_WITHDRAWN }
+          }
+          return checked.args === undefined ? {} : { args: checked.args }
+        }
+        return { block: policy?.changedReason ?? ASK_WITHDRAWN }
+      }
+      const verdict = answerVerdict(answer, decision.args)
       if (answer.kind === 'granted' && policy !== undefined) {
         const args = answer.args ?? decision.args ?? call.args
         const latest = await currentFacts(host, ref, { ...tool, args })

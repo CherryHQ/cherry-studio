@@ -138,7 +138,12 @@ import {
   type StreamPausedResult,
   TraceFlushListener
 } from '../streamManager'
-import { type AbortedApproval, type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
+import {
+  type AbortedApproval,
+  type DispatchDecision,
+  type ResolvedApproval,
+  toolApprovalRegistry
+} from '../toolApproval/ToolApprovalRegistry'
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
   type AgentSessionRuntimeConnectionTarget,
@@ -460,6 +465,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly failedClosures = new Map<string, Set<AgentRuntimeConnection>>()
   private readonly localPermissionUpdates = new WeakMap<AgentRuntimeConnection, Promise<AgentRuntimeReconcileResult>>()
   private readonly failedClosureResumeTokens = new WeakMap<AgentRuntimeConnection, string>()
+  private readonly presentedApprovals = new Set<string>()
+  private readonly autoSettledBeforePresentation = new Set<string>()
   private readonly pendingEditInputs = new Map<
     Electron.WebContents,
     { counts: Map<string, number>; dispose: () => void }
@@ -694,6 +701,9 @@ export class AgentSessionRuntimeService extends BaseService {
       agentSessionMessageService.onBranchSelected(({ sessionId, head }) => this.selectBranchStream(sessionId, head))
     )
     this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))
+    this.registerDisposable(
+      toolApprovalRegistry.onAutoResolved((resolved) => this.settleAutoResolvedApproval(resolved))
+    )
   }
 
   /**
@@ -701,6 +711,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * the turn, so nothing else retires them once their request is aborted.
    */
   private retireAbortedApprovalCard(aborted: AbortedApproval): void {
+    this.presentedApprovals.delete(aborted.approvalId)
     if (aborted.presentation !== 'message') return
     try {
       agentSessionMessageService.retireAbandonedApproval(
@@ -715,6 +726,70 @@ export class AgentSessionRuntimeService extends BaseService {
         error
       })
     }
+  }
+
+  private settleAutoResolvedApproval(resolved: ResolvedApproval): void {
+    if (!this.presentedApprovals.delete(resolved.approvalId)) {
+      this.rememberBoundedId(this.autoSettledBeforePresentation, resolved.approvalId)
+    }
+    if (resolved.presentation === 'application') return
+    if (resolved.presentation === 'message') {
+      try {
+        agentSessionMessageService.applyPendingToolApprovalDecision(resolved.sessionId, {
+          approvalId: resolved.approvalId,
+          approved: resolved.decision.approved,
+          ...(resolved.decision.reason !== undefined && { reason: resolved.decision.reason }),
+          ...(resolved.decision.updatedInput !== undefined && { updatedInput: resolved.decision.updatedInput })
+        })
+      } catch (error) {
+        logger.warn('Failed to settle an auto-resolved tool-approval card', {
+          sessionId: resolved.sessionId,
+          approvalId: resolved.approvalId,
+          error
+        })
+      }
+      return
+    }
+    this.settleLiveStreamApproval(
+      resolved.sessionId,
+      resolved.contextId,
+      resolved.toolCallId,
+      resolved.approvalId,
+      resolved.decision.approved
+    )
+  }
+
+  private settleLiveStreamApproval(
+    sessionId: string,
+    contextId: string | undefined,
+    toolCallId: string,
+    approvalId: string,
+    approved: boolean
+  ): void {
+    const entry = this.entryForContext(sessionId, contextId)
+    if (entry) {
+      getAgentSessionRuntimeNativeTurn(entry.runtimeState)?.projection?.resolveToolApproval(
+        toolCallId,
+        approvalId,
+        approved
+      )
+    }
+    application
+      .get('AiStreamManager')
+      .resolveToolApproval(
+        entry?.topicId ?? buildAgentSessionTopicId(sessionId, contextId),
+        toolCallId,
+        approvalId,
+        approved
+      )
+  }
+
+  private rememberBoundedId(set: Set<string>, id: string): void {
+    if (set.size >= 512) {
+      const oldest = set.values().next().value
+      if (oldest !== undefined) set.delete(oldest)
+    }
+    set.add(id)
   }
 
   private reconcileStalePendingMessages(protectedSessions = new Set<string>()): void {
@@ -2216,24 +2291,16 @@ export class AgentSessionRuntimeService extends BaseService {
       ...(!decision.approved && { reasonSource: 'user' as const })
     })
     if (!dispatched) return { ok: false, reason: 'rejected' }
+    this.presentedApprovals.delete(approvalId)
 
     if (dispatched.presentation === 'stream') {
-      const entry = this.entryForContext(dispatched.sessionId, dispatched.contextId)
-      if (entry) {
-        getAgentSessionRuntimeNativeTurn(entry.runtimeState)?.projection?.resolveToolApproval(
-          dispatched.toolCallId,
-          approvalId,
-          guardedDecision.approved
-        )
-      }
-      application
-        .get('AiStreamManager')
-        .resolveToolApproval(
-          entry?.topicId ?? buildAgentSessionTopicId(dispatched.sessionId, dispatched.contextId),
-          dispatched.toolCallId,
-          approvalId,
-          guardedDecision.approved
-        )
+      this.settleLiveStreamApproval(
+        dispatched.sessionId,
+        dispatched.contextId,
+        dispatched.toolCallId,
+        approvalId,
+        guardedDecision.approved
+      )
     }
     return { ok: true, ...(decision.approved && !guardedDecision.approved && { approved: false }) }
   }
@@ -2319,6 +2386,8 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
+    this.presentedApprovals.clear()
+    this.autoSettledBeforePresentation.clear()
   }
 
   protected async onDestroy(): Promise<void> {
@@ -2334,6 +2403,8 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during destroy', { error })
     }
+    this.presentedApprovals.clear()
+    this.autoSettledBeforePresentation.clear()
     this._onTurnTerminal.dispose()
     this._onRuntimeIdle.dispose()
   }
@@ -3734,6 +3805,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
+    if (this.autoSettledBeforePresentation.delete(request.approvalId)) return
+    this.rememberBoundedId(this.presentedApprovals, request.approvalId)
     if (request.presentation === 'stream') {
       const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
       const hasBufferedInput =

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { callTool, reply, toolBase, toolResults } from '../../src/contract/fixtures'
-import { ASK_WITHDRAWN, deniedReason, REPEATED_CALL } from '../../src/core/approval/approval'
+import { ASK_WITHDRAWN, deniedReason, PLAN_BLOCK, REPEATED_CALL } from '../../src/core/approval/approval'
 import { offloadName } from '../../src/core/context/offload'
 import type { ToolCallFact } from '../../src/core/facts'
 import type { ApprovalHostFacts, CallRef } from '../../src/core/hostFacts'
@@ -127,5 +127,47 @@ describe('tool gate', () => {
     expect(bash.text).toContain('<persisted-output>')
     expect(read.text).toBe(LONG)
     expect(w.host.saved.map(({ name, key }) => [name, key])).toEqual([[offloadName(LONG), bash.callKey]])
+  })
+
+  it('re-evaluates a parked approval when answered with recheck after permission mode changes', async () => {
+    let mode: 'default' | 'bypassPermissions' | 'plan' = 'default'
+    const w = world({
+      extra: register(tool('bash')),
+      host: {
+        approvalFacts: () => ({
+          ...ALLOWED,
+          autoApproved: false,
+          permissionMode: mode,
+          commandPolicy: {
+            details: { reason: 'Permission required' },
+            context: `ctx:${mode}`,
+            changedReason: 'Context changed'
+          }
+        })
+      },
+      patchHost: (host) => ({ ...host, settings: { ...host.settings, permissionMode: () => mode } })
+    })
+
+    const allowThread = await w.fake.createThread()
+    w.fake.script(allowThread, [callTool('bash', { command: 'echo ok' }), reply('done')])
+    await w.fake.sendUser(allowThread, 'go')
+    await vi.waitFor(() => expect(w.host.asked.approvals).toBe(1))
+    mode = 'bypassPermissions'
+    w.host.answerApproval({ kind: 'recheck' })
+    await w.fake.settle()
+    expect(toolResults(await w.read(allowThread))[0]).toMatchObject({ text: 'ran', isError: false })
+
+    mode = 'default'
+    const blockThread = await w.fake.createThread()
+    w.fake.script(blockThread, [callTool('bash', { command: 'echo blocked' }), reply('done')])
+    await w.fake.sendUser(blockThread, 'go')
+    await vi.waitFor(() => expect(w.host.asked.approvals).toBe(2))
+    mode = 'plan'
+    w.host.answerApproval({ kind: 'recheck' })
+    await w.fake.settle()
+    expect(toolResults(await w.read(blockThread))[0]).toMatchObject({
+      text: expect.stringContaining(PLAN_BLOCK),
+      isError: true
+    })
   })
 })

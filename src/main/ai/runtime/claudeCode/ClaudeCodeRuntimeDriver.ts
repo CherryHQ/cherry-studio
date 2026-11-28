@@ -7,6 +7,7 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { logAiFailure } from '@main/ai/errorReporting'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -194,6 +195,7 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
           this.toolPolicySnapshot?.setPermissionMode(fresh.live.toolPolicy.permissionMode ?? undefined)
         }
         await this.toolPolicySnapshot?.update(agent)
+        await toolApprovalRegistry.reevaluate(this.input.sessionId)
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
         return 'failed'

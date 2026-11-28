@@ -217,4 +217,88 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
   it('clear() is a no-op (returns 0) when nothing is pending', () => {
     expect(toolApprovalRegistry.clear()).toBe(0)
   })
+
+  it('reevaluate() settles matching entries, emits onAutoResolved, and leaves un-reevaluable or still-pending entries untouched', async () => {
+    const resolved: unknown[] = []
+    const subscription = toolApprovalRegistry.onAutoResolved((entry) => resolved.push(entry))
+    const autoAllow = makeEntry({
+      sessionId: 's1',
+      contextId: 'ctx-1',
+      toolName: 'write',
+      presentation: 'stream',
+      reevaluate: async () => ({ approved: true, reevaluated: true })
+    })
+    const stillAsking = makeEntry({
+      sessionId: 's1',
+      contextId: 'ctx-1',
+      toolName: 'bash',
+      presentation: 'message',
+      reevaluate: async () => undefined
+    })
+    const question = makeEntry({
+      sessionId: 's1',
+      contextId: 'ctx-1',
+      toolName: 'AskUserQuestion',
+      presentation: 'stream'
+    })
+    const otherContext = makeEntry({
+      sessionId: 's1',
+      contextId: 'ctx-2',
+      toolName: 'write',
+      reevaluate: async () => ({ approved: true, reevaluated: true })
+    })
+
+    try {
+      toolApprovalRegistry.register(autoAllow.entry)
+      toolApprovalRegistry.register(stillAsking.entry)
+      toolApprovalRegistry.register(question.entry)
+      toolApprovalRegistry.register(otherContext.entry)
+
+      await expect(toolApprovalRegistry.reevaluate('s1', 'ctx-1')).resolves.toBe(1)
+      await expect(autoAllow.result).resolves.toEqual({ approved: true, reevaluated: true })
+      expect(resolved).toEqual([
+        {
+          approvalId: autoAllow.approvalId,
+          sessionId: 's1',
+          contextId: 'ctx-1',
+          toolCallId: 'tc1',
+          presentation: 'stream',
+          decision: { approved: true, reevaluated: true }
+        }
+      ])
+      expect(toolApprovalRegistry.peek(stillAsking.approvalId)).toBeDefined()
+      expect(toolApprovalRegistry.peek(question.approvalId)).toBeDefined()
+      expect(toolApprovalRegistry.peek(otherContext.approvalId)).toBeDefined()
+    } finally {
+      subscription.dispose()
+    }
+  })
+
+  it('reevaluate() skips entries already settled while evaluation was in flight', async () => {
+    const resolved: unknown[] = []
+    const subscription = toolApprovalRegistry.onAutoResolved((entry) => resolved.push(entry))
+    let finishEval!: (decision: DispatchDecision) => void
+    const racing = makeEntry({
+      sessionId: 's1',
+      reevaluate: () =>
+        new Promise<DispatchDecision | undefined>((res) => {
+          finishEval = res
+        })
+    })
+
+    try {
+      toolApprovalRegistry.register(racing.entry)
+      const pendingReeval = toolApprovalRegistry.reevaluate('s1')
+      await vi.waitFor(() => expect(finishEval).toBeDefined())
+
+      toolApprovalRegistry.dispatch(racing.approvalId, { approved: false, reasonSource: 'user', reason: 'no' })
+      finishEval({ approved: true, reevaluated: true })
+
+      await expect(pendingReeval).resolves.toBe(0)
+      await expect(racing.result).resolves.toEqual({ approved: false, reasonSource: 'user', reason: 'no' })
+      expect(resolved).toEqual([])
+    } finally {
+      subscription.dispose()
+    }
+  })
 })

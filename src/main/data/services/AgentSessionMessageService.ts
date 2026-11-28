@@ -4097,57 +4097,27 @@ export class AgentSessionMessageService {
     const applied = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) return false
-
-      const existing = this.rowToEntity(existingRow)
-      const parts = (existing.data.parts ?? []).map((part): CherryMessagePart => {
-        if (
-          !isToolUIPart(part) ||
-          part.state !== 'output-error' ||
-          part.approval?.id !== decision.approvalId ||
-          part.approval.approved !== undefined
-        )
-          return part
-        return { ...part, errorText: undefined, state: 'approval-requested', approval: { id: decision.approvalId } }
-      })
-      const hasPendingApproval = parts.some(
-        (part) =>
-          isToolUIPart(part) &&
-          part.state === 'approval-requested' &&
-          part.approval.id === decision.approvalId &&
-          (delivery === 'live' || !NativeInteractionInputSchema.safeParse(part.input).success)
-      )
-      if (!hasPendingApproval) return false
-
-      const updatedAt = Date.now()
-      const nextParts = applyApprovalDecisions(parts, [decision])
-      tx.update(sessionMessagesTable)
-        .set({ updatedAt })
-        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
-        .run()
-      replaceAgentSessionMessagePartsTx(tx, {
-        sessionId,
-        messageId,
-        parts: nextParts,
-        partIds: readAgentSessionMessagePartIdsTx(tx, messageId),
-        timestampMs: updatedAt
-      })
-      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
-      agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
-      return true
+      return this.applyToolApprovalDecisionOnRowTx(tx, sessionId, existingRow, decision, delivery)
     })
 
-    if (applied) {
-      agentSessionService.notifyReadModelChange([sessionId], 'projection')
-      notifyDataApiDataChange([
-        {
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: 'projection',
-          routeParams: { sessionId },
-          entityIds: [messageId]
-        }
-      ])
-    }
+    if (applied) this.notifyToolApprovalChange(sessionId, messageId)
     return applied
+  }
+
+  /**
+   * Settle a persisted `approval-requested` card identified only by `(sessionId, approvalId)`
+   * (for example, when a permission-mode switch resolves a parked approval without a UI click).
+   */
+  applyPendingToolApprovalDecision(sessionId: string, decision: ApprovalDecision): boolean {
+    const appliedMessageId = application.get('DbService').withWriteTx((tx) => {
+      const parkedRow = this.findPendingApprovalMessageRowTx(tx, sessionId, decision.approvalId)
+      if (!parkedRow) return null
+      return this.applyToolApprovalDecisionOnRowTx(tx, sessionId, parkedRow, decision, 'live') ? parkedRow.id : null
+    })
+
+    if (!appliedMessageId) return false
+    this.notifyToolApprovalChange(sessionId, appliedMessageId)
+    return true
   }
 
   /**
@@ -4159,24 +4129,10 @@ export class AgentSessionMessageService {
    */
   retireAbandonedApproval(sessionId: string, approvalId: string, errorText: string): boolean {
     const retired = application.get('DbService').withWriteTx((tx) => {
-      const [parkedRow] = tx
-        .select()
-        .from(sessionMessagesTable)
-        .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            sql<boolean>`exists (
-              select 1 from agent_session_message_part as part
-              where part.message_id = ${sessionMessagesTable.id} and json_extract(part.payload, '$.state') = 'approval-requested'
-                and json_extract(part.payload, '$.approval.id') = ${approvalId}
-            )`
-          )
-        )
-        .limit(1)
-        .all()
+      const parkedRow = this.findPendingApprovalMessageRowTx(tx, sessionId, approvalId)
       if (!parkedRow) return null
 
-      const parked = this.rowToEntity(this.withParts(tx, parkedRow))
+      const parked = this.rowToEntity(parkedRow)
       const updatedAt = Date.now()
       // The part keeps every field it was parked with; only its state leaves the approval machine.
       const parts = (parked.data.parts ?? []).map((part): CherryMessagePart => {
@@ -4199,16 +4155,84 @@ export class AgentSessionMessageService {
     })
 
     if (!retired) return false
+    this.notifyToolApprovalChange(sessionId, retired)
+    return true
+  }
+
+  private findPendingApprovalMessageRowTx(tx: DbOrTx, sessionId: string, approvalId: string) {
+    const [parkedRow] = tx
+      .select({ ...getTableColumns(sessionMessagesTable), provenance: messageProvenanceSql() })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql<boolean>`exists (
+            select 1 from agent_session_message_part as part
+            where part.message_id = ${sessionMessagesTable.id} and json_extract(part.payload, '$.state') = 'approval-requested'
+              and json_extract(part.payload, '$.approval.id') = ${approvalId}
+          )`
+        )
+      )
+      .limit(1)
+      .all()
+    return parkedRow ? this.withParts(tx, parkedRow) : null
+  }
+
+  private applyToolApprovalDecisionOnRowTx(
+    tx: DbOrTx,
+    sessionId: string,
+    existingRow: ReturnType<AgentSessionMessageService['withParts']>,
+    decision: ApprovalDecision,
+    delivery: 'live' | 'undelivered'
+  ): boolean {
+    const existing = this.rowToEntity(existingRow)
+    const parts = (existing.data.parts ?? []).map((part): CherryMessagePart => {
+      if (
+        !isToolUIPart(part) ||
+        part.state !== 'output-error' ||
+        part.approval?.id !== decision.approvalId ||
+        part.approval.approved !== undefined
+      )
+        return part
+      return { ...part, errorText: undefined, state: 'approval-requested', approval: { id: decision.approvalId } }
+    })
+    const hasPendingApproval = parts.some(
+      (part) =>
+        isToolUIPart(part) &&
+        part.state === 'approval-requested' &&
+        part.approval.id === decision.approvalId &&
+        (delivery === 'live' || !NativeInteractionInputSchema.safeParse(part.input).success)
+    )
+    if (!hasPendingApproval) return false
+
+    const updatedAt = Date.now()
+    const nextParts = applyApprovalDecisions(parts, [decision])
+    tx.update(sessionMessagesTable)
+      .set({ updatedAt })
+      .where(and(eq(sessionMessagesTable.id, existing.id), eq(sessionMessagesTable.sessionId, sessionId)))
+      .run()
+    replaceAgentSessionMessagePartsTx(tx, {
+      sessionId,
+      messageId: existing.id,
+      parts: nextParts,
+      partIds: readAgentSessionMessagePartIdsTx(tx, existing.id),
+      timestampMs: updatedAt
+    })
+    agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+    agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
+    return true
+  }
+
+  private notifyToolApprovalChange(sessionId: string, messageId: string): void {
     agentSessionService.notifyReadModelChange([sessionId], 'projection')
     notifyDataApiDataChange([
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
         routeParams: { sessionId },
-        entityIds: [retired]
+        entityIds: [messageId]
       }
     ])
-    return true
   }
 }
 

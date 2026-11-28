@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises'
 import * as z from 'zod'
 
 import { application } from '@application'
-import type { CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
+import { decideApproval, type CallRef, type HostPorts, type BehaviorEvent } from '@cherrystudio/agent-behavior'
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -159,6 +159,15 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   }
 }
 
+async function readCurrentPiApprovalFacts(approval: PiApprovalContext, name: string, args: Record<string, JsonValue>) {
+  for (let attempt = 1; ; attempt++) {
+    const facts = await readPiApprovalFacts(approval, name, args)
+    if (facts.permissionMode === undefined || facts.permissionMode === (approval.getPermissionMode() ?? 'default'))
+      return facts
+    if (attempt === 3) return { ...facts, approvalRequired: true }
+  }
+}
+
 export function createPiInteractionPorts(
   options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallIdentity' | 'contextId'>
 ): Pick<HostPorts, 'approvals' | 'questions'> {
@@ -168,11 +177,19 @@ export function createPiInteractionPorts(
     name: string,
     args: Record<string, JsonValue>,
     signal: AbortSignal,
-    details?: JsonValue
+    details?: JsonValue,
+    modeReevaluation?: {
+      modeAtAsk: ReturnType<PiApprovalContext['getPermissionMode']>
+      reevaluate: () => Promise<DispatchDecision | undefined>
+    }
   ) {
     signal.throwIfAborted()
     const { toolCallId, parentToolCallId } = await options.toolCallIdentity(call)
     signal.throwIfAborted()
+    if (modeReevaluation && approval.getPermissionMode() !== modeReevaluation.modeAtAsk) {
+      const immediate = await modeReevaluation.reevaluate()
+      if (immediate) return immediate
+    }
     const presentation = approval.getInteractionState().userResponse
     if (presentation === 'unavailable') return undefined
     const id = approvalId()
@@ -185,6 +202,7 @@ export function createPiInteractionPorts(
         toolName: name,
         originalInput: args,
         presentation,
+        ...(modeReevaluation ? { reevaluate: modeReevaluation.reevaluate } : {}),
         signal,
         resolve
       })
@@ -216,8 +234,32 @@ export function createPiInteractionPorts(
     approvals: {
       facts: (_call, tool) => readPiApprovalFacts(approval, tool.name, recordSchema.parse(tool.args)),
       async ask({ call, tool, details }, signal) {
-        const decision = await ask(call, tool.name, recordSchema.parse(tool.args), signal, details)
+        const parsedArgs = recordSchema.parse(tool.args)
+        const modeAtAsk = approval.getPermissionMode()
+        const reevaluate = async (): Promise<DispatchDecision | undefined> => {
+          const facts = await readCurrentPiApprovalFacts(approval, tool.name, parsedArgs)
+          const decision = decideApproval(
+            { ...call, nested: false, tool: tool.name, args: parsedArgs },
+            facts,
+            approval.getPermissionMode() ?? 'default',
+            approval.getInteractionState().userResponse,
+            undefined
+          )
+          if (decision.kind === 'allow') {
+            return {
+              approved: true,
+              reevaluated: true,
+              ...(decision.args !== undefined ? { updatedInput: recordSchema.parse(decision.args) } : {})
+            }
+          }
+          if (decision.kind === 'block') {
+            return { approved: false, reevaluated: true, reason: decision.reason }
+          }
+          return undefined
+        }
+        const decision = await ask(call, tool.name, parsedArgs, signal, details, { modeAtAsk, reevaluate })
         if (!decision) return { kind: 'unavailable' }
+        if (decision.reevaluated) return { kind: 'recheck' }
         return decision.approved
           ? { kind: 'granted', ...(decision.updatedInput && { args: recordSchema.parse(decision.updatedInput) }) }
           : { kind: 'denied', feedback: decision.reasonSource === 'user' ? decision.reason : undefined }
