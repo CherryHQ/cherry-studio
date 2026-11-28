@@ -116,8 +116,10 @@ async function fileUrlToDataUrl(fileUrl: string) {
  */
 export async function materializeNativeFilePart(
   part: FileUIPart,
-  onFailure?: (reason: string | null) => void
+  onFailure?: (reason: string | null) => void,
+  options: { enforceProviderImageEdges?: boolean } = {}
 ): Promise<FileUIPart | null> {
+  const enforceProviderImageEdges = options.enforceProviderImageEdges ?? true
   const materialized = await materializeInner(part)
   if (materialized === null) return null
   const normalized = sanitizeFilePartMediaType(materialized)
@@ -126,7 +128,7 @@ export async function materializeNativeFilePart(
   if (!/^image\/(?:png|jpeg|webp|gif)$/i.test(normalized.mediaType) || !normalized.url.startsWith('data:'))
     return normalized
   // History images repeat on every native model call; validate each content once.
-  const key = hash('sha256', normalized.url)
+  const key = `${enforceProviderImageEdges ? 'provider' : 'local'}:${hash('sha256', normalized.url)}`
   const known = imageValidations.get(key)
   if (known !== undefined) {
     imageValidations.delete(key)
@@ -138,9 +140,13 @@ export async function materializeNativeFilePart(
     return known.url ? { ...normalized, url: known.url } : normalized
   }
   let failure: string | null = null
-  const validated = await validateImage(normalized, (reason) => {
-    failure = reason
-  })
+  const validated = await validateImage(
+    normalized,
+    (reason) => {
+      failure = reason
+    },
+    enforceProviderImageEdges
+  )
   const decision =
     validated === null ? (failure ? { failure } : null) : validated === normalized ? {} : { url: validated.url }
   const retainedBytes = decision && 'url' in decision && decision.url ? Buffer.byteLength(decision.url) : 0
@@ -182,7 +188,8 @@ function needsPngFramePreservation(bytes: Buffer): boolean {
 
 async function validateImage(
   normalized: FileUIPart,
-  onFailure?: (reason: string | null) => void
+  onFailure?: (reason: string | null) => void,
+  enforceProviderImageEdges = true
 ): Promise<FileUIPart | null> {
   try {
     const comma = normalized.url.indexOf(',')
@@ -199,6 +206,9 @@ async function validateImage(
     // Metadata/magic alone accepts truncated pixel data. Strict decode also
     // rejects malformed-but-displayable files; persisted attachments stay intact.
     await sharp(bytes, { failOn: 'error', limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS }).stats()
+    // Local filesystem agents own their transport limits. Validate bytes but do
+    // not discard animation or impose a cloud provider's edge contract.
+    if (!enforceProviderImageEdges) return normalized
     try {
       const animated = /^image\/(?:gif|webp)$/i.test(normalized.mediaType)
       const metadata = await sharp(bytes, {

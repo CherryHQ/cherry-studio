@@ -452,6 +452,25 @@ describe('bounded image replacements and APNG safety', () => {
     expect(cached).toHaveBeenCalledWith(expect.stringContaining('frames'))
   })
 
+  it('delivers original APNG bytes to local agents even after provider rejection is cached', async () => {
+    const bytes = await fs.readFile(new URL('./fixtures/oversized-two-frame.png', import.meta.url))
+    const part = partFor(bytes)
+    expect(await materializeNativeFilePart(part)).toBeNull()
+    expect(await materializeNativeFilePart(part, undefined, { enforceProviderImageEdges: false })).toEqual(part)
+    const { localPartContent } = await import('../../runtime/localContent')
+    expect(await localPartContent(part, true)).toEqual({
+      type: 'image',
+      mimeType: 'image/png',
+      data: bytes.toString('base64')
+    })
+    const { acpContent } = await import('../../runtime/acp/acpContent')
+    const input = { message: { id: 'apng-local', data: { parts: [part] } } } as Parameters<typeof acpContent>[0]
+    expect(await acpContent(input, { image: true, audio: false, embeddedContext: false })).toEqual([
+      { type: 'image', mimeType: 'image/png', data: bytes.toString('base64') }
+    ])
+    expect(await materializeNativeFilePart(part)).toBeNull()
+  })
+
   it('resizes an APNG whose only frame is its default image', async () => {
     const bytes = await fs.readFile(new URL('./fixtures/oversized-one-frame.png', import.meta.url))
     const output = await materializeNativeFilePart(partFor(bytes))
