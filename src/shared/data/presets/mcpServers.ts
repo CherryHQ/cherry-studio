@@ -163,6 +163,17 @@ export const PRESET_MCP_SERVERS = freezePresets([
     provider: 'Nowledge',
     installSource: 'builtin',
     isTrusted: true
+  },
+  {
+    name: BuiltinMcpServerNames.datacircle,
+    reference: 'https://datacircle.dev',
+    type: 'streamableHttp',
+    baseUrl: 'https://api.datacircle.dev/mcp',
+    headers: { APP: 'Cherry Studio' },
+    isActive: false,
+    provider: 'Datacircle',
+    installSource: 'builtin',
+    isTrusted: true
   }
 ])
 
