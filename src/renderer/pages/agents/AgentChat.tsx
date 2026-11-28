@@ -2,8 +2,9 @@ import type { ReactNode } from 'react'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
@@ -32,11 +33,15 @@ import PermissionRequestComposer, {
   type PermissionRequestComposerProps
 } from '@renderer/components/composer/variants/PermissionRequestComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
+import { useLocalAgentSessionInfo } from '@renderer/hooks/agent/useLocalAgentSessionInfo'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
@@ -47,6 +52,7 @@ import { cn } from '@renderer/utils/style'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { getLocalAgentProtocol } from '@shared/ai/localAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -68,6 +74,7 @@ import type { AgentConversationBootstrap } from './useAgentConversationBootstrap
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
+const logger = loggerService.withContext('AgentChat')
 
 function AgentPermissionRequestComposer(props: PermissionRequestComposerProps) {
   const { openAgentToolFlow, canOpenAgentToolFlow } = useAgentRightPaneActions()
@@ -142,6 +149,7 @@ interface AgentChatProps {
   paneManualToggle?: PaneManualToggleSignal
   missingAgentSelection?: boolean
   onCreateEmptySession?: (defaults?: CreateAgentSessionDefaults) => void | Promise<unknown>
+  onStartNewTaskConversation?: (agentId: string) => void
   onMissingAgentSelectionAgentChange?: (agentId: string | null) => void | Promise<void>
   onSessionWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
@@ -159,6 +167,7 @@ interface AgentChatProps {
 
 interface AgentChatLayoutProps {
   activeAgent?: GetAgentResponse
+  subscriptionUsageRevision?: string
   /** Active model — the right pane needs it for the context-usage denominator. */
   model?: Model
   /** The same confirmed model switch as the top bar, for the profile pane. */
@@ -210,6 +219,7 @@ const AgentChat = ({
   paneManualToggle,
   missingAgentSelection = false,
   onCreateEmptySession,
+  onStartNewTaskConversation,
   onMissingAgentSelectionAgentChange,
   onSessionWorkspaceChange,
   onVisibleAgentChange,
@@ -243,6 +253,21 @@ const AgentChat = ({
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
   const activeAgent = conversationBootstrap.resources.agent
+  const localRuntime = activeAgent?.localRuntime
+  const localView = useLocalAgentSessionInfo(
+    sessionSnapshot?.id ?? '',
+    activeAgent?.type === 'local' && activeAgent.id === visibleAgentId && !!sessionSnapshot,
+    activeAgent && JSON.stringify([activeAgent.id, activeAgent.updatedAt])
+  )
+  const localPresetId = localView?.providerId ? localView.presetId : localRuntime?.presetId
+  const subscriptionUsageRevision =
+    activeAgent?.type === 'local' &&
+    activeAgent.id === visibleAgentId &&
+    localRuntime?.enabled &&
+    localView?.subscriptionUsage &&
+    (localPresetId !== 'minimax' || !!localView.info?.activeModel?.id)
+      ? JSON.stringify([localView.providerId, activeAgent.updatedAt, localView.info?.activeModel?.id])
+      : undefined
   const isSupportAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
   const isAssistantAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
   // Assistant now exposes prepare_diagnostic_report, so it needs the same review dialog as Support.
@@ -496,6 +521,8 @@ const AgentChat = ({
           activeAgent ? (
             <AgentTopBarControls
               agent={activeAgent}
+              localSessionId={sessionSnapshot.id}
+              localView={localView}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
               workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
@@ -539,6 +566,7 @@ const AgentChat = ({
         agentId={composerAgentId}
         composerPending={isActiveAgentLoading || isActiveModelLoading}
         activeAgent={activeAgent}
+        localPresetId={localPresetId}
         activeModel={activeModel}
         workspaceWarning={workspaceWarning}
         isEmptyConversation={isEmptyConversation}
@@ -548,6 +576,7 @@ const AgentChat = ({
         agentChanging={sessionAgentChanging}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
+        onStartNewTaskConversation={onStartNewTaskConversation}
         composerLaunchOptions={composerLaunchOptions}
         openDiagnosticReport={canReviewDiagnosticReport ? openDiagnosticReport : undefined}
       />
@@ -556,6 +585,7 @@ const AgentChat = ({
 
   const layoutProps: AgentChatLayoutProps = {
     activeAgent,
+    subscriptionUsageRevision,
     model: activeModel,
     onModelChange: handleAgentModelChange,
     center,
@@ -643,6 +673,7 @@ interface AgentChatSessionCenterProps {
   agentId?: string
   composerPending: boolean
   activeAgent: GetAgentResponse | undefined
+  localPresetId?: string
   activeModel?: Model
   workspaceWarning?: string
   isEmptyConversation: boolean
@@ -652,6 +683,7 @@ interface AgentChatSessionCenterProps {
   agentChanging?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
+  onStartNewTaskConversation?: (agentId: string) => void
   composerLaunchOptions?: AgentComposerLaunchOptions
   openDiagnosticReport?: (description?: string) => void
 }
@@ -663,6 +695,7 @@ const AgentChatSessionCenter = ({
   agentId,
   composerPending,
   activeAgent,
+  localPresetId,
   activeModel,
   workspaceWarning,
   isEmptyConversation,
@@ -672,36 +705,90 @@ const AgentChatSessionCenter = ({
   agentChanging,
   onOpenCitationsPanel,
   onCreateEmptySession,
+  onStartNewTaskConversation,
   composerLaunchOptions,
   openDiagnosticReport
 }: AgentChatSessionCenterProps) => {
+  const { t } = useTranslation()
+  const [localRestoreUnavailable, setLocalRestoreUnavailable] = useState<boolean>()
+  const localRuntime = activeAgent?.type === 'local' ? activeAgent.localRuntime : undefined
+  const protocol = localRuntime && getLocalAgentProtocol(localPresetId)
+  const checkLocalRestore = !!onStartNewTaskConversation && (protocol === 'acp' || protocol === 'cursor')
+  const historyOnly = checkLocalRestore && localRestoreUnavailable === true
+  const checkingRestore = checkLocalRestore && localRestoreUnavailable === undefined
+  const tabId = useCurrentTabId()
+  const isActiveTab = useIsActiveTab()
+  const sessionId = session.id
+  const workspacePath = session.workspace?.path
+  const canActivateRuntime =
+    (!tabId || isActiveTab) &&
+    !onStartNewTaskConversation &&
+    !session.deletedAt &&
+    !!workspacePath &&
+    activeAgent?.id === session.agentId &&
+    localRuntime?.enabled === true &&
+    protocol === 'acp'
+
+  useEffect(() => {
+    if (!canActivateRuntime || !agentId || !workspacePath) return
+    let active = true
+    void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: true }).catch((error) => {
+      if (active) logger.warn('Failed to prepare active ACP session', { sessionId, error })
+    })
+    return () => {
+      active = false
+      void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: false }).catch((error) => {
+        logger.warn('Failed to leave active ACP session', { sessionId, error })
+      })
+    }
+  }, [agentId, canActivateRuntime, sessionId, workspacePath])
+
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
-      <AgentComposerSlot
-        editBusy={runtime.editBusy}
-        agentId={agentId}
-        activeAgent={activeAgent}
-        activeModel={activeModel}
-        workspaceWarning={workspaceWarning}
-        isMultiSelectMode={isMultiSelectMode}
-        session={session}
-        sessionId={runtime.sessionId}
-        sendMessage={runtime.sendMessage}
-        stop={runtime.stop}
-        isStreaming={runtime.isPending}
-        messages={runtime.uiMessages}
-        sendDisabled={composerPending}
-        onAgentChange={onAgentChange}
-        agentChanging={agentChanging}
-        onCreateEmptySession={onCreateEmptySession}
-        composerContext={runtime.composerContext}
-        composerLaunchOptions={composerLaunchOptions}
-        editing={runtime.editing}
-        cancelEditing={runtime.cancelEditing}
-        resendEditedMessage={runtime.resendEditedMessage}
-        providerQuotaExhausted={runtime.providerQuotaExhausted}
-      />
+      {checkingRestore ? (
+        <p className="px-4 py-3 text-center text-sm text-muted-foreground" role="status">
+          {t('common.loading')}
+        </p>
+      ) : historyOnly ? (
+        <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+          <p>{t('local_agents.no_resume')}</p>
+          {agentId && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="pointer-events-auto"
+              onClick={() => onStartNewTaskConversation?.(agentId)}>
+              {t('chat.add.topic.title')}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <AgentComposerSlot
+          editBusy={runtime.editBusy}
+          agentId={agentId}
+          activeAgent={activeAgent}
+          activeModel={activeModel}
+          workspaceWarning={workspaceWarning}
+          isMultiSelectMode={isMultiSelectMode}
+          session={session}
+          sessionId={runtime.sessionId}
+          sendMessage={runtime.sendMessage}
+          stop={runtime.stop}
+          isStreaming={runtime.isPending}
+          messages={runtime.uiMessages}
+          sendDisabled={composerPending}
+          onAgentChange={onAgentChange}
+          agentChanging={agentChanging}
+          onCreateEmptySession={onCreateEmptySession}
+          composerContext={runtime.composerContext}
+          composerLaunchOptions={composerLaunchOptions}
+          editing={runtime.editing}
+          cancelEditing={runtime.cancelEditing}
+          resendEditedMessage={runtime.resendEditedMessage}
+          providerQuotaExhausted={runtime.providerQuotaExhausted}
+        />
+      )}
     </div>
   )
   const messageList = (
@@ -729,6 +816,8 @@ const AgentChatSessionCenter = ({
       startEditing={runtime.startEditing}
       editBusy={runtime.editBusy}
       respondToolApproval={runtime.respondToolApproval}
+      readOnly={checkingRestore || historyOnly}
+      onLocalRestoreChecked={checkLocalRestore ? setLocalRestoreUnavailable : undefined}
     />
   )
   const main = (
@@ -736,6 +825,11 @@ const AgentChatSessionCenter = ({
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
+            avatarIcon={
+              activeAgent?.localRuntime ? (
+                <LocalAgentIcon presetId={activeAgent.localRuntime.presetId} size={48} />
+              ) : undefined
+            }
             avatar={
               activeAgent
                 ? getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
@@ -754,6 +848,7 @@ const AgentChatSessionCenter = ({
 
 function AgentChatLayout({
   activeAgent,
+  subscriptionUsageRevision,
   model,
   onModelChange,
   center,
@@ -806,6 +901,7 @@ function AgentChatLayout({
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
       runtimeType={activeAgent?.type}
+      subscriptionUsageRevision={subscriptionUsageRevision}
       agentAvatar={
         activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc) : undefined
       }

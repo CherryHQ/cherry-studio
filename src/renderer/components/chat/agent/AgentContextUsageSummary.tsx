@@ -7,11 +7,13 @@ import type {
   ContextCategoryKey,
   ContextResource,
   ContextTokenCount,
+  OperationResult,
   ThreadContextUsage
 } from '@cherrystudio/agent-runtime'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, ScrollArea } from '@cherrystudio/ui'
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { cn } from '@renderer/utils/style'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 const CATEGORY_KEYS: Record<ContextCategoryKey | 'buffer' | 'free', string> = {
@@ -75,9 +77,12 @@ function resourceLabel(resource: ContextResource, serverNames: ReadonlyMap<strin
 interface AgentContextUsageSummaryProps {
   usage: ThreadContextUsage | null
   percentage: number | null
+  status?: OperationResult<ThreadContextUsage>['status'] | null
   className?: string
   isCompacting?: boolean
   modelName?: string
+  /** Native session cost reported by a local CLI runtime. */
+  cost?: { amount: number; currency: string } | null
   /** The composer shows only the total; the status pane includes native details. */
   showCategories?: boolean
 }
@@ -85,12 +90,24 @@ interface AgentContextUsageSummaryProps {
 export function AgentContextUsageSummary({
   usage,
   percentage,
+  status,
   className,
   isCompacting = false,
   modelName,
+  cost,
   showCategories = true
 }: AgentContextUsageSummaryProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const costFormatter = cost
+    ? new Intl.NumberFormat(i18n.resolvedLanguage, {
+        style: 'currency',
+        currency: cost.currency,
+        currencyDisplay: 'code',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4
+      })
+    : undefined
+  const formatExact = (tokens: number) => tokens.toLocaleString(i18n.resolvedLanguage)
   const windowTokens = usage?.contextWindow ?? 0
   const categories: UsageCategory[] = showCategories
     ? [
@@ -114,7 +131,7 @@ export function AgentContextUsageSummary({
         .sort((a, b) => CATEGORY_KIND_ORDER[a.kind] - CATEGORY_KIND_ORDER[b.kind] || b.tokens - a.tokens)
     : []
   const data =
-    usage?.used && percentage !== null
+    usage?.used && windowTokens > 0 && percentage !== null
       ? {
           usedTokens: usage.used.tokens,
           estimated: usage.used.precision === 'estimated',
@@ -127,7 +144,15 @@ export function AgentContextUsageSummary({
   return (
     <ContextUsageSummary
       title={t(showCategories ? 'agent.right_pane.info.context' : 'agent.right_pane.info.context_usage')}
-      emptyLabel={t('agent.right_pane.info.context_details.unavailable')}
+      emptyLabel={
+        usage?.used
+          ? t('chat.message.token_details.tokens', { value: formatExact(usage.used.tokens) })
+          : status === 'unsupported'
+            ? t('agent.right_pane.info.context_usage_unsupported')
+            : usage
+              ? t('agent.right_pane.info.context_details.unavailable')
+              : t('common.unknown')
+      }
       data={data}
       className={className}
       summaryClassName={showCategories ? 'px-3' : undefined}
@@ -142,6 +167,20 @@ export function AgentContextUsageSummary({
       {showCategories && (
         <AgentContextUsageDetails categories={categories} resources={usage?.resources} windowTokens={windowTokens} />
       )}
+      {cost && costFormatter ? (
+        <div
+          className={cn(
+            'flex items-center justify-between gap-3 border-border-subtle border-t pt-2 text-muted-foreground',
+            showCategories && 'mx-3'
+          )}>
+          <span>{t('agent.right_pane.info.session_cost')}</span>
+          <span className="shrink-0 tabular-nums">
+            {cost.amount > 0 && cost.amount < 0.0001
+              ? `<${costFormatter.format(0.0001)}`
+              : costFormatter.format(cost.amount)}
+          </span>
+        </div>
+      ) : null}
     </ContextUsageSummary>
   )
 }

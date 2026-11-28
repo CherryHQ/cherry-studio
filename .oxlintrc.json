@@ -34,6 +34,87 @@
   },
   "overrides": [
     {
+      "files": ["src/renderer/pages/code/**/*.{ts,tsx}", "src/shared/ai/localAgent.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^@cherrystudio/agent-runtime-[^/]+(?:$|/(?:launcher|app-server-client|installer|terminal|v1|v2)(?:/|$))",
+                "message": "Use the package's browser-safe /cli declarations."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/main/services/codeCli/{LocalAgentInstallService,installRecipe,installPolicy,installBinary,uninstall}.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^@agentclientprotocol/sdk(?:/|$)|(?:^|/)runtime/(?:acp|claudeCode|codex|cursor)/|(?:^|/)cli/cliProgram$",
+                "message": "Installers use package component declarations and installed CLI discovery."
+              },
+              {
+                "regex": "^@cherrystudio/agent-runtime-[^/]+(?:$|/(?:launcher|app-server-client|terminal|v1|v2)(?:/|$))",
+                "message": "Use the package's /cli or /installer entry for installation.",
+                "allowTypeImports": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/main/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@agentclientprotocol/sdk", "@agentclientprotocol/sdk/**"],
+                "message": "Use @cherrystudio/agent-runtime-acp/v1 for desktop ACP sessions and host callbacks."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/main/ai/runtime/{claudeCode,codex,cursor}/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@agentclientprotocol/sdk", "@agentclientprotocol/sdk/**"],
+                "message": "Use the runtime package for protocol operations."
+              },
+              {
+                "group": [
+                  "@main/ai/runtime/acp/**",
+                  "../acp/**",
+                  "../../acp/**",
+                  "@cherrystudio/agent-runtime-acp",
+                  "@cherrystudio/agent-runtime-acp/**"
+                ],
+                "message": "Use the runtime's own driver and shared desktop host operations."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": [
         "src/main/ai/agentSession/childTimelines.ts",
         "src/main/ai/agentSession/childArchive.ts",

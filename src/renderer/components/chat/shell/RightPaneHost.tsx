@@ -306,57 +306,6 @@ function useRightPaneResize({
   }
 }
 
-function RightPaneContents({
-  children,
-  paneWidth,
-  minWidth,
-  maxWidth,
-  resizeHandleVisible,
-  startResizing,
-  setPaneWidth
-}: {
-  children?: ReactNode
-  paneWidth: number
-  minWidth: number
-  maxWidth: number
-  resizeHandleVisible: boolean
-  startResizing: (event: ReactMouseEvent) => void
-  setPaneWidth: (nextWidth: number) => void
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <>
-      {/* Mouse events over an iframe (e.g. the HTML preview tab) never reach this
-          document's mousemove/mouseup listeners. Disable pointer events on pane
-          content while dragging so the document-level resize listeners keep working. */}
-      <div
-        className={cn(
-          'h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none',
-          resizeHandleVisible && 'pl-2'
-        )}>
-        <ErrorBoundary>{children}</ErrorBoundary>
-      </div>
-      {resizeHandleVisible && (
-        <div
-          data-right-pane-resize-handle
-          onMouseDown={startResizing}
-          {...getVerticalSplitterProps({
-            width: paneWidth,
-            min: minWidth,
-            max: maxWidth,
-            label: t('common.resize_panel'),
-            onResize: setPaneWidth,
-            invert: true
-          })}
-          className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize focus-visible:bg-border-strong focus-visible:outline-none">
-          <div className="absolute top-0 left-0 h-full w-0.5 bg-border opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane:bg-border-strong group-data-[resizing=true]/right-pane:opacity-100" />
-        </div>
-      )}
-    </>
-  )
-}
-
 export function RightPaneHost({ children, open, width = CHAT_SHELL_PANE_WIDTH, className, style }: RightPaneHostProps) {
   const hasVisiblePane = Boolean(open && children !== null && children !== undefined)
 
@@ -397,6 +346,7 @@ export function PersistentRightPaneHost({
   onResizingChange,
   onDragClose
 }: PersistentRightPaneHostProps) {
+  const { t } = useTranslation()
   const reduceMotion = useReducedMotion()
   const animationControls = useAnimationControls()
   const resolvedDefaultWidth = defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
@@ -603,14 +553,31 @@ export function PersistentRightPaneHost({
   return (
     <>
       <motion.div
-        aria-hidden="true"
         data-right-pane-spacer
         animate={{ width: reservesDockedSpace ? spacerWidth : 0 }}
         transition={spacerTransition}
-        className="h-full min-h-0 shrink-0"
+        className="relative h-full min-h-0 shrink-0"
         // The new preset's cap would cut a shrinking spacer short of its travel.
-        style={{ maxWidth: presetTravelActive ? undefined : dockedWidthExpression }}
-      />
+        style={{ maxWidth: presetTravelActive ? undefined : dockedWidthExpression }}>
+        {/* Keep the splitter on the conversation side so portaled browser guests leave it reachable. */}
+        {resizable && isDocked && (
+          <div
+            data-right-pane-resize-handle
+            data-resizing={isResizing || undefined}
+            onMouseDown={startResizing}
+            {...getVerticalSplitterProps({
+              width: effectiveWidth,
+              min: splitterMinWidth,
+              max: splitterMaxWidth,
+              label: t('common.resize_panel'),
+              onResize: setPaneWidth,
+              invert: true
+            })}
+            className="group/right-pane-resize-handle absolute inset-y-0 right-full z-30 w-2 cursor-col-resize focus-visible:bg-border-strong focus-visible:outline-none">
+            <div className="absolute top-0 right-0 h-full w-0.5 bg-border opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane-resize-handle:bg-border-strong group-data-[resizing=true]/right-pane-resize-handle:opacity-100" />
+          </div>
+        )}
+      </motion.div>
       <motion.div
         ref={paneRef}
         initial={initialAnimationState}
@@ -640,15 +607,10 @@ export function PersistentRightPaneHost({
             !interactionHidden && 'pointer-events-auto',
             resizable && !fullWidthLayout && '[border-left:0.5px_solid_var(--border)]'
           )}>
-          <RightPaneContents
-            paneWidth={effectiveWidth}
-            minWidth={splitterMinWidth}
-            maxWidth={splitterMaxWidth}
-            resizeHandleVisible={resizable && isDocked}
-            startResizing={startResizing}
-            setPaneWidth={setPaneWidth}>
-            {children}
-          </RightPaneContents>
+          {/* Let document-level drag listeners keep receiving events over iframes. */}
+          <div className="h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
         </div>
       </motion.div>
     </>
