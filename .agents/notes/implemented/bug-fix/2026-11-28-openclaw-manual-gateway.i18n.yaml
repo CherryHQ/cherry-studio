@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-28-openclaw-manual-gateway.md
+2026-11-28-openclaw-manual-gateway.md: 364a02be2c9a889b5fe917b9b801d0ee985267be
+2026-11-28-openclaw-manual-gateway.zh.md: 3c620d93d7f0f3557ba8c456e1441106634e97c2

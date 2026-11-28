@@ -144,7 +144,7 @@ vi.mock('react-i18next', () => ({
           'settings.scheduledTasks.title': 'Scheduled Tasks',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
-          'code.api_gateway.title': 'Unified Gateway',
+          'launchpad.api_gateway': 'Unified Gateway',
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',

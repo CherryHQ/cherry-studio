@@ -233,6 +233,20 @@ it('never quits the shared file manager', () => {
   expect(desktop.processes).toEqual([{ ...application, application: 'explorer.exe', shared: true }])
 })
 
+it('leaves unrelated Terminal windows open after the owned window closes', () => {
+  const id = registerExternalResource(paths, 'macos', { kind: 'terminal', directory: paths.workspace })
+  const terminal = { ...application, application: 'com.apple.Terminal', shared: true }
+  desktop = { processes: [terminal], windows: [{ id: 'owned', pid: terminal.pid, matches: true }] }
+  expect(observeExternalResource(paths, id)).toBe(true)
+  const unrelated = { id: 'unrelated', pid: terminal.pid, matches: false }
+  desktop.windows = [unrelated]
+
+  cleanupExternalResources(paths)
+
+  expect(desktop).toEqual({ processes: [terminal], windows: [unrelated] })
+  expect(ledger()).toEqual([])
+})
+
 it('continues independent cleanup and persists failures for a later executor', async () => {
   const driver = native.getMockImplementation()!
   const scoped = (platform: unknown, request: ExternalAppRequest) => {

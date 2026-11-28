@@ -73,7 +73,7 @@ function run(argv) {
       if (bundles.indexOf(bundle) < 0 || running.terminated) continue
       const pid = Number(running.processIdentifier)
       const startedAt = String(running.launchDate.timeIntervalSince1970)
-      const process = { pid, startedAt, application: bundle, shared: bundle === 'com.apple.finder' }
+      const process = { pid, startedAt, application: bundle, shared: bundle === 'com.apple.finder' || bundle === 'com.apple.Terminal' }
       result.processes.push(process)
       processes[pid] = running
       const prefix = pid + ':' + startedAt + ':'
@@ -208,7 +208,7 @@ function run(argv) {
     const handle = handles[request.window.id]
     if (handle) handle.close()
   } else {
-    if (current.shared) throw new Error('Refusing to terminate Finder')
+    if (current.shared) throw new Error('Refusing to terminate a shared application')
     if (snapshot.windows.some(window => window.pid === current.pid && (request.owned.indexOf(window.id) < 0 || !window.matches)))
       throw new Error('External application contains unrelated windows')
     const running = processes[current.pid]

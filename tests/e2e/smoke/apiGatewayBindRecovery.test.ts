@@ -32,15 +32,18 @@ test('Unified Gateway recovers from an occupied port through Settings', async ({
   await openSettings(page)
   await expect(page.locator('[data-ui="settings.view"]')).toBeVisible({ timeout: 60_000 })
   await page
-    .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
-    .filter({ hasText: 'Unified Gateway' })
+    .locator('[data-ui~="settings.navigation"]')
+    .getByRole('button', { name: 'Unified Gateway', exact: true })
     .click({ timeout: 60_000 })
 
-  const port = page.getByLabel('Port', { exact: true })
+  const panel = page.locator('[data-ui~="settings.content"] [data-ui~="api-gateway.panel"]')
+  await panel.getByRole('button', { name: 'Advanced Settings', exact: true }).click()
+  const port = panel.getByRole('spinbutton', { name: 'Port', exact: true })
   const notifications = page.getByRole('region', { name: 'notifications' })
-  const running = page.getByText('Running', { exact: true })
-  const stopped = page.getByText('Stopped', { exact: true })
-  const stop = page.getByRole('button', { name: 'Stop', exact: true })
+  const running = panel.getByText('Running', { exact: true })
+  const stopped = panel.getByText('Stopped', { exact: true })
+  const start = panel.getByRole('button', { name: 'Start', exact: true })
+  const stop = panel.getByRole('button', { name: 'Stop', exact: true })
   await expect(port).toBeVisible({ timeout: 60_000 })
   await expect(stopped).toBeVisible({ timeout: 60_000 })
 
@@ -50,10 +53,10 @@ test('Unified Gateway recovers from an occupied port through Settings', async ({
   try {
     await port.fill(String(occupiedPort), { timeout: 60_000 })
     await port.blur({ timeout: 60_000 })
-    await expect(page.getByLabel('URL', { exact: true })).toHaveValue(`http://127.0.0.1:${occupiedPort}`, {
+    await expect(panel.getByText(`http://127.0.0.1:${occupiedPort}/v1/chat/completions`, { exact: true })).toBeVisible({
       timeout: 60_000
     })
-    await page.getByRole('button', { name: 'Start', exact: true }).click({ timeout: 60_000 })
+    await start.click({ timeout: 60_000 })
 
     const refusal = notifications.getByText(/EADDRINUSE/)
     await expect(refusal).toBeVisible({ timeout: 60_000 })
@@ -69,10 +72,12 @@ test('Unified Gateway recovers from an occupied port through Settings', async ({
     await new Promise<void>((resolve, reject) => available.close((error) => (error ? reject(error) : resolve())))
     await port.fill(String(availablePort), { timeout: 60_000 })
     await port.blur({ timeout: 60_000 })
-    await expect(page.getByLabel('URL', { exact: true })).toHaveValue(`http://127.0.0.1:${availablePort}`, {
-      timeout: 60_000
-    })
-    await page.getByRole('button', { name: 'Start', exact: true }).click({ timeout: 60_000 })
+    await expect(panel.getByText(`http://127.0.0.1:${availablePort}/v1/chat/completions`, { exact: true })).toBeVisible(
+      {
+        timeout: 60_000
+      }
+    )
+    await start.click({ timeout: 60_000 })
     await expect(notifications).toContainText('Unified Gateway started successfully', { timeout: 60_000 })
     await expect(running).toBeVisible({ timeout: 60_000 })
     await page.screenshot({ path: testInfo.outputPath('recovered-port.png') })
