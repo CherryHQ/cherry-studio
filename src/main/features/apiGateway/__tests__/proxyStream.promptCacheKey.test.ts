@@ -59,6 +59,7 @@ vi.mock('../adapters', () => ({
     createAdapter: () => ({
       getMessageId: () => 'test-response',
       transformChunk: () => [],
+      transformChunkWithOpening: () => ({ opening: [], events: [] }),
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ ok: true })
     }),

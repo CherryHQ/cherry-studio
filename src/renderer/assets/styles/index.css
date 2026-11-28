@@ -18,7 +18,6 @@
 @import './animation.css' layer(app);
 @import './richtext.css' layer(app);
 @import './responsive.css' layer(app);
-@import '../fonts/icon-fonts/iconfont.css' layer(app);
 @import '../fonts/ubuntu/ubuntu.css' layer(app);
 @import '../fonts/country-flag-fonts/flag.css' layer(app);
 
@@ -49,9 +48,6 @@
 }
 
 @layer app {
-  *:focus {
-    outline-style: none;
-  }
   * {
     -webkit-tap-highlight-color: transparent;
   }

@@ -146,7 +146,7 @@ describe('durable delivery native branch admission', () => {
       message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'A history' }] } }
     })
     application.get('DbService').withWriteTx((tx) => reservePiBranchTx(tx, 'target', a.id, 'native-A'))
-    await runtime['commandConnection']('target')
+    await runtime['ensureSessionConnection']('target')
     expect(runtime.getExecutionHead('target')).toBe(a.id)
     const b = messages.saveMessage({
       sessionId: 'target',
@@ -211,7 +211,7 @@ describe('durable delivery native branch admission', () => {
     const service = new AgentSessionDeliveryService()
     service.kick('target')
     await closing.promise
-    await expect(runtime['commandConnection']('target')).rejects.toThrow('busy')
+    await expect(runtime['ensureSessionConnection']('target')).rejects.toThrow('busy')
     release.resolve()
     await service.drainSessionQueues(['target'])
 

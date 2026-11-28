@@ -311,4 +311,44 @@ describe('createMcpBridgeServer', () => {
       await client.close()
     }
   })
+
+  it('strips non-portable regex patterns from advertised MCP tool schemas without mutating catalog entries (#24524)', async () => {
+    const cachedTool = {
+      ...searchTool(),
+      name: 'load_frida_script',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          script: { type: 'string', pattern: '^[^\\uD800-\\uDFFF]*$', description: 'Frida script source' },
+          pattern: { type: 'string', pattern: '^[a-z]+$' }
+        },
+        $defs: {
+          SafeText: { type: 'string', pattern: '^[^\uD800-\uDFFF]*$' }
+        },
+        required: ['script']
+      }
+    }
+    mocks.listTools.mockReturnValue([cachedTool])
+
+    const bridge = createMcpBridgeServer('server-1')
+    const client = await connectClient(bridge)
+    try {
+      const { tools } = await client.listTools()
+      expect(tools[0].inputSchema).toEqual({
+        type: 'object',
+        properties: {
+          script: { type: 'string', description: 'Frida script source' },
+          pattern: { type: 'string', pattern: '^[a-z]+$' }
+        },
+        $defs: {
+          SafeText: { type: 'string' }
+        },
+        required: ['script']
+      })
+      // Cached catalog entry remains unmodified for local validation.
+      expect(cachedTool.inputSchema.properties.script.pattern).toBe('^[^\\uD800-\\uDFFF]*$')
+    } finally {
+      await client.close()
+    }
+  })
 })

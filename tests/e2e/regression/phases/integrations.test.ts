@@ -284,7 +284,7 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
-  await openSettingsSection(page, 'API Gateway')
+  await openSettingsSection(page, 'Unified Gateway')
   const startGateway = page.getByRole('button', { name: 'Start', exact: true })
   const stopGateway = page.getByRole('button', { name: 'Stop', exact: true })
   await expect(startGateway.or(stopGateway)).toBeVisible()

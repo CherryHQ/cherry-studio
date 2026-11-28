@@ -6,6 +6,18 @@
 
 - Declare the MIT license and include a package-local license file.
 
+## 0.10.0
+
+### Minor Changes
+
+- [#25307](https://github.com/CherryHQ/cherry-studio/pull/25307) [`3cc092f`](https://github.com/CherryHQ/cherry-studio/commit/3cc092fea6b9e53a52823aee7af2e0b4a3a3b7d5) Thanks [@zhangjiadi225](https://github.com/zhangjiadi225)! - Add a negotiated desktop model catalog and an optional model selection when creating a remote Agent session.
+
+## 0.9.0
+
+### Minor Changes
+
+- [#25406](https://github.com/CherryHQ/cherry-studio/pull/25406) [`aece413`](https://github.com/CherryHQ/cherry-studio/commit/aece413cdc83edabba7e9bbbf5c9e159970a3441) Thanks [@DeJeune](https://github.com/DeJeune)! - Export `createAgentJournalWriter` to apply streaming updates by part ID while maintaining the agent journal.
+
 ## 0.8.0
 
 ### Minor Changes

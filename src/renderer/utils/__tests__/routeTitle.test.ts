@@ -15,6 +15,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
         'title.knowledge': '知识库',
         'title.files': '文件',
         'title.code': 'Code',
+        'code.api_gateway.title': '统一网关',
         'title.notes': '笔记',
         'settings.about.releases.title': '更新日志',
         'title.settings': '设置'
@@ -29,6 +30,12 @@ import { getDefaultRouteTitle, getRouteTitleKey, isTopLevelRoute } from '../rout
 describe('routeTitle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('localizes the gateway tab title', () => {
+    expect(getRouteTitleKey('/app/api-gateway')).toBe('code.api_gateway.title')
+    expect(getDefaultRouteTitle('/app/api-gateway')).toBe('统一网关')
+    expect(isTopLevelRoute('/app/api-gateway')).toBe(true)
   })
 
   describe('getDefaultRouteTitle', () => {

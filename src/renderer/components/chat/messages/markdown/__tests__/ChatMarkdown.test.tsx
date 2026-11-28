@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     | {
         openArtifactFile?: (path: string) => void | Promise<void>
         openPath?: (path: string) => void | Promise<void>
+        resolvePath?: (path: string) => any
         isDirectory?: (path: string) => Promise<boolean>
         notifyError?: (message: string) => void
         openExternalUrl?: (url: string) => void | Promise<void>
@@ -22,7 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
+  useOptionalMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
   useOptionalMessageListActions: () => mocks.actions
 }))
 vi.mock('react-i18next', () => {
@@ -115,7 +116,7 @@ describe('ChatMarkdown adapter', () => {
   })
 
   it.each(['success', 'streaming'] as const)(
-    'keeps unsafe schemes blocked with an openPath host (%s)',
+    'opens local file links while keeping remote file hosts and unsafe schemes blocked (%s)',
     async (status) => {
       const user = userEvent.setup()
       const openPath = vi.fn()
@@ -123,15 +124,49 @@ describe('ChatMarkdown adapter', () => {
       mocks.actions = { openPath, openExternalUrl }
       const { container } = render(
         <ChatMarkdown
-          block={{ id: 'part', content: '[Local](file:///tmp/notes.md)\n\n[Unsafe](javascript:alert)', status }}
+          block={{
+            id: 'part',
+            content:
+              '[Local](file:///tmp/notes.md)\n\n[Remote](file://attacker.example/notes.md)\n\n[BareFile](file:///)\n\n[Unsafe](javascript:alert)',
+            status
+          }}
         />
       )
-      expect(container.querySelector('a[href^="file:"]')).toBeNull()
+      expect(container.querySelector('a[href="file:///tmp/notes.md"]')).not.toBeNull()
+      expect(container.querySelector('a[href*="attacker.example"]')).toBeNull()
+      expect(container.querySelector('a[href="file:///"]')).toBeNull()
       expect(container.querySelector('a[href^="javascript:"]')).toBeNull()
+
       await user.click(screen.getByText('Local'))
+      expect(openPath).toHaveBeenCalledTimes(1)
+      expect(openPath).toHaveBeenCalledWith('/tmp/notes.md')
+
+      await user.click(screen.getByText('Remote'))
+      await user.click(screen.getByText('BareFile'))
       await user.click(screen.getByText('Unsafe'))
-      expect(openPath).not.toHaveBeenCalled()
+      expect(openPath).toHaveBeenCalledTimes(1)
       expect(openExternalUrl).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['success', 'streaming'] as const)(
+    'resolves safe workspace-relative images and blocks traversal escapes (%s)',
+    (status) => {
+      mocks.actions = {
+        resolvePath: (path: string) => `/workspace/${path.replace(/^\.\//, '')}`
+      }
+      const { container } = render(
+        <ChatMarkdown
+          block={{
+            id: 'images',
+            content: '![chart](./chart.png)\n\n![escape](../outside.png)',
+            status
+          }}
+        />
+      )
+      const chartImg = container.querySelector('img[alt="chart"]')
+      expect(chartImg?.getAttribute('src')).toBe('file:///workspace/chart.png')
+      expect(container.querySelector('img[alt="escape"]')).toBeNull()
     }
   )
 })

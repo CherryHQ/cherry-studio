@@ -114,7 +114,18 @@ export function wireProcess(contextUsage?: () => Promise<SDKControlGetContextUsa
             response: {
               subtype: 'success',
               request_id: frame.request_id,
-              response: { commands: [], models: [], agents: [] }
+              response: {
+                commands: [],
+                models: [
+                  {
+                    value: 'sonnet',
+                    displayName: 'Sonnet',
+                    description: '',
+                    supportedEffortLevels: ['low', 'medium', 'high']
+                  }
+                ],
+                agents: []
+              }
             }
           }) + '\n'
         )
@@ -158,7 +169,7 @@ export async function wireFixture(
     })
   )
   const view = await observe(root)
-  await root.input!.submit({ inputId: inputId(), text: 'Start wire replay', whenBusy: 'steer' })
+  await root.input!.steer!.submit({ inputId: inputId(), text: 'Start wire replay' })
   const sessionId = root.claude.sessionId
   return {
     root,
