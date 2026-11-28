@@ -76,11 +76,17 @@ import { qwenPreset } from '@cherrystudio/agent-runtime-qwen-acp'
 import { snowPreset } from '@cherrystudio/agent-runtime-snow-acp'
 import { readVibeAccount, vibeModelProfile } from '@cherrystudio/agent-runtime-vibe-acp'
 import { zcodePreset } from '@cherrystudio/agent-runtime-zcode-acp'
+import type { AgentPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import type { LaunchSpec, SpawnStdio } from '@cherrystudio/agent-runtime/stdio'
 import type { CliModelBinding } from '@main/ai/runtime/cli/cliModelProfile'
 import { requireLaunchRuntime, type PrepareCliCommand } from '@main/ai/runtime/cli/cliProgram'
 import type { DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
-import type { LocalAgentConfiguration, LocalAgentSelection } from '@shared/ai/localAgent'
+import {
+  getLocalAgentLaunchMode,
+  getLocalPermissionChoice,
+  type LocalAgentConfiguration,
+  type LocalAgentSelection
+} from '@shared/ai/localAgent'
 import { NativeQuestionReplySchema } from '@shared/ai/nativeInteraction'
 import { CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
@@ -130,7 +136,8 @@ type DesktopAcpPreset = {
   prepareChat?(
     config: LocalAgentConfiguration,
     launch: AcpLaunch,
-    sessionId: string
+    sessionId: string,
+    permissionMode?: AgentPermissionMode
   ): Promise<{
     gateway?: { dispose(): Promise<void> }
     mode: LocalAgentSelection & { application: 'reconnect' }
@@ -263,14 +270,17 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
     {
       ...dshPreset,
       defaultEnv: () => dshEnvironment(application.getPath('external.deepseek_harness.config')),
-      prepareChat: (config, launch, sessionId) =>
-        prepareDshChat(
+      prepareChat: (config, launch, sessionId, permissionMode) => {
+        const catalog = getLocalAgentLaunchMode(config)
+        const choice = permissionMode && getLocalPermissionChoice(catalog, permissionMode)
+        return prepareDshChat(
           config.env,
           launch,
-          application.get('CacheService').getPersist('local_agent.session_overrides')[sessionId]?.mode,
+          catalog && choice ? { configId: catalog.id, value: choice.value } : undefined,
           (defaultProfile) =>
             application.get('DeepSeekHarnessService').prepareAgent(defaultProfile ? sessionId : undefined)
-        ),
+        )
+      },
       chatConfigSignature: () =>
         JSON.stringify(
           application.getExisting?.('PreferenceService')?.get?.('feature.code_cli.configs')?.[

@@ -47,11 +47,13 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     [isLocal, localPermission?.mode]
   )
 
-  // Permission mode lives on the agent for built-in runtimes and on the session for local agents.
-  const currentMode: PermissionMode = isLocal
-    ? (unifiedLocalMode?.currentCanonicalMode ?? 'default')
-    : (agent?.configuration?.permission_mode ?? 'default')
-  const currentValue = localPermission?.mode?.currentValue ?? currentMode
+  const savedMode = agent?.configuration?.permission_mode
+  const currentMode: PermissionMode = savedMode ?? unifiedLocalMode?.currentCanonicalMode ?? 'default'
+  const currentValue = isLocal
+    ? savedMode
+      ? unifiedLocalMode?.options.find(({ canonicalMode }) => canonicalMode === savedMode)?.value
+      : localPermission?.mode?.currentValue
+    : currentMode
   const permissionModeCards = useMemo<PermissionMenuCard[]>(() => {
     if (!isLocal) return getPermissionModeCards(agent?.type).map((card) => ({ ...card, value: card.mode }))
     if (!unifiedLocalMode) return []
@@ -101,28 +103,17 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   // Returns false when the selection cannot apply right now so the confirm dialog stays open.
   const applyMode = useCallback(
     (nextMode: PermissionMenuCard) => {
-      if (isLocal) {
-        if (!sessionId || !unifiedLocalMode || localPermission?.disabled) return false
-        if (!unifiedLocalMode.options.some(({ value }) => value === nextMode.value)) return false
-        void ipcApi
-          .request('ai.local_agents.set_mode', {
-            sessionId,
-            configId: unifiedLocalMode.id,
-            value: nextMode.value
-          })
-          .catch((error) => toast.error(String(error)))
-        return true
-      }
-      if (!agentId || !agent) return false
+      if (!agentId || !agent || isDisabled) return false
+      if (isLocal && !unifiedLocalMode?.options.some(({ value }) => value === nextMode.value)) return false
       void updateAgent({ id: agentId, configuration: { permission_mode: nextMode.mode } }, { showSuccessToast: false })
       return true
     },
-    [agent, agentId, isLocal, localPermission?.disabled, sessionId, unifiedLocalMode, updateAgent]
+    [agent, agentId, isDisabled, isLocal, unifiedLocalMode, updateAgent]
   )
 
   const handleSelectMode = useCallback(
     (nextMode: PermissionMenuCard) => {
-      if (isDisabled || nextMode.value === currentValue) return
+      if (isDisabled || (nextMode.value === currentValue && (!isLocal || savedMode === nextMode.mode))) return
       setConfigPending(undefined)
       if (isAgentFullAccessMode(nextMode.mode)) {
         setFullAccessPending(nextMode)
@@ -131,14 +122,14 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
       setFullAccessPending(undefined)
       applyMode(nextMode)
     },
-    [applyMode, currentValue, isDisabled]
+    [applyMode, currentValue, isDisabled, isLocal, savedMode]
   )
 
   // Any newer mode (local or incoming) wins; confirming must never apply a stale dialog over it.
   useEffect(() => {
     setFullAccessPending(undefined)
     setConfigPending(undefined)
-  }, [agentId, currentValue, sessionId, unifiedLocalMode?.id])
+  }, [agentId, currentValue, savedMode, sessionId, unifiedLocalMode?.id])
   useEffect(() => {
     setConfigPending(undefined)
   }, [localPermission?.options])

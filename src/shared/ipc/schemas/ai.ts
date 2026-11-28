@@ -501,10 +501,6 @@ export const aiRequestSchemas = {
     }),
     output: z.custom<LocalAgentSessionInfo>()
   }),
-  'ai.local_agents.set_mode': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
-    output: z.custom<LocalAgentSessionView>()
-  }),
   'ai.local_agents.set_thought_level': defineRoute({
     input: z.strictObject({
       sessionId: z.string().min(1),

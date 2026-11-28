@@ -16,6 +16,7 @@ import { BaseService } from '@main/core/lifecycle'
 import type * as ShellEnv from '@main/utils/shellEnv'
 import {
   ACP_HOST_PERMISSION_MODE_ID,
+  ACP_LAUNCH_BYPASS_VALUE,
   ACP_NATIVE_PLAN_VALUE,
   type LocalAgentConfiguration,
   LocalAgentModelCatalogSchema,
@@ -25,6 +26,7 @@ import { CodeCli } from '@shared/types/codeCli'
 
 import { LocalAgentAuthService } from '../../../services/LocalAgentAuthService'
 import { AcpConnection } from '../acp/AcpConnection'
+import { connect as connectAcp } from '../acp/acpDriver'
 import { isInjectedAcpAutomationTool } from '../acp/acpPermissionPolicy'
 import { CodexSessionHost } from '../codex/CodexSessionHost'
 import { enrichLocalAgentModels } from '../localAgentModelMetadata'
@@ -160,6 +162,34 @@ describe('local protocol processes', () => {
       expect(text()).toBe(expected)
     }
   )
+
+  it('uses the Antigravity launch flag when the Agent requests bypass and ACP does not advertise it', async () => {
+    const { config, target } = localLaunch({
+      ...fixtureConfig('acp', 'antigravity-native-permissions'),
+      presetId: 'antigravity-acp',
+      args: ['acp']
+    })
+    await writeFile(
+      path.join(cwd, 'acp'),
+      `process.argv.splice(2, 0, 'acp', 'antigravity-native-permissions'); import(${JSON.stringify(pathToFileURL(fixture).href)})`
+    )
+    const connection = await connectAcp(
+      {
+        sessionId: 'session',
+        agentId: 'agent',
+        modelId: 'runtime:agent',
+        localTarget: target,
+        localPermissionMode: 'bypassPermissions'
+      },
+      config,
+      cwd
+    )
+    connections.push(connection)
+    expect(connection.localSessionInfo.launchPermission?.currentValue).toBe(ACP_LAUNCH_BYPASS_VALUE)
+    const args = JSON.parse(await readFile(path.join(cwd, 'wire.jsonl.argv.json'), 'utf8'))
+    expect(args).toContain('--dangerously-skip-permissions')
+    expect((await readWire()).filter(({ method }) => method === 'initialize')).toHaveLength(2)
+  })
 
   it('releases the OpenClaw Gateway after closing its ACP bridge', async () => {
     const dispose = vi.fn().mockResolvedValue(undefined)

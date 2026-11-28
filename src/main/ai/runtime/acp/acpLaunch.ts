@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { acpGatewayPath } from '@cherrystudio/agent-runtime-acp/profile'
 import type { AcpLaunch, AcpModelSelection } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AgentPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { getAcpLaunchBypassArgs, getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
@@ -28,7 +29,8 @@ export async function prepareAcpChatLaunch(
   config: LocalAgentConfiguration,
   sessionId: string,
   signal: AbortSignal,
-  bypass = false
+  bypass = false,
+  permissionMode?: AgentPermissionMode
 ) {
   const preset = acpPreset(config.presetId)
   const bypassArgs = bypass && getAcpLaunchBypassArgs(config)
@@ -72,10 +74,12 @@ export async function prepareAcpChatLaunch(
       throw error
     }
   }
-  const prepared = await Promise.resolve(preset?.prepareChat?.(config, launch, sessionId)).catch(async (error) => {
-    await modelBinding?.dispose()
-    throw error
-  })
+  const prepared = await Promise.resolve(preset?.prepareChat?.(config, launch, sessionId, permissionMode)).catch(
+    async (error) => {
+      await modelBinding?.dispose()
+      throw error
+    }
+  )
   const leases = [prepared?.gateway, modelBinding].filter((lease) => lease !== undefined)
   return {
     launch,

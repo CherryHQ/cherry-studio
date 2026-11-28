@@ -6,7 +6,13 @@ import {
   type AcpSubscriptionUsageReader
 } from '@cherrystudio/agent-runtime-acp/v1'
 import { withStartupSignal } from '@cherrystudio/agent-runtime/stdio'
-import { usesPresetAcpLaunch, type LocalAgentConfiguration, type LocalAgentRuntime } from '@shared/ai/localAgent'
+import {
+  ACP_LAUNCH_BYPASS_VALUE,
+  getLocalPermissionChoice,
+  usesPresetAcpLaunch,
+  type LocalAgentConfiguration,
+  type LocalAgentRuntime
+} from '@shared/ai/localAgent'
 
 import { spawnLocalAgentStdio } from '../stdioProcess'
 import type { LocalRuntimeConnectInput } from '../types'
@@ -16,12 +22,23 @@ import { acpPreset } from './acpPresets'
 
 export async function connect(input: LocalRuntimeConnectInput, config: LocalAgentRuntime, cwd: string) {
   const { AcpConnection } = await import('./AcpConnection')
-  const live = new AcpConnection(input.sessionId, input.agentId, config, input.localTarget, input.headless)
-  return withStartupSignal(
-    AbortSignal.timeout(30_000),
-    () => live.start(cwd, input.resumeToken, !!input.localLaunchBypass && input.localLaunchBypass === config.presetId),
-    () => live.close()
+  const start = (bypass = false) => {
+    const live = new AcpConnection(input.sessionId, input.agentId, config, input.localTarget, input.headless)
+    return withStartupSignal(
+      AbortSignal.timeout(30_000),
+      () => live.start(cwd, input.resumeToken, bypass, input.localPermissionMode),
+      () => live.close()
+    )
+  }
+  const live = await start()
+  if (
+    input.localPermissionMode !== 'bypassPermissions' ||
+    getLocalPermissionChoice(live.localSessionInfo.launchPermission, 'bypassPermissions')?.value !==
+      ACP_LAUNCH_BYPASS_VALUE
   )
+    return live
+  await live.close()
+  return start(true)
 }
 
 export function listModels(config: LocalAgentConfiguration) {
