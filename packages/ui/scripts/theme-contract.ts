@@ -122,7 +122,15 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'resource-list-row-active',
   'resource-list-row-active-foreground',
   'resource-list-row-selected',
-  'resource-list-row-selected-foreground'
+  'resource-list-row-selected-foreground',
+  'illustration-1',
+  'illustration-2',
+  'illustration-3',
+  'illustration-4',
+  'illustration-5',
+  'illustration-6',
+  'illustration-7',
+  'illustration-8'
 ] as const
 
 export const CHERRY_PRODUCT_COLOR_TOKENS = [
@@ -156,7 +164,15 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'resource-list-row-active',
   'resource-list-row-active-foreground',
   'resource-list-row-selected',
-  'resource-list-row-selected-foreground'
+  'resource-list-row-selected-foreground',
+  'illustration-1',
+  'illustration-2',
+  'illustration-3',
+  'illustration-4',
+  'illustration-5',
+  'illustration-6',
+  'illustration-7',
+  'illustration-8'
 ] as const
 
 /**

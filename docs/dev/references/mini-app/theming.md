@@ -49,6 +49,7 @@ Two groups of unprefixed variables are the public contract: the host keeps their
 | Content | `--code-block` `--inline-code` `--inline-code-foreground` `--reference` `--reference-foreground` `--reference-subtle` `--highlight` `--highlight-foreground` `--highlight-accent` `--chat-user` |
 | Code theme | `--cherry-code-background` `--cherry-code-foreground` `--cherry-code-muted` `--cherry-code-selection` `--cherry-code-keyword` `--cherry-code-string` `--cherry-code-constant` `--cherry-code-type` `--cherry-code-function` `--cherry-code-tag` `--cherry-code-link` `--cherry-code-inserted` `--cherry-code-deleted` — the default code palette; `--cherry-code-background` is `transparent`, so code takes the host surface |
 | Lists | `--resource-list-row-hover` `--resource-list-row-active` `--resource-list-row-active-foreground` `--resource-list-row-selected` `--resource-list-row-selected-foreground` |
+| Illustration | `--illustration-1` … `--illustration-8` — reserved for Cherry's empty-state scenes; do not use them for mini app UI |
 
 Use them directly in `color`, `background`, `border-color`. Do not parse the values: most are `oklch(...)`, but the Content group holds hex and `rgba()` too, the Code theme group holds `transparent` and `color-mix()`, and the format is not part of the contract.
 

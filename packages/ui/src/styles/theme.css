@@ -340,6 +340,14 @@
   --color-resource-list-row-active-foreground: var(--resource-list-row-active-foreground);
   --color-resource-list-row-selected: var(--resource-list-row-selected);
   --color-resource-list-row-selected-foreground: var(--resource-list-row-selected-foreground);
+  --color-illustration-1: var(--illustration-1);
+  --color-illustration-2: var(--illustration-2);
+  --color-illustration-3: var(--illustration-3);
+  --color-illustration-4: var(--illustration-4);
+  --color-illustration-5: var(--illustration-5);
+  --color-illustration-6: var(--illustration-6);
+  --color-illustration-7: var(--illustration-7);
+  --color-illustration-8: var(--illustration-8);
 
   /* ==================== */
   /* Compatibility: Existing Semantic Colors */

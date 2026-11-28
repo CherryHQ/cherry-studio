@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -63,8 +63,10 @@ function EmptyIllustration({
 }
 
 export interface EmptyStateProps {
-  /** Which unified illustration to render (ignored when `icon` is set). */
+  /** Which unified illustration to render (ignored when `scene` or `icon` is set). */
   illustration?: EmptyStateIllustration
+  /** Decorative UI-slice scene (an `EmptyStateScene`) rendered in place of the illustration. */
+  scene?: ReactNode
   icon?: EmptyStateIcon
   title?: string
   description?: string
@@ -78,6 +80,7 @@ export interface EmptyStateProps {
 
 export function EmptyState({
   illustration = 'inbox',
+  scene,
   icon: IconOverride,
   title,
   description,
@@ -98,7 +101,9 @@ export function EmptyState({
         compact ? 'px-4 py-8' : 'flex-1 px-6 py-12',
         className
       )}>
-      {Icon ? (
+      {scene ? (
+        <div className={compact ? 'mb-2' : 'mb-3'}>{scene}</div>
+      ) : Icon ? (
         <Icon
           size={compact ? 28 : 40}
           strokeWidth={1.5}

@@ -101,6 +101,9 @@ Use semantic Tailwind utilities in component code and the corresponding public C
 6. Use `destructive` for dangerous actions; use the `error` family for error feedback.
 7. Use `chart-1` through `chart-5` for ordinary categorical charts. Primitive color scales require an intentionally
    reviewed visualization palette.
+8. Use `illustration-1` through `illustration-8` only inside decorative empty-state scenes (`EmptyStateScene`).
+   A scene may use one accent, on the element that marks its next step, plus pixel sprites, an edge fade, and slice
+   shadows. These roles and effects are not for any other UI.
 
 Do not hard-code hex, `rgb`, `rgba`, or `oklch` values in product UI. Do not declare or consume generated
 `--color-*` variables in authored code. Shared `--cs-*` variables are internal providers, not component-facing

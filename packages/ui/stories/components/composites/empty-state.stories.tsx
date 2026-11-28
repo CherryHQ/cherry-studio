@@ -1,7 +1,18 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { Sparkles } from 'lucide-react'
+import { FileText, Folder, Sparkles, Upload } from 'lucide-react'
 
-import { EmptyState } from '@cherrystudio/ui'
+import {
+  EmptyState,
+  EmptyStateScene,
+  SceneButton,
+  SceneCursor,
+  SceneFloat,
+  SceneGhostRow,
+  SceneHeader,
+  ScenePanel,
+  SceneSlot,
+  SceneTabs
+} from '@cherrystudio/ui'
 
 const meta: Meta<typeof EmptyState> = {
   title: 'Components/Composites/empty-state',
@@ -74,6 +85,48 @@ export const CustomIcon: Story = {
   render: () => (
     <Surface>
       <EmptyState icon={Sparkles} title="You're all caught up" description="No pending tasks. Enjoy the calm." />
+    </Surface>
+  )
+}
+
+export const WithScene: Story = {
+  render: () => (
+    <Surface>
+      <EmptyState
+        title="No files yet"
+        description="Files you upload or attach in chats appear here."
+        actionLabel="Upload file"
+        onAction={() => undefined}
+        scene={
+          <EmptyStateScene
+            accent={1}
+            sprites={[
+              { x: 290, y: 2, color: 4, shape: 'ring', tilt: 10 },
+              { x: 4, y: 90, color: 6, shape: 'corner', tilt: -12 },
+              { x: 296, y: 150, color: 1, shape: 'checker', tilt: 8 }
+            ]}>
+            <ScenePanel className="absolute top-[13px] left-[21px] h-[220px] w-[270px]">
+              <SceneHeader icon={Folder} title="Files" trailing={<SceneButton icon={Upload} label="Upload" />} />
+              <div className="flex flex-col gap-[8px] px-[10px] pt-[8px]">
+                <SceneTabs items={['All', 'Images', 'Documents']} />
+                <SceneSlot accent className="h-[38px] justify-center gap-[5px] text-[8px] font-semibold">
+                  <Upload size={10} strokeWidth={2} />
+                  Drop files here
+                </SceneSlot>
+                <SceneGhostRow lead />
+                <SceneGhostRow lead />
+              </div>
+            </ScenePanel>
+            <SceneFloat className="top-[118px] left-[196px]">
+              <ScenePanel className="h-[26px] w-[78px] -rotate-6 flex-row items-center gap-[5px] rounded-[6px] px-[6px]">
+                <FileText size={11} className="shrink-0 text-muted-foreground" />
+                <span className="truncate text-[7.3px] text-foreground">report.pdf</span>
+              </ScenePanel>
+              <SceneCursor className="top-[16px] left-[66px]" />
+            </SceneFloat>
+          </EmptyStateScene>
+        }
+      />
     </Surface>
   )
 }

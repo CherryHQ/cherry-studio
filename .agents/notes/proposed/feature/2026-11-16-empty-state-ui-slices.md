@@ -6,7 +6,7 @@ English | [中文](2026-11-16-empty-state-ui-slices.zh.md)
 
 ## Problem
 
-The shared [`EmptyState`](../../../../packages/ui/src/components/composites/empty-state/index.tsx) draws one of two small line illustrations, `inbox` or `book`, for every empty surface; its `preset` prop is a documented no-op. An inventory of the renderer found 183 empty-state call sites in three unrelated styles: 42 with the line illustration, 18 with a bare icon, and 90 with muted text only. The illustrations do not show what will fill the surface or where the next step is, and they read as a generic placeholder rather than as Cherry Studio.
+The shared [`EmptyState`](../../../../packages/ui/src/components/composites/empty-state/empty-state.tsx) draws one of two small line illustrations, `inbox` or `book`, for every empty surface; its `preset` prop is a documented no-op. An inventory of the renderer found 183 empty-state call sites in three unrelated styles: 42 with the line illustration, 18 with a bare icon, and 90 with muted text only. The illustrations do not show what will fill the surface or where the next step is, and they read as a generic placeholder rather than as Cherry Studio.
 
 A local design study redrew all 47 distinct empty-state scenes and was reviewed with the product owner over nine rounds. Literal objects (bookshelf, pencil, plug), tinted or soft-3D bodies, per-scene palettes, and icon-only hubs were each tried and rejected. The accepted direction is a slice of the real product UI. It needs color and depth that [DESIGN.md](../../../../DESIGN.md) currently forbids for ordinary UI, so it needs an explicit, scoped exception instead of an unreviewed local palette.
 

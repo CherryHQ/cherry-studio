@@ -92,6 +92,15 @@
   --resource-list-row-active-foreground: var(--accent-foreground);
   --resource-list-row-selected: oklch(0 0 0 / 0.08);
   --resource-list-row-selected-foreground: var(--accent-foreground);
+  /* Stable product domain: decorative empty-state scenes (EmptyStateScene only, see DESIGN.md) */
+  --illustration-1: var(--cs-sky-500);
+  --illustration-2: var(--cs-orange-500);
+  --illustration-3: var(--cs-emerald-500);
+  --illustration-4: var(--cs-pink-500);
+  --illustration-5: var(--cs-amber-500);
+  --illustration-6: var(--cs-violet-500);
+  --illustration-7: var(--cs-teal-500);
+  --illustration-8: var(--cs-rose-500);
 }
 
 .dark {

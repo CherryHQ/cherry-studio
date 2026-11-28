@@ -151,6 +151,7 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 | User message | `--chat-user` | User-message surface |
 | Composer | `--composer-surface` | Composer surface floating above its page, in every domain that mounts one (chat, agent, painting) |
 | Resource-list rows | `--resource-list-row-hover`, `--resource-list-row-active`, `--resource-list-row-active-foreground`, `--resource-list-row-selected`, `--resource-list-row-selected-foreground` | Cross-surface resource navigation row states; hover preserves the row's existing foreground hierarchy, while active and selected use explicit surface pairs |
+| Empty-state illustrations | `--illustration-1`, `--illustration-2`, `--illustration-3`, `--illustration-4`, `--illustration-5`, `--illustration-6`, `--illustration-7`, `--illustration-8` | Accent and sprite colors inside `EmptyStateScene` only; each scene picks indices explicitly. Not for ordinary UI (see DESIGN.md) |
 
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
 utilities; custom-CSS domains such as rich text use the matching unprefixed variable directly.
