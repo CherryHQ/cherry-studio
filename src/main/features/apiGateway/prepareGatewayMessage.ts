@@ -12,6 +12,7 @@ import { type MessageConfig, readGatewayRequest, resolveGatewayRequest } from '.
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { GATEWAY_STREAM_IDLE_TIMEOUT_MS } from './streamLifecycle'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
+import { stripAnthropicBillingHeader } from './utils/anthropicBillingHeader'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
@@ -53,6 +54,9 @@ export async function prepareGatewayMessage(config: MessageConfig) {
   })
   const { provider, model, endpoint, reasoning, modelId, modelAddress, logContext } = request
   const internal = request.isInternalRequest
+  if (inputFormat === 'anthropic' && endpoint.endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+    effectiveParams = stripAnthropicBillingHeader(effectiveParams as MessageCreateParams)
+  }
   if (normalization?.status === 'repaired') {
     logger.warn('Repaired duplicate tool history in internal Agent request', {
       ...logContext,

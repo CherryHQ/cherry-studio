@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 import { AgentEntitySchema } from '../../../src/shared/data/api/schemas/agents'
@@ -10,9 +10,7 @@ import { selectSidebarApp } from '../regression/helpers/navigation'
 import { expect, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 
-test('pi prewarm materializes fresh system workspaces before the first message', async ({
-  mainWindow: page
-}, testInfo) => {
+test('Pi materializes each fresh system workspace when its first turn runs', async ({ mainWindow: page }) => {
   test.setTimeout(120_000)
   const profile = process.env.CS_DEV_PROFILE_ROOT
   expect(profile, 'Run with an isolated CS_DEV_PROFILE_ROOT').toBeTruthy()
@@ -20,7 +18,6 @@ test('pi prewarm materializes fresh system workspaces before the first message',
   const server = await startMockChatServer()
   const providerId = `workspace-smoke-${Date.now()}`
   const agentName = `Workspace smoke ${Date.now()}`
-  const sessionIds: string[] = []
 
   try {
     const languageSelect = page.locator('[data-onboarding-language-select]')
@@ -100,7 +97,6 @@ test('pi prewarm materializes fresh system workspaces before the first message',
       )
       expect(response.status).toBe(201)
       const session = AgentSessionEntitySchema.parse(response.data)
-      sessionIds.push(session.id)
       const date = path.basename(path.dirname(session.workspace.path))
       expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       const expectedPath = path.join(systemRoot, date, session.id)
@@ -126,12 +122,8 @@ test('pi prewarm materializes fresh system workspaces before the first message',
         await groupHeader.locator('..').getByRole('button', { name: 'Expand', exact: true }).click()
       }
       await conversation.click()
-      await expect
-        .poll(() => existsSync(expectedPath) && statSync(expectedPath).isDirectory(), {
-          timeout: 20_000,
-          message: 'Prewarm must create the concrete workspace before any message is sent'
-        })
-        .toBe(true)
+      await expect(uiLocator(view, 'chat.composer').filter({ visible: true }).first()).toBeVisible()
+      expect(existsSync(expectedPath), 'Opening idle history must leave the workspace unmaterialized').toBe(false)
 
       const prompt = `Workspace smoke request ${index} ${providerId}`
       const marker = `WORKSPACE_WARMUP_OK_${index}_${providerId}`
@@ -152,6 +144,7 @@ test('pi prewarm materializes fresh system workspaces before the first message',
         request.complete(matched ? marker : 'Background request complete')
       }
       expect(matched, 'The intended conversation must reach the mock provider').toBe(true)
+      expect(statSync(expectedPath).isDirectory(), 'The first turn must materialize the session workspace').toBe(true)
       const assistant = uiLocator(view, 'chat.message').filter({ hasText: marker })
       await expect(assistant).toBeVisible({ timeout: 30_000 })
       await expect(view.getByRole('button', { name: 'Send', exact: true })).toBeVisible()
@@ -182,24 +175,6 @@ test('pi prewarm materializes fresh system workspaces before the first message',
         )
         .toBe(true)
     }
-
-    // Supplementary: fixture teardown happens later, so this only excludes failures flushed so far.
-    // The directory assertion before sending is the decisive prewarm check.
-    const logRoot = path.join(profile!, 'logs')
-    const logFiles = readdirSync(logRoot).filter((name) => /^app\..*\.log$/.test(name))
-    expect(logFiles.length).toBeGreaterThan(0)
-    for (const file of logFiles) {
-      const log = readFileSync(path.join(logRoot, file), 'utf8')
-      for (const warning of log.split('\n')) {
-        if (sessionIds.some((id) => warning.includes(id))) {
-          expect(warning).not.toContain('Failed to prime agent session connection')
-          expect(warning).not.toContain('Failed to re-prime agent session connection')
-        }
-      }
-    }
-    const screenshot = testInfo.outputPath('agent-workspace-warmup.png')
-    await page.screenshot({ path: screenshot })
-    await testInfo.attach('agent-workspace-warmup', { path: screenshot, contentType: 'image/png' })
   } finally {
     await server.close()
   }

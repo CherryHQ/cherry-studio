@@ -60,6 +60,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     model,
     modelPrompts: metadata.turnOptions?.modelPrompts,
     messageSnapshot,
+    ...(metadata.provenance ? { isImportedHistory: true } : {}),
     siblingsGroupId: metadata.siblingsGroupId,
     isActiveBranch: metadata.isActiveBranch,
     stats: statsFromMetadata(message.metadata),

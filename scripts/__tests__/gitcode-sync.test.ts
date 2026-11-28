@@ -13,6 +13,7 @@ function bashPath(value: string) {
 }
 const script = bashPath(path.resolve(import.meta.dirname, '../release/sync-gitcode.sh'))
 const nodeExecutable = bashPath(process.execPath)
+const releaseSha = 'bd3fdf9164d620cb50139b8191647e0024eaf785'
 
 describe('GitCode sync recovery', () => {
   let root: string
@@ -27,6 +28,7 @@ describe('GitCode sync recovery', () => {
     for (const name of ['Global.exe', 'CN.exe', 'latest.yml', 'latest-cn.yml', 'release-history.json'])
       writeFileSync(path.join(root, 'release-assets', name), name)
     writeFileSync(path.join(root, 'release_body.txt'), 'English\n中文')
+    writeFileSync(path.join(root, 'cos-release.json'), JSON.stringify({ sha: releaseSha }))
     const executable = (name: string, body: string) =>
       writeFileSync(path.join(root, 'bin', name), `#!${nodeExecutable}\n${body}`, { mode: 0o755 })
     executable(
@@ -58,7 +60,14 @@ describe('GitCode sync recovery', () => {
       const data = args.includes('--data-binary') ? args[args.indexOf('--data-binary') + 1] : null
       const payload = data && data.includes('payload.json') ? JSON.parse(fs.readFileSync(data.slice(1), 'utf8')) : null
       fs.appendFileSync('requests.jsonl', JSON.stringify({url, method, data, payload}) + '\\n')
-      if (url.includes('/tags/')) {
+      if (url.includes('/commits/refs%2Ftags%2F')) {
+        const waiting = process.env.WAIT_FOR_MIRROR === 'true' && !fs.existsSync('mirror-checked')
+        fs.writeFileSync('mirror-checked', '')
+        fs.writeFileSync(args[args.indexOf('-o') + 1], JSON.stringify({sha: process.env.MIRROR_SHA}))
+        process.stdout.write(waiting ? '404' : process.env.MIRROR_STATUS || '200')
+      } else if (url.endsWith('/repo_remote_mirror')) {
+        process.stdout.write(JSON.stringify({update_status: 'failed', mirroring_enabled: true, force: true, last_error: 'private mirror details'}))
+      } else if (url.includes('/tags/')) {
         if (args.includes('-o')) {
           fs.writeFileSync(args[args.indexOf('-o') + 1], '{}')
           process.stdout.write(process.env.LOOKUP_STATUS || '404')
@@ -88,6 +97,9 @@ describe('GitCode sync recovery', () => {
         if (process.env.PARALLEL_BARRIER === 'true' && name.endsWith('.yml') &&
             fs.readdirSync('.').filter(file => file.startsWith('finished-')).length !== 4) process.exit(25)
         process.stdout.write('{}')
+      } else if (method === 'POST' && process.env.FAIL_RELEASE === 'true') {
+        process.stdout.write(JSON.stringify({error_message: 'Could not create the release'}))
+        process.exitCode = 22
       } else process.stdout.write('{}')
     `
     )
@@ -107,6 +119,7 @@ describe('GitCode sync recovery', () => {
         GITCODE_OWNER: 'owner',
         GITCODE_REPO: 'repo',
         GITCODE_TOKEN: 'test-token',
+        MIRROR_SHA: releaseSha,
         ...env
       }
     })
@@ -191,6 +204,41 @@ describe('GitCode sync recovery', () => {
         .filter((call) => call.method === 'PUT')
         .at(-1).data
     ).toMatch(/latest\.yml$/)
+  })
+
+  it('waits for the mirrored tag before creating a release for the exact COS commit', () => {
+    const result = run({ RELEASE_FROM_COS: 'true', WAIT_FOR_MIRROR: 'true' })
+    expect(result.status, result.stderr).toBe(0)
+    const calls = requests()
+    const create = calls.find((call) => call.method === 'POST')
+    expect(create.payload.target_commitish).toBe(releaseSha)
+    expect(calls.slice(0, 3).map((call) => new URL(call.url).pathname)).toEqual([
+      '/api/v5/repos/owner/repo/commits/refs%2Ftags%2Fv2.1.2',
+      '/api/v5/repos/owner/repo/commits/refs%2Ftags%2Fv2.1.2',
+      '/api/v5/repos/owner/repo/releases/tags/v2.1.2'
+    ])
+  })
+
+  it.each([
+    [{ MIRROR_SHA: '0'.repeat(40) }, 'points to'],
+    [{ MIRROR_STATUS: '404' }, 'has not mirrored'],
+    [{ MIRROR_STATUS: '403' }, 'HTTP 403']
+  ])('leaves GitCode release data untouched when the tag is unavailable or wrong (%j)', (mirror, message) => {
+    const result = run({ RELEASE_FROM_COS: 'true', ...mirror })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain(message)
+    expect(requests().every((call) => call.method === 'GET' && !call.url.includes('/releases'))).toBe(true)
+    if ('MIRROR_STATUS' in mirror && mirror.MIRROR_STATUS === '404') {
+      expect(result.stderr).toContain('"update_status":"failed"')
+      expect(result.stderr).not.toContain('private mirror details')
+    }
+  })
+
+  it('reports the GitCode release error before attempting attachment uploads', () => {
+    const result = run({ FAIL_RELEASE: 'true' })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('Could not create the release')
+    expect(requests().map((call) => call.method)).toEqual(['GET', 'POST'])
   })
 
   it('uploads four packages concurrently before publishing any update pointer', () => {

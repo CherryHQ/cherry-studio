@@ -197,10 +197,10 @@ Runtime adapters own only native mechanics:
 
 | Runtime-neutral Cherry policy | Runtime-specific carrier |
 |---|---|
-| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
+| Open Agents can select a custom base with `system.md`. Cherry append applies to either base. | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
 | Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`. |
-| Workspace instruction authority | Claude uses native `CLAUDE.md` / `AGENTS.md` loading with `claude-md-and-agents-md`; sealed sessions disable both through `settingSources: []`. Pi and Pi Durable load Pi's native context files. Semantic precedence stays common. |
-| Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`. |
+| Workspace instruction authority | Claude uses native `CLAUDE.md` / `AGENTS.md` loading with `claude-md-and-agents-md`. Pi and Pi Durable load Pi's native context files. Claude Code and Pi Durable skip native project instructions for sealed Agents. |
+| Enabled managed skill content | Claude injects plugins and settings. Pi uses `additionalSkillPaths`. Pi Durable combines bundled skills with managed and workspace skills for open Agents and uses only bundled skills for sealed Agents. |
 | Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
 | Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
 | Per-call `intent` (why a tool is called, shown above the tool row) | For a DeepSeek model (`offersToolIntent`), Pi and Pi Durable apply `@cherrystudio/agent-behavior`'s `createToolIntent()` to every tool and carry `TOOL_INTENT_GUIDE` with it (Pi appends it to the system prompt; Durable renders a `tool_intent` section). Other models narrate between calls themselves and are not offered the argument; their calls still have a stray `intent` removed. The guide never enters the common materializer, because only runtimes that offer the argument may ask for it. |
@@ -1096,7 +1096,9 @@ to run, ask or block. No new approval table is required.
 Pi and Pi Durable child threads use the root's live permission mode, interaction
 state and tool restrictions. Delegation does not grant Full Access. A child call
 that needs approval waits for the root session's responder, or is blocked when
-nobody can respond. Command approvals refresh the effective tool input and policy evidence even when a native
+nobody can respond. Stream approvals include the tool input when the call has no
+part in the root reply, so its approval remains visible in the composer. Command
+approvals refresh the effective tool input and policy evidence even when a native
 part already exists in the root reply, so the composer shows the operation awaiting consent.
 
 Runtime baselines use whole native SDK messages. Pi and Claude decode deltas once at
@@ -1159,7 +1161,7 @@ its archive cannot open as an independent writable root. Public projection code 
 question cards and tool rendering. Native SQLite owns execution history and task state;
 the existing backend/context tables bind it to product sessions. Reopen validates the existing
 native identity. A new turn can start a fresh context when the bound history is missing.
-Pi Durable renders the Pi SDK's global and workspace-ancestor context files before each
+For open Agents, Pi Durable renders the Pi SDK's global and workspace-ancestor context files before each
 model request, so changes and removals replace the previously shown project instructions.
 
 Children use the same independent projection/archive and `ai.projection.*` transport.
