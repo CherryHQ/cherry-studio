@@ -732,6 +732,17 @@ describe('local history atomic import', () => {
     await ensureImportedSessionHistory(created.sessionId!)
     expect(SessionManager.open(file, directory).buildSessionContext().messages).toHaveLength(3)
   })
+  it('allows preview immediately after a scan that took longer than 15 minutes', async () => {
+    await source()
+    const started = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(started)
+    const pending = service.discover('window', 'claude-code', path.join(root, 'source'))
+    clock.mockReturnValue(started + 16 * 60_000)
+    const scan = await pending
+    const { ref } = scan.candidates[0]
+    const prepared = await service.preview('window', scan.scanId, 'pi', [{ ref }])
+    expect(prepared.items[0]).toMatchObject({ ref, messageCount: 2, diagnostics: [] })
+  })
   it.each(['cancel', 'rescan'])('invalidates a discovery awaiting its root on %s', async (action) => {
     await source()
     const delayed = Promise.withResolvers<string>()

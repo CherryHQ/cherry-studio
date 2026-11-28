@@ -112,6 +112,7 @@ export class ConversationImportService extends BaseService {
         candidates.push({ ref, title: reference.title ?? path.basename(file, '.jsonl'), sourcePath: canonical })
       }
       scan.abort.signal.throwIfAborted()
+      scan.expiresAt = Date.now() + IMPORT_LIMITS.previewMs
       return { scanId: scan.id, root, candidates, filtered }
     } catch (error) {
       if (this.scans.get(owner) === scan) this.cancel(owner)
