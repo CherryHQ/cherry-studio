@@ -128,4 +128,3 @@ export function applyCodexFetchInit(
   }
   return { ...init, headers, body }
 }
-

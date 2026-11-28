@@ -83,10 +83,7 @@ describe('Codex image edit requests', () => {
       prompt: 'Add a red cap',
       n: 2,
       size: '1024x1024',
-      images: [
-        { image_url: 'data:image/png;base64,AQID' },
-        { image_url: 'data:image/webp;base64,CQ==' }
-      ],
+      images: [{ image_url: 'data:image/png;base64,AQID' }, { image_url: 'data:image/webp;base64,CQ==' }],
       mask: { image_url: 'data:image/png;base64,BA==' }
     })
   })
