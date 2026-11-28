@@ -9,6 +9,9 @@ import { agentInlineResultPresentationRegistry } from '../tools/agent'
 import { isChannelAuthQrPart } from '../tools/channelConfigTool'
 import { isGeneratedImageResultPart } from '../tools/painting/generateImageTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
+import { isHiddenPart } from './messagePartPresentation'
+
+export { isHiddenPart, isTimelineMarkerPart } from './messagePartPresentation'
 
 export interface PartEntry {
   part: CherryMessagePart
@@ -39,21 +42,7 @@ interface MessagePartLayoutOptions {
   keepIntermediateAssistantText?: boolean
 }
 
-const HIDDEN_PART_TYPES = new Set([
-  'step-start',
-  'source-url',
-  'source-document',
-  'data-citation',
-  'data-agent-task-event',
-  'data-knowledge-scope',
-  'data-clear'
-])
-
 const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'data-imported-status', 'file', 'data-video'])
-
-export function isHiddenPart(part: CherryMessagePart): boolean {
-  return HIDDEN_PART_TYPES.has(part.type)
-}
 
 function isIgnorableEmptyContentPart(part: CherryMessagePart): boolean {
   if (part.type === 'text') return isEmptyContentPart(part)
@@ -156,7 +145,12 @@ export function isProcessToolPart(part: CherryMessagePart): boolean {
 }
 
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
-  return isVisibleReasoningPart(part) || isProcessToolPart(part)
+  return (
+    isVisibleReasoningPart(part) ||
+    isProcessToolPart(part) ||
+    (part.type === 'data-acp-content' && part.data.reasoning) ||
+    (part.type === 'data-agent-plan' && part.data.entries.length > 0)
+  )
 }
 
 export function isInlineLayoutPart(part: CherryMessagePart): boolean {
@@ -267,6 +261,7 @@ export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
 }
 
 function isAssociatedResultPart(part: CherryMessagePart): boolean {
+  if (part.type === 'data-acp-content') return !part.data.reasoning
   return ASSOCIATED_RESULT_PART_TYPES.has(part.type)
 }
 

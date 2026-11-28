@@ -183,7 +183,8 @@ export function usePromptPolish({
         content: source,
         model: requestModel,
         throwOnError: true,
-        signal: controller.signal
+        signal: controller.signal,
+        utilityTask: true
       })
 
       if (

@@ -51,6 +51,8 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { AgentConfigToolOutputSchema, AssistantCreateToolOutputSchema } from '@shared/ai/agentConfigToolOutput'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
+  AGENT_DELEGATE_TOOL_NAME,
+  DELEGATION_CANCEL_TOOL_NAME,
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
@@ -95,24 +97,22 @@ export interface AutonomyToolsContext {
   selfConfigEnabled?: boolean
 }
 
-/**
- * Parse a human-friendly duration string (e.g. '30m', '2h', '1h30m') into minutes.
- */
-function parseDurationToMinutes(duration: string): number {
-  let totalMinutes = 0
-  const hourMatch = duration.match(/(\d+)\s*h/i)
-  const minMatch = duration.match(/(\d+)\s*m/i)
+const DURATION_UNIT_MS = { s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const
+const MIN_INTERVAL_MS = 60_000
 
-  if (hourMatch) totalMinutes += parseInt(hourMatch[1], 10) * 60
-  if (minMatch) totalMinutes += parseInt(minMatch[1], 10)
-
-  if (totalMinutes === 0) {
-    const raw = parseInt(duration, 10)
-    if (!isNaN(raw) && raw > 0) return raw
-    throw new Error(`Invalid duration: "${duration}". Use formats like '30m', '2h', '1h30m'.`)
+function parseDurationToMs(duration: string): number {
+  if (!/^\s*(?:\d+(?:\.\d+)?\s*[smhd]\s*)+$/i.test(duration)) {
+    throw new Error(`Invalid duration: "${duration}". Use formats like '30m', '2h', '1d', '1h30m'.`)
   }
 
-  return totalMinutes
+  let totalMs = 0
+  for (const [, amount, unit] of duration.matchAll(/(\d+(?:\.\d+)?)\s*([smhd])/gi)) {
+    totalMs += Number(amount) * DURATION_UNIT_MS[unit.toLowerCase() as keyof typeof DURATION_UNIT_MS]
+  }
+  totalMs = Math.round(totalMs)
+
+  if (totalMs < MIN_INTERVAL_MS) throw new Error(`Invalid duration: "${duration}". The minimum interval is 1 minute.`)
+  return totalMs
 }
 
 const CRON_DESCRIPTION =
@@ -131,7 +131,11 @@ const CronInputSchema = z.object({
     .min(1)
     .optional()
     .describe("Cron expression, e.g. '0 9 * * 1-5' for weekdays at 9am (use cron OR every, not both)"),
-  every: z.string().min(1).optional().describe("Duration, e.g. '30m', '2h', '24h' (use every OR cron, not both)"),
+  every: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Duration of at least 1 minute, e.g. '30m', '2h', '1d', '1h30m' (use every OR cron, not both)"),
   at: z
     .string()
     .min(1)
@@ -343,6 +347,20 @@ const SessionCreateInputSchema = z.object({
   target_agent_id: z.string().optional().describe('Optional target Agent id.')
 })
 
+const AgentDelegateInputSchema = z.strictObject({
+  target_agent_id: z.string().trim().min(1).describe('Enabled local Agent id from agent_list.'),
+  message: z.string().trim().min(1).describe('Task to delegate to the local Agent.'),
+  title: z.string().trim().max(255).optional().describe('Optional task title.'),
+  workspace_id: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Existing user workspace id. Omit to use the current project; without a user project, create a fresh managed workspace.'
+    )
+})
+
 const SessionSendInputSchema = z.object({
   target_session_id: z.string().describe('Target sessionId returned by session_list or delivery sender.'),
   message: z.string().describe('Message for the target Agent.'),
@@ -407,20 +425,22 @@ function listSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionLi
 }
 
 function listAgents(): CallToolResult {
-  const agents = agentService.listAgents().agents.map((agent) => ({
-    id: agent.id,
-    name: agent.name,
-    emoji: agent.configuration?.avatar ?? '',
-    description: agent.description ?? '',
-    model: agent.model,
-    // Built-in Agents cannot be changed from a conversation.
-    readOnly: isProtectedBuiltinAgentRole(agent.configuration?.builtin_role),
-    runtime: {
-      type: agent.type,
-      available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
-    },
-    modelConfigured: agent.model !== null
-  }))
+  const agents = agentService
+    .listAgents()
+    .agents.filter((agent) => agent.type !== 'local' || agent.localRuntime?.enabled)
+    .map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      emoji: agent.configuration?.avatar ?? '',
+      description: agent.description ?? '',
+      model: agent.model,
+      readOnly: isProtectedBuiltinAgentRole(agent.configuration?.builtin_role),
+      runtime: {
+        type: agent.type,
+        available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
+      },
+      ...(agent.type === 'local' ? { readiness: 'unchecked' } : { modelConfigured: agent.model !== null })
+    }))
   return { content: [{ type: 'text', text: JSON.stringify({ agents }) }] }
 }
 
@@ -554,6 +574,42 @@ function resolveWorkspaceForNewSession(
     : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
 }
 
+function delegateAgent(ctx: AutonomyToolsContext, args: z.output<typeof AgentDelegateInputSchema>): CallToolResult {
+  const target = agentService.getAgent(args.target_agent_id)
+  if (!target || target.type !== 'local' || !target.localRuntime?.enabled) {
+    throw new Error('Delegation requires an enabled local Agent from Agent Services')
+  }
+  if (!runtimeDriverRegistry.getAgentSessionDriver(target.type)) {
+    throw new Error('The target Agent runtime is unavailable')
+  }
+  const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
+    delegation: true,
+    senderAgentId: ctx.agentId,
+    senderSessionId: ctx.sessionId,
+    targetAgentId: target.id,
+    sessionName: args.title ?? '',
+    workspace: args.workspace_id
+      ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: args.workspace_id }
+      : ctx.workspaceSource,
+    content: args.message
+  })
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          ok: true,
+          agentId: created.session.agentId,
+          sessionId: created.session.id,
+          requestId: created.message.id,
+          workspace: created.session.workspace,
+          delivery: created.message.delivery
+        })
+      }
+    ]
+  }
+}
+
 function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionCreateInputSchema>): CallToolResult {
   const content = args.message.trim()
   const title = args.title?.trim() ?? ''
@@ -663,8 +719,7 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
   if (cronExpr) {
     trigger = { kind: 'cron', expr: cronExpr }
   } else if (every) {
-    const minutes = parseDurationToMinutes(every)
-    trigger = { kind: 'interval', ms: minutes * 60_000 }
+    trigger = { kind: 'interval', ms: parseDurationToMs(every) }
   } else if (at) {
     const date = new Date(at)
     if (isNaN(date.getTime())) throw new Error(`Invalid timestamp: "${at}"`)
@@ -1304,6 +1359,28 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       inputSchema: SessionCreateInputSchema
     },
     (args) => runSessionTool(ctx, () => createSession(ctx, args))
+  )
+  server.registerTool(
+    DELEGATION_CANCEL_TOOL_NAME,
+    {
+      description:
+        'Cancel one delegated task owned by this Session, using its requestId. Stopping a parent reply does not cancel its tasks.',
+      inputSchema: z.strictObject({ request_id: z.string().trim().min(1) })
+    },
+    (args) =>
+      runSessionTool(ctx, async () => {
+        await application.get('AgentDelegationService').cancel(ctx.sessionId, args.request_id)
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: true, requestId: args.request_id }) }] }
+      })
+  )
+  server.registerTool(
+    AGENT_DELEGATE_TOOL_NAME,
+    {
+      description:
+        'Delegate a project task to an enabled local Agent in a new dedicated Session. Uses the current project unless workspace_id is provided. Returns a durable request immediately; one terminal result arrives asynchronously. Runtime availability does not prove CLI authentication or model access.',
+      inputSchema: AgentDelegateInputSchema
+    },
+    (args) => runSessionTool(ctx, () => delegateAgent(ctx, args))
   )
   server.registerTool(
     SESSION_DELIVERIES_TOOL_NAME,

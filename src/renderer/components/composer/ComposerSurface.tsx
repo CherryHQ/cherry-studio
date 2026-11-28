@@ -338,7 +338,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       <button
         data-ui="chat.composer.action.pause"
         type="button"
-        className="text-error flex size-7.5 items-center justify-center rounded-full hover:bg-accent"
+        className="text-error flex size-7.5 shrink-0 items-center justify-center rounded-full hover:bg-accent"
         aria-label={t('chat.input.pause')}
         onClick={() => void props.onPause()}>
         <CirclePause size={20} />

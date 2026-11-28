@@ -4,10 +4,15 @@
 
 import * as z from 'zod'
 
+import type { LocalAgentUsageQuery, LocalAgentUsageResponse } from '@shared/ai/localAgentUsage'
+
 import {
   type AiUsageRecordAttribution,
+  AiUsageRecordAttributionSchema,
+  AiUsageRecordAuthMethodSchema,
   type AiUsageRecordEntry,
-  AiUsageRecordMessageKindSchema
+  AiUsageRecordMessageKindSchema,
+  AiUsageRecordSourceTypeSchema
 } from '../../types/aiUsageRecord'
 import { CURRENCY, type Currency, objectValues } from '../../types/model'
 import type { CursorPaginationParams, CursorPaginationResponse } from '../types'
@@ -61,6 +66,13 @@ export const AiUsageRecordListQuerySchema = z
     to: z.number().int().nonnegative().optional(),
     messageKind: AiUsageRecordMessageKindSchema.optional(),
     messageId: z.string().min(1).optional(),
+    providerId: z.string().nullable().optional(),
+    modelId: z.string().nullable().optional(),
+    sourceType: AiUsageRecordSourceTypeSchema.nullable().optional(),
+    sourceId: z.string().nullable().optional(),
+    apiKeyId: z.string().nullable().optional(),
+    apiKeyAttribution: AiUsageRecordAttributionSchema.optional(),
+    authMethod: AiUsageRecordAuthMethodSchema.nullable().optional(),
     /** Required when sorting monetary values so unlike currencies never compete. */
     costCurrency: CurrencySchema.optional()
   })
@@ -78,6 +90,10 @@ export const AiUsageRecordListQuerySchema = z
   })
 export type AiUsageRecordListQuery = z.infer<typeof AiUsageRecordListQuerySchema>
 export type AiUsageRecordListQueryParams = z.input<typeof AiUsageRecordListQuerySchema> & CursorPaginationParams
+export type AiUsageRecordGroupFilter = Pick<
+  AiUsageRecordListQuery,
+  'providerId' | 'modelId' | 'sourceType' | 'sourceId' | 'apiKeyId' | 'apiKeyAttribution' | 'authMethod'
+>
 
 export const AiUsageRecordGroupBySchema = z.enum(['provider', 'apiKey', 'model', 'source'])
 export type AiUsageRecordGroupBy = z.infer<typeof AiUsageRecordGroupBySchema>
@@ -225,6 +241,12 @@ export interface AiUsageRecordTimelineResponse {
 }
 
 export type AiUsageRecordSchemas = {
+  '/ai-usage-records/local': {
+    GET: {
+      query: Partial<LocalAgentUsageQuery> & Pick<LocalAgentUsageQuery, 'from' | 'to'>
+      response: LocalAgentUsageResponse
+    }
+  }
   '/ai-usage-records': {
     GET: {
       query?: AiUsageRecordListQueryParams

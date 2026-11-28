@@ -12,7 +12,7 @@ import {
 } from '@earendil-works/pi-ai'
 import { createRegistry, type Storage, type SubmissionRecord } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 
 import { createScriptedHost } from '@cherrystudio/agent-behavior'
 import { runtimeId, type OperationResult, type ProductInputState, type Thread } from '@cherrystudio/agent-runtime'
@@ -112,11 +112,11 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
       })
     )
     confirmed(await runtime.resume())
-    await root.input.submit({ inputId: runtimeId('root'), text: 'Start a child', whenBusy: 'reject' })
+    await root.input.submit!({ inputId: runtimeId('root'), text: 'Start a child' })
     await expect.poll(() => childStarted).toBe(true)
     const child = confirmed(await root.durable.openChild('spawn')).handle
     childThread = child.thread
-    steering = child.input.submit({ inputId: runtimeId('steer'), text: 'Queued correction', whenBusy: 'steer' })
+    steering = child.input.steer.submit({ inputId: runtimeId('steer'), text: 'Queued correction' })
     await expect.poll(() => queued?.status).toBe('queued')
     expect(intent).toEqual({ inputId: 'steer', facts: ['dispatch-started'] })
     const accepted = queued!
@@ -155,6 +155,82 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
     unblock()
     await runtime.shutdown()
     await steering
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+it('completes native close, registry teardown, and commit observer end when behavior close fails', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'durable-shutdown-fail-'))
+  const file = join(directory, 'store.sqlite')
+  const models = createModels()
+  const faux = fauxProvider()
+  models.setProvider(faux.provider)
+  const registry = createRegistry()
+  const stopRegistrySpy = vi.fn()
+  const origSubscribe = registry.subscribe.bind(registry)
+  vi.spyOn(registry, 'subscribe').mockImplementation((listener) => {
+    const unsub = origSubscribe(listener)
+    return () => {
+      stopRegistrySpy()
+      unsub()
+    }
+  })
+
+  let storage!: Storage
+  let closeStorageSpy!: ReturnType<typeof vi.spyOn>
+  const runtime = confirmed(
+    await createPiDurableRuntime({
+      backendId: runtimeId('shutdown-fail'),
+      async openStorage() {
+        storage = await openNodeSqliteStorage(file)
+        closeStorageSpy = vi.spyOn(storage, 'close')
+        return storage
+      },
+      harness: { models, registry },
+      behavior: {
+        host: createScriptedHost({
+          settings: {
+            goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },
+            autonomy: 'auto',
+            permissionMode: 'bypassPermissions',
+            attendance: 'stream',
+            maxBackground: 2,
+            offloadThreshold: 4000
+          }
+        }),
+        configureChild: () => ({ model: { provider: 'faux', modelId: 'faux-1' } })
+      }
+    })
+  )
+
+  let commitEnded = false
+  const commitObserver = runtime.durable.observeCommits({
+    advance() {},
+    end() {
+      commitEnded = true
+    }
+  })
+
+  try {
+    confirmed(
+      await runtime.create({
+        ownership: { kind: 'ownerless' },
+        agent: { model: { provider: 'faux', modelId: 'faux-1' } }
+      })
+    )
+    vi.spyOn(storage, 'scanConversations').mockRejectedValueOnce(new Error('storage failed'))
+    await expect(runtime.durable.commit((tx) => tx.scanConversations({}, 1), BACKGROUND_CONTEXT)).rejects.toThrow(
+      'storage failed'
+    )
+
+    const result = await runtime.shutdown()
+    expect(result).toMatchObject({ status: 'unknown' })
+    expect(closeStorageSpy).toHaveBeenCalledTimes(1)
+    expect(stopRegistrySpy).toHaveBeenCalledTimes(1)
+    expect(commitEnded).toBe(true)
+  } finally {
+    commitObserver.detach()
+    await runtime.shutdown()
     await rm(directory, { recursive: true, force: true })
   }
 })
