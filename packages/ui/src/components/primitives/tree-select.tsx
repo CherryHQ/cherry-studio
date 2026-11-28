@@ -12,14 +12,14 @@ import { ScrollArea } from './scroll-area'
 
 const treeSelectTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-md border-1 text-sm font-normal transition-colors',
+    'inline-flex items-center justify-between rounded-md border-1 text-sm font-normal transition-colors outline-none',
     'bg-input',
     'text-foreground'
   ),
   {
     variants: {
       state: {
-        default: 'border-border focus-visible:border-ring',
+        default: 'border-border focus-visible:border-primary',
         error: 'border border-destructive',
         disabled: 'pointer-events-none cursor-not-allowed opacity-50'
       },
