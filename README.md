@@ -93,7 +93,7 @@ Cherry Studio is an AI workstation for Windows, macOS, and Linux. Chat with mult
 - 🎨 Generate and edit images with supported image models.
 - 🔤 Translate text and documents, and use quick translation from other apps.
 - 🔍 Search the web, read pages, and find content across your conversations and knowledge bases.
-- 🧩 Open web-based tools through Mini Apps, or use the API Gateway to connect other applications to your configured models.
+- 🧩 Open web-based tools through Mini Apps, or use the Unified Gateway to connect other applications to your configured models.
 
 ## Voice & Workspace
 

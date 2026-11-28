@@ -480,7 +480,7 @@ export interface FileIpcApi {
   batchRestore(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
   /** Permanently delete unreferenced internal entries that are currently in Trash. */
   batchPermanentDeleteFromTrash(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
-  /** Remove unreferenced external entries from the library without modifying user files. */
+  /** Remove external entries with no protected refs from the library without modifying user files. */
   batchRemoveFromLibrary(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
 
   // ─── F. Rename ───

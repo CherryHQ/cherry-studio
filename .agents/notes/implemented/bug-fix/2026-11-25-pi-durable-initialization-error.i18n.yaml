@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-25-pi-durable-initialization-error.md
+2026-11-25-pi-durable-initialization-error.md: fa563e04c4239d036bafddf541769b31a5044e14
+2026-11-25-pi-durable-initialization-error.zh.md: 5f336719eff3c724993a71980fed0438eb757392

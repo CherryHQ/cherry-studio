@@ -1,7 +1,6 @@
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
-  ArrowUpToLine,
   AtSign,
   Check,
   CirclePause,
@@ -305,10 +304,6 @@ registerCommand('message.multiSelect', ({ actions }) => {
   actions.toggleMultiSelectMode?.(true)
 })
 
-registerCommand('message.deleteAbove', async ({ actions, message }) => {
-  await actions.deleteMessagesBefore?.(message.id)
-})
-
 registerCommand('message.saveFile', async ({ actions, mainTextContent, message }) => {
   const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
   await actions.saveTextFile?.(fileName, mainTextContent)
@@ -603,20 +598,6 @@ registerAction({
   surface: 'menu',
   availability: ({ actions, isProcessing, selection }) => ({
     visible: !!selection?.enabled && !!actions.toggleMultiSelectMode,
-    enabled: !isProcessing
-  })
-})
-
-registerAction({
-  id: 'delete-above',
-  commandId: 'message.deleteAbove',
-  label: ({ t }) => t('chat.multiple.select.delete_above'),
-  icon: <ArrowUpToLine size={15} />,
-  group: 'write',
-  order: 35,
-  surface: 'menu',
-  availability: ({ actions, isProcessing }) => ({
-    visible: !!actions.deleteMessagesBefore,
     enabled: !isProcessing
   })
 })

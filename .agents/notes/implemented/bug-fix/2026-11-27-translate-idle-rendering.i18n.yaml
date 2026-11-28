@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-27-translate-idle-rendering.md
+2026-11-27-translate-idle-rendering.md: 776668427b6a55f8c0b245eadd87a44c96225672
+2026-11-27-translate-idle-rendering.zh.md: 514a3de418a8c8f4af55642de648cb5314d39e78

@@ -96,6 +96,31 @@ beforeEach(() => {
 })
 
 describe('shared Gateway listener lifecycle', () => {
+  it('keeps HTTP sharing and device pairing independent on the shared port', async () => {
+    const service = new ApiGatewayService()
+    try {
+      await service._doInit()
+      await service.setLanHttpEnabled(true)
+      const [address] = await service.getLanHttpAddresses()
+      expect(address).toMatch(/^http:\/\/192\.168\.1\.8:\d+$/)
+      await expect(service.createRemoteInvitation()).rejects.toThrow('Device connections are disabled')
+
+      await service.setLanEnabled(true)
+      const { port } = await service.createRemoteInvitation()
+      expect(new URL(address).port).toBe(String(port))
+      await service.setLanHttpEnabled(false)
+      expect(await service.getLanHttpAddresses()).toEqual([])
+      expect((await service.createRemoteInvitation()).port).toBe(port)
+
+      await service.setLanHttpEnabled(true)
+      await service.setLanEnabled(false)
+      expect(await service.getLanHttpAddresses()).toContain(address)
+      await expect(service.createRemoteInvitation()).rejects.toThrow('Device connections are disabled')
+    } finally {
+      await service._doDestroy()
+    }
+  })
+
   it('preserves a local stream and new local requests when LAN access is toggled', async () => {
     const service = new ApiGatewayService()
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined

@@ -1,9 +1,4 @@
-import { estimateTokenCount } from 'tokenx'
-
 import { ContextPrompts } from '@cherrystudio/ai-core'
-
-import type { TokenDialect } from '../../tokens/dialect'
-import { imageTokensFor, mediaTokensFor } from '../../tokens/profiles'
 
 /**
  * Lightweight row view for compaction. Built from a raw cherry `Message`
@@ -17,8 +12,6 @@ export interface CompactionRow {
   modelId?: string
   /** Durable summary covering the conversation up to AND INCLUDING this row. */
   compactionSummary?: string
-  /** Real end-of-turn context size persisted on this row (last-step totalTokens), if any. */
-  contextTokens?: number
 }
 
 /** Synthetic id for an injected summary message — never collides with a real UUID. */
@@ -69,36 +62,6 @@ export function summaryRow(
   }
 }
 
-/**
- * Token estimate for one row: tokenx over the text, per-dialect constants over
- * the media. Stringifying a media part instead fed its base64 payload to the
- * tokenizer and scored a 13 MB MP3 at 3.7 M tokens against the provider's real
- * 20 k (#17837) — enough to trip this trigger on a turn with nothing to fold.
- * The in-loop hook fixed the same bug in #17195; this is the turn-start lane.
- */
-export function estimateRowTokens(row: CompactionRow, dialect: TokenDialect): number {
-  let total = 0
-  for (const part of row.parts) {
-    if (typeof part.text === 'string') {
-      total += estimateTokenCount(part.text)
-      continue
-    }
-    const mediaTokens = mediaPartTokens(part, dialect)
-    total += mediaTokens ?? estimateTokenCount(JSON.stringify(part))
-  }
-  return total
-}
-
-/** Media cost by declared type, or `undefined` when the part carries no media. */
-function mediaPartTokens(part: { type: string; [k: string]: unknown }, dialect: TokenDialect): number | undefined {
-  const mediaType = typeof part.mediaType === 'string' ? part.mediaType : undefined
-  if (!mediaType) return undefined
-  if (mediaType.startsWith('image/')) return imageTokensFor(dialect)
-  if (mediaType.startsWith('audio/')) return mediaTokensFor(dialect, 'audio')
-  if (mediaType.startsWith('video/')) return mediaTokensFor(dialect, 'video')
-  return undefined
-}
-
 /** Index of the DEEPEST row carrying a compactionSummary, or -1. */
 export function findDeepestMarker(rows: CompactionRow[]): number {
   for (let i = rows.length - 1; i >= 0; i--) {
@@ -135,11 +98,15 @@ export function applyDeepestMarker(
  * compaction) or when the boundary would be index 0 (keep all). Floor: if no
  * user row fits, the LAST user row is kept anyway (its exchange stays verbatim).
  */
-export function planKeepBoundary(rows: CompactionRow[], keepBudget: number, dialect: TokenDialect): number | null {
+export async function planKeepBoundary(
+  rows: readonly { role: string }[],
+  keepBudget: number,
+  estimateAt: (index: number) => Promise<number>
+): Promise<number | null> {
   let acc = 0
   let keepStart: number | null = null
   for (let i = rows.length - 1; i >= 0; i--) {
-    acc += estimateRowTokens(rows[i], dialect)
+    acc += await estimateAt(i)
     if (acc > keepBudget) break
     if (rows[i].role === 'user') keepStart = i
   }

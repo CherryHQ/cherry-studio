@@ -46,17 +46,50 @@ describe('Error diagnosis', () => {
   })
 
   describe('diagnoseError', () => {
-    it('selects request-size guidance for a status-less request buffer rejection', async () => {
-      const message = '413 Failed to buffer the request body: length limit exceeded'
+    it.each(['Request payload is too large', '413 Failed to buffer the request body: length limit exceeded'])(
+      'selects request-size guidance for %s',
+      async (message) => {
+        respondWith(
+          JSON.stringify({ summary: 'Request too large', category: 'payload', explanation: 'Too large', steps: [] })
+        )
+        await diagnoseError(makeError({ message }), 'en')
+        const args = requestInput()
+        const context = args.system?.split('## Context\n')[1]?.split('\n')[0]
+        expect(context).toContain('request payload is too large')
+        expect(context).toContain('removing large attachments')
+        expect(JSON.parse(args.prompt as string).message).toBe(message)
+      }
+    )
+
+    it.each([
+      'Response payload is too large',
+      'Response payload too large',
+      'Response body payload is too large',
+      'Response body payload too large',
+      'Response  payload is too large'
+    ])('does not prescribe request-size recovery for %s', async (message) => {
       respondWith(
-        JSON.stringify({ summary: 'Request too large', category: 'payload', explanation: 'Too large', steps: [] })
+        JSON.stringify({ summary: 'Response too large', category: 'unknown', explanation: 'Too large', steps: [] })
       )
       await diagnoseError(makeError({ message }), 'en')
       const args = requestInput()
       const context = args.system?.split('## Context\n')[1]?.split('\n')[0]
-      expect(context).toContain('request payload is too large')
-      expect(context).toContain('removing large attachments')
+      expect(context).toBeDefined()
+      expect(context).not.toContain('request payload is too large')
+      expect(context).not.toContain('removing large attachments')
       expect(JSON.parse(args.prompt as string).message).toBe(message)
+    })
+
+    it.each([
+      'pi-ai provider "native-route" has no configured model "glm-5"',
+      'NO_ADAPTER: no adapter registered for provider "native-route"'
+    ])('diagnoses the native CLI catalog rather than Cherry model settings: %s', async (message) => {
+      const result = await diagnoseError(makeError({ message }), 'en')
+      expect(result.category).toBe('model')
+      expect(result.explanation).toContain('native configuration')
+      expect(result.explanation).toContain('does not mean the model is missing from Cherry Studio')
+      expect(result.steps[0].text).toContain('CLI')
+      expect(mockIpcRequest).not.toHaveBeenCalled()
     })
 
     it.each([
@@ -128,7 +161,12 @@ required service tier.`,
       await expect(diagnoseError(makeError(), 'en')).resolves.toMatchObject({ summary: 'Error' })
       expect(mockIpcRequest).toHaveBeenCalledExactlyOnceWith(
         'ai.text.generate',
-        expect.objectContaining({ uniqueModelId: defaultModel.id, requestOptions: { maxRetries: 0 } })
+        expect.objectContaining({
+          uniqueModelId: defaultModel.id,
+          // Diagnosis must keep working for a signed-out user on the built-in free model.
+          utilityTask: true,
+          requestOptions: { maxRetries: 0 }
+        })
       )
     })
 

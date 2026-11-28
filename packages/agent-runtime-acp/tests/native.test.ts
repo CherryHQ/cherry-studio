@@ -17,7 +17,7 @@ for (const harness of ['claude', 'gemini'] satisfies NativeHarness[]) {
         const handle = confirmed(await runtime.create(f.configuration))
         const view = await observeNative(handle)
         if (harness === 'claude') confirmed(await handle.acp.setMode('default'))
-        expect(await handle.input!.submit(input('ACP native conversation', 'conversation'))).toMatchObject({
+        expect(await handle.input.submit(input('ACP native conversation', 'conversation'))).toMatchObject({
           status: 'acknowledged'
         })
         const first = await f.request()
@@ -27,7 +27,7 @@ for (const harness of ['claude', 'gemini'] satisfies NativeHarness[]) {
         expect(JSON.stringify(view.snapshot().messages)).toContain('Native model answer')
 
         const file = path.join(f.cwd, 'permission.txt')
-        await handle.input!.submit(input('ACP native tool', 'tool'))
+        await handle.input.submit(input('ACP native tool', 'tool'))
         const tool = await f.request()
         tool.response.tool(file)
         tool.response.end(true)
@@ -38,7 +38,7 @@ for (const harness of ['claude', 'gemini'] satisfies NativeHarness[]) {
         continuation.response.end()
         await view.outcome('tool', 'completed')
 
-        await handle.input!.submit(input('ACP native cancel', 'cancel'))
+        await handle.input.submit(input('ACP native cancel', 'cancel'))
         const pending = await f.request()
         pending.response.text('Before cancellation')
         expect(await handle.interrupt!()).toMatchObject({ status: 'confirmed' })

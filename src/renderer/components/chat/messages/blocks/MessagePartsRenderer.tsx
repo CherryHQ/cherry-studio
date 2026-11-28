@@ -43,7 +43,7 @@ import {
 } from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
-import { collect, single, type Range } from '@renderer/utils/message/projectionRange'
+import { collect, single, filterProjectionRow, type Range } from '@renderer/utils/message/projectionRange'
 import {
   type CitationReferenceView,
   convertReferencesToCitationReferences,
@@ -67,6 +67,7 @@ import {
   useMessageRenderConfig
 } from '../MessageListProvider'
 import {
+  getLocalWrittenFilePaths,
   isCherrySessionToolResponse,
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
@@ -79,6 +80,7 @@ import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
 import { getMessageListPartId } from '../utils/messageListItem'
+import { AcpContentBlock } from './AcpContentBlock'
 import {
   EMPTY_LAYOUT,
   projectAddressedLayout,
@@ -89,6 +91,7 @@ import {
   type PartLayout,
   type ToolFold
 } from './addressedPartLayout'
+import { AgentPlanBlock } from './AgentPlanBlock'
 import AgentSessionForkBlock from './AgentSessionForkBlock'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
@@ -859,6 +862,11 @@ function renderPart(
         />
       )
     }
+
+    case 'data-agent-plan':
+      return <AgentPlanBlock key={partId} data={part.data} />
+    case 'data-acp-content':
+      return <AcpContentBlock key={partId} content={part.data.content} />
 
     case 'data-compaction-anchor':
       return <CompactionAnchorBlock key={partId} data={(part as { data?: CompactionAnchorData }).data} />
@@ -1807,6 +1815,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getReportArtifactToolResponses(partEntries, message.id),
     [partEntries, message.id]
   )
+  const changedPaths = useMemo(() => getLocalWrittenFilePaths(messageParts), [messageParts])
   const reportArtifactToolResponses = useStableItemArray(nextReportArtifactToolResponses)
   const sessionToolResponses = useMemo(
     () =>
@@ -1969,7 +1978,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     ]
   )
   const canRenderReportArtifacts =
-    !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0
+    !isActiveTurnProcessing &&
+    unsettledTextPlayoutPartIds.size === 0 &&
+    (reportArtifactToolResponses.length > 0 || changedPaths.length > 0)
   const placeholder = isActiveTurnProcessing ? (
     <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
       <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
@@ -2035,7 +2046,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       )}
       {canRenderReportArtifacts && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={false} animation="fade">
-          <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
+          <MessageReportArtifacts toolResponses={reportArtifactToolResponses} changedPaths={changedPaths} />
         </AnimatedBlockWrapper>
       )}
       {subagentEntries.length > 0 && (
@@ -2332,7 +2343,12 @@ function useAddressedMessageParts(
           tool,
           tool && hasToolIntent(tool) ? getToolFoldTitle(tool, t) : undefined
         )
-        if (source || report || (part.type === 'text' && (part.text.includes('[') || part.text.includes('【'))))
+        if (
+          source ||
+          report ||
+          (cached && getLocalWrittenFilePaths([part]).length > 0) ||
+          (part.type === 'text' && (part.text.includes('[') || part.text.includes('【')))
+        )
           result.side = single(partId, entry)
         result.status = cached
           ? 'usingTools'
@@ -2370,7 +2386,17 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
 
   const reader = React.use(ProjectionPartContext)
   const layouts = React.use(ProjectionLayoutContext)
-  const row = isActiveTurnProcessing && message.role === 'assistant' ? layouts?.row(message.id) : undefined
+  const sourceRow =
+    isActiveTurnProcessing && message.role === 'assistant'
+      ? layouts?.row(message.sourceMessageId ?? message.id)
+      : undefined
+  const row = useMemo(
+    () =>
+      sourceRow && message.sourceMessageId && message.partIds
+        ? filterProjectionRow(sourceRow, message.partIds)
+        : sourceRow,
+    [sourceRow, message.sourceMessageId, message.partIds]
+  )
   const { layout, auxiliary, sideParts } = useAddressedMessageParts(
     row,
     reader,

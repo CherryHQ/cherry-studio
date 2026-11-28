@@ -1,7 +1,10 @@
+import type * as ChildProcess from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/binary'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
@@ -11,33 +14,45 @@ const binaryManagerMock = vi.hoisted(() => ({
   removeTool: vi.fn<(_request: BinaryRemoveRequest) => Promise<BinaryRemoveResult>>(),
   getToolSnapshots: vi.fn()
 }))
+const installerMock = vi.hoisted(() => ({
+  installCli: vi.fn(),
+  uninstallCli: vi.fn()
+}))
+const claudeBinaryMock = vi.hoisted(() => ({ getInstalledExecutable: vi.fn<() => string | undefined>() }))
+const deepSeekHarnessMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 const antigravityLaunchMock = vi.hoisted(() => vi.fn())
 const skillServiceMock = vi.hoisted(() => ({
-  syncBuiltinSkill: vi.fn(() => Promise.resolve(false)),
-  uninstallBuiltinSkill: vi.fn(() => Promise.resolve(false))
+  syncBuiltinSkill: vi.fn<(folder: string, ...args: unknown[]) => Promise<boolean>>(() => Promise.resolve(false)),
+  uninstallBuiltinSkill: vi.fn<(folder: string, ...args: unknown[]) => Promise<boolean>>(() => Promise.resolve(false))
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({ skillService: skillServiceMock }))
 
 vi.mock('electron', () => ({
   app: {
+    getLocale: vi.fn(() => 'en-US'),
     getVersion: vi.fn(() => '2.0.9'),
     getAppPath: vi.fn(() => '/mock/app'),
     isPackaged: false
   }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn().mockImplementation((name: string) => {
-      if (name === 'BinaryManager') return binaryManagerMock
-      if (name === 'HermesDashboardService') return hermesDashboardMock
-      return {}
-    }),
-    getPath: vi.fn().mockReturnValue('/mock/binary-data')
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const services = {
+    BinaryManager: binaryManagerMock,
+    LocalAgentInstallService: installerMock,
+    ClaudeCodeBinaryService: claudeBinaryMock,
+    DeepSeekHarnessService: deepSeekHarnessMock,
+    HermesDashboardService: hermesDashboardMock
   }
-}))
+  const mock = mockApplicationFactory(services)
+  mock.application.getPath.mockImplementation((_key, filename) =>
+    filename ? path.join('/mock/binary-data', filename) : '/mock/binary-data'
+  )
+  return mock
+})
 
 vi.mock('../antigravity', () => ({
   prepareAntigravityLaunch: antigravityLaunchMock
@@ -129,6 +144,7 @@ vi.mock('node:fs', () => ({
   default: {
     promises: { access: vi.fn().mockResolvedValue(undefined) },
     existsSync: vi.fn().mockReturnValue(false),
+    statSync: vi.fn(),
     readFileSync: vi.fn().mockReturnValue(''),
     writeFileSync: vi.fn(),
     unlinkSync: vi.fn(),
@@ -144,9 +160,10 @@ vi.mock('node:fs', () => ({
 }))
 
 async function loadModules() {
+  const { BaseService } = await import('@main/core/lifecycle')
   const { CodeCliService } = await import('../CodeCliService')
   const codeCliService = new CodeCliService()
-  return { CodeCliService, codeCliService }
+  return { BaseService, CodeCliService, codeCliService }
 }
 
 describe('CodeCliService', () => {
@@ -170,10 +187,12 @@ describe('CodeCliService', () => {
         ])
       )
     )
-    binaryManagerMock.installByName.mockResolvedValue(undefined)
+    installerMock.installCli.mockResolvedValue({ ok: true, reused: false, path: '/usr/local/bin/codex' })
+    installerMock.uninstallCli.mockResolvedValue({ ok: true })
+    claudeBinaryMock.getInstalledExecutable.mockReset()
     binaryManagerMock.removeTool.mockResolvedValue({ status: 'removed' })
-    skillServiceMock.syncBuiltinSkill.mockResolvedValue(false)
-    skillServiceMock.uninstallBuiltinSkill.mockResolvedValue(false)
+    skillServiceMock.syncBuiltinSkill.mockReset().mockResolvedValue(false)
+    skillServiceMock.uninstallBuiltinSkill.mockReset().mockResolvedValue(false)
     hermesDashboardMock.writeConfigFiles.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
@@ -187,6 +206,12 @@ describe('CodeCliService', () => {
     })
   })
 
+  it('should have onInit that preloads terminals', async () => {
+    const { codeCliService } = await loadModules()
+    await expect(codeCliService._doInit()).resolves.toBeUndefined()
+    expect(codeCliService.isReady).toBe(true)
+  })
+
   it('reconciles available CLI skills only after every service is ready', async () => {
     const { codeCliService } = await loadModules()
 
@@ -194,32 +219,50 @@ describe('CodeCliService', () => {
     expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
 
     await codeCliService._doAllReady()
-
+    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(
+      CODE_CLI_TOOL_PRESETS.filter((preset) => preset.skillFolderName).length
+    )
     expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
-      'code-mate-codex',
-      path.join('/mock/binary-data', 'code-mate-codex'),
-      expect.any(String),
-      'code-cli:openai-codex'
+      'code-mate-pi',
+      path.join('/mock/binary-data', 'code-mate-pi'),
+      '2.0.9',
+      'code-cli:pi'
     )
   })
 
+  it('should clean up timers on stop', async () => {
+    const { codeCliService } = await loadModules()
+    await codeCliService._doInit()
+    await expect(codeCliService._doStop()).resolves.toBeUndefined()
+    expect(codeCliService.isStopped).toBe(true)
+  })
+
+  it('should prevent double instantiation', async () => {
+    const { CodeCliService } = await loadModules()
+    // loadModules() already created one instance,
+    // so creating another should throw
+    expect(() => new CodeCliService()).toThrow(/already been instantiated/)
+  })
+
   describe('CLI skill lifecycle', () => {
-    it('installs the bundled skill only after the CLI install succeeds', async () => {
+    it('retires old wrappers and never recreates them on reconciliation or CLI installation', async () => {
+      const retired = new Set(['code-mate-claude-code', 'code-mate-codex', 'code-mate-opencode'])
+      const installed = new Set(retired)
+      skillServiceMock.syncBuiltinSkill.mockImplementation(async (folder: string) => {
+        installed.add(folder)
+        return true
+      })
+      skillServiceMock.uninstallBuiltinSkill.mockImplementation(async (folder: string) => installed.delete(folder))
       const { codeCliService } = await loadModules()
-
-      await codeCliService.installCli({ name: 'codex' })
-
-      expect(binaryManagerMock.installByName).toHaveBeenCalledWith({ name: 'codex' })
-      expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
-        'code-mate-codex',
-        path.join('/mock/binary-data', 'code-mate-codex'),
-        expect.any(String),
-        'code-cli:openai-codex'
-      )
+      await codeCliService.reconcileCliSkills()
+      await codeCliService.reconcileCliSkills()
+      for (const name of ['claude', 'codex', 'opencode']) await codeCliService.installCli({ name })
+      expect([...installed].filter((folder) => retired.has(folder))).toEqual([])
+      expect(installed.has('code-mate-pi')).toBe(true)
     })
 
     it('does not install a skill when the CLI install fails', async () => {
-      binaryManagerMock.installByName.mockRejectedValue(new Error('install failed'))
+      installerMock.installCli.mockResolvedValue({ ok: false, reason: 'failed', detail: 'install failed' })
       const { codeCliService } = await loadModules()
 
       await expect(codeCliService.installCli({ name: 'codex' })).rejects.toThrow('install failed')
@@ -228,36 +271,52 @@ describe('CodeCliService', () => {
     })
 
     it('does not change the skill when binary removal is blocked', async () => {
-      binaryManagerMock.removeTool.mockResolvedValue({ status: 'cleanup_blocked', reason: 'conflict' })
+      installerMock.uninstallCli.mockResolvedValue({ ok: false, reason: 'busy' })
       const { codeCliService } = await loadModules()
 
       await expect(codeCliService.removeCli({ name: 'codex' })).resolves.toEqual({
         status: 'cleanup_blocked',
-        reason: 'conflict'
+        reason: 'cleanup_failed',
+        message: 'busy'
       })
 
+      expect(binaryManagerMock.removeTool).not.toHaveBeenCalled()
       expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
       expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
     })
 
+    it('reports which CLI components were removed when uninstall is incomplete', async () => {
+      installerMock.uninstallCli.mockResolvedValue({
+        ok: false,
+        reason: 'partial',
+        removed: ['pi-acp'],
+        remaining: ['pi']
+      })
+      const { codeCliService } = await loadModules()
+      const result = await codeCliService.removeCli({ name: 'pi' })
+      expect(result).toMatchObject({ status: 'cleanup_blocked', reason: 'cleanup_failed' })
+      expect('message' in result && result.message).toContain('pi-acp')
+      expect('message' in result && result.message).toMatch(/Not fully removed: pi/)
+    })
+
     it('removes the owned skill when no CLI remains after removal', async () => {
       binaryManagerMock.getToolSnapshots.mockResolvedValue({
-        codex: { name: 'codex', availability: { source: 'none' }, application: { status: 'absent' } }
+        pi: { name: 'pi', availability: { source: 'none' }, application: { status: 'absent' } }
       })
       const { codeCliService } = await loadModules()
 
-      await expect(codeCliService.removeCli({ name: 'codex' })).resolves.toEqual({ status: 'removed' })
+      await expect(codeCliService.removeCli({ name: 'pi' })).resolves.toEqual({ status: 'removed' })
 
-      expect(skillServiceMock.uninstallBuiltinSkill).toHaveBeenCalledWith('code-mate-codex', 'code-cli:openai-codex')
+      expect(skillServiceMock.uninstallBuiltinSkill).toHaveBeenCalledWith('code-mate-pi', 'code-cli:pi')
     })
 
     it('keeps the skill when a system CLI remains after managed removal', async () => {
       binaryManagerMock.getToolSnapshots.mockResolvedValue({
-        codex: { name: 'codex', availability: { source: 'system', path: '/usr/local/bin/codex' } }
+        pi: { name: 'pi', availability: { source: 'system', path: '/usr/local/bin/pi' } }
       })
       const { codeCliService } = await loadModules()
 
-      await codeCliService.removeCli({ name: 'codex' })
+      await codeCliService.removeCli({ name: 'pi' })
 
       expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalled()
       expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
@@ -265,8 +324,8 @@ describe('CodeCliService', () => {
 
     it('preserves the skill when CLI state is unknown', async () => {
       binaryManagerMock.getToolSnapshots.mockResolvedValue({
-        codex: {
-          name: 'codex',
+        pi: {
+          name: 'pi',
           availability: { source: 'none' },
           application: { status: 'unknown', reason: 'backend_unavailable' }
         }
@@ -276,7 +335,7 @@ describe('CodeCliService', () => {
       await codeCliService.reconcileCliSkills()
 
       expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
-      expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
+      expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalledWith('code-mate-pi', 'code-cli:pi')
     })
   })
 
@@ -300,6 +359,7 @@ describe('CodeCliService', () => {
       const { codeCliService } = await loadModules()
 
       await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
+      expect(childProcessMock.execAsync).not.toHaveBeenCalledWith(expect.stringContaining('mdfind'), expect.anything())
     })
 
     it('omits supported terminals that LaunchServices does not resolve', async () => {
@@ -424,6 +484,31 @@ describe('CodeCliService', () => {
   // Previously the flag was assembled from provider name + model id here, which could
   // drift from the provider key written into opencode.json (gateway mode) and made
   // OpenCode reject the model and fall back to its own last-used one.
+  it('launches the downloaded Claude SDK CLI before trying to install Claude', async () => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+    vi.useFakeTimers()
+    try {
+      const { codeCliService } = await loadModules()
+      const executable = '/mock/sdk install/claude'
+      claudeBinaryMock.getInstalledExecutable.mockReturnValue(executable)
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({ claude: { availability: { source: 'none' } } })
+
+      await expect(
+        codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: '/tmp/project'
+        })
+      ).resolves.toMatchObject({ success: true })
+      expect(String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])).toContain(`'${executable}' /login`)
+    } finally {
+      vi.useRealTimers()
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    }
+  })
+
   describe('run (OpenCode launch)', () => {
     const originalPlatform = process.platform
 
@@ -454,7 +539,7 @@ describe('CodeCliService', () => {
         expect(result.success).toBe(true)
         const call = vi.mocked(spawn).mock.calls.at(-1)
         expect(call).toBeDefined()
-        const script = (call![1] as string[]).join(' ')
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
         expect(script).not.toContain('--model')
         expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
       } finally {
@@ -485,95 +570,12 @@ describe('CodeCliService', () => {
         expect(result.success).toBe(true)
         const call = vi.mocked(spawn).mock.calls.at(-1)
         expect(call).toBeDefined()
-        const script = (call![1] as string[]).join(' ')
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
         expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
         expect(script).not.toContain('_cherry_mise_key')
       } finally {
         vi.useRealTimers()
       }
-    })
-  })
-
-  // gemini-cli's `resolveModel` rewrites a settings.model.name ending in "flash" to a default Gemini
-  // model, so the intended model is passed on the command line at launch — `--model` outranks settings
-  // and is honored verbatim — and in gateway mode it must carry the providerId prefix the gateway
-  // addresses by plus the @cherry sentinel, or the gateway can't route it.
-  describe('run (gemini-cli passes the model via --model)', () => {
-    const originalPlatform = process.platform
-
-    beforeEach(async () => {
-      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
-      const fs = (await import('node:fs')).default
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-    })
-
-    afterEach(() => {
-      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
-    })
-
-    const launchScript = async (input: CodeCliRunInput) => {
-      vi.useFakeTimers()
-      try {
-        const { spawn } = await import('child_process')
-        const { codeCliService } = await loadModules()
-        const result = await codeCliService.run(input)
-        expect(result.success).toBe(true)
-        const call = vi.mocked(spawn).mock.calls.at(-1)
-        expect(call).toBeDefined()
-        return (call![1] as string[]).join(' ')
-      } finally {
-        vi.useRealTimers()
-      }
-    }
-
-    it('addresses the model as providerId:modelId plus the sentinel suffix in gateway mode', async () => {
-      const script = await launchScript({
-        mode: 'normal',
-        cliTool: CodeCli.GEMINI_CLI,
-        model: 'agent/deepseek-v4-flash',
-        providerId: '618d8838-1791-44df-8802-34f8444c0935',
-        gateway: true,
-        directory: '/tmp/project'
-      })
-      // The @cherry suffix defeats gemini-cli's model normalization, which rewrites
-      // any name satisfying endsWith("flash") to a default Gemini model.
-      expect(script).toContain('--model 618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash@cherry')
-      // The gateway serves only /v1beta, so the launch env forces the SDK's API version — a stale
-      // GOOGLE_GENAI_API_VERSION=v1 in the user's shell would otherwise redirect it to /v1. (The
-      // value's quotes are backslash-escaped by the AppleScript wrapper, so match the export + value.)
-      expect(script).toContain('export GOOGLE_GENAI_API_VERSION=')
-      expect(script).toContain('v1beta')
-    })
-
-    it('passes the bare model id in direct (non-gateway) mode', async () => {
-      const script = await launchScript({
-        mode: 'normal',
-        cliTool: CodeCli.GEMINI_CLI,
-        model: 'gemini-2.5-pro',
-        providerId: 'gemini',
-        directory: '/tmp/project'
-      })
-      expect(script).toContain('--model gemini-2.5-pro')
-      expect(script).not.toContain('gemini:gemini-2.5-pro')
-      // Direct launch must not force the gateway-only API version — a user who set
-      // GOOGLE_GENAI_API_VERSION for their own provider keeps it untouched.
-      expect(script).not.toContain('GOOGLE_GENAI_API_VERSION')
-    })
-
-    it('preserves ambient mise settings for a system Gemini CLI while exporting its own env', async () => {
-      binaryManagerMock.getToolSnapshots.mockResolvedValue({
-        gemini: { name: 'gemini', availability: { source: 'system', path: '/home/me/.local/share/mise/shims/gemini' } }
-      })
-      const script = await launchScript({
-        mode: 'normal',
-        cliTool: CodeCli.GEMINI_CLI,
-        model: 'gemini-2.5-pro',
-        providerId: 'gemini',
-        directory: '/tmp/project'
-      })
-
-      expect(script).toContain('GEMINI_CLI_TRUST_WORKSPACE=')
-      expect(script).not.toContain('_cherry_mise_key')
     })
   })
 
@@ -593,11 +595,9 @@ describe('CodeCliService', () => {
     const launchScript = async (input: CodeCliRunInput) => {
       vi.useFakeTimers()
       try {
-        const { spawn } = await import('child_process')
         const { codeCliService } = await loadModules()
         const result = await codeCliService.run(input)
-        const call = vi.mocked(spawn).mock.calls.at(-1)
-        return { result, script: call ? (call[1] as string[]).join(' ') : '' }
+        return { result, script: String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1] ?? '') }
       } finally {
         vi.useRealTimers()
       }
@@ -617,8 +617,8 @@ describe('CodeCliService', () => {
         expect.objectContaining({ providerId: 'gemini', model: 'gemini-2.5-pro' })
       )
       expect(script).toContain("'--gemini_dir=/mock/antigravity data'")
-      expect(script).toContain("--model '\\''gemini-2.5-pro'\\''")
-      expect(script).toContain("GEMINI_API_KEY='\\''antigravity-secret'\\''")
+      expect(script).toContain("--model 'gemini-2.5-pro'")
+      expect(script).toContain("GEMINI_API_KEY='antigravity-secret'")
     })
 
     it('leaves the user Google login and global Antigravity settings untouched in own-login mode', async () => {
@@ -708,6 +708,118 @@ describe('CodeCliService', () => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
     })
 
+    it('hands long environments to macOS terminals through an owner-only script and cleans it on stop', async () => {
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+      const value = 'x'.repeat(8192)
+      expect(
+        await codeCliService.openTerminal({
+          executable: '/usr/local/bin/agent',
+          args: [],
+          env: { PRIVATE_TOKEN: value },
+          usesCherryExecutionEnv: false
+        })
+      ).toMatchObject({ success: true })
+      const [file, body, options] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)!
+      expect(String(body)).toContain(value)
+      expect(String(body)).toContain('/usr/local/bin/agent')
+      expect(options).toMatchObject({ mode: 0o600, flag: 'wx' })
+      const terminalCommand = String(vi.mocked(spawn).mock.calls.at(-1)?.[1])
+      expect(terminalCommand.length).toBeLessThan(1024)
+      expect(terminalCommand).not.toContain('PRIVATE_TOKEN')
+      expect(terminalCommand).toContain(path.basename(String(file)))
+      await codeCliService._doStop()
+      expect(vi.mocked(fs.unlinkSync).mock.calls.some(([path]) => path === file)).toBe(true)
+    })
+
+    it('uses the selected directory when opening a local agent terminal', async () => {
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.statSync).mockReturnValueOnce({ isDirectory: () => true } as never)
+      const { codeCliService } = await loadModules()
+      await expect(
+        codeCliService.openTerminal({
+          executable: '/usr/local/bin/agent',
+          args: [],
+          env: {},
+          usesCherryExecutionEnv: false,
+          directory: '/projects/中文 folder',
+          terminal: TerminalApp.SYSTEM_DEFAULT
+        })
+      ).resolves.toMatchObject({ success: true })
+      const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+      expect(script).toContain("cd '/projects/中文 folder'")
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'passes terminal arguments verbatim without letting them run shell syntax',
+      async () => {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+        const args = ['--settings', '/tmp/a b/settings.json', '-c', "model='x'", '$(echo injected)', '`id`;|&']
+        await expect(
+          codeCliService.openTerminal({
+            executable: '/usr/bin/printf',
+            args: ['%s\\n', ...args],
+            env: {},
+            usesCherryExecutionEnv: false
+          })
+        ).resolves.toMatchObject({ success: true })
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        const line = script.split('\n').find((entry) => entry.includes("'/usr/bin/printf'"))!
+        const command = line.slice(line.indexOf("'/usr/bin/printf'"))
+        const { execFileSync } = await vi.importActual<typeof ChildProcess>('node:child_process')
+        expect(execFileSync('/bin/sh', ['-c', command], { encoding: 'utf8' })).toBe(`${args.join('\n')}\n`)
+      }
+    )
+
+    it('refuses terminal arguments that would break the launch script', async () => {
+      const { codeCliService } = await loadModules()
+      await expect(
+        codeCliService.openTerminal({
+          executable: '/usr/local/bin/agent',
+          args: ['--name', 'a\nrm -rf ~'],
+          env: {},
+          usesCherryExecutionEnv: false
+        })
+      ).rejects.toThrow('Unsupported terminal argument')
+    })
+
+    it('refuses a deleted working directory without opening a terminal', async () => {
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.statSync).mockReturnValueOnce(undefined)
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+      await expect(
+        codeCliService.openTerminal({
+          executable: '/usr/local/bin/agent',
+          args: [],
+          env: {},
+          usesCherryExecutionEnv: false,
+          directory: '/missing/project'
+        })
+      ).resolves.toMatchObject({ success: false, message: expect.stringContaining('/missing/project') })
+      expect(spawn).not.toHaveBeenCalled()
+    })
+
+    it.each<Record<string, string>>([{}, { NO_COLOR: '1' }])(
+      'clears NO_COLOR immediately before launching a local terminal with env %j',
+      async (env) => {
+        const { codeCliService } = await loadModules()
+        expect(
+          await codeCliService.openTerminal({
+            executable: '/usr/local/bin/agent',
+            args: [],
+            env,
+            usesCherryExecutionEnv: false
+          })
+        ).toMatchObject({ success: true })
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        expect(script).toContain('unset NO_COLOR && ')
+        expect(script.indexOf('unset NO_COLOR')).toBeLessThan(script.indexOf('/usr/local/bin/agent'))
+        if ('NO_COLOR' in env) expect(script.indexOf('export NO_COLOR=')).toBeLessThan(script.indexOf('unset NO_COLOR'))
+      }
+    )
+
     it('launches a system PATH binary without installing a managed copy', async () => {
       binaryManagerMock.getToolSnapshots.mockResolvedValue({
         claude: { name: 'claude', availability: { source: 'system', path: '/usr/local/bin/claude' } }
@@ -722,11 +834,11 @@ describe('CodeCliService', () => {
       })
 
       expect(result.success).toBe(true)
-      expect(binaryManagerMock.installByName).not.toHaveBeenCalled()
+      expect(installerMock.installCli).not.toHaveBeenCalled()
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['claude'])
       const launchCall = vi.mocked(spawn).mock.calls.at(-1)
       expect(launchCall).toBeDefined()
-      const launchArgs = (launchCall?.[1] ?? []).join(' ')
+      const launchArgs = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
       expect(launchArgs).toContain('/usr/local/bin/claude')
       expect(launchArgs).not.toContain('MISE_DATA_DIR')
     })
@@ -738,7 +850,6 @@ describe('CodeCliService', () => {
           availability: { source: 'system', path: '/tmp/$(touch pwned)/`whoami`/claude' }
         }
       })
-      const { spawn } = await import('child_process')
       const { codeCliService } = await loadModules()
 
       const result = await codeCliService.run({
@@ -748,8 +859,8 @@ describe('CodeCliService', () => {
       })
 
       expect(result.success).toBe(true)
-      const launchArgs = (vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')
-      expect(launchArgs).toContain("'\\''/tmp/$(touch pwned)/`whoami`/claude'\\''")
+      const launchArgs = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+      expect(launchArgs).toContain("'/tmp/$(touch pwned)/`whoami`/claude'")
       expect(launchArgs).not.toContain('"/tmp/$(touch pwned)')
     })
 
@@ -775,7 +886,7 @@ describe('CodeCliService', () => {
       expect(result.success).toBe(true)
       // Name-only lazy install: main resolves the Code CLI's fixed recipe and
       // writes no Preference — the renderer/service never supplies a recipe.
-      expect(binaryManagerMock.installByName).toHaveBeenCalledWith({ name: 'claude' })
+      expect(installerMock.installCli).toHaveBeenCalledWith({ name: 'claude' })
     })
 
     it('launches a managed npm CLI with Cherry shims first and no ambient MISE settings', async () => {
@@ -801,12 +912,12 @@ describe('CodeCliService', () => {
 
       expect(result.success).toBe(true)
       const launchCall = vi.mocked(spawn).mock.calls.at(-1)!
-      const launchArgs = (launchCall[1] ?? []).join(' ')
+      const launchArgs = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
       const launchEnv = launchCall[2]?.env as Record<string, string>
       expect(launchArgs).toContain(
-        "PATH='\\''/mock/binary-data/shims:/mock/binary-data:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
+        "PATH='/mock/binary-data/shims:/mock/binary-data:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'"
       )
-      expect(launchArgs).toContain("MISE_DATA_DIR='\\''/mock/binary-data'\\''")
+      expect(launchArgs).toContain("MISE_DATA_DIR='/mock/binary-data'")
       expect(launchArgs).toContain('for _cherry_mise_key in $(env | sed -n')
       expect(launchArgs).toContain('do unset')
       expect(launchArgs).toContain('$_cherry_mise_key')
@@ -838,11 +949,8 @@ describe('CodeCliService', () => {
         expect(result.success).toBe(true)
         const call = vi.mocked(spawn).mock.calls.at(-1)
         expect(call).toBeDefined()
-        const script = (call![1] as string[]).join(' ')
-        // posixQuote wraps the directory in single quotes; the Terminal.app adapter then rewrites those
-        // quotes to the sh-safe '\'' form for its `osascript -e '…'` layer. Either way $(reboot) sits
-        // inside the quotes as inert data — never a substitution.
-        expect(script).toContain("cd '\\''/tmp/$(reboot) proj'\\''")
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        expect(script).toContain("cd '/tmp/$(reboot) proj'")
       } finally {
         vi.useRealTimers()
       }
@@ -862,6 +970,67 @@ describe('CodeCliService', () => {
 
     afterEach(() => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    it('clears NO_COLOR inside the Windows launcher after injecting the environment', async () => {
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+        expect(
+          await codeCliService.openTerminal({
+            executable: 'C:\\Tools\\agent.exe',
+            args: [],
+            env: { NO_COLOR: '1' },
+            usesCherryExecutionEnv: false
+          })
+        ).toMatchObject({ success: true })
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        expect(script).toContain('set "NO_COLOR=1" && set "NO_COLOR=" && "C:\\Tools\\agent.exe"')
+
+        // Inside double-quoted set statements, &, |, ^, <, > stay literal while % is doubled; quotes use unquoted lines.
+        expect(
+          await codeCliService.openTerminal({
+            executable: 'C:\\Tools\\agent.exe',
+            args: [],
+            env: { API_URL: 'https://example.invalid/?a=1&b=2^3|4%5', QUOTED: 'a" & whoami' },
+            usesCherryExecutionEnv: false
+          })
+        ).toMatchObject({ success: true })
+        const specialScript = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        expect(specialScript).toContain('set "API_URL=https://example.invalid/?a=1&b=2^3|4%%5"')
+        expect(specialScript).toContain('set QUOTED=a^" ^& whoami\r\n')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('quotes Windows terminal arguments so batch syntax and the C runtime keep them intact', async () => {
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+        await codeCliService.openTerminal({
+          executable: 'C:\\Tools\\agent.exe',
+          args: ['--settings', 'C:\\Users\\a b\\settings.json', '-c', "model='x%y&z'", 'C:\\my dir\\'],
+          env: {},
+          usesCherryExecutionEnv: false
+        })
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        expect(script).toContain(
+          `"C:\\Tools\\agent.exe" --settings "C:\\Users\\a b\\settings.json" -c "model='x%%y&z'" "C:\\my dir\\\\"`
+        )
+        await expect(
+          codeCliService.openTerminal({
+            executable: 'C:\\Tools\\agent.exe',
+            args: ['a" & whoami'],
+            env: {},
+            usesCherryExecutionEnv: false
+          })
+        ).rejects.toThrow('Unsupported terminal argument')
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('filters mixed-case ambient MISE variables from the Windows launch environment', async () => {
@@ -903,7 +1072,7 @@ describe('CodeCliService', () => {
         const result = await codeCliService.run({
           mode: 'login-flow',
           cliTool: CodeCli.CLAUDE_CODE,
-          directory: 'C:\\Users\\me\\100% proj'
+          directory: 'C:\\Users\\me\\100% proj&calc&rem demo'
         })
 
         expect(result.success).toBe(true)
@@ -911,10 +1080,11 @@ describe('CodeCliService', () => {
         const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1)
         expect(writeCall).toBeDefined()
         const [batPath, batContent] = writeCall! as unknown as [string, string]
-
+        expect(batPath).toMatch(/launch_claude-code_\d+\.bat$/)
         // CMD expands %…% even inside double quotes, so the bat writer must double them.
-        expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
-        expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
+        expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj&calc&rem demo" goto :dir_missing')
+        expect(batContent).not.toMatch(/^echo .*&calc&/m)
+        expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj&calc&rem demo"')
         // The executable path crosses the same boundary as the directory paths.
         expect(batContent).toContain('"C:\\Tools\\100%% cli\\claude.exe"')
         // The temp script can embed injected credentials via the env prefix; keep it owner-only.
@@ -923,8 +1093,47 @@ describe('CodeCliService', () => {
         const launch = vi.mocked(spawn).mock.calls.at(-1)
         expect(launch).toBeDefined()
         expect(launch![0]).toBe('cmd')
-        expect(launch![1]).toEqual(['/c', batPath])
-        expect(launch![2]).toMatchObject({ shell: true, detached: true })
+        expect(launch![1]).toEqual(['/c', 'start', '""', 'cmd', '/c', batPath])
+        expect(launch![2]).toMatchObject({ shell: false, detached: true })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('launches PowerShell through start with single-quoted bat path and shell: false', async () => {
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { spawn } = await import('node:child_process')
+        const { codeCliService } = await loadModules()
+
+        vi.spyOn(codeCliService, 'getAvailableTerminals').mockResolvedValue([
+          { id: TerminalApp.POWERSHELL, name: 'PowerShell' }
+        ])
+
+        const result = await codeCliService.openTerminal({
+          executable: 'C:\\Tools\\claude.cmd',
+          args: [],
+          env: {},
+          usesCherryExecutionEnv: false,
+          terminal: TerminalApp.POWERSHELL
+        })
+
+        expect(result.success).toBe(true)
+        const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1)
+        const [batPath] = writeCall! as unknown as [string, string]
+        const launch = vi.mocked(spawn).mock.calls.at(-1)
+        expect(launch![0]).toBe('cmd')
+        expect(launch![1]).toEqual([
+          '/c',
+          'start',
+          '""',
+          'powershell',
+          '-NoExit',
+          '-Command',
+          `& '${batPath.replace(/'/g, "''")}'`
+        ])
+        expect(launch![2]).toMatchObject({ shell: false, detached: true })
       } finally {
         vi.useRealTimers()
       }
@@ -1122,6 +1331,22 @@ describe('CodeCliService', () => {
       ])
     })
 
+    it('prefers x-terminal-emulator over xterm', async () => {
+      const spawn = await mockLinuxSpawn(['x-terminal-emulator', 'xterm'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('x-terminal-emulator')
+      expect(launch?.[1]).toEqual(['-e', 'bash', '-c', expect.stringContaining("cd '/home/me/proj' && clear && ")])
+    })
+
     it('reports a failed launch when the terminal process errors at spawn', async () => {
       const { spawn } = await import('child_process')
       vi.mocked(spawn).mockImplementation(((cmd: string) => {
@@ -1154,6 +1379,24 @@ describe('CodeCliService', () => {
         success: false,
         message: expect.stringContaining('Failed to launch terminal: spawn xterm ENOENT')
       })
+    })
+
+    it('defaults to xterm with a shell-quoted directory when no emulator is detected', async () => {
+      const spawn = await mockLinuxSpawn([])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/my proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch).toBeDefined()
+      expect(launch![0]).toBe('xterm')
+      // posixQuote keeps the spaced directory a single shell token inside -e.
+      expect((launch![1] as string[]).join(' ')).toContain("cd '/home/me/my proj' && clear")
     })
 
     // Regression: on Arch Linux + Hyprland (and other standalone setups) the
@@ -1219,6 +1462,23 @@ describe('CodeCliService', () => {
       // kitty must win over the last-resort xterm, not fall through to it.
       expect(launch?.[0]).toBe('kitty')
     })
+  })
+
+  describe('writeConfigFiles', () => {
+    it.each([CodeCli.HERMES, CodeCli.DEEPSEEK_HARNESS])(
+      'enforces the %s service write guard before touching files',
+      async (tool) => {
+        const { codeCliService } = await loadModules()
+        const guard = tool === CodeCli.HERMES ? hermesDashboardMock : deepSeekHarnessMock
+        guard.writeConfigFiles.mockRejectedValueOnce(new Error('Stop service before editing configuration'))
+        await expect(
+          codeCliService.writeConfigFiles({
+            cliTool: tool,
+            files: [{ target: tool === CodeCli.HERMES ? 'hermes-config' : 'dsh-settings', content: 'custom: true\n' }]
+          })
+        ).rejects.toThrow('Stop service before editing configuration')
+      }
+    )
   })
 
   describe('run (provider/model validation is owned solely by the service)', () => {

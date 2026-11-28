@@ -7,7 +7,8 @@ import * as z from 'zod'
  */
 export const AutonomousTurnOriginSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('goal-round'), round: z.number().int().positive() }),
-  z.strictObject({ kind: z.literal('background-work') })
+  z.strictObject({ kind: z.literal('background-work') }),
+  z.strictObject({ kind: z.literal('native-turn') })
 ])
 export type AutonomousTurnOrigin = z.infer<typeof AutonomousTurnOriginSchema>
 

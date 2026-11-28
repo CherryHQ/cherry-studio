@@ -111,7 +111,9 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   if (row.data.importedHistory) metadata.importedHistory = row.data.importedHistory
   if (row.modelId) metadata.modelId = row.modelId
   if (row.messageSnapshot) metadata.messageSnapshot = row.messageSnapshot
+  if (row.provenance) metadata.provenance = row.provenance
   if (row.stats) metadata.stats = row.stats
+  if (row.data.localTurnUsage) metadata.localTurnUsage = row.data.localTurnUsage
   if (row.delivery) metadata.delivery = row.delivery
 
   return {
@@ -119,6 +121,8 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
     role: row.role,
     parts: row.data.parts ?? [],
     partIds: row.partIds,
+    partPositions: row.partPositions,
+    timeline: { pos: row.pos, replyId: row.replyId },
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined
   }
 }

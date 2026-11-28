@@ -6,6 +6,18 @@
 
 - Include a package-local MIT license file and correct the README license link.
 
+## 2.6.0
+
+### Minor Changes
+
+- [#25634](https://github.com/CherryHQ/cherry-studio/pull/25634) [`7157ffe`](https://github.com/CherryHQ/cherry-studio/commit/7157ffea44449cdec59ce899c0dbc3546be42eae) Thanks [@DeJeune](https://github.com/DeJeune)! - Allow context middleware to estimate the outgoing history for compression decisions while preserving provider-reported usage.
+
+## 2.5.3
+
+### Patch Changes
+
+- [#25413](https://github.com/CherryHQ/cherry-studio/pull/25413) [`5c2c798`](https://github.com/CherryHQ/cherry-studio/commit/5c2c798395f0c3f87e1efc00d757ea095b20b5b4) Thanks [@DeJeune](https://github.com/DeJeune)! - Update the DeepSeek AI SDK provider to 2.0.79 to support replaying reasoning content in follow-up requests.
+
 ## 2.5.2
 
 ### Patch Changes
