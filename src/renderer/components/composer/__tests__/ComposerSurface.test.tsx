@@ -1980,6 +1980,77 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
   })
 
+  it('completes a command at the caret while keeping the rest of the draft', async () => {
+    const onSend = vi.fn()
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onSendDraft={onSend}
+        quickPanelEnabled
+        agentSlashCommands={[{ command: '/goal' }]}
+      />
+    )
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({ extensions: createComposerEditorPreset(mocks.editorPresetOptions) })
+    try {
+      await act(async () => {
+        editor.commands.insertContent('/gob existing objective')
+        editor.commands.setTextSelection(4)
+      })
+      const panel = mocks.quickPanelOpen.mock.lastCall?.[0]
+      expect(panel?.list.map((item: QuickPanelListItem) => item.label)).toEqual(['/goal'])
+      await act(async () => panel.list[0].action())
+      expect(editor.getText()).toBe('/goal existing objective')
+      expect(onSend).not.toHaveBeenCalled()
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('completes only declared first arguments and keeps the draft on dismiss', async () => {
+    const commands = [{ command: '/goal', subcommands: ['pause', 'resume', 'clear'] }, { command: '/deploy' }]
+    const view = render(<ComposerSurface {...baseProps} quickPanelEnabled agentSlashCommands={[]} />)
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({ extensions: createComposerEditorPreset(mocks.editorPresetOptions) })
+    try {
+      await act(async () => {
+        editor.commands.insertContent('/goal ')
+      })
+      expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
+      view.rerender(<ComposerSurface {...baseProps} quickPanelEnabled agentSlashCommands={commands} />)
+      expect(mocks.quickPanelOpen.mock.lastCall?.[0].list.map((item: QuickPanelListItem) => item.label)).toEqual([
+        'pause',
+        'resume',
+        'clear'
+      ])
+      await act(async () => {
+        editor.commands.insertContent('pa')
+      })
+      const panel = mocks.quickPanelOpen.mock.lastCall?.[0]
+      expect(panel?.list.map((item: QuickPanelListItem) => item.label)).toEqual(['pause'])
+      await act(async () => panel.list[0].action())
+      expect(editor.getText()).toBe('/goal pause')
+
+      for (const text of ['/goal pause now', '/goal edit', '/deploy pa', '/unknown pa']) {
+        mocks.quickPanelOpen.mockClear()
+        await act(async () => {
+          editor.commands.clearContent()
+          editor.commands.insertContent(text)
+        })
+        expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
+      }
+
+      await act(async () => {
+        editor.commands.clearContent()
+        editor.commands.insertContent('/goal pa')
+      })
+      await act(async () => mocks.quickPanelOpen.mock.lastCall?.[0].onClose({ action: 'esc' }))
+      expect(editor.getText()).toBe('/goal pa')
+    } finally {
+      editor.destroy()
+    }
+  })
+
   it('opens the unified QuickPanel from the plus control without inserting trigger text', async () => {
     const onTextChange = vi.fn()
     render(

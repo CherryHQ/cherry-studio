@@ -845,6 +845,7 @@ export class CodexSession {
       name: 'plan',
       description: 'Enter Plan mode, or leave it with /plan off',
       argumentHint: '[task | off]',
+      subcommands: ['off'],
       available: (session) => session.controls.plan,
       run(session, _turn, task) {
         const mode = session.thread.info.mode.currentValue
@@ -857,6 +858,7 @@ export class CodexSession {
       name: 'goal',
       description: 'Read, set, pause, resume or clear the thread goal',
       argumentHint: '[objective | pause | resume | clear]',
+      subcommands: ['pause', 'resume', 'clear'],
       available: (session) => session.controls.goals,
       run(session, _turn, args) {
         return session.controls.goalCommand(session.client, session.id, args)
@@ -927,11 +929,12 @@ export class CodexSession {
   static listBuiltinCommands(session?: CodexSession): CodexCommand[] {
     return CodexSession.registry
       .filter((cmd) => !cmd.available || (session && cmd.available(session)))
-      .map(({ name, aliases, description, argumentHint }) => ({
+      .map(({ name, aliases, description, argumentHint, subcommands }) => ({
         name,
         description,
         argumentHint: argumentHint ?? '',
         ...(aliases && { aliases: [...aliases] }),
+        ...(subcommands && { subcommands: [...subcommands] }),
         builtin: true
       }))
   }

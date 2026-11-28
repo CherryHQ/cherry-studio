@@ -331,6 +331,9 @@ it('keeps Goal in slash commands and uses native Plan and steer settings', async
     expect(goal.method).toBe('thread/goal/get')
     peer.send({ id: goal.id, result: { goal: null } })
     const session = await opened
+    const commands = CodexSession.listBuiltinCommands(session)
+    expect(commands.find(({ name }) => name === 'goal')?.subcommands).toEqual(['pause', 'resume', 'clear'])
+    expect(commands.find(({ name }) => name === 'plan')?.subcommands).toEqual(['off'])
     const setting = session.send([{ type: 'text', text: '/goal ship' }])
     const setGoal = await peer.read()
     expect(setGoal).toMatchObject({

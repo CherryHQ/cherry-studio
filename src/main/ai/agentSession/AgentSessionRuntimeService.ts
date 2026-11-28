@@ -1262,10 +1262,11 @@ export class AgentSessionRuntimeService extends BaseService {
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
     if (!agent) return []
     if (agent.type !== 'claude-code' && agent.type !== 'local')
-      return AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands.map(({ command, description }) => ({
+      return AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands.map(({ command, description, subcommands }) => ({
         name: command.replace(/^\//, ''),
         description: description ?? '',
-        argumentHint: ''
+        argumentHint: '',
+        ...(subcommands && { subcommands })
       }))
     const cache = application.get('CacheService')
     const cached = cache.getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId))

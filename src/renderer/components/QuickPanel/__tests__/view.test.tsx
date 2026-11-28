@@ -1787,6 +1787,43 @@ describe('QuickPanelView', () => {
     )
   })
 
+  it('leaves replacement of an untracked trigger to the selected action', async () => {
+    let draft = '/goal pa'
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: () => {
+        draft = ''
+      },
+      focus: vi.fn(),
+      getCursorOffset: () => draft.length,
+      getText: () => draft,
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [
+      {
+        label: 'pause',
+        icon: 'tool',
+        action: () => {
+          draft = draft.replace(/pa$/, 'pause')
+        }
+      }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={items}
+          manageListExternally
+          trackInputQuery={false}
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('pause'))
+    expect(draft).toBe('/goal pause')
+  })
+
   it('resets the active item when a tracked externally managed list is reopened', async () => {
     const captureDispatch = vi.fn()
     let inputText = '@a'

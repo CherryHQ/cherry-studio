@@ -98,6 +98,12 @@ Goal is selected separately in the Quick Panel through the existing native
 user. Pi and Durable provide a static command entry; Claude uses its live SDK
 catalog. Draft keywords and the input placeholder do not suggest modes.
 
+At the start of an Agent draft, type a slash-command prefix to complete its name.
+A space after an exact command shows any first-argument candidates declared by
+the active runtime. Tab, Enter, or clicking a highlighted candidate fills the
+draft. Use the ordinary send action to run it. Escape closes the suggestions
+and keeps the draft.
+
 ## Agent next-prompt suggestions
 
 Agent session input can show one muted next-prompt suggestion after an observed

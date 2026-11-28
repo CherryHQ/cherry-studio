@@ -2,7 +2,7 @@ import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
-import { Check, ChevronRight, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import { Check, ChevronRight, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, Terminal, X } from 'lucide-react'
 import React, {
   startTransition,
   use,
@@ -48,6 +48,8 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { useComposerLayerActive } from './ComposerContext'
@@ -117,6 +119,35 @@ const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
 ] as const
 const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
+const COMMAND_COMPLETION_PANEL = 'agent-command-completion'
+type SlashCompletionCommand = SlashCommand & Pick<AgentSessionSlashCommand, 'aliases'>
+
+function getSlashCompletion(commands: readonly SlashCompletionCommand[], query: string) {
+  const [name, partial] = query.split(/\s+/, 2)
+  const commandName = `/${name}`
+  const exact = commands.find(({ command, aliases }) => command === commandName || aliases?.includes(name))
+
+  if (partial !== undefined) {
+    const argument = /^\S+\s+(\S*)$/.exec(query)
+    const subcommands = argument && exact?.subcommands
+    return {
+      offset: query.length + 1 - partial.length,
+      items:
+        subcommands && !subcommands.includes(partial)
+          ? subcommands.filter((value) => value.startsWith(partial)).map((label) => ({ label, description: undefined }))
+          : []
+    }
+  }
+
+  if (exact) return { offset: 0, items: [] }
+  const items = commands
+    .filter(
+      ({ command, aliases }) => command.startsWith(commandName) || aliases?.some((alias) => alias.startsWith(name))
+    )
+    .map(({ command: label, description }) => ({ label, description }))
+  return items.length ? { offset: 0, items } : undefined
+}
+
 interface ComposerClipboardCopyView {
   state: {
     selection: {
@@ -278,6 +309,7 @@ export interface ComposerSurfaceProps {
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
   suggestionSources?: readonly ComposerSuggestionSource[]
+  agentSlashCommands?: readonly SlashCompletionCommand[]
   resourceProvider?: ComposerUnifiedPanelResourceProvider
   queueContent?: React.ReactNode
   rootPanelLeadingItems?: readonly QuickPanelListItem[]
@@ -621,6 +653,7 @@ export default function ComposerSurfaceRuntime({
   resolveSkillMarker,
   resolveKnowledgeBaseMarker,
   suggestionSources = EMPTY_SUGGESTION_SOURCES,
+  agentSlashCommands,
   resourceProvider,
   queueContent,
   rootPanelLeadingItems,
@@ -1073,7 +1106,10 @@ export default function ComposerSurfaceRuntime({
   const lastActiveRootSuggestionSessionGenByPluginKeyRef = useRef<Record<string, number>>({})
   const activeRootSuggestionSessionRef = useRef<{ pluginKey: string; generation: number } | null>(null)
   const pendingRootSuggestionExitRef = useRef<{ pluginKey: string; generation: number } | null>(null)
+  const refreshSlashCompletionRef = useRef<(() => void) | undefined>(undefined)
+  const hasAgentSlashCompletion = agentSlashCommands !== undefined
   const rootSuggestionStateRef = useRef({
+    agentSlashCommands,
     getToolLaunchers,
     onRootPanelOpen,
     onToolLauncherSelect,
@@ -1087,6 +1123,7 @@ export default function ComposerSurfaceRuntime({
 
   useLayoutEffect(() => {
     rootSuggestionStateRef.current = {
+      agentSlashCommands,
       getToolLaunchers,
       onRootPanelOpen,
       onToolLauncherSelect,
@@ -1098,6 +1135,7 @@ export default function ComposerSurfaceRuntime({
       unifiedResourceItems
     }
   }, [
+    agentSlashCommands,
     getToolLaunchers,
     onRootPanelOpen,
     onToolLauncherSelect,
@@ -1108,6 +1146,10 @@ export default function ComposerSurfaceRuntime({
     rootPanelLeadingItems,
     unifiedResourceItems
   ])
+
+  useLayoutEffect(() => {
+    refreshSlashCompletionRef.current?.()
+  }, [agentSlashCommands])
 
   const createUnifiedPanelOptions = useCallback(
     ({
@@ -1309,10 +1351,12 @@ export default function ComposerSurfaceRuntime({
         title: t('settings.quickPanel.title'),
         renderMode: 'headless',
         allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
+        allowSpaces: hasAgentSlashCompletion && char === ComposerPanelSymbol.Root,
         items: () => [],
-        onActiveChange: ({ editor, query, range, text }) => {
+        onActiveChange: function updateSuggestion({ editor, query, range, text, exit }) {
           if (!suggestionPanelActiveRef.current) return
-          const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
+          refreshSlashCompletionRef.current = undefined
+          const { agentSlashCommands, onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
           const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
             editor,
             {
@@ -1336,7 +1380,10 @@ export default function ComposerSurfaceRuntime({
               pendingRootSuggestionExitRef.current = null
               rootPanelOpenRefreshRequestedRef.current = false
 
-              if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+              if (
+                quickPanel.isVisible &&
+                (quickPanel.symbol === ComposerPanelSymbol.Root || quickPanel.symbol === COMMAND_COMPLETION_PANEL)
+              ) {
                 quickPanel.close('input_prefix_invalid')
               }
             }
@@ -1374,6 +1421,67 @@ export default function ComposerSurfaceRuntime({
             onRootPanelOpen?.()
           }
 
+          const isCommandQuery = agentSlashCommands && char === ComposerPanelSymbol.Root && !textBeforeTrigger.trim()
+          if (isCommandQuery && query) {
+            refreshSlashCompletionRef.current = () => {
+              const panel = rootSuggestionStateRef.current.quickPanel
+              if (
+                editor.isDestroyed ||
+                editor.state.selection.from !== range.to ||
+                editor.state.doc.textBetween(range.from, range.to) !== triggerText ||
+                (panel.isVisible &&
+                  (panel.triggerInfo?.type !== 'input' ||
+                    (panel.symbol !== ComposerPanelSymbol.Root && panel.symbol !== COMMAND_COMPLETION_PANEL)))
+              ) {
+                return
+              }
+              updateSuggestion({ editor, query, range, text, items: [], exit })
+            }
+          }
+          const completion = isCommandQuery && query ? getSlashCompletion(agentSlashCommands, query) : undefined
+          if (completion || /\s/.test(query)) {
+            if (!completion?.items.length) {
+              if (
+                quickPanel.isVisible &&
+                quickPanel.triggerInfo?.type === 'input' &&
+                (quickPanel.symbol === ComposerPanelSymbol.Root || quickPanel.symbol === COMMAND_COMPLETION_PANEL)
+              ) {
+                quickPanel.close('input_prefix_invalid')
+              }
+              return
+            }
+
+            const nextNode = editor.state.doc.resolve(range.to).nodeAfter
+            const suffix = nextNode?.isText ? (nextNode.text?.match(/^\S+/)?.[0] ?? '') : ''
+            quickPanel.open({
+              title: t('chat.input.slash_commands.title'),
+              list: completion.items.map(({ label, description }) => ({
+                id: label,
+                label,
+                description,
+                icon: <Terminal size={16} />,
+                action: () => {
+                  if (!editor.state.selection.empty || editor.state.selection.from !== range.to) return
+                  editor
+                    .chain()
+                    .focus()
+                    .setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true)
+                    .insertContentAt({ from: range.from + completion.offset, to: range.to + suffix.length }, [
+                      { type: 'text', text: label }
+                    ])
+                    .run()
+                }
+              })),
+              symbol: COMMAND_COMPLETION_PANEL,
+              triggerInfo,
+              manageListExternally: true,
+              onClose: ({ action }) => {
+                if (action === 'esc' || action === 'outsideclick') exit()
+              }
+            })
+            return
+          }
+
           openUnifiedComposerPanel({
             inputAdapter: createComposerInputAdapter(editor),
             queryAnchor,
@@ -1386,6 +1494,7 @@ export default function ComposerSurfaceRuntime({
           return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
         },
         onExit: () => {
+          if (char === ComposerPanelSymbol.Root) refreshSlashCompletionRef.current = undefined
           const panelGeneration = quickPanelRef.current.getPanelGeneration()
           // Read this pluginKey's own last-active generation. @tiptap/suggestion
           // only fires onExit when prev.active was true, so this should be at
@@ -1426,14 +1535,14 @@ export default function ComposerSurfaceRuntime({
               suggestionPanelActiveRef.current &&
               quickPanel.getPanelGeneration() === panelGeneration &&
               quickPanel.isVisible &&
-              quickPanel.symbol === ComposerPanelSymbol.Root
+              (quickPanel.symbol === ComposerPanelSymbol.Root || quickPanel.symbol === COMMAND_COMPLETION_PANEL)
             ) {
               quickPanel.close()
             }
           }, 0)
         }
       })),
-    [openUnifiedComposerPanel, t]
+    [hasAgentSlashCompletion, openUnifiedComposerPanel, t]
   )
 
   const suggestionPanelStateRef = useRef({ quickPanel })

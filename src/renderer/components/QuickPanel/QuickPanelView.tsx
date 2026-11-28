@@ -216,7 +216,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const navigationItems = useMemo<QuickPanelListItem[]>(() => [...list, ...footerActions], [footerActions, list])
 
   const consumeInputQuery = useCallback(() => {
-    if (!inputAdapter) return
+    if (!inputAdapter || !isTrackedInputPanel) return
 
     const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
     if (queryAnchor === undefined) return
@@ -234,7 +234,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
     if (cursorOffset <= queryAnchor) return
     inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
+  }, [ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter, isTrackedInputPanel])
 
   const consumeInputQueryOnce = useCallback(() => {
     if (inputQueryConsumedRef.current) return

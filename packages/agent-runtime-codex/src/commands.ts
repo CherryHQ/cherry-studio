@@ -3,12 +3,16 @@ export interface CodexCommand {
   description: string
   argumentHint: string
   aliases?: string[]
+  subcommands?: readonly string[]
   builtin: boolean
 }
 
 type CommandResult = string | { prompt: string } | { running: true }
 
-export interface CommandDefinition<Session, Turn> extends Pick<CodexCommand, 'name' | 'description' | 'aliases'> {
+export interface CommandDefinition<Session, Turn> extends Pick<
+  CodexCommand,
+  'name' | 'description' | 'aliases' | 'subcommands'
+> {
   /** Omit for exact, argument-free commands such as /clear. */
   available?(session: Session): boolean
   argumentHint?: string

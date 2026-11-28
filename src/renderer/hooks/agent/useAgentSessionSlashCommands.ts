@@ -29,7 +29,8 @@ export function useAgentSessionSlashCommands(sessionId: string | undefined): Nor
       command: `/${command.name}`,
       description: command.description,
       builtin: command.builtin,
-      ...(command.aliases && { aliases: command.aliases })
+      ...(command.aliases && { aliases: command.aliases }),
+      ...(command.subcommands && { subcommands: command.subcommands })
     }))
   }, [sessionId, cached])
 }

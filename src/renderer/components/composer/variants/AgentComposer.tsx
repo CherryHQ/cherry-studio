@@ -712,7 +712,7 @@ const AgentComposerInner = ({
         .request('ai.agent.session.commands', { sessionId })
         .catch((error) => logger.warn('Could not load session commands', { error }))
   }, [agent?.type, sessionId])
-  const usingSlash = text.startsWith('/')
+  const usingSlash = text.trimStart().startsWith('/')
   useEffect(() => {
     if (usingSlash) requestCommands()
   }, [usingSlash, requestCommands])
@@ -2097,6 +2097,7 @@ const AgentComposerInner = ({
           getToolLaunchers={() => getLaunchers()}
           toolLaunchersVersion={toolLaunchersVersion}
           suggestionSources={resourceMentionSources}
+          agentSlashCommands={sessionData?.slashCommands ?? capabilities?.slashCommands}
           rootPanelLeadingItems={rootPanelNewSessionItems}
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}

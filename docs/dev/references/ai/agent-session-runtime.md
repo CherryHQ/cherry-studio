@@ -328,6 +328,11 @@ original context and input ID. Connection generations fence stale callbacks.
 Standalone compaction holds the connected thread idle for the duration of the native operation.
 Matching completion refreshes the context reading. No new chat input or reply is created.
 
+The session command catalog supplies command-name completion in the Agent composer.
+Runtimes can declare `subcommands` for first-argument completion. Pi and Pi Durable
+publish their Goal actions through runtime capabilities, and Codex advertises its
+Goal controls and `/plan off` when the corresponding native command is available.
+
 The Agent composer sends recognized slash commands through `ai.agent.session.run_slash_command`
 before ordinary conversation admission. Main resolves the current branch and command catalog.
 Local results return as feedback. Native work with an assistant reply uses the receive-only

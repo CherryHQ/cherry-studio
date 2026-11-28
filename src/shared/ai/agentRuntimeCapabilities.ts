@@ -64,10 +64,14 @@ const CLAUDE_CODE_BUILTIN_COMMANDS = [
   { command: '/usage', description: 'Show session cost, plan usage limits, and activity stats' }
 ] as const satisfies readonly SlashCommand[]
 
-const PI_BUILTIN_COMMANDS = [
+const PI_BUILTIN_COMMANDS: readonly SlashCommand[] = [
   { command: '/compact', description: 'Compact conversation with optional focus instructions' },
-  { command: '/goal', description: 'Set a goal to work toward until it is completed' }
-] as const satisfies readonly SlashCommand[]
+  {
+    command: '/goal',
+    description: 'Set a goal to work toward until it is completed',
+    subcommands: ['pause', 'resume', 'clear', 'edit', 'rounds', 'budget']
+  }
+]
 
 const PI_CAPABILITIES = {
   labelKey: 'library.config.agent.field.runtime.option.pi',
