@@ -292,7 +292,7 @@ describe('Sidebar resize handle', () => {
     { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false },
     { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false },
     { name: 'floating', width: 0, isFloating: true }
-  ])('moves the macOS $name account entry between footer and fullscreen header', ({ width, isFloating }) => {
+  ])('keeps the macOS $name account entry in the footer in and out of fullscreen', ({ width, isFloating }) => {
     uiMocks.isMac = true
     const props = {
       width,
@@ -304,27 +304,14 @@ describe('Sidebar resize handle', () => {
     }
     const { rerender } = render(<Sidebar {...props} />)
 
-    const accountButton = screen.getByRole('button', { name: 'User' })
-    for (const name of ['Chat', 'Settings']) {
+    for (const isFullscreen of [false, true, false]) {
+      rerender(<Sidebar {...props} isFullscreen={isFullscreen} />)
+      const accountButton = screen.getByRole('button', { name: 'User' })
       expect(
-        screen.getByRole('button', { name }).compareDocumentPosition(accountButton) & Node.DOCUMENT_POSITION_FOLLOWING
+        screen.getByRole('button', { name: 'Settings' }).compareDocumentPosition(accountButton) &
+          Node.DOCUMENT_POSITION_FOLLOWING
       ).toBeTruthy()
     }
-
-    rerender(<Sidebar {...props} isFullscreen />)
-    expect(screen.getAllByRole('button', { name: 'User' })).toHaveLength(1)
-    expect(
-      screen
-        .getByRole('button', { name: 'User' })
-        .compareDocumentPosition(screen.getByRole('button', { name: 'Chat' })) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-
-    rerender(<Sidebar {...props} />)
-    expect(
-      screen
-        .getByRole('button', { name: 'Settings' })
-        .compareDocumentPosition(screen.getByRole('button', { name: 'User' })) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
   })
 
   it('exposes account menu state and restores focus to its macOS footer trigger', async () => {
