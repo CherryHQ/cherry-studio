@@ -4,7 +4,11 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import artifactBuildCompleted, { normalizeArtifactFilePath } from '../packaging/artifact-build-completed'
+import artifactBuildCompleted, {
+  MIN_SUPPORTED_WINDOWS_NT_RELEASE,
+  normalizeArtifactFilePath,
+  pinWindowsFloorForUpdateManifests
+} from '../packaging/artifact-build-completed'
 
 const PRODUCT_NAME = 'Cherry Studio'
 const VERSION = '2.0.9'
@@ -66,6 +70,40 @@ describe('normalizeArtifactFilePath', () => {
 })
 
 describe('artifactBuildCompleted', () => {
+  it('pins the Windows floor at both updateInfo and releaseInfo so differential manifests carry it at the root', () => {
+    const buildResult: {
+      updateInfo?: Record<string, unknown>
+      packager: {
+        platform: { name: string }
+        config: Record<string, any>
+        platformSpecificBuildOptions?: Record<string, any>
+      }
+    } = {
+      // Differential NSIS packages supply sha512, which makes app-builder-lib
+      // copy the whole updateInfo into files[0] where old updaters ignore it.
+      updateInfo: { sha512: 'deferred-by-test', size: 1 },
+      packager: { platform: { name: 'windows' }, config: {} }
+    }
+
+    pinWindowsFloorForUpdateManifests(buildResult)
+
+    expect(buildResult.updateInfo?.['minimumSystemVersion']).toBe(MIN_SUPPORTED_WINDOWS_NT_RELEASE)
+    // releaseInfo is spread into the manifest root unconditionally, so the
+    // root floor survives even when updateInfo lands under files[0].
+    expect(buildResult.packager.config.releaseInfo?.minimumSystemVersion).toBe(MIN_SUPPORTED_WINDOWS_NT_RELEASE)
+  })
+
+  it('leaves non-Windows manifests untouched', () => {
+    const buildResult: { updateInfo?: Record<string, unknown>; packager: any } = {
+      packager: { platform: { name: 'linux' }, config: {} }
+    }
+
+    pinWindowsFloorForUpdateManifests(buildResult)
+
+    expect(buildResult.updateInfo).toBeUndefined()
+    expect(buildResult.packager.config.releaseInfo).toBeUndefined()
+  })
+
   it('renames the file and exposes its final path to later publisher hooks', () => {
     const directory = temporaryDirectory()
     const source = path.join(directory, 'Cherry Studio-2.0.9-x86_64.AppImage')

@@ -78,9 +78,89 @@
       StrCpy $0 "0"
     ${EndIf}
   FunctionEnd
-!endif
+
+  ; Minimum supported Windows version: Windows 10 1809 (build 17763, 64-bit),
+  ; including Windows 11 (which also reports major version 10). Windows 7/8/8.1
+  ; (NT 6.x) and earlier are unsupported, including launches through
+  ; third-party compatibility layers. Sets $0 to "1" when supported.
+  Function checkWindowsVersion
+    Push $R0
+    Push $R1
+    StrCpy $0 "0"
+    ReadRegDWORD $R0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentMajorVersionNumber"
+    ReadRegStr $R1 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
+    ; Legacy systems (Win7/8/8.1) have no CurrentMajorVersionNumber value.
+    ${If} $R0 == ""
+      StrCpy $R0 "0"
+    ${EndIf}
+    ${If} $R1 == ""
+      StrCpy $R1 "0"
+    ${EndIf}
+    IntCmp $R0 10 checkWinVer_isWin10 checkWinVer_older checkWinVer_newer
+    checkWinVer_older:
+      StrCpy $0 "0"
+      Goto checkWinVer_done
+    checkWinVer_newer:
+      StrCpy $0 "1"
+      Goto checkWinVer_done
+    checkWinVer_isWin10:
+      IntCmp $R1 17763 checkWinVer_supported checkWinVer_unsupported checkWinVer_supported
+    checkWinVer_unsupported:
+      StrCpy $0 "0"
+      Goto checkWinVer_done
+    checkWinVer_supported:
+      StrCpy $0 "1"
+    checkWinVer_done:
+      Pop $R1
+      Pop $R0
+  FunctionEnd
 
 !macro customInit
+  Push $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+
+  ; Check minimum Windows version FIRST, before elevation/arch/VC++ work.
+  ; Windows 7/8/8.1 and earlier cannot run this build (Electron 23+ requires
+  ; Windows 10+); third-party compatibility layers are not supported either.
+  ; NOTE: the electron-builder template issues `SetOutPath $INSTDIR` in
+  ; `.onInit` before `customInit` runs, which creates $INSTDIR (including a
+  ; `/D=` destination that did not exist). There is no hook before that first
+  ; creation, so a perfect no-change abort is impossible. This gate
+  ; deliberately performs no directory cleanup: removing the directory could
+  ; delete a pre-existing empty directory this invocation never created
+  ; (e.g. a `/D=` destination that already existed empty, or the per-user
+  ; directory selected by `initMultiUser`). Leaving at most one empty
+  ; template-created directory behind is safer than deleting user data.
+  ; The copy below promises "not installed" rather than zero filesystem
+  ; side effects for this reason.
+  Call checkWindowsVersion
+  ${If} $0 != "1"
+    StrCpy $4 "https://cherryai.com/"
+    ${If} $LANGUAGE == ${LANG_SIMPCHINESE}
+    ${OrIf} $LANGUAGE == ${LANG_TRADCHINESE}
+      StrCpy $4 "https://cherryai.com.cn/"
+    ${EndIf}
+    MessageBox MB_ICONSTOP "\
+      Unsupported Windows Version$\r$\n$\r$\n\
+      Cherry Studio requires Windows 10 1809 (build 17763, 64-bit) or later, including Windows 11.$\r$\n\
+      Windows 7, 8 and 8.1 are not supported, including launches through third-party compatibility layers.$\r$\n\
+      The application was not installed.$\r$\n$\r$\n\
+      当前 Windows 版本不受支持，需要 Windows 10 1809（内部版本 17763，64 位）或更高版本（含 Windows 11）。$\r$\n\
+      Windows 7 / 8 / 8.1 不受支持，通过第三方兼容层启动也不属于官方支持。本次未安装应用。$\r$\n$\r$\n\
+      Past installers remain available on GitHub Releases for reference only (no support or security updates).$\r$\n\
+      Supported downloads and documents:$\r$\n\
+      $4"
+    ExecShell "open" "$4"
+    ; Deliberately no RMDir/SetOutPath cleanup here. The template creates
+    ; $INSTDIR before this gate runs, so ownership cannot be established and
+    ; cleanup could delete a pre-existing empty directory. Just abort before
+    ; any application files are laid down.
+    Abort
+  ${EndIf}
+
   ; If a per-machine (all users) installation exists, ensure we have admin privileges.
   ; Without elevation, the installer cannot close the running app or manage the
   ; per-machine installation, causing "cannot close app" errors during both
@@ -100,12 +180,6 @@
       Quit
     ${EndIf}
   ${EndIf}
-
-  Push $0
-  Push $1
-  Push $2
-  Push $3
-  Push $4
 
   ; Check architecture compatibility first
   Call checkArchitectureCompatibility
@@ -175,3 +249,4 @@
     Pop $1
     Pop $0
 !macroend
+!endif

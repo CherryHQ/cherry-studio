@@ -1,3 +1,5 @@
+import os from 'node:os'
+
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationError, CancellationToken, HttpError } from 'builder-util-runtime'
 import { eq } from 'drizzle-orm'
@@ -18,6 +20,7 @@ import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, t } from '@main/i18n'
 import { regionService } from '@main/services/RegionService'
 import { getAppEdition } from '@main/utils/appEdition'
+import { isSupportedWindowsRelease } from '@main/utils/osSupport'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -89,6 +92,32 @@ function getEditionUpdateChannel(channel: UpgradeChannel, edition: AppEdition): 
   return edition === 'cn' ? `${channel}-cn` : channel
 }
 
+/**
+ * Update checks must not offer a build whose declared requirements exclude the
+ * current OS. Windows 7/8/8.1 machines stay pinned: no feed request, no
+ * download, reported as current. Unparseable releases fail open so an unknown
+ * future kernel never loses updates.
+ */
+function isCurrentOsUnsupportedForUpdate(): boolean {
+  if (!isWin) return false
+  try {
+    // isWin is the mocked/testable Windows signal — pass 'win32' explicitly
+    // instead of process.platform so the gate holds when isWin is mocked
+    // (e.g. Linux CI simulating a Windows 7 release string).
+    return !isSupportedWindowsRelease(os.release(), 'win32')
+  } catch {
+    return false
+  }
+}
+
+function getOsReleaseForUpdateHeaders(): string {
+  try {
+    return os.release()
+  } catch {
+    return 'unknown'
+  }
+}
+
 function getUpdateHeaders({ region, edition }: { region: ReleaseRegion; edition: AppEdition }) {
   return {
     'User-Agent': generateUserAgent(),
@@ -97,6 +126,7 @@ function getUpdateHeaders({ region, edition }: { region: ReleaseRegion; edition:
     'App-Name': APP_NAME,
     'App-Version': `v${app.getVersion()}`,
     OS: process.platform,
+    'X-OS-Release': getOsReleaseForUpdateHeaders(),
     'X-Edition': edition,
     'X-Region': region
   }
@@ -359,6 +389,10 @@ export class AppUpdaterService extends BaseService {
     | { status: 'available'; currentVersion: string; version: string }
   > {
     if (this.isPortable()) return { status: 'unsupported' }
+    if (isCurrentOsUnsupportedForUpdate()) {
+      logger.info('Skipping update query on unsupported Windows release')
+      return { status: 'current', currentVersion: app.getVersion() }
+    }
     const { currentVersion, updateChannel, updateHeaders } = await this.getUpdateRequest()
     const updater = new ReleaseNotesUpdater()
     updater.logger = logger as Logger
@@ -377,6 +411,7 @@ export class AppUpdaterService extends BaseService {
 
   public async getLatestReleaseNotes(): Promise<ReleaseNotesEntry | null> {
     try {
+      if (isCurrentOsUnsupportedForUpdate()) return null
       const { updateChannel, updateHeaders } = await this.getUpdateRequest()
       const updater = new ReleaseNotesUpdater()
       updater.logger = logger as Logger
@@ -458,6 +493,14 @@ export class AppUpdaterService extends BaseService {
     void application.get('AnalyticsService').trackAppUpdate()
 
     if (this.isPortable()) {
+      return {
+        currentVersion: app.getVersion(),
+        updateInfo: null
+      }
+    }
+
+    if (isCurrentOsUnsupportedForUpdate()) {
+      logger.info('Skipping update check on unsupported Windows release')
       return {
         currentVersion: app.getVersion(),
         updateInfo: null

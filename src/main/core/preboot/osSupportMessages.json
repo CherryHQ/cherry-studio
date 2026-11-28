@@ -1,0 +1,6 @@
+{
+  "titleEn": "Windows version not supported",
+  "titleZh": "当前 Windows 版本不受支持",
+  "detailEn": "This device reports {{osLabel}}. Cherry Studio requires {{minimum}} (64-bit) or later. Windows 7, 8, and 8.1 are not supported, including launches through third-party compatibility layers.\n\nNo data was changed. To continue, upgrade Windows or use a supported device. Past installers remain available on the releases page for reference only and receive no support or security updates.",
+  "detailZh": "当前系统报告为 {{osLabel}}。Cherry Studio 需要 {{minimum}}（64 位）或更高版本。Windows 7、8、8.1 均不受支持，通过第三方兼容层启动也不属于官方支持。\n\n未对你的数据做任何更改。如需继续使用，请升级 Windows 或更换受支持的设备。历史安装包仅可在发布页存档查看，不再提供支持与安全更新。"
+}
