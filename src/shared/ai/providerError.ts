@@ -28,6 +28,10 @@ interface ProviderErrorSource {
   data?: unknown
 }
 
+export class ProviderContextOverflowError extends APICallError {
+  readonly providerErrorCategory = 'context_length'
+}
+
 const SAFE_AI_SDK_STRING_FIELDS = [
   'statusText',
   'parameter',
@@ -259,16 +263,19 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
     const safeMessage = getSafeProviderErrorMessage(value)
     const diagnostic = apiResponseDiagnostic(value, depth)
     const message = diagnostic ?? safeMessage
-    const category = classifyErrorCategory({
-      text: [
-        payloadText(value.responseBody),
-        payloadText(value.data),
-        providerPayloadText(value.message),
-        providerErrorCodes(value.responseBody),
-        providerErrorCodes(value.data)
-      ].join('\n'),
-      status: value.statusCode
-    })
+    const category =
+      value instanceof ProviderContextOverflowError
+        ? value.providerErrorCategory
+        : classifyErrorCategory({
+            text: [
+              payloadText(value.responseBody),
+              payloadText(value.data),
+              providerPayloadText(value.message),
+              providerErrorCodes(value.responseBody),
+              providerErrorCodes(value.data)
+            ].join('\n'),
+            status: value.statusCode
+          })
     return {
       name: value.name,
       message,

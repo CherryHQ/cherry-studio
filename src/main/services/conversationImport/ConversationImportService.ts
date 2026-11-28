@@ -184,7 +184,9 @@ export class ConversationImportService extends BaseService {
             originalDirectory: session.workingDirectory,
             messageCount: session.messages.length,
             models: [
-              ...new Set(session.messages.flatMap((m) => (m.messageSnapshot ? [m.messageSnapshot.model.name] : [])))
+              ...new Set(
+                session.messages.flatMap((m) => (m.messageSnapshot?.model ? [m.messageSnapshot.model.name] : []))
+              )
             ],
             startedAt: session.messages[0] ? new Date(range.start).toISOString() : undefined,
             endedAt: session.messages.at(-1) ? new Date(range.end).toISOString() : undefined,

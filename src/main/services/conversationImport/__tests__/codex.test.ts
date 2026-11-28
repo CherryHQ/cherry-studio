@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile, rm, readdir } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile, rm, readdir, realpath } from 'node:fs/promises'
 import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -20,7 +20,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 })
 const signal = () => new AbortController().signal
 beforeEach(async () => {
-  root = await mkdtemp(path.join(tmpdir(), 'cherry-codex-import-'))
+  root = await mkdtemp(path.join(await realpath(tmpdir()), 'cherry-codex-import-'))
   vi.spyOn(application, 'getPath').mockImplementation((_key, filename) => path.join(root, 'scratch', filename ?? ''))
 })
 afterEach(async () => {
@@ -199,7 +199,7 @@ describe('Codex raw rollout contract', () => {
     expect(result.messages.map((m) => m.data.parts)).toEqual(
       ['question', 'answer', 'last user'].map((text) => [{ type: 'text', text }])
     )
-    expect(result.messages[1].messageSnapshot?.model.name).toBe('historic-model')
+    expect(result.messages[1].messageSnapshot?.model?.name).toBe('historic-model')
     expect(result.originalSessionId).toBe('thread')
   })
   it('discovers missing-index histories and keeps threads sharing a root separate', async () => {
@@ -255,7 +255,7 @@ describe('Codex raw rollout contract', () => {
     vi.mocked(application.getPath).mockReturnValue(root)
     const refs = await discover()
     expect(refs.map((r) => r.originalSessionId).sort()).toEqual(['archived_sessions', 'sessions'])
-    expect((await codexAdapter.read(refs[0], signal())).messages[0].messageSnapshot?.model.provider).toBe('openai')
+    expect((await codexAdapter.read(refs[0], signal())).messages[0].messageSnapshot?.model?.provider).toBe('openai')
   })
   it('keeps tools inert and diagnoses bad lines and missing time', async () => {
     const p = await file('rollout-a.jsonl', [
