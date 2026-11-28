@@ -448,7 +448,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
                 {property.key}
               </div>
               {renderPropertyValue(property)}
-              <div className="mr-1 ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="mr-1 ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                 <Popover
                   open={openDropdown === `action-${property.key}`}
                   onOpenChange={(open) => {
@@ -504,7 +504,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
             type="button"
             className={cn(
               'flex min-h-8 w-full items-center rounded-md px-2 py-1.5 text-left transition-opacity hover:bg-accent',
-              hasContent ? 'opacity-0 group-hover/frontmatter:opacity-100' : 'opacity-100'
+              hasContent ? 'opacity-0 group-hover/frontmatter:opacity-100 focus-visible:opacity-100' : 'opacity-100'
             )}
             onClick={() => setShowAddProperty(true)}>
             <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
