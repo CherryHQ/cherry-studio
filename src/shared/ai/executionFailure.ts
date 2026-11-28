@@ -6,10 +6,12 @@ import {
 
 import type { SerializedError } from '../types/error'
 import { classifyErrorCategory, extractHttpStatus, isErrorCategory, type ErrorCategory } from '../utils/errorCategory'
+import { isClassifiedExecutionError } from './executionError'
 import { getSafeProviderErrorMessage } from './providerError'
 
 const reasons: Partial<Record<ErrorCategory, AiFailureReason>> = {
   auth: 'auth',
+  bad_request: 'invalid_input',
   permission: 'permission',
   region: 'region',
   model: 'model_not_found',
@@ -43,12 +45,20 @@ export function toExecutionFailure(
   const stored = executionFailureSchema.safeParse(error.executionFailure)
   if (stored.success && !layer) return stored.data
   const raw = typeof error.message === 'string' ? error.message : ''
-  const status = typeof error.statusCode === 'number' ? error.statusCode : extractHttpStatus(raw)
-  const category = isErrorCategory(error.providerErrorCategory)
-    ? error.providerErrorCategory
-    : isErrorCategory(error.claudeCodeExitCategory)
-      ? error.claudeCodeExitCategory
-      : classifyErrorCategory({ text: raw, status })
+  const executionCategory = isClassifiedExecutionError(error) ? error.executionErrorCategory : undefined
+  const status =
+    typeof error.statusCode === 'number'
+      ? error.statusCode
+      : executionCategory === undefined
+        ? extractHttpStatus(raw)
+        : undefined
+  const category =
+    executionCategory ??
+    (isErrorCategory(error.providerErrorCategory)
+      ? error.providerErrorCategory
+      : isErrorCategory(error.claudeCodeExitCategory)
+        ? error.claudeCodeExitCategory
+        : classifyErrorCategory({ text: raw, status }))
   const message =
     safeText(
       getSafeProviderErrorMessage({

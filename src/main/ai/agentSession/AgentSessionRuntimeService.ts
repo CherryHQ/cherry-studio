@@ -20,6 +20,7 @@ import { AgentSessionForkOperations, readHistoryActions } from '@main/ai/agentSe
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { normalizeExecutionError } from '@main/ai/utils/normalizeExecutionError'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
@@ -4250,7 +4251,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const { status } = terminal
     const row = agentSessionMessageService.getSessionMessage(entry.sessionId, replyId)
     const parts = projection.parts(replyId) ?? row.data.parts ?? []
-    const error = terminal.status === 'error' ? serializeError(terminal.error) : undefined
+    const error =
+      terminal.status === 'error' ? normalizeExecutionError(serializeError(terminal.error), terminal.error) : undefined
     const message: CherryUIMessage = {
       id: replyId,
       role: 'assistant',

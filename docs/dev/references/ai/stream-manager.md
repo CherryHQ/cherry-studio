@@ -621,6 +621,12 @@ retains readable output and delivers the existing explicit failure outcome.
 
 **Step 4 — terminal dispatch.**
 
+The main AI layer assigns the execution error category before terminal dispatch.
+Chat chunks and Work message streams publish that category with the error, and
+live projection and persistence consume the same result. `response-stream`
+records where the error appeared. The renderer uses the category to choose
+localized guidance and displays generic failure guidance when the cause is unknown.
+
 | Exit path | Handler | Behaviour |
 |---|---|---|
 | Normal end | `onExecutionDone` | `exec.status = 'done'`, finalMessage persisted as `success` |

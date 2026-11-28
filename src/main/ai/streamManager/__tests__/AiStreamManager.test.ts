@@ -5,6 +5,7 @@ import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
+import { ProviderTransportError } from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { Emitter } from '@main/core/lifecycle/event'
 import { diagnose } from '@main/services/diagnostics/scan/engine'
@@ -4263,7 +4264,8 @@ describe('AiStreamManager', () => {
           name: 'StreamError',
           message: errorText,
           stack: null,
-          streamStage: 'response-stream'
+          streamStage: 'response-stream',
+          executionErrorCategory: 'unknown'
         })
         expect(terminal.finalMessage?.parts).toContainEqual(
           expect.objectContaining({ type: 'text', text: 'Partial answer', state: 'done' })
@@ -4288,6 +4290,7 @@ describe('AiStreamManager', () => {
               attemptId: started.executions[0].attemptId,
               stage: 'response-stream',
               origin: 'error-chunk',
+              executionErrorCategory: 'unknown',
               cause: { errorName: 'StreamError', errorMessage: errorText || '<string:0>' }
             }
           ]
@@ -4303,6 +4306,103 @@ describe('AiStreamManager', () => {
         sender.emit('destroyed')
       }
     )
+
+    it.each(['chunks', 'messages'] as const)(
+      'saves the same provider HTTP 400 and diagnosis emitted live from the %s source',
+      async (kind) => {
+        vi.useRealTimers()
+        const details = 'At most 3 image(s) may be provided in one prompt.'
+        const errorText = `400: {"error":{"message":"${details}","token":"secret-value"}}`
+        const chunks = controlledStream()
+        const messages = controlledMessageSource()
+        mockStreamText.mockResolvedValueOnce(kind === 'chunks' ? chunks.stream : messages.source)
+
+        const listener = new FakeListener('l:a')
+        const writes: PersistAssistantInput[] = []
+        const persistence = new PersistenceListener({
+          topicId: 'a',
+          backend: {
+            kind: 'temp',
+            persistAssistant: (input) => {
+              writes.push(input)
+            }
+          },
+          onPersistFailed: (error) => {
+            throw new Error(error.message ?? 'Persistence failed')
+          }
+        })
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [listener, persistence]
+        })
+        if (kind === 'chunks') {
+          chunks.enqueue({ type: 'error', errorText })
+          chunks.close()
+        } else {
+          messages.enqueue({ type: 'error', error: new Error(errorText) })
+          messages.close()
+        }
+
+        await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+        const live = listener.errorResults[0]
+        expect(live.error).toMatchObject({
+          message: details,
+          statusCode: 400,
+          executionErrorCategory: 'bad_request'
+        })
+        expect(live.failure).toMatchObject({
+          failure: { reasonCode: 'invalid_input', source: { layer: 'provider' }, context: { statusCode: 400 } }
+        })
+        const saved = writes[0].finalMessage?.parts.find((part) => part.type === 'data-error')
+        expect(saved?.data).toEqual({ ...live.error, executionFailure: live.failure })
+        expect(JSON.stringify(saved)).not.toContain('secret-value')
+      }
+    )
+
+    it.each([400, 404, 429, 500])('keeps nested resource HTTP %s out of the request status', async (status) => {
+      vi.useRealTimers()
+      const controlled = controlledStream()
+      mockStreamText.mockResolvedValueOnce(controlled.stream)
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      controlled.enqueue({
+        type: 'error',
+        errorText: `invalid_request_error: The supplied image URL returned HTTP ${status}`
+      })
+      controlled.close()
+
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+      const { error, failure } = listener.errorResults[0]
+      expect(error.executionErrorCategory).toBe('bad_request')
+      expect(error).not.toHaveProperty('statusCode')
+      expect(failure?.failure.reasonCode).toBe('invalid_input')
+      expect(failure?.failure.context).not.toHaveProperty('statusCode')
+    })
+
+    it('preserves an explicit interruption reported by the provider transport', async () => {
+      vi.useRealTimers()
+      const controlled = controlledStream()
+      mockStreamText.mockResolvedValueOnce(controlled.stream)
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      controlled.error(new ProviderTransportError('stream', new Error('Upstream reader failed')))
+
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+      expect(listener.errorResults[0].error.executionErrorCategory).toBe('stream')
+      expect(listener.errorResults[0].failure?.failure.reasonCode).toBe('stream_interrupted')
+    })
 
     it('keeps app-owned guidance when lossy chunk text precedes a typed rejection', async () => {
       vi.useRealTimers()
@@ -4518,7 +4618,8 @@ describe('AiStreamManager', () => {
         message: 'You have no credits remaining.',
         stack: null,
         reportingHandled: true,
-        streamStage: 'response-stream'
+        streamStage: 'response-stream',
+        executionErrorCategory: 'unknown'
       })
       expect(JSON.stringify(listener.errorResults[0].error)).not.toMatch(/object-secret|private prompt/)
       expect(mockMainLoggerService.error).toHaveBeenCalledWith(
@@ -4566,13 +4667,14 @@ describe('AiStreamManager', () => {
         name: 'StreamError',
         message: 'boom',
         stack: null,
-        streamStage: 'response-stream'
+        streamStage: 'response-stream',
+        executionErrorCategory: 'unknown'
       })
       expect(listener.errorResults[0].status).toBe('error')
       expect(mgr.inspect('a')!.status).toBe('error')
     })
 
-    it('keeps the thrown error when a lossy error chunk precedes it', async () => {
+    it('prioritizes the thrown provider status over a conflicting text-only chunk', async () => {
       // The chunk carries only `error.message`; rebuilding from it would drop the
       // status code and safe provider detail that classification and the error block need.
       vi.useRealTimers()
@@ -4594,7 +4696,7 @@ describe('AiStreamManager', () => {
         new ReadableStream({
           pull(controller) {
             pulls += 1
-            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Forbidden' })
+            if (pulls === 1) controller.enqueue({ type: 'error', errorText: '400: Invalid image count' })
             else controller.error(apiError)
           }
         })
@@ -4614,6 +4716,7 @@ describe('AiStreamManager', () => {
         name: 'AI_APICallError',
         message: 'no access to this model',
         providerErrorCategory: 'permission',
+        executionErrorCategory: 'permission',
         reportingHandled: true,
         stack: null,
         cause: null,
@@ -4648,7 +4751,7 @@ describe('AiStreamManager', () => {
             responseBody: { detail: '<string:23>' },
             cause: expect.objectContaining({ errorName: 'Error', errorMessage: '<string:27>' })
           },
-          chunk: { errorMessage: 'Forbidden' }
+          chunk: { errorMessage: '400: Invalid image count' }
         })
       ])
       expect(JSON.stringify([listener.errorResults[0].error, mockMainLoggerService.error.mock.calls])).not.toMatch(

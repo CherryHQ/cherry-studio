@@ -10,6 +10,7 @@ import type { AgentSessionTurnTerminalEvent } from '@main/ai/agentSession/AgentS
 import { matchesDurableContext, openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import { nativeOutcomeTerminal } from '@main/ai/agentSession/nativeSubmission'
 import { projectRuntimeMessage } from '@main/ai/agentSession/ThreadMessageProjection'
+import { normalizeExecutionError } from '@main/ai/utils/normalizeExecutionError'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -158,7 +159,10 @@ export async function recoverDurableReplies(
               terminal = { status: 'paused' }
             }
             if (!terminal || !isWritable(sessionId, runId)) continue
-            const error = terminal.status === 'error' ? serializeError(terminal.error) : undefined
+            const error =
+              terminal.status === 'error'
+                ? normalizeExecutionError(serializeError(terminal.error), terminal.error)
+                : undefined
             const sources = (history?.messages ?? []).map((source) =>
               projectRuntimeMessage(source, source.parts as CherryUIMessage['parts'], (message) =>
                 metadata.decorate(message)

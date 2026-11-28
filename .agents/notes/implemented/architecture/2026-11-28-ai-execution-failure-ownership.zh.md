@@ -1,6 +1,6 @@
 # Agent Note: AI 执行失败的职责归属
 
-Status: proposed
+Status: implemented
 
 [English](2026-11-28-ai-execution-failure-ownership.md) | 中文
 
@@ -8,7 +8,7 @@ Status: proposed
 
 普通聊天和 Work 经由不同的流协议进入同一错误界面。流中可能携带原始错误，也可能只有展示文本。渲染层目前会把响应流中原因未明的失败当作传输中断。持久化可能从同一个错误推导出另一种诊断。
 
-## Proposal
+## Decision
 
 主进程 AI 层根据最可靠的可用证据确定终止失败的原因，并单独记录发生阶段。运行时适配器在能取得带类型的错误时保留原始错误。如果上游请求只剩文本，可通过严格识别请求级 HTTP 400 前缀来恢复状态码。资源诊断正文中的 HTTP 状态码不能作为请求状态码。
 
@@ -21,12 +21,12 @@ Status: proposed
 - 在渲染层恢复 HTTP 400。这能修正一条标题，持久化和其他流调用方仍会各自分类。
 - 把流式响应期间观察到的每次失败都当作传输中断。服务商拒绝请求或原因未知时，这仍会报成网络问题。
 
-## Acceptance criteria
+## Consequences
 
-- AC1 — 普通聊天和 Work 保留上游请求的 HTTP 400 及经过安全处理的服务商详情，正文中提到的资源 HTTP 状态码仍只属于详情。 (verification: 主进程流测试，AI 执行负责人)
-- AC2 — 新失败回复在实时展示和持久化后的诊断一致，既有历史仍可读取。 (verification: 主进程投影和渲染层测试，消息负责人)
-- AC3 — 流式响应期间原因未明的失败显示通用提示，有明确传输证据的失败保留中断提示。 (verification: 渲染层分类测试，聊天展示负责人)
+历史错误仍可根据已保存的详情分类。响应流中原因未知的错误显示通用提示，明确的传输诊断继续显示中断提示。即使带版本的失败格式将请求错误表示为 `invalid_input`，普通聊天和 Work 仍保留桌面错误分类。
 
-## Risks
+## Verification
 
-部分现有服务商和运行时只返回字符串，可用的失败证据有限。保留运行时和服务商的明确诊断，迁移期间兼容旧的序列化消息。
+- AC1 — `AiStreamManager.test.ts` 验证终止路径中的请求级 HTTP 400、结构化状态优先级、安全详情，以及资源诊断正文中的状态码隔离。
+- AC2 — `AiStreamManager.test.ts` 核对终止事件与持久化错误片段是否一致。`PiDurableRuntimeConnection.test.ts` 检查从原生归档回复恢复后的 HTTP 400。
+- AC3 — `errorClassifier.test.ts` 和 `ErrorBlock.test.tsx` 覆盖原因未知时的通用提示及明确传输中断时的提示。
