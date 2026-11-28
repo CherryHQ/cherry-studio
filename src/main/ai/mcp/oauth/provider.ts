@@ -14,11 +14,19 @@ import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 
 import { JsonFileStorage } from './storage'
 import type { OAuthProviderOptions } from './types'
 
 const logger = loggerService.withContext('Mcp:OAuthClientProvider')
+
+export class McpOAuthRegistrationRequiredError extends Error {
+  constructor(cause: Error) {
+    super(t('settings.mcp.oauth.registration_required'), { cause })
+    this.name = 'McpOAuthRegistrationRequiredError'
+  }
+}
 
 export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage
@@ -68,8 +76,19 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     this.storage = new JsonFileStorage(this.config.serverUrlHash, this.config.configDir)
   }
 
-  withAuthorizationFlow<T>(callback: () => Promise<T>): Promise<T> {
-    return this.authorizationFlow.run({ callback: false }, callback)
+  async withAuthorizationFlow<T>(callback: () => Promise<T>): Promise<T> {
+    try {
+      return await this.authorizationFlow.run({ callback: false }, callback)
+    } catch (error) {
+      // The SDK exposes missing dynamic registration support as an untyped Error.
+      if (
+        error instanceof Error &&
+        error.message === 'Incompatible auth server: does not support dynamic client registration'
+      ) {
+        throw new McpOAuthRegistrationRequiredError(error)
+      }
+      throw error
+    }
   }
 
   async withAuthorizationCallback<T>(callback: () => Promise<T>): Promise<T> {
