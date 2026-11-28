@@ -8,10 +8,11 @@ import type { SystemSkillCandidate } from '@shared/types/skill'
 
 import { SystemSkillDialog } from '../SystemSkillDialog'
 
-const { importSkillMock, toastSuccess, useSystemSkillsMock } = vi.hoisted(() => ({
+const { importSkillMock, toastSuccess, useSystemSkillsMock, popupConfirmMock } = vi.hoisted(() => ({
   importSkillMock: vi.fn(),
   toastSuccess: vi.fn(),
-  useSystemSkillsMock: vi.fn()
+  useSystemSkillsMock: vi.fn(),
+  popupConfirmMock: vi.fn()
 }))
 
 const candidate: SystemSkillCandidate = {
@@ -43,6 +44,10 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { success: toastSuccess }
 }))
 
+vi.mock('@renderer/services/popup', () => ({
+  popup: { confirm: popupConfirmMock }
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   ScrollArea: MockCherrystudioUI.ScrollArea,
   Button: ({ children, size, variant, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
@@ -72,6 +77,7 @@ vi.mock('@cherrystudio/ui', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   importSkillMock.mockResolvedValue({ id: 'system-skill-id' })
+  popupConfirmMock.mockResolvedValue(true)
   useSystemSkillsMock.mockReturnValue({
     skills: [candidate],
     loading: false,
@@ -105,7 +111,8 @@ describe('SystemSkillDialog', () => {
     expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.import_success:System Skill')
   })
 
-  it('shows an imported system skill as imported in skill management', () => {
+  it('offers re-import for an imported system skill in skill management', async () => {
+    const user = userEvent.setup()
     const registeredCandidate = { ...candidate, status: 'registered' as const, registeredSkillId: 'system-skill-id' }
     useSystemSkillsMock.mockReturnValue({
       skills: [registeredCandidate],
@@ -117,7 +124,34 @@ describe('SystemSkillDialog', () => {
 
     render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: 'library.system_skill.imported' })).toBeDisabled()
+    const button = screen.getByRole('button', { name: 'library.system_skill.reimport' })
+    expect(button).toBeEnabled()
+
+    await user.click(button)
+
+    expect(popupConfirmMock).toHaveBeenCalled()
+    expect(importSkillMock).toHaveBeenCalledWith(registeredCandidate)
+    expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.reimport_success:System Skill')
+  })
+
+  it('does not re-import when the re-import confirmation is dismissed', async () => {
+    const user = userEvent.setup()
+    popupConfirmMock.mockResolvedValueOnce(false)
+    const registeredCandidate = { ...candidate, status: 'registered' as const, registeredSkillId: 'system-skill-id' }
+    useSystemSkillsMock.mockReturnValue({
+      skills: [registeredCandidate],
+      loading: false,
+      error: null,
+      importSkill: importSkillMock,
+      importing: new Set<string>()
+    })
+
+    render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'library.system_skill.reimport' }))
+
+    expect(importSkillMock).not.toHaveBeenCalled()
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 
   it('enables an imported skill for a new agent without importing it again', async () => {

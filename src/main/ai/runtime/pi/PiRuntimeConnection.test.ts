@@ -402,7 +402,8 @@ describe('desktop Pi root connection', () => {
     expect(approvals()[0].request).toMatchObject({ toolCallId: 'child-write', toolName: 'write' })
     expect(existsSync(join(directory, 'child-result.txt'))).toBe(false)
     toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
-    await done(events)
+    // Parent, child and the child's write run in sequence; Windows CI can exceed the 1 s default.
+    await done(events, 10_000)
     expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })

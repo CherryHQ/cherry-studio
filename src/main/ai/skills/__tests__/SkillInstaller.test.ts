@@ -3,7 +3,7 @@ import * as path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
+import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2 } from '@shared/utils/skillMarketplace'
 
 const mockPathExists = vi.fn()
 const mockCopyDirectoryRecursive = vi.fn()
@@ -12,6 +12,7 @@ const mockFsRename = vi.fn()
 const mockFsLstat = vi.fn()
 const mockFsReaddir = vi.fn()
 const mockFsReadFile = vi.fn()
+const mockFsRm = vi.fn()
 const mockFindSkillMdPath = vi.fn()
 
 vi.mock('@main/utils/legacyFile', () => ({
@@ -28,7 +29,8 @@ vi.mock('fs', () => ({
     rename: (...args: unknown[]) => mockFsRename(...args),
     lstat: (...args: unknown[]) => mockFsLstat(...args),
     readdir: (...args: unknown[]) => mockFsReaddir(...args),
-    readFile: (...args: unknown[]) => mockFsReadFile(...args)
+    readFile: (...args: unknown[]) => mockFsReadFile(...args),
+    rm: (...args: unknown[]) => mockFsRm(...args)
   }
 }))
 
@@ -45,6 +47,7 @@ describe('SkillInstaller', () => {
     vi.clearAllMocks()
     mockDeleteDirectoryRecursive.mockReset().mockResolvedValue(undefined)
     mockFsLstat.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+    mockFsRm.mockResolvedValue(undefined)
     mockFindSkillMdPath.mockResolvedValue(resolvePath('/global-skills/my-skill/SKILL.md'))
     mockFsReadFile.mockResolvedValue('# skill')
     installer = new SkillInstaller()
@@ -76,7 +79,12 @@ describe('SkillInstaller', () => {
     })
 
     it('keeps the old skill recoverable until a prepared install is committed', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
 
@@ -101,7 +109,12 @@ describe('SkillInstaller', () => {
     })
 
     it('restores the old skill when a prepared install is rolled back', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
       mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
@@ -125,7 +138,12 @@ describe('SkillInstaller', () => {
     })
 
     it('keeps the verified replacement when committed-backup cleanup is interrupted', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
       mockDeleteDirectoryRecursive.mockRejectedValue(new Error('cleanup interrupted'))
@@ -143,7 +161,12 @@ describe('SkillInstaller', () => {
     })
 
     it('restores the previous skill when committing the prepared replacement fails', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename
         .mockResolvedValueOnce(undefined)
@@ -163,7 +186,12 @@ describe('SkillInstaller', () => {
     })
 
     it('keeps the original skill when moving it to the backup path fails', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockFsRename.mockRejectedValue(new Error('rename failed'))
 
       await expect(
@@ -175,7 +203,12 @@ describe('SkillInstaller', () => {
     })
 
     it('restores the previous skill when the copied destination is incomplete', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
       vi.mocked(installer.computeDirectoryHash)
@@ -195,7 +228,12 @@ describe('SkillInstaller', () => {
     })
 
     it('restores the previous skill when the copied descriptor differs from the source', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
       vi.mocked(installer.computeDirectoryHash)
@@ -236,7 +274,7 @@ describe('SkillInstaller', () => {
     const sourceHash = await installer.computeContentHash(resolvePath('/source/skill'))
     const installedHash = await installer.computeContentHash(resolvePath('/installed/skill'))
 
-    expect(sourceHash).toMatch(new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}[a-f0-9]{64}$`))
+    expect(sourceHash).toMatch(new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2}[a-f0-9]{64}$`))
     expect(installedHash).not.toBe(sourceHash)
   })
 

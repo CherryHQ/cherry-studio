@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { runPathMutationExclusive } from '@main/services/file'
 import { isOutsidePath, isPathInside } from '@main/utils/file'
+import { copyDirectoryRecursive } from '@main/utils/fileOperations'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -30,9 +31,12 @@ import type {
 import type { MarketplaceInstallResult, MarketplaceSkillDetail } from '@shared/types/skillMarketplace'
 import { marketplaceSkillNamespace, marketplaceSkillSource } from '@shared/utils/cherrySkillMarketplace'
 import {
+  hasSkillLocalUpdateProvenance,
   hasSkillRemoteUpdateProvenance,
   isSkillDirectoryContentHash,
-  parseSkillSourceUrl
+  parseSkillSourceUrl,
+  SKILL_DIRECTORY_CONTENT_HASH_PREFIX,
+  SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2
 } from '@shared/utils/skillMarketplace'
 import { skillInstallIdentity, subscriptionMemberSource } from '@shared/utils/skillSubscription'
 
@@ -519,11 +523,35 @@ export class SkillService {
     if (!candidate) {
       throw new Error(`Directory is not a discovered system skill: ${options.directoryPath}`)
     }
-    if (candidate.registeredSkillId) {
-      throw new Error(`System skill is already imported: ${candidate.filename}`)
-    }
     if (candidate.status === 'conflict') {
       throw new Error(`A different skill already uses the folder name: ${candidate.filename}`)
+    }
+    if (candidate.registeredSkillId) {
+      // A stale picker can still offer an already-imported origin as `available`: another view
+      // may have imported it minutes earlier and saved managed edits. A bare `directoryPath`
+      // must never silently replace those edits, so re-import requires explicit intent plus the
+      // currently registered skill id. The pair is re-validated under the mutation lock inside
+      // `resyncSystemSkillLocked` against fresh DB state.
+      if (options.allowResync !== true || options.expectedSkillId !== candidate.registeredSkillId) {
+        throw new Error(`System skill is already imported: ${candidate.filename}`)
+      }
+      // Re-importing the same origin refreshes the managed copy in place so the skill id and every
+      // `agent_skill` row survive a source-folder change (no uninstall / fresh insert).
+      const resynced = await this.resyncSystemSkill(
+        candidate.registeredSkillId,
+        canonicalPath,
+        candidate.placements[0]?.sourceId ?? null,
+        options.expectedSkillId
+      )
+      logger.info('System skill re-synced from local CLI', {
+        skillId: resynced.id,
+        folderName: resynced.folderName,
+        directoryPath: canonicalPath
+      })
+      return resynced
+    }
+    if (options.expectedSkillId !== undefined) {
+      throw new Error(`System skill is not registered: ${candidate.filename}`)
     }
 
     const installed = await this.installSkillDir(canonicalPath, 'system', pathToFileURL(canonicalPath).href, {
@@ -536,6 +564,256 @@ export class SkillService {
       directoryPath: canonicalPath
     })
     return installed
+  }
+
+  /**
+   * Re-read a system skill's source folder and replace the managed copy in place.
+   * The skill id (and therefore every `agent_skill` row) is preserved; only files,
+   * projected metadata and the install baseline change. An explicit user action, so
+   * managed-copy edits are unconditionally replaced by the source folder.
+   */
+  private resyncSystemSkill(
+    skillId: string,
+    canonicalPath: string,
+    namespace: string | null,
+    expectedSkillId?: string
+  ): Promise<InstalledSkill> {
+    // Serialized like every other library mutation so reconcile can't observe a half-copied state.
+    // The file mutation also runs under the path lock so editor writes fail stale instead of being
+    // lost inside the replacement, matching `applyRemoteUpdate`.
+    return this.mutationLock.runExclusive(() =>
+      runPathMutationExclusive(() => this.resyncSystemSkillLocked(skillId, canonicalPath, namespace, expectedSkillId))
+    )
+  }
+
+  private async resyncSystemSkillLocked(
+    skillId: string,
+    canonicalPath: string,
+    namespace: string | null,
+    expectedSkillId?: string
+  ): Promise<InstalledSkill> {
+    // Re-validate the explicit re-import intent under the mutation lock: `importSystem`
+    // checked a possibly stale `discoverSystem` snapshot, so confirm the expected id still
+    // matches the target before touching files or the DB.
+    if (expectedSkillId !== undefined && expectedSkillId !== skillId) {
+      throw new Error(`System skill re-import mismatch: ${skillId}`)
+    }
+    const skill = agentGlobalSkillService.getById(skillId)
+    if (!skill) throw new Error(`Skill not found: ${skillId}`)
+    if (skill.source !== 'system') {
+      throw new Error(`Skill is not a system skill: ${skill.folderName}`)
+    }
+    // The caller resolved this path through `discoverSystem`, which already excluded the managed
+    // library and mirror roots. Re-verify the persisted origin still points at the same directory
+    // so a stale row cannot be hijacked into overwriting an unrelated folder.
+    if (skill.sourceUrl) {
+      try {
+        const persistedPath = await fs.promises.realpath(fileURLToPath(skill.sourceUrl))
+        if (persistedPath !== canonicalPath) {
+          throw new Error(`System skill source changed: ${skill.folderName}`)
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('System skill source changed')) throw error
+        throw new Error(`System skill source is unavailable: ${skill.folderName}`)
+      }
+    }
+    // Fresh registration check under the lock: another view may have uninstalled or re-pointed
+    // this origin after the pre-lock discovery. Refuse to overwrite an unrelated registration.
+    const freshByOrigin = agentGlobalSkillService
+      .list()
+      .filter((entry) => entry.source === 'system' && entry.sourceUrl?.startsWith('file:'))
+      .find((entry) => {
+        try {
+          return fileURLToPath(entry.sourceUrl!) === canonicalPath
+        } catch {
+          return false
+        }
+      })
+    if (freshByOrigin && freshByOrigin.id !== skillId) {
+      throw new Error(`System skill is already imported: ${freshByOrigin.folderName}`)
+    }
+    await this.assertLocalUpdateSourceInBounds(canonicalPath)
+
+    // Snapshot the live source so metadata, the install baseline and the published files all come
+    // from one immutable copy. Reading the live directory directly would let a concurrent external
+    // sync change it between the hash and the install.
+    const snapshot = await this.snapshotLocalSkillSource(canonicalPath)
+    try {
+      const metadata = await parseSkillMetadata(snapshot.snapshotDir, path.basename(canonicalPath), 'skills')
+      const contentHash = await this.installer.computeContentHash(snapshot.snapshotDir)
+      const destPath = this.getSkillStoragePath(skill.folderName)
+      const prepared = await this.installer.prepareInstall(snapshot.snapshotDir, destPath, skill.contentHash)
+      let databaseUpdated = false
+      try {
+        await this.linkMirror(skill.folderName, { throwOnError: true })
+        const sourceUrl = pathToFileURL(canonicalPath).href
+        application.get('DbService').withWriteTx((tx) => {
+          agentGlobalSkillService.updateTx(tx, skillId, {
+            name: metadata.name,
+            description: metadata.description ?? null,
+            author: metadata.author ?? null,
+            version: metadata.version ?? null,
+            tags: metadata.tags ?? [],
+            contentHash,
+            sourceUrl,
+            namespace: namespace ?? skill.namespace
+          })
+        })
+        databaseUpdated = true
+        const updated = agentGlobalSkillService.getById(skillId)
+        if (!updated) throw new Error(`Skill disappeared after re-sync: ${skillId}`)
+        await prepared.commit()
+        agentGlobalSkillService.notifySkillProjectionChange(skillId)
+        return updated
+      } catch (error) {
+        const recoveryErrors: unknown[] = []
+        await prepared.rollback().catch((recoveryError) => recoveryErrors.push(recoveryError))
+        if (databaseUpdated) {
+          try {
+            application.get('DbService').withWriteTx((tx) => {
+              agentGlobalSkillService.updateTx(tx, skillId, {
+                name: skill.name,
+                description: skill.description,
+                author: skill.author,
+                version: skill.version,
+                tags: skill.sourceTags,
+                contentHash: skill.contentHash,
+                sourceUrl: skill.sourceUrl,
+                namespace: skill.namespace
+              })
+            })
+          } catch (recoveryError) {
+            recoveryErrors.push(recoveryError)
+          }
+        }
+        await this.linkMirror(skill.folderName, { throwOnError: true }).catch((recoveryError) =>
+          recoveryErrors.push(recoveryError)
+        )
+        if (recoveryErrors.length > 0) {
+          throw new AggregateError([error, ...recoveryErrors], `Failed to apply and restore system re-sync: ${skillId}`)
+        }
+        throw error
+      }
+    } finally {
+      await safeRemoveDirectory(snapshot.tempDir)
+    }
+  }
+
+  /**
+   * Copy a live `file:` source into a caller-owned temp directory. Every hash, metadata read and
+   * install then shares one immutable snapshot instead of re-reading a directory an external sync
+   * may mutate mid-update.
+   */
+  private async snapshotLocalSkillSource(canonicalPath: string): Promise<{ snapshotDir: string; tempDir: string }> {
+    // A concurrent `git pull` can add a helper after the copy enumerates the source but before
+    // the descriptor is copied, leaving a new SKILL.md without its helper. Verifying the snapshot
+    // hash against the live source and retrying turns that race into either a complete snapshot
+    // or an abort that preserves the previous installation — never a partial publish.
+    const maxAttempts = 3
+    let lastError: unknown = null
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const tempDir = await createTempDir('skill-local-update-')
+      try {
+        // Keep the canonical basename inside the temp dir so `parseSkillMetadata`'s
+        // folder-name fallback (used when frontmatter `name` is blank) still resolves
+        // to the real source folder instead of a generic `source` directory.
+        const baseName = path.basename(canonicalPath)
+        const snapshotDir = path.join(tempDir, baseName && baseName !== '.' && baseName !== '..' ? baseName : 'source')
+        // Strict: fail on a concurrent external deletion mid-capture instead of hashing and
+        // installing an incomplete snapshot that would silently drop a helper file.
+        await copyDirectoryRecursive(canonicalPath, snapshotDir, { strict: true })
+        await this.normalizeSnapshotDescriptor(snapshotDir)
+        const [snapshotHash, sourceHash] = await Promise.all([
+          this.installer.computeDirectoryHash(snapshotDir),
+          this.installer.computeDirectoryHash(canonicalPath)
+        ])
+        if (snapshotHash !== sourceHash) {
+          lastError = new Error(
+            `System skill source changed during snapshot (attempt ${attempt}/${maxAttempts}): ${canonicalPath}`
+          )
+          logger.warn('System skill source drifted during snapshot; retrying', {
+            canonicalPath,
+            attempt
+          })
+          await safeRemoveDirectory(tempDir)
+          continue
+        }
+        return { snapshotDir, tempDir }
+      } catch (error) {
+        await safeRemoveDirectory(tempDir)
+        // Strict-copy ENOENT (concurrent deletion) and drift both retry; anything else
+        // (missing SKILL.md, permission, bounds) fails fast without consuming retries.
+        const code = (error as NodeJS.ErrnoException)?.code
+        if (code === 'ENOENT' && attempt < maxAttempts) {
+          lastError = error
+          logger.warn('System skill source vanished mid-snapshot; retrying', { canonicalPath, attempt })
+          continue
+        }
+        throw error
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`System skill source changed during snapshot: ${canonicalPath}`)
+  }
+
+  /** Normalize a snapshot's descriptor to the SDK's `SKILL.md` casing before hashing/installing. */
+  private async normalizeSnapshotDescriptor(snapshotDir: string): Promise<void> {
+    const upper = path.join(snapshotDir, 'SKILL.md')
+    const lower = path.join(snapshotDir, 'skill.md')
+    try {
+      await fs.promises.access(upper)
+      return
+    } catch {
+      // No uppercase descriptor — fall through to the lowercase check.
+    }
+    try {
+      await fs.promises.access(lower)
+    } catch {
+      return
+    }
+    try {
+      await fs.promises.rename(lower, upper)
+    } catch (error) {
+      // A concurrent external sync already renamed or removed the descriptor; the
+      // post-copy hash verification above will detect the drift and retry or abort.
+      logger.warn('Failed to normalize snapshot descriptor casing', {
+        snapshotDir,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  /** A local `file:` update source must be a real directory outside the managed roots. */
+  private async assertLocalUpdateSourceInBounds(canonicalPath: string): Promise<void> {
+    // Compare canonical-to-canonical so a symlinked managed/mirror root cannot be bypassed:
+    // `canonicalPath` is already a realpath, so resolve both roots the same way (matching
+    // `isManagedSkillTarget`'s discovery guard) instead of comparing against lexical paths.
+    const [managedRoot, mirrorRoot] = await Promise.all(
+      [application.getPath('feature.agents.skills'), this.getMirrorRoot()].map((root) =>
+        fs.promises.realpath(root).catch(() => path.resolve(root))
+      )
+    )
+    if (
+      canonicalPath === managedRoot ||
+      isPathInside(canonicalPath, managedRoot) ||
+      canonicalPath === mirrorRoot ||
+      isPathInside(canonicalPath, mirrorRoot)
+    ) {
+      throw new SkillRemoteUpdateError(
+        skillErrorCodes.REMOTE_UNSUPPORTED,
+        'System skill source must live outside the managed skill library'
+      )
+    }
+    let stats: fs.Stats
+    try {
+      stats = await fs.promises.stat(canonicalPath)
+    } catch {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'System skill source is unavailable')
+    }
+    if (!stats.isDirectory()) {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'System skill source is not a directory')
+    }
   }
 
   /**
@@ -636,6 +914,13 @@ export class SkillService {
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
             `refusing to overwrite it with a ${source} install.`
         )
+      }
+      // System origins never silently replace through the first-import path: a stale picker can
+      // race another view's import and turn an `available` click into an unconfirmed overwrite of
+      // managed edits. Require the explicit re-import flow (`importSystem` with allowResync +
+      // expectedSkillId), which validates under the mutation lock and preserves the skill id.
+      if (source === 'system') {
+        throw new Error(`System skill is already imported: ${existing.folderName}`)
       }
     }
 
@@ -893,7 +1178,19 @@ export class SkillService {
       const owned =
         stat.isSymbolicLink() && path.resolve(path.dirname(target), await fs.promises.readlink(target)) === source
       if (!owned) {
-        if (shouldExport) throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
+        if (shouldExport) {
+          // A system skill imported from `~/.agents/skills/<folder>` occupies its own export
+          // destination. Overwriting it would delete the user-owned source; refreshing must
+          // preserve the source and only update the managed copy plus the internal mirror.
+          if (skill?.source === 'system' && skill.sourceUrl && (await this.isSelfExportTarget(skill, target))) {
+            logger.info('Skipping external export occupied by the skill source itself', {
+              folderName,
+              target
+            })
+            return
+          }
+          throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
+        }
         return
       }
       if (!shouldExport) await fs.promises.unlink(target)
@@ -902,6 +1199,31 @@ export class SkillService {
     if (shouldExport) {
       await fs.promises.mkdir(root, { recursive: true })
       await fs.promises.symlink(source, target, isWin ? 'junction' : 'dir')
+    }
+  }
+
+  /** Whether an external export destination is occupied by the skill's own `file:` source. */
+  private async isSelfExportTarget(
+    skill: Pick<InstalledSkill, 'source' | 'sourceUrl'>,
+    exportTarget: string
+  ): Promise<boolean> {
+    if (skill.source !== 'system' || !skill.sourceUrl) return false
+    let sourcePath: string
+    try {
+      sourcePath = fileURLToPath(skill.sourceUrl)
+    } catch {
+      return false
+    }
+    try {
+      const [canonicalSource, canonicalTarget] = await Promise.all([
+        fs.promises.realpath(sourcePath),
+        fs.promises.realpath(exportTarget)
+      ])
+      return canonicalSource === canonicalTarget
+    } catch {
+      // The source or the occupying entry vanished mid-check: fail closed and let the
+      // caller surface the export conflict rather than silently skipping it.
+      return false
     }
   }
 
@@ -1028,7 +1350,42 @@ export class SkillService {
     this.reconcileInFlight = this.mutationLock
       .runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
-        await this.installer.recoverInterruptedInstalls(storageRoot)
+        // Crash-aware recovery keeps whichever complete tree matches the persisted baseline:
+        // a new tree matching a new baseline completes the publish, an old backup matching
+        // an old baseline rolls back. The generic sweep below only handles orphaned markers
+        // without a catalog row.
+        let knownFolderNames = new Set<string>()
+        try {
+          const all = agentGlobalSkillService.listAll()
+          knownFolderNames = new Set(all.map((entry) => entry.folderName))
+          for (const entry of all) {
+            try {
+              await this.installer.recoverInterruptedInstallWithBaseline(
+                this.getSkillStoragePath(entry.folderName),
+                entry.contentHash
+              )
+            } catch (error) {
+              logger.warn('Failed baseline-aware skill recovery; falling back to default', {
+                folderName: entry.folderName,
+                error: error instanceof Error ? error.message : String(error)
+              })
+              try {
+                await this.installer.recoverInterruptedInstall(this.getSkillStoragePath(entry.folderName))
+              } catch {
+                // Best-effort: reconcile below will surface unreadable states.
+              }
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to enumerate skills for baseline-aware recovery', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+        // Skip catalogued folders here: baseline-aware recovery already decided whether
+        // their `.bak` is obsolete (keep the baseline-matching replacement for retry)
+        // or restorable. Letting the generic sweep reprocess them would restore an
+        // obsolete backup over a good replacement when staging failed.
+        await this.installer.recoverInterruptedInstalls(storageRoot, { skipFolderNames: knownFolderNames })
         try {
           await this.ensureSkillPluginManifest()
         } catch (error) {
@@ -1100,22 +1457,91 @@ export class SkillService {
   async checkRemoteUpdate(skillId: string): Promise<SkillRemoteUpdateCheck> {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
-    if (skill.source !== 'marketplace') return { state: 'unsupported', reason: 'not_remote' }
-    if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
+    if (skill.source !== 'marketplace' && skill.source !== 'system') {
+      return { state: 'unsupported', reason: 'not_remote' }
+    }
+    if (!this.hasSupportedSkillUpdateProvenance(skill)) {
       return { state: 'unsupported', reason: 'missing_provenance' }
     }
 
-    const fetched = await this.fetchRemote(skill.sourceUrl!)
+    const fetched = await this.fetchUpdateSource(skill)
     try {
       const [currentHash, remoteHash, metadata] = await Promise.all([
         this.installer.computeContentHash(this.getSkillStoragePath(skill.folderName)),
         this.installer.computeContentHash(fetched.skillDir),
         parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
       ])
-      const localChanges = currentHash !== skill.contentHash
+      if (this.isLegacyContentBaseline(skill.contentHash)) {
+        // A `directory-sha256:` baseline never equals a `directory-sha256-v2:` hash,
+        // so without a baseline-format comparison an unchanged upstream source plus a
+        // managed edit would incorrectly report `available` and allow a destructive
+        // overwrite of the edit with the original upstream files. Compare the source
+        // in the baseline's format first: unchanged source + edited managed tree is
+        // `up_to_date` with `localChanges`, matching the pre-migration behavior.
+        // Untouched managed trees fall through to the v2 path below so a mode-only
+        // source change is still offered as a clean update.
+        try {
+          const [remoteLegacyHash, legacyCurrentHash] = await Promise.all([
+            this.installer.computeLegacyContentHash(fetched.skillDir),
+            this.installer.computeLegacyContentHash(this.getSkillStoragePath(skill.folderName))
+          ])
+          if (remoteLegacyHash === skill.contentHash && legacyCurrentHash !== skill.contentHash) {
+            // Casing-only rename (e.g., reconcile `skill.md` → `SKILL.md` while the source
+            // stays lowercase) leaves legacy digests differing while v2 digests agree. Don't
+            // return early here; fall through to the v2 healing path below so the stale
+            // baseline heals instead of reporting a false overwrite prompt.
+            if (remoteHash === currentHash) {
+              // fall through to healing
+            } else {
+              // The legacy `directory-sha256:` fingerprint records no mode history, so a
+              // source-vs-managed executable-bit difference cannot tell which copy changed.
+              // A managed bytes+mode edit with unchanged upstream would otherwise be offered
+              // as an `available` update that replaces the edit with the original files.
+              // Require evidence of a source bytes change (remoteLegacy != baseline) before
+              // offering an update over managed edits: stay `up_to_date` with explicit
+              // overwrite protection. A source-only mode change on a legacy install with
+              // managed edits stays hidden until the baseline heals to v2 (next clean
+              // update or re-import), when modes are tracked again.
+              return { state: 'up_to_date', localChanges: true, remoteVersion: metadata.version ?? null }
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to compare legacy skill baseline for update check', {
+            skillId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
       if (remoteHash === skill.contentHash) {
+        const localChanges = currentHash !== skill.contentHash
         return { state: 'up_to_date', localChanges, remoteVersion: metadata.version ?? null }
       }
+      if (remoteHash === currentHash) {
+        // The managed tree matches its source but the persisted baseline is stale: a
+        // pre-existing lowercase descriptor or a pre-executability baseline hashes
+        // differently even though no user edited anything. Healing here turns a
+        // one-time format migration into `up_to_date` instead of a false overwrite
+        // prompt; the next real source change then reports clean `localChanges`.
+        // Heal under the mutation lock with a fresh revalidation so a concurrent
+        // Apply that published replacement files but has not yet committed (or that
+        // will roll back) cannot have its replacement hash persisted by this Check.
+        try {
+          await this.mutationLock.runExclusive(async () => {
+            const fresh = agentGlobalSkillService.getById(skillId)
+            if (!fresh || fresh.contentHash !== skill.contentHash) return
+            const freshCurrentHash = await this.installer.computeContentHash(this.getSkillStoragePath(fresh.folderName))
+            if (freshCurrentHash !== remoteHash) return
+            agentGlobalSkillService.update(skillId, { contentHash: remoteHash })
+          })
+        } catch (error) {
+          logger.warn('Failed to heal skill baseline after format migration', {
+            skillId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+        return { state: 'up_to_date', localChanges: false, remoteVersion: metadata.version ?? null }
+      }
+      const localChanges = await this.hasManagedLocalChanges(skill.folderName, currentHash, skill.contentHash)
       return {
         state: 'available',
         localChanges,
@@ -1129,8 +1555,59 @@ export class SkillService {
         })
       }
     } finally {
-      await safeRemoveDirectory(fetched.tempDir)
+      if (fetched.tempDir) await safeRemoveDirectory(fetched.tempDir)
     }
+  }
+
+  /**
+   * A pre-migration install baseline uses the unversioned `directory-sha256:` prefix.
+   * The versioned `directory-sha256-v2:` prefix starts with the same characters, so
+   * the v2 exclusion must be checked explicitly; otherwise every new baseline would
+   * also look legacy and take the one-time migration fallback.
+   */
+  private isLegacyContentBaseline(baselineHash: string): boolean {
+    return (
+      baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX) &&
+      !baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2)
+    )
+  }
+
+  /**
+   * Decide whether the managed tree is truly edited. A pre-executability baseline
+   * (no mode bits, raw sort, on-disk descriptor casing) differs from the current
+   * fingerprint even when the user changed nothing, so an untouched legacy install
+   * with a pending upstream update would otherwise report a false `localChanges`
+   * and require an explicit overwrite. Consulting the legacy fingerprint turns that
+   * one-time format migration into a clean update; after the update the baseline
+   * is the new `directory-sha256-v2:` format and later mode edits are protected
+   * again. The versioned prefix keeps the two cases distinct: a legacy `directory-sha256:`
+   * baseline can match the legacy fingerprint, while a new `directory-sha256-v2:`
+   * baseline never equals a legacy fingerprint (different prefix) so a managed
+   * mode-only edit stays dirty. A managed mode-only edit on a legacy baseline is
+   * indistinguishable from untouched (the old format ignored modes) and is treated
+   * as clean for this single migration.
+   */
+  private async hasManagedLocalChanges(
+    folderName: string,
+    currentHash: string,
+    baselineHash: string
+  ): Promise<boolean> {
+    if (currentHash === baselineHash) return false
+    // Only legacy (`directory-sha256:` without the `-v2` suffix) baselines qualify
+    // for the migration fallback. New (`directory-sha256-v2:`) baselines already
+    // include modes, so any fingerprint difference is a real local edit. Note the
+    // v2 prefix starts with the legacy prefix, so the v2 check must come first.
+    if (!this.isLegacyContentBaseline(baselineHash)) return true
+    try {
+      const legacyCurrentHash = await this.installer.computeLegacyContentHash(this.getSkillStoragePath(folderName))
+      if (legacyCurrentHash === baselineHash) return false
+    } catch (error) {
+      logger.warn('Failed to compute legacy skill baseline for local-change check', {
+        folderName,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+    return true
   }
 
   async applyRemoteUpdate(options: {
@@ -1140,23 +1617,31 @@ export class SkillService {
   }): Promise<InstalledSkill> {
     const skill = agentGlobalSkillService.getById(options.skillId)
     if (!skill) throw new Error(`Skill not found: ${options.skillId}`)
-    if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
+    if (!this.hasSupportedSkillUpdateProvenance(skill)) {
       throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill has no supported remote source')
     }
 
-    const fetched = await this.fetchRemote(skill.sourceUrl!)
+    const fetched = await this.fetchUpdateSource(skill)
     try {
       const [remoteHash, metadata] = await Promise.all([
         this.installer.computeContentHash(fetched.skillDir),
         parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
       ])
+      // Baseline-format source hash for legacy installs: a `directory-sha256:` baseline
+      // never equals a v2 hash, so Apply must also compare in the baseline's format.
+      // Otherwise a stale `available` revision (upstream unchanged + managed edit) could
+      // still wipe the edit even with explicit overwrite.
+      const initialIsLegacyBaseline = this.isLegacyContentBaseline(skill.contentHash)
+      const remoteLegacyHash = initialIsLegacyBaseline
+        ? await this.installer.computeLegacyContentHash(fetched.skillDir)
+        : null
 
       return await this.mutationLock.runExclusive(() =>
         runPathMutationExclusive(async () => {
           const currentSkill = agentGlobalSkillService.getById(options.skillId)
           if (
             !currentSkill ||
-            !this.hasSupportedRemoteUpdateProvenance(currentSkill) ||
+            !this.hasSupportedSkillUpdateProvenance(currentSkill) ||
             currentSkill.sourceUrl !== skill.sourceUrl ||
             currentSkill.contentHash !== skill.contentHash
           ) {
@@ -1175,8 +1660,30 @@ export class SkillService {
           if (revision !== options.revision || remoteHash === currentSkill.contentHash) {
             throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
           }
+          if (
+            remoteLegacyHash !== null &&
+            remoteLegacyHash === currentSkill.contentHash &&
+            this.isLegacyContentBaseline(currentSkill.contentHash)
+          ) {
+            const legacyCurrentHash = await this.installer.computeLegacyContentHash(destination)
+            if (legacyCurrentHash !== currentSkill.contentHash) {
+              // Mirror the Check logic: a casing-only rename leaves v2 digests agreeing while
+              // legacy digests differ — don't treat that as stale. Otherwise the legacy
+              // fingerprint is mode-blind with no mode history, so a source-vs-managed mode
+              // difference cannot prove the source changed. A managed bytes+mode edit with
+              // unchanged upstream must stay stale (up_to_date) instead of allowing a
+              // destructive apply over the edit, even with explicit overwrite.
+              if (remoteHash !== currentHash) {
+                throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
+              }
+            }
+          }
 
-          const hasLocalChanges = currentHash !== currentSkill.contentHash
+          const hasLocalChanges = await this.hasManagedLocalChanges(
+            currentSkill.folderName,
+            currentHash,
+            currentSkill.contentHash
+          )
           if (hasLocalChanges && !options.overwriteLocalChanges) {
             throw new SkillRemoteUpdateError(
               skillErrorCodes.REMOTE_LOCAL_CHANGES,
@@ -1184,7 +1691,7 @@ export class SkillService {
             )
           }
 
-          const prepared = await this.installer.prepareInstall(fetched.skillDir, destination)
+          const prepared = await this.installer.prepareInstall(fetched.skillDir, destination, currentSkill.contentHash)
           let databaseUpdated = false
           try {
             await this.linkMirror(currentSkill.folderName, { throwOnError: true })
@@ -1245,8 +1752,39 @@ export class SkillService {
         })
       )
     } finally {
-      await safeRemoveDirectory(fetched.tempDir)
+      if (fetched.tempDir) await safeRemoveDirectory(fetched.tempDir)
     }
+  }
+
+  /** Resolve the update source for either a marketplace fetch or a local `file:` directory. */
+  private fetchUpdateSource(
+    skill: InstalledSkill
+  ): Promise<{ skillDir: string; tempDir: string | null; sourceUrl: string }> {
+    if (skill.source === 'system') return this.fetchLocalSkill(skill.sourceUrl!)
+    return this.fetchRemote(skill.sourceUrl!)
+  }
+
+  /**
+   * Snapshot a system skill's `file:` origin into a caller-owned temp directory. Hashing,
+   * metadata and installation all read that immutable copy, so a concurrent external sync cannot
+   * change the source between the check and the publish. Callers remove `tempDir` when done.
+   */
+  private async fetchLocalSkill(sourceUrl: string): Promise<{ skillDir: string; tempDir: string; sourceUrl: string }> {
+    let sourcePath: string
+    try {
+      sourcePath = fileURLToPath(sourceUrl)
+    } catch {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill source URL is not installable')
+    }
+    let canonicalPath: string
+    try {
+      canonicalPath = await fs.promises.realpath(sourcePath)
+    } catch {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'System skill source is unavailable')
+    }
+    await this.assertLocalUpdateSourceInBounds(canonicalPath)
+    const snapshot = await this.snapshotLocalSkillSource(canonicalPath)
+    return { skillDir: snapshot.snapshotDir, tempDir: snapshot.tempDir, sourceUrl: pathToFileURL(canonicalPath).href }
   }
 
   private fetchRemote(sourceUrl: string) {
@@ -1259,7 +1797,8 @@ export class SkillService {
     return fetchRemoteSkill(source, identifier.join(':'))
   }
 
-  private hasSupportedRemoteUpdateProvenance(skill: InstalledSkill): boolean {
+  private hasSupportedSkillUpdateProvenance(skill: InstalledSkill): boolean {
+    if (skill.source === 'system') return hasSkillLocalUpdateProvenance(skill)
     if (!hasSkillRemoteUpdateProvenance(skill)) return false
     return parseSkillSourceUrl(skill.sourceUrl!)?.sourceRegistry !== 'clawhub.ai'
   }

@@ -202,6 +202,14 @@ export interface SkillInstallFromDirectoryOptions {
 
 export interface SkillImportSystemOptions {
   directoryPath: string
+  /**
+   * Explicit re-import intent for an already-registered origin. A stale picker can still
+   * show a skill as `available` after another view imported it; sending only `directoryPath`
+   * must never silently replace managed edits. Callers re-importing a `registered` candidate
+   * pass `allowResync: true` together with the candidate's current `registeredSkillId`.
+   */
+  expectedSkillId?: string
+  allowResync?: boolean
 }
 
 export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }

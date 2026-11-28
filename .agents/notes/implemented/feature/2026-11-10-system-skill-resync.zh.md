@@ -1,0 +1,40 @@
+# Agent Note: 从文件来源重新同步系统技能
+
+Status: implemented
+
+[English](2026-11-10-system-skill-resync.md) | 中文
+
+## Problem
+
+系统导入会把来源目录复制到托管库中，因此当 `~/.claude/skills` 中的来源仓库执行 `git pull` 后，已安装的副本就会过时。`checkRemoteUpdate` 对所有非市场技能一律返回 `not_remote`，而 `importSystem` 对已导入的目录直接报错 `System skill is already imported`。唯一的变通办法是先卸载再重新导入，但这会硬删除数据行、级联删除全部 `agent_skill` 行，并插入新的技能 id——所有启用过该技能的智能体都会被静默关闭。
+
+## Decision
+
+来源为本地目录的系统技能现在成为可更新来源，且更新过程保持其身份不变：
+
+- `hasSkillLocalUpdateProvenance`（`src/shared/utils/skillMarketplace.ts`）把 `source === 'system'` 且 `sourceUrl` 为 `file:`、内容哈希为目录哈希的技能视为更新来源，与原有的市场规则并存。
+- `checkRemoteUpdate` 与 `applyRemoteUpdate`（`src/main/ai/skills/SkillService.ts`）通过本地读取支持 `system` 技能：对 `file:` URL 做 `realpath` 解析，若指向托管库或镜像根目录内部、或不是目录则拒绝，并像市场拉取一样计算哈希。修订号、`localChanges` 与显式覆盖语义与市场更新完全一致，同一数据行 id、`agent_skill` 行与镜像均保持不变。
+- `importSystem` 对已注册的同源目录不再抛错，而是就地重新同步（`resyncSystemSkillLocked`）：校验持久化的来源仍解析到被发现的同一目录，替换托管文件，刷新名称、描述、版本、标签、内容哈希、规范 `sourceUrl` 与命名空间，然后重新链接镜像并通知投影。显式重新导入会无条件覆盖托管副本的编辑；而检查/应用路径在存在本地修改时仍要求覆盖标志。
+- 快照不可变且带漂移校验（`snapshotLocalSkillSource`）：以 `strict:true` 复制实时 `file:` 来源，把快照描述符从 `skill.md` 规范为 `SKILL.md`，再比对快照哈希与实时来源哈希，最多重试三次。持续漂移则中止并保留上一次安装，绝不发布不完整目录。
+- 内容哈希感知可执行位且描述符规范化（`src/main/ai/skills/SkillInstaller.ts`）：新安装持久化 `directory-sha256-v2:`（顶层 `skill.md`/`SKILL.md` 一律按 `SKILL.md` 计算哈希，可执行文件额外计入 `:exec:` 标记并记录确切执行位；不可执行文件哈希 hex 与旧版 `directory-sha256:` 一致，但前缀不同）。当托管树与来源一致而基线过期时（`remoteHash == currentHash != baseline`），`checkRemoteUpdate` 自愈基线并返回 `up_to_date` 且 `localChanges:false`。迁移前的 `directory-sha256:` 基线可通过旧指纹识别一次，使未改动的旧安装无需显式覆盖即可更新；新的 `directory-sha256-v2:` 基线永远不会命中旧指纹，因此之后的模式编辑仍会被标记为脏并要求显式覆盖。当旧格式来源与 `directory-sha256:` 基线一致但托管树已被编辑时，`checkRemoteUpdate` 按基线格式比对并返回 `up_to_date` 且 `localChanges:true`（`applyRemoteUpdate` 则以 stale 拒绝），而不会提供会用原始上游文件覆盖编辑的破坏性更新。仅大小写重命名（对账把 `skill.md` 改为 `SKILL.md` 而来源保持小写）会导致 v2 一致而旧指纹不一致，此时跳过旧基线提前返回、走 v2 自愈路径，避免误报覆盖提示。旧基线对可执行位不可见，来源仅改模式而托管树同时被编辑时，保持为 `up_to_date` 且 `localChanges:true`，直到基线自愈为 v2（显式重新导入仍可刷新），因为旧摘要没有模式历史，无法判断是哪一侧改了模式。`directory-sha256-v2:` 前缀判断已显式排除旧前缀重叠。
+- 外部导出绝不删除自占来源（`setExportEnabled`）：当导出目标正是该技能自身的 `file:` 来源（例如 `~/.agents/skills/<folder>`）时跳过导出、保留用户拥有的来源目录，仅刷新托管副本与内部镜像。
+- 崩溃恢复按基线选择（`recoverInterruptedInstallWithBaseline`）：启动时保留与持久化 `contentHash` 相匹配的完整目录——新基线保留新树、旧基线回滚旧备份/清理目录，使恢复后的文件始终与记录哈希一致。当没有任何目录命中基线时（如 `.bak` → `.cleanup` 暂存失败后用户又编辑了新树），保留已存在的目标目录，不再用已过时的 `.bak` 覆盖编辑；仅当目标完全缺失或描述符明确缺失时才恢复，以避免裁剪目录行及其智能体启用状态。目标描述符读取失败（EACCES/EIO）则同时保留两棵树待重试，既不恢复也不删除。不命中基线的过时标记仅在目标与标记文件集合字节完全一致（路径、文件字节与执行位均相同）时才删除；`SKILL.md` 存在但辅助文件缺失或辅助文件被截断的替换会保留唯一完整备份，而不是删除它。下一次已验证发布（`prepareInstall`）会把保留的 `.bak` 暂存到一旁以腾出回滚槽，仅在新安装提交后删除暂存，重试失败时再恢复为 `.bak`，因此保留的备份不会阻塞重新导入的修复。已标记过时的 `.bak` 在复用槽位前会被退役（而非暂存），其 `<backup>.obsolete` 记录会经 `ensureObsoleteMarkerCleared` 验证清除，因此从 `dest` 移入的新 `.bak`（已编辑树）不会继承陈旧标记，退役或验证清除失败则在 `rename(dest, .bak)` 之前直接中止；在 `rename(dest, .bak)` 后崩溃会恢复编辑而非删除。obsolete 记录另有定长哈希伴随文件（`.<sha1(basename)>.obsolete`）：旧兄弟文件写入失败为 `ENAMETOOLONG` 时 `markObsolete` 回退写入伴随文件，所有检查同时查询旧记录、当前按基名哈希的伴随文件以及此前按绝对路径哈希的旧伴随文件，`ensureObsoleteMarkerCleared` 把 `ENAMETOOLONG` 视为不存在而非致命错误，因此 ext4 长目录名仍可导入与重新同步，而存活的伴随记录继续提供保护。一旦有目录命中已提交基线，superseded 的 `.bak.stash-*` 会被移出可恢复命名空间后清理，使后续扫描不会用陈旧副本覆盖新的编辑或在卸载后复活技能；退役列表排除以 `.bak` 结尾的条目，因此更长技能名的备份永远不会被当作另一技能的退役标记误删；退役重命名与直接删除双双失败时会留下持久的 obsolete 记录，后续扫描永不提升已过时的标记、而是重试删除；`uninstall` 会连同托管副本一起删除 `.bak`/`.cleanup`/`.bak.stash-*`。通用恢复（`recoverInterruptedInstall`）区分真正的描述符缺失（两种大小写均为 ENOENT）与瞬时读取失败（EACCES/EIO）：读取失败保留备份待重试；已标记过时的 `.bak` 会被删除而不是恢复；无已验证替换物时即使备份不完整也恢复，以保留辅助文件与注册关系，避免裁剪。
+- 界面侧：技能详情页的“检查更新”入口同样面向 `system` 技能开放，`useSystemSkills.importSkill` 接受已注册候选项，系统技能对话框的导入操作可对已导入技能重新同步。只有文件夹名冲突仍被阻止。
+
+## Alternatives considered
+
+- 改为引用注册而不复制（见 #21202）能彻底省去同步步骤，但改动更大，且仍需要“来源已变更”的提示，因此不能覆盖本次需求。
+- 用文件监听器对账数据库与磁盘（见 #14233）比显式更新路径更深入地改变归属模型。
+- 把“卸载再重装”作为唯一路径，会在每次来源变更时永久丢失按智能体的启用状态。
+
+## Consequences
+
+无需新增 IPC 路由、Schema 或 `SkillRemoteUpdateCheck` 变体；`not_remote` 现在只适用于既非市场也非系统的来源。本地路径只能覆盖其持久化 `file:` 来源解析到同一目录的技能行对应的托管副本，绝不触及托管库或镜像根目录内部的路径。重新同步保持技能 id，因此来源变更后已有的智能体启用状态无需逐个修复。自占导出目标的来源会被保留（跳过导出），托管副本与内部镜像仍会刷新。并发的来源变更要么重试到完整快照，要么中止并保留上一次安装。干净树上的仅模式来源变更会报告 `available`，托管侧的模式编辑需要显式覆盖，崩溃恢复始终保留与记录基线一致的目录。旧版 `directory-sha256:` 安装在来源未变但托管副本已被编辑时保持 `up_to_date` 且 `localChanges:true`，绝不提供破坏性覆盖。仅大小写改名会自愈而非提示，已编辑旧基线上仅改模式的来源保持 `up_to_date` 且 `localChanges:true` 直到基线自愈（显式重新导入仍可刷新），暂存失败后的再次扫描保留中间编辑且仅在目标与过时标记字节完全一致时才清理，`SKILL.md` 存在但辅助文件缺失或被截断的替换会保留唯一完整备份，保留的备份由下一次已验证发布暂存后提交清理、不会阻塞重新导入重试，已标记过时的备份在复用槽位前退役（而非暂存）并验证标记已清除（旧记录加按基名哈希的定长伴随及绝对路径旧伴随回退，`ENAMETOOLONG` 视为不存在），清除不可验证时在重命名前中止，因此中断重试会恢复编辑而非删除，按基名哈希的伴随文件在配置搬迁/复制后仍可被发现，因此启动恢复会退役过时备份而不是用它覆盖托管编辑，目标描述符瞬时读取失败时同时保留两棵树，无目标时的不完整备份会被恢复以保留启用状态，目标命中已提交基线后 superseded 暂存会被移出可恢复命名空间后清理而不会覆盖后续编辑或在卸载后复活，退役列表排除 `.bak` 后缀因此更长技能名的备份不会被误删，双失败退役留下持久 obsolete 记录因此后续扫描永不提升已过时标记，卸载会连同恢复标记一起删除。
+
+## Verification
+
+- AC1 — `src/main/ai/skills/__tests__/SkillService.authoring.test.ts`：来源版本变化后系统技能报告 `available` 与 `localChanges`，未显式覆盖时以 `REMOTE_LOCAL_CHANGES` 拒绝，显式应用后保持技能 id 与 `agent_skill` 行。
+- AC2 — `src/main/ai/skills/__tests__/SkillService.authoring.test.ts`：来源与基线一致时报告 `up_to_date`，非文件系统 URL 与本地来源返回 `missing_provenance`/`not_remote` 且不访问网络。
+- AC3 — `src/main/ai/skills/__tests__/SkillService.test.ts`：重复导入同一系统来源会替换托管副本、保持技能 id，并保留智能体启用状态。
+- AC4 — `src/renderer/hooks/__tests__/useSkills.test.ts` 与 `src/renderer/components/resourceCatalog/dialogs/skill/__tests__/SystemSkillDialog.test.tsx`：已注册的系统技能可从 Hook 与对话框重新导入，文件夹名冲突仍被阻止；所触及文件的 `npx tsc --noEmit` 与 `npx eslint` 均通过。
+- 健壮性 — `src/main/ai/skills/__tests__/SkillService.authoring.test.ts`：自占导出保留（位于 `~/.agents/skills` 的来源刷新托管副本与内部镜像且不删除来源）、小写描述符规范化且无误报 `localChanges`、托管树与来源一致时自愈过期基线、按基线的崩溃恢复（新基线保留新树、旧基线回滚旧树，覆盖 `.bak` 与 `.cleanup`）、新增辅助文件被完整纳入且持续漂移时中止并保留旧安装、可执行位来源变更可检出且托管侧模式编辑受显式覆盖保护（Windows 跳过）、未改动的旧版可执行（`directory-sha256:`）基线无需显式覆盖即可更新（Windows 跳过）、旧版（`directory-sha256:`）基线在托管文件已编辑但来源未变时报告 `up_to_date` 且 `localChanges:true` 而非破坏性 `available`、旧基线仅大小写改名时自愈为 `up_to_date` 且无误报、已编辑旧基线上仅改模式的来源保持 `up_to_date` 且 `localChanges:true` 直到基线自愈（显式重新导入仍可刷新；Windows 跳过）、中间编辑存活且过时备份按字节一致保护保留、`SKILL.md` 存在但辅助文件缺失时保留唯一完整备份、辅助文件被截断时保留唯一完整备份、保留中断安装经 `prepareInstall` 重试可安装完整目录、目标描述符瞬时错误时同时保留两棵树、无目标时恢复不完整备份以保留文件与注册、瞬时描述符读取失败时保留备份、目标命中已提交基线后清理 superseded 暂存、双失败退役留下持久 obsolete 记录且永不提升覆盖编辑或在卸载后复活、前缀冲突的更长技能名备份在卸载时保留、过时备份复用前退役且中断重试保留编辑、obsolete 标记清除失败时在重命名前中止槽位复用并保留编辑、`ENAMETOOLONG` 旧标记槽位复用加定长伴随回退与退役、按基名哈希的伴随文件在配置搬迁/复制后保留托管编辑、卸载时清理恢复标记；`src/main/ai/skills/__tests__/SkillService.test.ts` 与 `SkillInstaller.test.ts` 仍全部通过。

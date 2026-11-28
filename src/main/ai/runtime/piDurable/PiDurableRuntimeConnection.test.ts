@@ -2101,7 +2101,8 @@ describe('desktop Pi Durable connection', () => {
     ])
     const { connection, events } = await connect()
     await connection.send({ message: message('write from channel') })
-    await done(events)
+    // Two sequential turns with file writes; Windows CI can exceed the 1 s default.
+    await done(events, 10_000)
     expect(text(events)).toContain('finished channel turn')
     expect(existsSync(join(directory, 'channel.txt'))).toBe(false)
 
@@ -2109,7 +2110,7 @@ describe('desktop Pi Durable connection', () => {
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
     await connection.send({ message: message('write from desktop') })
-    await done(events)
+    await done(events, 10_000)
     expect(readFileSync(join(directory, 'desktop.txt'), 'utf8')).toBe('desktop')
     expect(agentService.getAgent(input.agentId)?.configuration?.permission_mode).toBe('bypassPermissions')
   })
@@ -3067,13 +3068,15 @@ describe('desktop Pi Durable connection', () => {
       const queued = Array.from({ length: 120 }, (_, index) => message(`queued-${index}`))
       await Promise.all(queued.map((user) => submitBusy(connection, 'followUp', user)))
       release()
-      await expect.poll(() => gaps).toContain('overflow')
+      // Windows CI needs a larger poll budget: persisting 120 inputs plus
+      // overflow recovery and two sequential answers exceeds the 1 s default.
+      await expect.poll(() => gaps, { timeout: 15_000 }).toContain('overflow')
       held.open()
 
-      await expect.poll(() => text(events)).toContain('answer-1 ')
+      await expect.poll(() => text(events), { timeout: 15_000 }).toContain('answer-1 ')
       // Answering every queued input only adds runtime; Stop withdraws the rest.
       await connection.interrupt()
-      await done(events)
+      await done(events, 10_000)
       expect(text(events)).toContain('first answer-0 answer-1 ')
       expect(events.filter((event) => event.type === 'error')).toEqual([])
     }
