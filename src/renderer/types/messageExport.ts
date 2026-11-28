@@ -1,3 +1,4 @@
+import type { MessageProvenance } from '@shared/data/types/conversationImport'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -21,6 +22,7 @@ export interface MessageExportView {
   model?: Model
   /** Frozen producing author (assistant/agent, model nested) — drives export headers after rename/delete. */
   messageSnapshot?: MessageSnapshot
+  provenance?: MessageProvenance
   parentId?: string | null
   siblingsGroupId?: number
   stats?: MessageStats

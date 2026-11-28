@@ -461,14 +461,14 @@ describe('AiStreamManager', () => {
     feed.enqueue({ type: 'tool-input-available', toolCallId: 'write', toolName: 'Write', input: { path: 'file.txt' } })
     feed.enqueue({ type: 'tool-approval-request', toolCallId: 'write', approvalId: 'approval-write' })
     await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested' }))
-    expect(mgr.resolveToolApproval('denied-projection', 'write', approved)).toBe(true)
+    expect(mgr.resolveToolApproval('denied-projection', 'write', 'approval-write', approved)).toBe(true)
     feed.enqueue({ type: 'tool-output-error', toolCallId: 'write', errorText: 'The user denied this write.' })
     feed.enqueue({ type: 'finish' })
     feed.close()
     await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
     const expected = {
       state: approved ? 'output-error' : 'output-denied',
-      approval: { id: 'approval-write', ...(approved ? {} : { approved: false }) }
+      approval: { id: 'approval-write', approved }
     }
     expect(listener.doneResults[0].finalMessage?.parts[0]).toMatchObject(expected)
     expect(view?.messages[0]?.parts[0]).toMatchObject(expected)
@@ -572,14 +572,19 @@ describe('AiStreamManager', () => {
     feed.enqueue({ type: 'tool-input-available', toolCallId: 'call', toolName: 'Read', input: {} })
     feed.enqueue({ type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' })
     await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested' }))
-    expect(mgr.resolveToolApproval('approval-projection', 'call', true)).toBe(true)
+    expect(mgr.resolveToolApproval('approval-projection', 'call', 'approval', true)).toBe(true)
     await vi.waitFor(() =>
       expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-responded', approval: { approved: true } })
     )
+    feed.enqueue({ type: 'tool-input-available', toolCallId: 'call', toolName: 'Read', input: { progress: 1 } })
     feed.enqueue({ type: 'text-start', id: 'text' })
     feed.enqueue({ type: 'text-delta', id: 'text', delta: 'waiting for tool' })
     await vi.waitFor(() => expect(view?.messages[0]?.parts[1]).toMatchObject({ text: 'waiting for tool' }))
     expect(view?.messages[0].parts[0]).toMatchObject({ state: 'approval-responded', approval: { approved: true } })
+    feed.enqueue({ type: 'tool-approval-request', toolCallId: 'call', approvalId: 'next' })
+    await vi.waitFor(() =>
+      expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested', approval: { id: 'next' } })
+    )
     feed.close()
     await vi.advanceTimersByTimeAsync(0)
     mgr.detachProjection(sender, 'subscription')
@@ -648,7 +653,7 @@ describe('AiStreamManager', () => {
       ]
     })
     await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested' }))
-    expect(mgr.resolveToolApproval(topicId, 'call', true)).toBe(true)
+    expect(mgr.resolveToolApproval(topicId, 'call', 'approval', true)).toBe(true)
     expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-responded', approval: { approved: true } })
     feed.close()
     sender.emit('destroyed')
@@ -716,6 +721,18 @@ describe('AiStreamManager', () => {
       expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({ conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' } })
       )
+    })
+
+    it('carries a signed-out CherryAI opt-in onto the stream request', () => {
+      mgr.streamPrompt({
+        streamId: 'translate-1',
+        uniqueModelId: 'provider-a::model-a',
+        prompt: 'hello',
+        listener: new FakeListener('translate-1'),
+        utilityTask: true
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ utilityTask: true }))
     })
 
     it('keeps a trusted Agent SDK call in its agent session conversation', () => {
@@ -3179,11 +3196,11 @@ describe('AiStreamManager', () => {
       expect(paused?.status).toBe('streaming')
       expect(paused?.awaitingApprovalAnchors).toHaveLength(1)
 
-      expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(true)
+      expect(mgr.resolveToolApproval('a', 'tc-1', 'approval-1', true)).toBe(true)
       const approved = sharedCacheStore.get('topic.stream.statuses.a') as any
       expect(approved?.status).toBe('streaming')
       expect(approved?.awaitingApprovalAnchors).toHaveLength(0)
-      expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(false)
+      expect(mgr.resolveToolApproval('a', 'tc-1', 'approval-1', true)).toBe(false)
 
       mgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-output-available',
@@ -3321,7 +3338,7 @@ describe('AiStreamManager', () => {
         toolCallId: 'tc-1'
       })
 
-      expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(true)
+      expect(mgr.resolveToolApproval('a', 'tc-1', 'approval-1', true)).toBe(true)
       expect(listener.chunks.at(-1)).toEqual(inputChunk)
 
       const stream = new ReadableStream<UIMessageChunk>({
@@ -3358,7 +3375,7 @@ describe('AiStreamManager', () => {
         toolCallId: 'tc-1'
       })
 
-      expect(mgr.resolveToolApproval('a', 'tc-1', false)).toBe(true)
+      expect(mgr.resolveToolApproval('a', 'tc-1', 'approval-1', false)).toBe(true)
       expect(listener.chunks.at(-1)).toEqual({ type: 'tool-output-denied', toolCallId: 'tc-1' })
 
       const stream = new ReadableStream<UIMessageChunk>({

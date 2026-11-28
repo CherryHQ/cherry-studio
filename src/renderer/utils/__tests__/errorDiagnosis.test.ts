@@ -81,6 +81,18 @@ describe('Error diagnosis', () => {
     })
 
     it.each([
+      'pi-ai provider "native-route" has no configured model "glm-5"',
+      'NO_ADAPTER: no adapter registered for provider "native-route"'
+    ])('diagnoses the native CLI catalog rather than Cherry model settings: %s', async (message) => {
+      const result = await diagnoseError(makeError({ message }), 'en')
+      expect(result.category).toBe('model')
+      expect(result.explanation).toContain('native configuration')
+      expect(result.explanation).toContain('does not mean the model is missing from Cherry Studio')
+      expect(result.steps[0].text).toContain('CLI')
+      expect(mockIpcRequest).not.toHaveBeenCalled()
+    })
+
+    it.each([
       [
         `service_tier auto is not available for this org. You can check your plan at
 [Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
@@ -149,7 +161,12 @@ required service tier.`,
       await expect(diagnoseError(makeError(), 'en')).resolves.toMatchObject({ summary: 'Error' })
       expect(mockIpcRequest).toHaveBeenCalledExactlyOnceWith(
         'ai.text.generate',
-        expect.objectContaining({ uniqueModelId: defaultModel.id, requestOptions: { maxRetries: 0 } })
+        expect.objectContaining({
+          uniqueModelId: defaultModel.id,
+          // Diagnosis must keep working for a signed-out user on the built-in free model.
+          utilityTask: true,
+          requestOptions: { maxRetries: 0 }
+        })
       )
     })
 

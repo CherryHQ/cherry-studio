@@ -170,7 +170,7 @@ async function startInternalGateway(service: ApiGatewayService, sessionId?: stri
   return pending
 }
 
-const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
+const CHAT_SCOPE = { paths: ['/v1/chat/completions'], model: 'openai:gpt-4o' }
 
 describe('internal request budget', () => {
   it('allows a small request alongside a large one and queues a second large request', async () => {
@@ -442,6 +442,56 @@ describe('ApiGatewayService internal gateway', () => {
     expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1', 'native-response')
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': scoped.apiKey }))).toBeUndefined()
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': 'existing-key' }))).toBeUndefined()
+  })
+
+  it('binds scoped gateway requests to the active turn instead of an unemitted adapter response id', async () => {
+    const service = new ApiGatewayService()
+    const internal = await startInternalGateway(service, 'session-1')
+    const boundScoped = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-1' })
+
+    expect(
+      service.resolveAgentSessionUsage(new Headers({ 'x-api-key': boundScoped.apiKey }), 'adapter-response-id')
+    ).toEqual({
+      agentSessionId: 'session-1',
+      source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
+    })
+    expect(mockGetActiveUsageContext).toHaveBeenLastCalledWith('session-1', undefined)
+
+    const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
+    service.resolveAgentSessionUsage(
+      new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }),
+      'native-response-id'
+    )
+    expect(mockGetActiveUsageContext).toHaveBeenLastCalledWith('session-1', 'native-response-id')
+    boundScoped.dispose()
+  })
+
+  it('isolates sessions using the same model and leaves public-key requests unassociated', async () => {
+    const service = new ApiGatewayService()
+    await startInternalGateway(service)
+    const first = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-1' })
+    const second = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-2' })
+    mockGetActiveUsageContext.mockImplementation((sessionId: string) => ({
+      agentSessionId: sessionId,
+      assistantMessageId: 'reply-for-' + sessionId,
+      source: null
+    }))
+
+    const usage = (apiKey: string) => service.resolveAgentSessionUsage(new Headers({ 'x-api-key': apiKey }))
+    expect(usage(first.apiKey)).toMatchObject({
+      agentSessionId: 'session-1',
+      assistantMessageId: 'reply-for-session-1'
+    })
+    expect(usage(second.apiKey)).toMatchObject({
+      agentSessionId: 'session-2',
+      assistantMessageId: 'reply-for-session-2'
+    })
+    expect(usage('existing-key')).toBeUndefined()
+    first.dispose()
+    expect(usage(first.apiKey)).toBeUndefined()
+    expect(usage('existing-key')).toBeUndefined()
+    expect(usage(second.apiKey)).toMatchObject({ agentSessionId: 'session-2' })
+    second.dispose()
   })
 })
 

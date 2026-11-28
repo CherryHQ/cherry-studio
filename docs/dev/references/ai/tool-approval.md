@@ -75,6 +75,13 @@ Shell commands are shown in full in a scrollable, copyable preview. The optional
 rejection reason expands on demand. Opening task details or expanding the reason
 with Enter never submits an approval decision.
 
+The composer identifies the requesting Agent or subagent. Child requests carry the
+spawning tool-call ID in provider metadata; the card uses that identity to show the
+matching task name and background status, with a link to the task in Agent sessions.
+Shell commands are shown in full in a scrollable, copyable preview. The optional
+rejection reason expands on demand. Opening task details or expanding the reason
+with Enter never submits an approval decision.
+
 ## End-to-end flow
 
 1. **Tool needs approval** — at `execute` time, the wrapper checks
@@ -137,6 +144,10 @@ incomplete analysis asks for that invocation only. A saved tool grant cannot byp
 An applicable `deny` blocks every mode, including Full Access, and exposes no approval action.
 The built-in Assistant, Support and Doctor retain their destructive-operation denial; role
 scope is independent of a rule's effect. Children use their root's mode and protected role.
+
+A Bash rewrite proposed by RTK with exit code `3` (`Ask`) carries the rewritten command and
+requires per-call approval across modes, including `auto` and Full Access (`bypassPermissions`),
+showing the rewritten command before execution.
 
 Runtimes reach the policy only through the `commandPolicy` barrel's `checkCommand`. It takes
 the command, its dialect (from the tool name), cwd, built-in role and the root's permission

@@ -2,7 +2,8 @@
 
 Covers `mcp__cherry-tools__session_list`, `mcp__cherry-tools__session_search`,
 `mcp__cherry-tools__session_create`, `mcp__cherry-tools__session_send`,
-`mcp__cherry-tools__session_deliveries`, and `mcp__cherry-tools__session_rename` —
+`mcp__cherry-tools__session_deliveries`, `mcp__cherry-tools__agent_delegate`,
+`mcp__cherry-tools__delegation_cancel`, and `mcp__cherry-tools__session_rename` —
 finding prior Agent work, renaming Sessions, and coordinating a bounded task with
 another Session.
 
@@ -30,6 +31,26 @@ these read-only tools:
 An empty `matches` array does not mean the result is spurious when `metadataMatches` is
 present. The requested limit counts final distinct Sessions, not raw message rows. An
 optional Agent filter is applied before ranking and limiting.
+
+## Delegate local coding work
+
+For Code Mate work with Codex, Claude Code or an ACP Agent, use `agent_list` to resolve
+an enabled local Agent, then `agent_delegate` with its `target_agent_id` and task `message`.
+The default project is the caller's workspace, never the target's previous project.
+Use `workspace_id` only for an existing user workspace; without a user project, a fresh
+managed workspace is created. CLI configuration, model and credentials come from Agent Services.
+Driver availability does not prove authentication or model access.
+
+The call returns a durable `requestId` and dedicated `sessionId` immediately. The task
+card updates its state, shows target permissions/questions and opens the target history.
+Approving delegation does not approve target tools. Do not bypass declined permissions
+with shell commands. Wait for the asynchronous completion result instead of polling.
+
+Use `delegation_cancel` with `request_id` to cancel owned work. Stopping the parent reply
+or changing views leaves the delegated task running. Deleting the origin or disabling
+the target cancels outstanding work. Tasks have a ten-minute deadline; interruptions
+retain partial output and are not automatically replayed after restart. Local targets
+cannot initiate another delegation through Cherry tools.
 
 ## Choose create vs. send
 
@@ -101,3 +122,5 @@ during external tool execution cannot make arbitrary side effects exactly-once.
 `reply: completion` and accept the live approval → continue other work; the runtime
 delivers the terminal result asynchronously. Use `session_deliveries` only if the user
 asks for delivery state or recovery.
+
+The built-in `code-mate-claude-code`, `code-mate-codex` and `code-mate-opencode` shell skills have been retired. Use `agent_list` and `agent_delegate` for these local Agents. Their CLI installation, login and terminal controls remain in Agent Services.

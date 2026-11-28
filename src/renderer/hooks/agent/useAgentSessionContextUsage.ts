@@ -1,4 +1,4 @@
-import type { ThreadContextUsage } from '@cherrystudio/agent-runtime'
+import type { OperationResult, ThreadContextUsage } from '@cherrystudio/agent-runtime'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { Model } from '@shared/data/types/model'
@@ -7,6 +7,7 @@ interface AgentSessionContextUsageState {
   usage: ThreadContextUsage | null
   percentage: number | null
   maxTokens: number | null
+  status: OperationResult<ThreadContextUsage>['status'] | null
 }
 
 export function useAgentSessionContextUsage(
@@ -19,5 +20,5 @@ export function useAgentSessionContextUsage(
   const maxTokens = usage?.contextWindow ?? null
   const percentage =
     usage?.used && maxTokens ? Math.round(Math.min(100, Math.max(0, (usage.used.tokens / maxTokens) * 100))) : null
-  return { usage, percentage, maxTokens }
+  return { usage, percentage, maxTokens, status: result?.status ?? null }
 }

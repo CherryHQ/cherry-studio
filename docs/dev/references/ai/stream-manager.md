@@ -309,7 +309,7 @@ committed. Per-chunk delivery is unaffected.
 ```typescript
 interface ActiveStream {
   topicId: string
-  executions: Map<UniqueModelId, StreamExecution>   // 1 entry single-model, N multi-model
+  executions: Map<ExecutionId, StreamExecution>   // 1 entry single-model, N multi-model
   listeners: Map<string, StreamListener>            // shared across executions
   // 'pending' on creation; flips to 'streaming' on first chunk; derived
   // from executions on terminal (done / aborted / error /
@@ -322,7 +322,7 @@ interface ActiveStream {
 }
 
 interface StreamExecution {
-  modelId: UniqueModelId
+  modelId: ExecutionId
   anchorMessageId?: string  // placeholder id for submit/regen, anchor id for continue
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
@@ -505,7 +505,7 @@ class AiStreamManager {
 interface SendInput {
   topicId: string
   models: ReadonlyArray<{
-    modelId: UniqueModelId
+    modelId: ExecutionId
     request: AiStreamRequest
     runtimeTimingSeed?: MessageRuntimeTiming
     seedFromEmpty?: boolean
@@ -765,7 +765,7 @@ the inject branch. If the continuation itself fails to launch, the topic is driv
 to a terminal `error` rather than sticking at `streaming`.
 
 Agent-session topics use a parallel, queue-based mechanism — never an interrupt.
-A live follow-up is steered into the running turn via `connection.redirect()`
+A live follow-up is steered into the running turn via `connection.threadInput.steer.submit()`
 (no abort). Native admission owns already dispatched inputs, including Claude
 inputs that cross a turn's end; the host does not resend them. Inputs that the
 host has not dispatched remain in `runtimeState.queue`. `send()` only upserts the new
@@ -781,7 +781,7 @@ duplicated; the rest are stream-manager-specific.
 |---|---|---|---|
 | Submit (standard) | `ai.stream.open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `PersistenceListener.persistAssistant` → terminal projection; raw listeners receive `onDone`; chat lifecycle `scheduleCleanup(30 s)` |
 | Steering — chat resubmit | `ai.stream.open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
-| Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `runtimeState.queue`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `runtimeState.queue` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
+| Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.threadInput.steer.submit()` (no abort) or queues on `runtimeState.queue`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `runtimeState.queue` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `ai.tool.respond_approval`; a live agent runtime resolves its registry entry, while MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
 | Desktop reconnect | `ai.projection.attach` on mount | Register a window-scoped subscription and return the current message baseline; subsequent revisions arrive through `ai.projection.changed` | live messages resume; a committed reply yields to its history row; attach never changes runtime state |
 | Raw-stream reconnect | `ai.stream.attach` | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | bounded raw replay or terminal result for consumers that still require chunks |
@@ -923,7 +923,7 @@ interface ChatContextProvider {
 
 interface PreparedDispatch {
   topicId: string
-  models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
+  models: ReadonlyArray<{ modelId: ExecutionId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]   // subscriber + per-execution PersistenceListener(s)
   pendingSteerUserMessageId?: string   // persistent steer branch only; marks the dispatch enqueue-only
   reservedMessages?: CherryUIMessage[] // user/assistant skeletons created for this dispatch

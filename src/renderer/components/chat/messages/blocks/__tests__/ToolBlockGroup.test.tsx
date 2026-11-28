@@ -150,6 +150,21 @@ describe('ToolBlockGroup', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('uses the native ACP operation title to open a completed tool group', () => {
+    const item = {
+      ...readDoneItem,
+      toolResponse: {
+        ...readDoneItem.toolResponse,
+        tool: { ...readDoneItem.toolResponse.tool, name: 'ACP: Run workspace check' }
+      }
+    } as ToolRenderItem
+    render(<ToolBlockGroup items={[item]} />)
+
+    const trigger = screen.getByRole('button', { name: 'Run workspace check' })
+    fireEvent.click(trigger)
+    expect(screen.getByTestId('mock-message-tools')).toHaveTextContent('ACP: Run workspace check')
+  })
+
   it('puts a call’s stated intent above its row and in the group title', () => {
     const intentItem = {
       ...readDoneItem,

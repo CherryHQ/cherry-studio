@@ -1,0 +1,23 @@
+{
+  "name": "@cherrystudio/agent-runtime-dimcode-acp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DimAgent ACP integration for Cherry Studio.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./cli": {
+      "types": "./dist/cli.d.mts",
+      "default": "./dist/cli.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/cli.ts --format esm --dts --clean",
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-dimcode-acp/tsconfig.json"
+  },
+  "devDependencies": {
+    "@cherrystudio/agent-runtime-acp": "workspace:*",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}
