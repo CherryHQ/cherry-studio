@@ -465,26 +465,34 @@ describe('createFormulaEvaluator — oversized range guard', () => {
 })
 
 describe('createFormulaEvaluator — recursion depth guard', () => {
-  it('does not stack-overflow or hang on an extremely deep non-cyclic reference chain', () => {
+  it('bounds evaluation on an extremely deep non-cyclic reference chain', () => {
     // Depth 200 is far above the suggested limit of 64. Verify the depth guard keeps evaluation bounded.
-    // Do not assert the chain head's exact value: once a middle link hits the limit, it becomes unevaluated and
-    // contributes 0 to arithmetic, producing a degraded but well-defined value at the top.
     const DEPTH = 200
     const sheets: Record<string, StubSheet> = { Sheet1: { '1:1': { value: 0 } } }
     for (let row = 2; row <= DEPTH; row++) {
       sheets.Sheet1[`${row}:1`] = { formula: `A${row - 1}+1` }
     }
     const { evaluator } = setup(sheets)
+
+    // Short-chain control: the evaluator still evaluates an in-limit chain exactly,
+    // so any degradation below is attributable to the depth guard, not broken evaluation.
+    expect(evaluator.evaluate('A9+1', { sheet: 'Sheet1', row: 10, col: 1 })).toEqual({
+      state: 'evaluated',
+      value: 9
+    })
+
     const start = Date.now()
     let outcome: ReturnType<typeof evaluator.evaluate> | undefined
     expect(() => {
       outcome = evaluator.evaluate(`A${DEPTH - 1}+1`, { sheet: 'Sheet1', row: DEPTH, col: 1 })
     }).not.toThrow()
     expect(Date.now() - start).toBeLessThan(1000)
-    expect(outcome).toBeDefined()
-    expect(['evaluated', 'unevaluated']).toContain(outcome!.state)
-    if (outcome!.state === 'evaluated') {
-      expect(typeof outcome!.value === 'number' || outcome!.value === null).toBe(true)
-    }
+    // Bounded evaluation: once a middle link hits the guard it contributes 0, so the
+    // head evaluates to a degraded value strictly below the full 199 links. A swallowed
+    // internal failure would instead surface as 'unevaluated' at the head, and a missing
+    // guard would recurse until it throws. The exact degraded value tracks the internal
+    // depth constant, so assert the shape, not the number.
+    expect(outcome?.state).toBe('evaluated')
+    expect(typeof outcome?.value === 'number' && outcome.value > 0 && outcome.value < DEPTH - 1).toBe(true)
   })
 })

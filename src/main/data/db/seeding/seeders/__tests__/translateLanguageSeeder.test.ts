@@ -16,8 +16,13 @@ describe('TranslateLanguageSeeder', () => {
     expect(rows).toHaveLength(BUILTIN_TRANSLATE_LANGUAGES.length)
   })
 
-  it('should only insert missing languages when some exist', async () => {
-    const preExisting = [...BUILTIN_TRANSLATE_LANGUAGES.slice(0, 2)]
+  it('should only insert missing languages and preserve customized existing rows', async () => {
+    // User-customized rows: same builtin keys, edited display values. An unchanged row
+    // count alone would not prove these survive seeding.
+    const preExisting = BUILTIN_TRANSLATE_LANGUAGES.slice(0, 2).map((row) => ({
+      ...row,
+      value: `custom-${row.value}`
+    }))
     await dbh.db.insert(translateLanguageTable).values(preExisting)
 
     const seed = new TranslateLanguageSeeder()
@@ -25,16 +30,9 @@ describe('TranslateLanguageSeeder', () => {
 
     const rows = await dbh.db.select().from(translateLanguageTable)
     expect(rows).toHaveLength(BUILTIN_TRANSLATE_LANGUAGES.length)
-  })
-
-  it('should not modify existing rows when all languages exist', async () => {
-    await dbh.db.insert(translateLanguageTable).values([...BUILTIN_TRANSLATE_LANGUAGES])
-    const beforeCount = (await dbh.db.select().from(translateLanguageTable)).length
-
-    const seed = new TranslateLanguageSeeder()
-    seed.run(dbh.db)
-
-    const afterCount = (await dbh.db.select().from(translateLanguageTable)).length
-    expect(afterCount).toBe(beforeCount)
+    for (const customized of preExisting) {
+      const row = rows.find((r) => r.langCode === customized.langCode)
+      expect(row?.value).toBe(customized.value)
+    }
   })
 })

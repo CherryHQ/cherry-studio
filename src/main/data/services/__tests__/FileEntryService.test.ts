@@ -528,7 +528,8 @@ describe('FileEntryService', () => {
       await dbh.db.insert(fileEntryTable).values(rows)
 
       const page = fileEntryService.findMany({ limit: 2, offset: 1 })
-      expect(page).toHaveLength(2)
+      // findMany orders by createdAt ascending, so offset 1 skips n0 and the page is n1, n2.
+      expect(page.map((entry) => entry.name)).toEqual(['n1', 'n2'])
     })
   })
 
