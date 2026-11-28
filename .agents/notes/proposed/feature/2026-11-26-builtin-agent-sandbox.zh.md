@@ -21,7 +21,7 @@ Cherry 定义一个与运行时无关的 `SandboxPolicy`，由三部分组成。
 - 只能写入会话工作区、Agent 数据目录和临时目录。
 - 网络使用严格模式，白名单为空。
 - 受已生效沙箱约束的 Bash 调用跳过逐次 shell 审批。其他工具策略和命令策略仍照常检查。Full Access 以外的模式仍需审批才能离开沙箱。
-- 如果沙箱无法启动，或者无法确认生效配置满足解析后的策略，轮次在执行任何 shell 命令前失败。
+- 任何 shell 命令都不会脱离分配给它的沙箱运行。如果无法确认生效配置满足解析后的策略，轮次在执行任何 shell 命令前失败。如果 CLI 在启动时报告沙箱不可用，`failIfUnavailable` 会终止本轮。如果沙箱已经启动但无法应用到某条命令，这条命令会直接失败，不会执行。
 - 只有 `darwin` 会得到策略；其他平台都得不到，继续沿用现有的审批行为。
 
 *Overlay（扩展）。* 每个 Agent 声明自己的 overlay；没有 overlay 的 Agent 不启用沙箱。overlay 可以：
@@ -58,6 +58,15 @@ Support 保留 `settingSources: []`，排除用户和工作区设置。对于 CL
 
 沙箱生效后，需要联网的 Bash 命令（`gh`、`lark-cli`、`curl`）会在沙箱内失败，工具结果会写明被拒绝的主机。模型要继续，必须带上 `dangerouslyDisableSandbox: true` 显式申请出沙箱。基础守卫在 Full Access 以外的交互式轮次中逐次审批这类请求。审批理由会告诉用户，这条命令将在沙箱外运行并可以联网。
 
+仅凭网络被拒，模型并不会稳定地走到出沙箱这一步。第一次 AC8 运行（DeepSeek-V4-Pro，CLI 2.1.311）中，模型改用 CLI 的 `allowed_domains` 参数重试。这个参数只在 auto 模式下有效，严格白名单下会被拒绝，而拒绝信息把模型引向了不出沙箱的方向。模型随后改用 MCP 网页工具。因此，Claude Code 适配器会在每个报告网络被拒的沙箱 Bash 结果里附加引导。CLI 用 PostToolUse hook 报告退出码为 0 的结果，用 PostToolUseFailure hook 报告非 0 的结果，适配器分别通过这两个 hook 的 `additionalContext` 附加。引导会写明被拒的主机，并告诉模型四件事：
+
+- 如果完成用户请求需要这个主机，用 `dangerouslyDisableSandbox: true` 重跑同一条命令。Cherry 会弹出审批卡片，模型不必先在对话里询问。
+- 本会话中 `allowed_domains` 不能放宽网络访问。
+- 不要换用其他工具绕过拦截。
+- 如果并不需要这个主机，就告诉用户，而不是出沙箱。
+
+CLI 会在任何 hook 运行之前拒绝带 `allowed_domains` 的调用，所以引导必须随第一次网络拒绝一起送到。
+
 在无界面（headless）轮次或没有审批响应方时，`support-bash` 在所有权限模式下继续拒绝 Bash 和 PowerShell。交互式轮次中，只有受已生效沙箱约束的 Bash 调用可以跳过逐次审批。没有沙箱时（包括 Linux 和 Windows），Full Access 以外仍沿用现有的逐次 shell 审批。Full Access 通过 `skipInteractiveEffect` 跳过交互式 shell 和出沙箱审批。`builtin-destructive` 和 JSON 命令策略保持不变。
 
 网络限制只适用于沙箱内的 Bash。其他工具（包括 Cherry 的 MCP 网页搜索和抓取工具）沿用各自的访问与审批策略。
@@ -82,6 +91,8 @@ Support 保留 `settingSources: []`，排除用户和工作区设置。对于 CL
 - 为内置会话设置 `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`：曾作为独立的第一层在 [#25513](https://github.com/CherryHQ/cherry-studio/pull/25513) 提出，已关闭。它隐藏的变量价值很低：所有 Cherry 管理的模型路线放进 CLI 环境的，都只是内部网关凭据，这个凭据只存在内存中、绑定当前会话、只在 `127.0.0.1` 上可用；外部 CLI 登录路线则不放任何凭据。上游服务商的 Key 存在 Cherry 的数据库里，没有沙箱的 Bash 本来就能读到。清理还会删掉 `CLAUDE_CONFIG_DIR`，而 `npx skills` 正是靠它决定全局安装目录，结果 Assistant 安装的技能会落到用户自己的 `~/.claude`。它还会删掉用户登录 shell 里看起来像凭据的变量；在 Linux 上，它会把 Bash 移进独立的 PID 命名空间。以后某个启用沙箱的 Agent 如果需要隐藏这些变量，可以用 `sandbox.credentials.envVars` deny 只删除它们。
 - 现在就给 Assistant 开沙箱：它是通用 Agent，会用到 `npx skills`、安装依赖、访问网页。在它的 overlay 加上预置清单之前，基础策略的空白名单会让它无法工作。
 - Linux 和 Windows：需要 bubblewrap/socat，或者以管理员权限运行 `claude sandbox install`，对桌面用户来说都不是零配置。这两个平台沿用现有的 shell 审批行为。
+- 像 Codex 的 on-failure 审批策略和 Gemini CLI 的沙箱扩权对话框那样，由程序询问用户后自行在沙箱外重跑被拒的命令：工具循环由 Claude Code CLI 控制，Cherry 无法替模型重跑一次调用。
+- 像 Zed、VS Code（`requestAllowNetwork`）和 CLI 的 `allowed_domains` 那样，在保持沙箱的前提下只放行单个主机：CLI 只在 auto 模式下提供这项能力，而且要求关闭 Full Access 所依赖的严格白名单。
 - 像 Claude Cowork 那样把整个 Claude Code 进程放进虚拟机或 `sandbox-runtime`：这样也能覆盖 hooks 和 MCP，但改动大得多，还会带来额外的打包成本。
 
 ## 验收标准
@@ -96,13 +107,14 @@ Support 保留 `settingSources: []`，排除用户和工作区设置。对于 CL
 - AC8 — 在 macOS 上，Support 能在 `acceptEdits` 模式下用真实模型完整提交一次反馈。沙箱拒绝联网后，模型显式申请出沙箱，且不会原样重复同一条沙箱命令。每次需要联网的 Bash 调用只需批准一次。 (verification: Electron, owner: Support 集成实施者)
 - AC9 — 如果 overlay 试图关闭严格模式、让离开沙箱无需审批、开启 Apple Events、Unix socket 或嵌套用户命名空间，或者让 `$HOME` 根目录或 shell 启动文件可写，合并后的策略仍保留基础策略的值。 (verification: 单元测试, owner: 沙箱策略实施者)
 - AC10 — overlay 追加的域名和可写路径会与基础策略的值一起出现在 Claude Code 沙箱配置中。任何一方拒绝的域名仍然被拒绝。 (verification: 单元测试, owner: 沙箱策略实施者)
-- AC11 — 在 macOS 上为 Support 启用沙箱后，如果启动失败，或无法验证生效配置会强制执行解析后的策略，本轮会在执行任何 shell 命令前显示错误。Full Access 和复用连接也必须满足此条件。沙箱未启用时，Support 在 Full Access 以外沿用现有的逐次 shell 审批。 (verification: 单元测试、macOS 原生测试和 Electron, owner: Claude Code 运行时实施者)
+- AC11 — 在 macOS 上为 Support 启用沙箱后，如果无法验证生效配置会强制执行解析后的策略，本轮会在执行任何 shell 命令前显示错误。Full Access 和复用连接也必须满足此条件。Claude Code 选项设置了 `failIfUnavailable`，所以 CLI 在启动时报告沙箱不可用时会终止本轮。沙箱无法应用到某条沙箱命令时，这条命令会直接失败，不会执行，所有权限模式下都是如此。沙箱未启用时，Support 在 Full Access 以外沿用现有的逐次 shell 审批。 (verification: 单元测试和 macOS 原生测试, owner: Claude Code 运行时实施者)
+- AC12 — 在 macOS 上，沙箱内的 Support Bash 命令被拒绝联网时，无论退出码是否为 0，模型收到的工具结果都会写明被拒的主机，并要求它用 `dangerouslyDisableSandbox: true` 重跑，而不是使用 `allowed_domains` 或其他工具。没有网络拒绝的结果、出沙箱的调用和没有沙箱的会话都不附加引导。 (verification: 单元测试和 macOS 原生测试, owner: Claude Code 运行时实施者)
 
 ## 风险
 
-- 模型行为：模型可能原样重试被拒绝的命令。Cursor 报告过这种失败模式，并通过修改工具结果和工具描述解决。沙箱上线前，AC8 必须用真实模型跑通；如果跑不通，就保持沙箱关闭，不额外加重试机制。
+- 模型行为：模型可能原样重试被拒绝的命令。Cursor 报告过这种失败模式，并通过修改工具结果和工具描述解决；VS Code 和 Codex 也都在失败时告诉模型如何申请提权。第一次 AC8 运行就是这样失败的，失败时的引导正是针对这个问题。沙箱上线前，AC8 必须用真实模型跑通；如果跑不通，就保持沙箱关闭，不额外加重试机制。
 - 沙箱内的 Bash 仍可读取 `~/.ssh` 等文件，并将其复制到工作区。Bash 要联网必须出沙箱。其他工具和模型请求不受这一网络边界约束。限制文件读取不在本次范围内。
 - 有审批响应方的交互式轮次中，Full Access 允许直接出沙箱，不显示审批卡。无界面或没有响应方时的拒绝规则仍然适用，沙箱启动失败仍会终止轮次。
 - 合并函数如果有 bug，会在毫无提示的情况下放宽沙箱。AC9 和 AC10 直接测试合并函数，以后新增的 overlay 也在这里补充各自的用例。
-- Seatbelt（`sandbox-exec`）已被 Apple 标记为弃用，macOS 升级也曾经弄坏过其他产品的沙箱配置。基础策略规定沙箱无法启动时本轮失败，问题会明确暴露出来。darwin native test 能发现 SDK 升级带来的行为变化。
+- Seatbelt（`sandbox-exec`）已被 Apple 标记为弃用，macOS 升级也曾经弄坏过其他产品的沙箱配置。如果 CLI 报告沙箱不可用，`failIfUnavailable` 会让本轮明确失败；如果沙箱配置不再生效，每条沙箱命令都会直接失败而不执行，CLI 自身运行在另一个 Seatbelt 沙箱里时就是这样。darwin native test 能发现 SDK 升级带来的行为变化。
 - Pi 和 Pi Durable 不使用 Claude Agent SDK，沙箱覆盖不到它们。与运行时无关的策略让以后的 Pi 适配器可以复用基础策略和 overlay；在适配器出现之前，内置 Agent 一旦改用 Pi 运行时就会失去沙箱。
