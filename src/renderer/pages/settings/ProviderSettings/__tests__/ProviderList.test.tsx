@@ -383,11 +383,18 @@ describe('ProviderList', () => {
     expect(scrollIntoViewMock).toHaveBeenCalledTimes(1)
   })
 
-  it('restores the provider filter after leaving and returning to the page', () => {
+  it('applies a provider filter by keyboard and restores it when returning to the page', async () => {
+    const user = userEvent.setup()
     const first = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: '筛选服务商' }))
-    fireEvent.click(screen.getByRole('button', { name: '仅已禁用' }))
+    const trigger = screen.getByRole('button', { name: '筛选服务商' })
+    trigger.focus()
+    await user.keyboard('{Enter}{End}{ArrowUp}')
+    expect(screen.getByRole('menuitemradio', { name: '仅已启用' })).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitemradio', { name: '仅已禁用' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(trigger).toHaveFocus())
 
     expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('disabled')
 
@@ -396,6 +403,9 @@ describe('ProviderList', () => {
 
     expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
     expect(screen.queryByText('Anthropic')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '筛选服务商' }))
+    expect(screen.getByRole('menuitemradio', { name: '仅已禁用', checked: true })).toBeVisible()
   })
 
   it('surfaces reorder persistence errors', async () => {

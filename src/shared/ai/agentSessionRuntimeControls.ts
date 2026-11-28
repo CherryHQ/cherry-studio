@@ -3,6 +3,7 @@ export type AgentSessionRuntimeControls = {
   compact: boolean
   compactWithInstructions?: true
   durableFollowUp: boolean
+  pendingSteerIds?: readonly string[]
   delivery?: { inputId: string; status: 'accepted' | 'queued' | 'unknown' }
 }
 

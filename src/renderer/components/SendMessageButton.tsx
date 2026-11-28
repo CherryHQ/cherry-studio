@@ -1,3 +1,4 @@
+import { ArrowUp } from 'lucide-react'
 import type { FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,9 +45,9 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
       asChild
       isDisabled={disabled}
       content={<TooltipLabelWithShortcut label={sendLabel} shortcutLabel={shortcutLabel} />}>
-      <i
+      <span
         data-ui="chat.composer.action.send"
-        className="iconfont icon-ic_send flex size-7.5 shrink-0 items-center justify-center leading-none"
+        className="flex size-7.5 shrink-0 items-center justify-center leading-none"
         onMouseDown={(event) => {
           // Pointer submission should keep focus in the composer.
           if (event.button === 0) event.preventDefault()
@@ -60,10 +61,12 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
         style={{
           cursor: disabled ? 'not-allowed' : 'pointer',
           color: disabled ? 'var(--foreground-disabled)' : 'var(--primary)',
-          fontSize: 22,
           transition: 'color 0.2s'
-        }}
-      />
+        }}>
+        <span className="flex size-5 items-center justify-center rounded-full bg-current" aria-hidden>
+          <ArrowUp className="lucide-custom text-composer-surface" size={16} strokeWidth={2.5} />
+        </span>
+      </span>
     </Tooltip>
   )
 }

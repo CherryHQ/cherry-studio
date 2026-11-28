@@ -265,14 +265,14 @@ required service tier.`
   it.each([
     {
       message:
-        '操作系统拒绝内部 API 网关在 ::1，请求的 TCP 端口 49152 上监听（EACCES）。请重试请求。如果仍然失败，请联系系统管理员检查对回环监听的限制。',
-      diagnosis: '操作系统拒绝内部 API 网关',
+        '操作系统拒绝内部统一网关在 ::1，请求的 TCP 端口 49152 上监听（EACCES）。请重试请求。如果仍然失败，请联系系统管理员检查对回环监听的限制。',
+      diagnosis: '操作系统拒绝内部统一网关',
       recovery: '请重试请求'
     },
     {
       message:
-        '操作系统拒绝 API 网关在 ::1，TCP 端口 49152 上监听（EACCES）。请在“设置 → API 网关”中选择其他“端口”，离开输入框以保存，然后点击“启动”。请将客户端的连接地址更新为新地址。',
-      diagnosis: '操作系统拒绝 API 网关',
+        '操作系统拒绝统一网关在 ::1，TCP 端口 49152 上监听（EACCES）。请在“设置 →统一网关”中选择其他“端口”，离开输入框以保存，然后点击“启动”。请将客户端的连接地址更新为新地址。',
+      diagnosis: '操作系统拒绝统一网关',
       recovery: '离开输入框以保存，然后点击“启动”'
     }
   ])('keeps serialized Chinese IPv6 bind recovery visible through providerErrorText: $diagnosis', (copy) => {
