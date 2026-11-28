@@ -24,7 +24,7 @@ export function MessageListInitialLoading({ delayMs = MESSAGE_LIST_INITIAL_LOADI
         <div
           aria-hidden="true"
           data-message-list-loading-skeleton=""
-          className="mx-auto flex w-full max-w-[800px] flex-col gap-7">
+          className="mx-auto flex w-full max-w-[var(--chat-narrow-width,800px)] flex-col gap-7">
           <div className="flex justify-end">
             <div className="flex w-[min(58%,32rem)] flex-col items-end gap-2">
               <Skeleton className="h-3 w-2/3 rounded-sm" />

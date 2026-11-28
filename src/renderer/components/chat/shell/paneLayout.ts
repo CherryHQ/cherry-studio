@@ -93,3 +93,11 @@ export const DEFAULT_RIGHT_PANE_WIDTH_PRESET: RightPaneWidthPreset = 'inspector'
 export function getRightPaneWidthPolicy(preset: RightPaneWidthPreset = DEFAULT_RIGHT_PANE_WIDTH_PRESET) {
   return RIGHT_PANE_WIDTH_PRESETS[preset]
 }
+
+export const CHAT_NARROW_DEFAULT_WIDTH = 800
+export const CHAT_NARROW_MIN_WIDTH = 600
+export const CHAT_NARROW_MAX_WIDTH = 2000
+export const CHAT_NARROW_SIDE_PADDING_TOTAL = 48
+export const CHAT_NARROW_WIDTH_CACHE_KEY = 'ui.chat.narrow_width'
+export const CHAT_NARROW_WIDTH_WINDOW_CACHE_KEY = 'ui.window.chat.narrow_width'
+export const CHAT_NARROW_WIDTH_CSS_VAR = '--chat-narrow-width'

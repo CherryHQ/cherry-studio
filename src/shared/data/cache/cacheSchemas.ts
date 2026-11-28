@@ -148,6 +148,7 @@ export type UseCacheSchema = {
   'ui.window.chat.artifact_pane.width': number
   'ui.window.chat.resource_pane.width': number
   'ui.window.chat.profile_pane.width': number
+  'ui.window.chat.narrow_width': number
   'ui.window.chat.right_pane_open_override': boolean | null
   'ui.window.agent.right_pane_open_override': boolean | null
 
@@ -248,6 +249,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.chat.artifact_pane.width': 460,
   'ui.window.chat.resource_pane.width': 275,
   'ui.window.chat.profile_pane.width': 360,
+  'ui.window.chat.narrow_width': 800,
   'ui.window.chat.right_pane_open_override': null,
   'ui.window.agent.right_pane_open_override': null,
   'ui.window.chat.topic.expansion.time': [],
@@ -486,6 +488,7 @@ export type RendererPersistCacheSchema = {
   'ui.chat.resource_pane.width': number
   // Right-pane width for the Assistant / Agent profile; its own key so the other panes keep theirs.
   'ui.chat.profile_pane.width': number
+  'ui.chat.narrow_width': number
   // Generated Agent suggestions / Assistant opening questions, regenerated when the identity hash changes.
   'ui.chat.profile_pane.starters': CacheValueTypes.ProfileStartersCache
   // Assistant / Agent IDs whose suggestions or opening questions the user hid.
@@ -573,6 +576,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.width': 280,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
   'ui.chat.profile_pane.width': 360,
+  'ui.chat.narrow_width': 800,
   'ui.chat.profile_pane.starters': {},
   'ui.chat.profile_pane.hidden_starters': [],
   'ui.composer.input_history': [],
