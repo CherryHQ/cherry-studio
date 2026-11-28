@@ -360,3 +360,63 @@ describe('tool_invoke automation output projection (#23303)', () => {
     })
   })
 })
+
+describe('tool_invoke protocol-name aliases (#24583)', () => {
+  function makeMcpRegistry(): ToolRegistry {
+    const reg = new ToolRegistry()
+    reg.register({
+      name: 'mcp__s1__nmap_scan_a1b2c3',
+      namespace: 'mcp:s1',
+      description: 'scan',
+      defer: 'auto',
+      tool: {
+        type: 'function',
+        description: 'scan',
+        inputSchema: jsonSchema({ type: 'object' }),
+        execute: innerExecute,
+        metadata: { cherry: { tool: { name: 'nmap_scan', serverId: 's1', serverName: 'S1', type: 'mcp' } } }
+      }
+    })
+    return reg
+  }
+
+  it('invokes a tool addressed by its MCP protocol name', async () => {
+    innerExecute.mockReset().mockResolvedValue({ ok: true })
+    const reg = makeMcpRegistry()
+    const tool = createToolInvokeTool(
+      reg,
+      allowAll('mcp__s1__nmap_scan_a1b2c3'),
+      inspected('mcp__s1__nmap_scan_a1b2c3')
+    )
+
+    const result = await callInvoke(tool, { name: 'nmap_scan', params: { target: '10.0.0.1' } })
+    expect(result).toEqual({ ok: true })
+    expect(innerExecute).toHaveBeenCalledTimes(1)
+    expect(innerExecute.mock.calls[0][0]).toEqual({ target: '10.0.0.1' })
+  })
+
+  it('rejects an unknown name with the reason, without touching the registry entry', async () => {
+    innerExecute.mockReset().mockResolvedValue('ok')
+    const reg = makeMcpRegistry()
+    const tool = createToolInvokeTool(
+      reg,
+      allowAll('mcp__s1__nmap_scan_a1b2c3'),
+      inspected('mcp__s1__nmap_scan_a1b2c3')
+    )
+
+    await expect(callInvoke(tool, { name: 'fofa_search', params: {} })).rejects.toThrow(
+      /not available in this request: fofa_search \(no enabled tool exposes this name/
+    )
+    expect(innerExecute).not.toHaveBeenCalled()
+  })
+
+  it('never resolves an alias outside the per-request allowed set', async () => {
+    innerExecute.mockReset().mockResolvedValue('ok')
+    const reg = makeMcpRegistry()
+    // The protocol name IS registered process-wide, but the request exposed nothing.
+    const tool = createToolInvokeTool(reg, new Set(['web_search']), inspected('mcp__s1__nmap_scan_a1b2c3'))
+
+    await expect(callInvoke(tool, { name: 'nmap_scan', params: {} })).rejects.toThrow(/not available in this request/)
+    expect(innerExecute).not.toHaveBeenCalled()
+  })
+})

@@ -197,7 +197,9 @@ describe('createAiRepair', () => {
   })
 
   it('returns null on non-input errors (NoSuchTool is the model picking a wrong tool name)', async () => {
-    expect(await callRepair(makeToolCall(KB_SEARCH_TOOL_NAME, { q: 'hi' }), noSuchToolErr)).toBeNull()
+    await expect(callRepair(makeToolCall(KB_SEARCH_TOOL_NAME, { q: 'hi' }), noSuchToolErr)).resolves.toMatchObject({
+      toolName: KB_SEARCH_TOOL_NAME
+    })
     expect(generateText).not.toHaveBeenCalled()
   })
 
@@ -215,4 +217,78 @@ describe('createAiRepair', () => {
     expect(result).toBeNull()
     expect(generateText).not.toHaveBeenCalled()
   })
+})
+
+describe('createAiRepair - NoSuchToolError alias repair (#24583)', () => {
+  const mcpToolEntry = (protocolName: string, serverId: string) => ({
+    inputSchema: jsonSchema({ type: 'object', properties: { target: { type: 'string' } } }),
+    metadata: {
+      cherry: { tool: { name: protocolName, serverId, serverName: serverId, type: 'mcp' as const } }
+    }
+  })
+
+  async function callNoSuchTool(toolName: string, tools: Parameters<typeof repair>[0]['tools']) {
+    return repair({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall(toolName, { target: '10.0.0.1' }),
+      tools,
+      inputSchema: async () => {
+        throw new Error('unknown tool')
+      },
+      error: new NoSuchToolError({ toolName })
+    })
+  }
+
+  it('rewrites a protocol-name call to the unique matching MCP wire id', async () => {
+    const repaired = await callNoSuchTool('nmap_scan', {
+      mcp__s1__nmap_scan_a1b2c3: mcpToolEntry('nmap_scan', 's1'),
+      web_search: { inputSchema: jsonSchema({ type: 'object' }) }
+    })
+
+    expect(repaired).not.toBeNull()
+    expect(repaired!.toolName).toBe('mcp__s1__nmap_scan_a1b2c3')
+    expect(JSON.parse(repaired!.input)).toEqual({ target: '10.0.0.1' })
+    expect(generateText).not.toHaveBeenCalled()
+  })
+
+  it('returns null when no tool exposes the called protocol name', async () => {
+    await expect(
+      callNoSuchTool('fofa_search', {
+        mcp__s1__nmap_scan_a1b2c3: mcpToolEntry('nmap_scan', 's1')
+      })
+    ).rejects.toThrow(/no enabled tool/)
+  })
+
+  it('returns null when two servers expose the same protocol name', async () => {
+    await expect(
+      callNoSuchTool('nmap_scan', {
+        mcp__s1__nmap_scan_a1b2c3: mcpToolEntry('nmap_scan', 's1'),
+        mcp__s2__nmap_scan_d4e5f6: mcpToolEntry('nmap_scan', 's2')
+      })
+    ).rejects.toThrow(/matches/)
+  })
+})
+
+it('rejects a duplicate in the full catalog even when only one namesake is inline', async () => {
+  const entry = {
+    inputSchema: jsonSchema({ type: 'object' }),
+    metadata: { cherry: { tool: { type: 'mcp', name: 'lookup' } } }
+  }
+  const scoped = createAiRepair({
+    providerId: 'openai',
+    providerSettings: { apiKey: 'test' },
+    modelId: 'model',
+    requestTools: { inline: entry, deferred: entry }
+  })
+  await expect(
+    scoped({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall('lookup', {}),
+      tools: { inline: entry },
+      inputSchema: async () => ({}),
+      error: new NoSuchToolError({ toolName: 'lookup' })
+    })
+  ).rejects.toThrow(/matches inline and deferred/)
 })

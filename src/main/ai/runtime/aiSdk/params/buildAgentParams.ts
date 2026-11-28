@@ -56,6 +56,7 @@ import {
   resolveAssistantMcpToolIds,
   resolveMcpResourceServers
 } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
+import { createMcpAliasMiddleware } from '../../../tools/adapters/aiSdk/mcpAliasMiddleware'
 import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
@@ -375,12 +376,27 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
+  const requestTools: ToolSet = { ...tools }
+  for (const entry of deferredEntries) requestTools[entry.name] = entry.tool
+  if (request.contextOwner !== 'caller' && Object.keys(requestTools).length) {
+    contributions.modelAdapters.push(
+      definePlugin({
+        name: 'request-mcp-alias-identity',
+        enforce: 'post',
+        configureContext: (context) => {
+          context.middlewares ??= []
+          context.middlewares.push(createMcpAliasMiddleware(tools ?? {}, requestTools))
+        }
+      })
+    )
+  }
   const options = buildAgentOptions(
     scope,
     contributions,
     customParameters,
     requestedMaxOutputTokens,
-    input.getRepairUsagePlugins
+    input.getRepairUsagePlugins,
+    requestTools
   )
   if (request.contextOwner !== 'caller') {
     applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
@@ -666,7 +682,8 @@ function buildAgentOptions(
   contributions: FeatureContributions,
   customParameters: ReturnType<typeof extractAiSdkStandardParams>,
   requestedMaxOutputTokens: number | undefined,
-  getRepairUsagePlugins?: () => AiPlugin[]
+  getRepairUsagePlugins?: () => AiPlugin[],
+  requestTools?: ToolSet
 ): AgentOptions {
   const {
     assistant,
@@ -853,7 +870,8 @@ function buildAgentOptions(
             headers,
             signal: scope.signal,
             retryInvalidOutput: maxRetries !== 0,
-            getUsagePlugins: getRepairUsagePlugins
+            getUsagePlugins: getRepairUsagePlugins,
+            requestTools
           })
   }
 }

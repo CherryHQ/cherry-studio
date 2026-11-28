@@ -9,6 +9,7 @@ import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolRegistry } from '../registry'
+import { resolveRequestToolName } from '../toolNameAlias'
 import { buildToolStub } from './schemaStub'
 
 export const TOOL_INSPECT_TOOL_NAME = 'tool_inspect'
@@ -32,8 +33,10 @@ export function createToolInspectTool(
       name: z.string().describe('Tool name as returned by tool_search')
     }),
     inputExamples: [{ input: { name: 'web_search' } }],
-    execute: async ({ name }) => {
-      if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)
+    execute: async ({ name: requestedName }) => {
+      // Same protocol-name alias bridge as tool_invoke, so a model can
+      // inspect 'nmap_scan' and then invoke it (#24583).
+      const name = resolveRequestToolName(requestedName, allowedNames, (n) => registry.getByName(n)?.tool)
       const entry = registry.getByName(name)
       if (!entry) throw new Error(`Tool not found: ${name}`)
       const stub = await buildToolStub(entry)

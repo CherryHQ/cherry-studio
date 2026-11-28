@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write docs/dev/references/ai/tool-registry.md
+tool-registry.md: 4a0ef80d1108ee563d64c88a6c27b8f88e5d9630
+tool-registry.zh.md: c8e7f79a1f4985215578fdbeff99f80e2a343cfb
