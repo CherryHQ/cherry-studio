@@ -1,3 +1,4 @@
+const { extractFile } = require('@electron/asar')
 const { Arch } = require('electron-builder')
 const fs = require('fs')
 const { createRequire } = require('node:module')
@@ -53,6 +54,15 @@ exports.default = async function (context) {
   installComputerUseRuntime(context)
   const platform = context.packager.platform.name
   if (platform === 'windows') {
+    const archive = path.join(context.packager.getResourcesDir(context.appOutDir), 'app.asar')
+    for (const file of ['package.json', 'dist/index.js']) {
+      const entry = `node_modules/@earendil-works/pi-tui/${file}`
+      try {
+        if (extractFile(archive, path.normalize(entry)).length === 0) throw new Error('File is empty')
+      } catch (cause) {
+        throw new Error(`Packaged Pi runtime cannot read ${entry} in ${archive}`, { cause })
+      }
+    }
     fs.rmSync(path.join(context.appOutDir, 'LICENSE.electron.txt'), { force: true })
     fs.rmSync(path.join(context.appOutDir, 'LICENSES.chromium.html'), { force: true })
   } else if (platform === 'linux') {

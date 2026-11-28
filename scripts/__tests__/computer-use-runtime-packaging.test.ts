@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, st
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { createPackage } from '@electron/asar'
 import { Arch } from 'electron-builder'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -12,6 +13,32 @@ const roots: string[] = []
 
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+describe('packaged Pi runtime on Windows', () => {
+  it.each([
+    ['complete package', ['package.json', 'dist/index.js'], null],
+    ['missing package metadata', ['dist/index.js'], 'package.json'],
+    ['missing package entry', ['package.json'], 'dist/index.js']
+  ])('validates the Pi TUI archive contents with %s', async (_scenario, files, missing) => {
+    const { root, resources, context } = fixture('win32', 'x64')
+    const source = path.join(root, 'app')
+    const tui = path.join(source, 'node_modules/@earendil-works/pi-tui')
+    for (const file of files) {
+      const filename = path.join(tui, file)
+      mkdirSync(path.dirname(filename), { recursive: true })
+      writeFileSync(filename, file === 'package.json' ? '{"main":"dist/index.js"}' : 'export {}')
+    }
+    mkdirSync(resources, { recursive: true })
+    await createPackage(source, path.join(resources, 'app.asar'))
+
+    if (missing) {
+      await expect(afterPack(context)).rejects.toThrow(`@earendil-works/pi-tui/${missing}`)
+    } else {
+      await afterPack(context)
+      expect(existsSync(path.join(resources, 'computer-use/open-computer-use.exe'))).toBe(true)
+    }
+  })
 })
 
 function fixture(platform = 'darwin', arch = 'arm64') {
