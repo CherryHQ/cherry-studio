@@ -50,6 +50,28 @@ export const SyncEntityTagsSchema = z.object({
 export type SyncEntityTagsDto = z.infer<typeof SyncEntityTagsSchema>
 
 /**
+ * Body for an atomic tag delta on an entity: bindings to add and to remove, applied in
+ * one main-process transaction. Unlike the replace-all sync, concurrent writers each
+ * submit only their own change, so overlapping edits from separate windows or list
+ * instances cannot silently drop each other's additions.
+ */
+export const UpdateEntityTagsDeltaSchema = z
+  .object({
+    add: z.array(TagIdSchema).max(TAG_ASSOCIATION_MAX_ITEMS).default([]),
+    remove: z.array(TagIdSchema).max(TAG_ASSOCIATION_MAX_ITEMS).default([])
+  })
+  .refine((dto) => new Set(dto.add).size === dto.add.length, {
+    message: 'Duplicate tag ids are not allowed'
+  })
+  .refine((dto) => new Set(dto.remove).size === dto.remove.length, {
+    message: 'Duplicate tag ids are not allowed'
+  })
+  .refine((dto) => !dto.add.some((tagId) => dto.remove.includes(tagId)), {
+    message: 'A tag id cannot be both added and removed'
+  })
+export type UpdateEntityTagsDeltaDto = z.infer<typeof UpdateEntityTagsDeltaSchema>
+
+/**
  * Body for bulk setting entities on a tag
  */
 export const SetTagEntitiesSchema = z.object({
@@ -63,6 +85,18 @@ export const SetTagEntitiesSchema = z.object({
     )
 })
 export type SetTagEntitiesDto = z.infer<typeof SetTagEntitiesSchema>
+
+/**
+ * Query params for `GET /entity-tags`. `entityType` is required — listing
+ * bindings across entity types has no business use case.
+ */
+export const ListEntityTagsQuerySchema = z.strictObject({
+  entityType: EntityTypeSchema
+})
+export type ListEntityTagsQuery = z.infer<typeof ListEntityTagsQuerySchema>
+
+/** A single entity ↔ tag association. */
+export type EntityTagBinding = { entityId: string; tagId: string }
 
 // ============================================================================
 // API Schema Definitions
@@ -115,6 +149,17 @@ export type TagSchemas = {
   }
 
   /**
+   * Every tag binding for one entity type, so list views can group without N per-entity requests
+   * @example GET /entity-tags?entityType=agent
+   */
+  '/entity-tags': {
+    GET: {
+      query: ListEntityTagsQuery
+      response: EntityTagBinding[]
+    }
+  }
+
+  /**
    * Bulk set entities for a specific tag
    * @example PUT /tags/abc123/entities { "entities": [{ "entityType": "assistant", "entityId": "xyz" }] }
    */
@@ -141,6 +186,12 @@ export type TagSchemas = {
     PUT: {
       params: { entityType: EntityType; entityId: string }
       body: SyncEntityTagsDto
+      response: void
+    }
+    /** Atomically add and/or remove tag associations for an entity */
+    PATCH: {
+      params: { entityType: EntityType; entityId: string }
+      body: UpdateEntityTagsDeltaDto
       response: void
     }
   }

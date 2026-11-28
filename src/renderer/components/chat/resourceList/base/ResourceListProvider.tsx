@@ -243,7 +243,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
     if (rightOrder === undefined) return 1
     return leftOrder - rightOrder
   })
-  const showSectionHeaders = sectionEntries.length > 1
+  const showSectionHeaders = sectionEntries.length > 1 || sectionEntries.some(({ section }) => section.alwaysShowHeader)
 
   return sectionEntries.map(({ section, items, groupSeeds }) => {
     const collapsed = showSectionHeaders && Boolean(section.label) && collapsedIdSet.has(section.id)
