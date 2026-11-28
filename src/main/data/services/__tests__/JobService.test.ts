@@ -21,6 +21,38 @@ const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
   ...overrides
 })
 
+describe('JobService retry write', () => {
+  setupTestDatabase()
+
+  it('retries only a running row without a cancellation request', () => {
+    const row = jobService.create(baseRow({ status: 'running', cancelRequested: false }))
+    const db = application.get('DbService').getDb()
+    const due = Date.now() + 200
+    expect(jobService.setDelayedRetryTx(db, row.id, 1, due, null)).toBe(true)
+    expect(jobService.getById(row.id)).toMatchObject({
+      status: 'delayed',
+      attempt: 1,
+      scheduledAt: new Date(due).toISOString()
+    })
+  })
+
+  for (const status of ['completed', 'failed', 'cancelled', 'pending', 'delayed'] as const) {
+    it(`preserves a ${status} row when a late retry arrives`, () => {
+      const row = jobService.create(baseRow({ status }))
+      const db = application.get('DbService').getDb()
+      expect(jobService.setDelayedRetryTx(db, row.id, 1, Date.now() + 200, null)).toBe(false)
+      expect(jobService.getById(row.id)).toEqual(row)
+    })
+  }
+
+  it('preserves a running row with a cancellation request', () => {
+    const row = jobService.create(baseRow({ status: 'running', cancelRequested: true }))
+    const db = application.get('DbService').getDb()
+    expect(jobService.setDelayedRetryTx(db, row.id, 1, Date.now() + 200, null)).toBe(false)
+    expect(jobService.getById(row.id)).toEqual(row)
+  })
+})
+
 describe('JobService.count', () => {
   setupTestDatabase()
 
