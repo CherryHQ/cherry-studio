@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-27-selection-result-font-and-read-aloud.md
+2026-11-27-selection-result-font-and-read-aloud.md: 791a1f099f6d090209381893f390b5967c416549
+2026-11-27-selection-result-font-and-read-aloud.zh.md: 82217404e26a9d184b2a84a688e7ac3c6c72ac0f
