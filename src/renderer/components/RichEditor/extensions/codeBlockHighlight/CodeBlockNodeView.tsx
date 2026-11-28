@@ -12,6 +12,7 @@ import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from '@renderer/components/Cod
 import type { ViewMode } from '@renderer/components/CodeBlockView/types'
 import { CodeToolButton, useCopyTool, useDownloadTool, useViewSourceTool } from '@renderer/components/CodeToolbar'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
+import { usePreviewImageReady } from '@renderer/components/Preview/usePreviewImageReady'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
 
@@ -39,11 +40,10 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const isPreviewing = isSpecialView && showPreview
   const showImageTools = isPreviewing && Boolean(specialView?.supportsImageActions)
   const previewRef = useRef<BasicPreviewHandles | null>(null)
-  // Image readiness reported by previews that implement onImageReadyChange; undefined
-  // means the current preview does not report it (image actions stay available).
-  const [previewImageReady, setPreviewImageReady] = useState<boolean | undefined>(undefined)
-  const handleImageReadyChange = useCallback((ready: boolean) => setPreviewImageReady(ready), [])
-  useEffect(() => setPreviewImageReady(undefined), [specialView])
+  const { previewImageReady, onImageReadyChange: handleImageReadyChange } = usePreviewImageReady(
+    JSON.stringify([language, node.textContent, isPreviewing]),
+    language === 'plantuml'
+  )
   const [tools, setTools] = useState<ActionTool[]>([])
   const { registerTool, removeTool } = useToolManager(setTools)
 

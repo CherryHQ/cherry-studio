@@ -35,6 +35,7 @@ import { FileIcon } from '@renderer/components/icons/FileIcon'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
+import { usePreviewImageReady } from '@renderer/components/Preview/usePreviewImageReady'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { toast } from '@renderer/services/toast'
@@ -297,11 +298,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const showPreviewTools =
     Boolean(specialViewDefinition?.supportsImageActions) && (viewMode === 'special' || viewMode === 'split')
 
-  // Image readiness reported by previews that implement onImageReadyChange; undefined
-  // means the current preview does not report it (image actions stay available).
-  const [previewImageReady, setPreviewImageReady] = useState<boolean | undefined>(undefined)
-  const handleImageReadyChange = useCallback((ready: boolean) => setPreviewImageReady(ready), [])
-  useEffect(() => setPreviewImageReady(undefined), [specialViewDefinition])
+  const { previewImageReady, onImageReadyChange: handleImageReadyChange } = usePreviewImageReady(
+    JSON.stringify([language, source, isStreaming, viewMode]),
+    language === 'plantuml'
+  )
 
   const handleToggleExpanded = useCallback(() => setExpandOverride((current) => !current), [])
   const handleToggleWrapped = useCallback(() => setWrapOverride((current) => !current), [])

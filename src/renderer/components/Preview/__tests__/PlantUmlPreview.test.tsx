@@ -76,6 +76,16 @@ describe('PlantUmlPreview', () => {
     expect(onImageReadyChange).toHaveBeenLastCalledWith(false)
   })
 
+  it.each([undefined, '', '   '])('does not report ready when the engine supplies no SVG: %j', async (missingSvg) => {
+    const onImageReadyChange = vi.fn()
+    const { container } = render(<PlantUmlPreview onImageReadyChange={onImageReadyChange}>{source}</PlantUmlPreview>)
+    await advance()
+    await reply({ svg: missingSvg } as PlantUmlRenderResponse)
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toBeFalsy()
+    expect(onImageReadyChange).not.toHaveBeenCalledWith(true)
+    expect(screen.getByText('error.render.block')).toBeInTheDocument()
+  })
+
   it('shows the reported PlantUML error and line when the source cannot render', async () => {
     render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()

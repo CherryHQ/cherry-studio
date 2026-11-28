@@ -47,7 +47,9 @@ const PlantUmlPreview = ({
               FORBID_TAGS: ['style', 'image', 'feImage', 'use', 'animate', 'animateMotion', 'animateTransform', 'set']
             }
           })
-          onImageReadyChange?.(true)
+          const attached = Boolean(container.shadowRoot?.querySelector('svg'))
+          onImageReadyChange?.(attached)
+          if (!attached) setError(t('error.render.block'))
         }
       } catch (error) {
         if (signal.aborted) return
