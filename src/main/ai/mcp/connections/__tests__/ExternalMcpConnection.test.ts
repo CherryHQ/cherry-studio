@@ -1072,4 +1072,86 @@ describe('ExternalMcpConnection OAuth + fallback composition', () => {
       expect(sseFallbackAuthHeaders).toEqual(['Bearer fresh-oauth-token'])
     })
   })
+
+  it('falls back to the alternate URL transport when server/discover returns HTTP 500, legacy initialize triggers OAuth, and authenticated initialize returns HTTP 405', async () => {
+    await withTempOAuthDir(async () => {
+      const log = createLog()
+      const sseFallbackAuthHeaders: Array<string | null> = []
+      installInteractiveCallbackOpenMock()
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const oauthResponse = mockOAuthEndpoints(request.url)
+        if (oauthResponse) return oauthResponse
+        if (request.url === oauthServerUrl) {
+          const authHeader = request.headers.get('authorization')
+          if (request.method === 'POST') {
+            const method = (await request.clone().json()).method
+            if (method === 'server/discover') {
+              return new Response(probeRejectionBody, { status: 500 })
+            }
+            if (authHeader !== 'Bearer fresh-oauth-token') {
+              return unauthorizedResponse()
+            }
+            return new Response('Method Not Allowed', { status: 405 })
+          }
+          if (request.method === 'GET') {
+            sseFallbackAuthHeaders.push(authHeader)
+            return new Response('Service Unavailable', { status: 503 })
+          }
+        }
+        throw new Error(`Unexpected request: ${request.url}`)
+      })
+
+      await expect(
+        createExternalMcpConnection({
+          server: oauthServer,
+          appVersion: '0.0.0-test',
+          events,
+          log,
+          connectTimeoutMs: 5_000
+        })
+      ).rejects.toBeInstanceOf(Error)
+      expect(openMock).toHaveBeenCalledTimes(1)
+      expect(log.warn).toHaveBeenCalledWith('Transport mismatch; trying fallback', { candidate: 'streamableHttp' })
+      expect(sseFallbackAuthHeaders).toEqual(['Bearer fresh-oauth-token'])
+    })
+  })
+
+  it('does not open a second browser sign-in when the server rejects a freshly issued token with no refresh token', async () => {
+    await withTempOAuthDir(async () => {
+      const seenAuthHeaders: Array<string | null> = []
+      installInteractiveCallbackOpenMock()
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        if (request.url === `${oauthIssuer}/oauth/token`) {
+          return Response.json({
+            access_token: 'rejected-oauth-token',
+            token_type: 'Bearer'
+          })
+        }
+        const oauthResponse = mockOAuthEndpoints(request.url)
+        if (oauthResponse) return oauthResponse
+        if (request.url === oauthServerUrl) {
+          if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
+            return new Response(probeRejectionBody, { status: 500 })
+          }
+          seenAuthHeaders.push(request.headers.get('authorization'))
+          return unauthorizedResponse()
+        }
+        throw new Error(`Unexpected request: ${request.url}`)
+      })
+
+      await expect(
+        createExternalMcpConnection({
+          server: oauthServer,
+          appVersion: '0.0.0-test',
+          events,
+          log: createLog(),
+          connectTimeoutMs: 5_000
+        })
+      ).rejects.toSatisfy((error) => UnauthorizedError.isInstance(error))
+      expect(openMock).toHaveBeenCalledTimes(1)
+      expect(seenAuthHeaders).toEqual([null, 'Bearer rejected-oauth-token'])
+    })
+  })
 })

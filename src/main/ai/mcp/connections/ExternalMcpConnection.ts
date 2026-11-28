@@ -138,13 +138,14 @@ export async function createExternalMcpConnection({
   let connecting = true
   let connected = false
   let authorizationAttempted = false
+  let interactiveAuthAvailable = allowInteractiveAuthorization
   let activeConnection: ClientMcpConnection | undefined
   authProvider.beginAuthorization = async () => {
     if (connecting) authorizationAttempted = true
     const operation = authOperations.getStore() ?? initialAuthorization
     const windowId = connecting ? authorizationWindowId : activeConnection?.getInteractionContext()?.windowId
     const window = windowId ? application.get('WindowManager').getWindow(windowId) : undefined
-    if (connecting ? !allowInteractiveAuthorization || (Boolean(windowId) && !window) : !window)
+    if (connecting ? !interactiveAuthAvailable || (Boolean(windowId) && !window) : !window)
       throw new UnauthorizedError(t('settings.mcp.oauth.required'))
     const windowClosed = new AbortController()
     const close = () => windowClosed.abort(new Error('MCP authorization window closed'))
@@ -361,6 +362,7 @@ export async function createExternalMcpConnection({
         try {
           if (error instanceof McpAuthorizationCompleted) authProvider.reloadCredentials()
           else await authenticate(transport, initialAuthorization)
+          interactiveAuthAvailable = false
           await connection.close().catch(() => undefined)
           connection = createClient(appVersion, events, versionMode)
           activeConnection = connection
@@ -406,6 +408,11 @@ export async function createExternalMcpConnection({
             return finishConnection(connection)
           } catch (legacyError) {
             await releasePendingAuthorization(initialAuthorization, legacyError)
+            if (candidate && candidate !== candidates.at(-1) && isTransportFallbackError(legacyError)) {
+              lastError = legacyError
+              log.warn('Transport mismatch; trying fallback', { candidate })
+              continue
+            }
             if (
               authorizationAttempted ||
               UnauthorizedError.isInstance(legacyError) ||
