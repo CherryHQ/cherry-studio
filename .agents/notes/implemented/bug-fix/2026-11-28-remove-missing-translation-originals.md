@@ -10,7 +10,7 @@ Removing a missing PDF original from the file library failed because the transla
 
 ## Decision
 
-For an explicit library removal, FileManager checks the original path directly. When the path is missing and every persistent reference is a translation history source, deleting the external entry also clears those optional references through the foreign key cascade. The deletion transaction checks all references and keeps the translation history and its required target.
+For an explicit library removal, FileManager checks the original path directly. When the path is missing and every persistent reference is a translation history source, deleting the external entry also clears those optional references through the foreign key cascade. The reference registry declares the exception for optional sources. The filesystem probe runs outside the global path lock, and the deletion transaction rechecks the path and protected references while preserving the history and its required target.
 
 ## Alternatives considered
 
@@ -22,4 +22,4 @@ The history retains the original filename and the translated PDF remains availab
 
 ## Verification
 
-- Regression — `src/main/services/file/internal/entry/__tests__/lifecycle.test.ts`: removing a missing original preserves the history and translated file. A present original or a missing original with another persistent reference stays protected.
+- Regression — `src/main/services/file/internal/entry/__tests__/lifecycle.test.ts`: removing a missing original preserves the history and translated file. A present original or a missing original with another persistent reference stays protected. A concurrent path mutation can proceed during the probe, and a reference added during that interval blocks deletion.

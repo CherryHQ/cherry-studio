@@ -3,7 +3,7 @@
  */
 
 import type { SQL } from 'drizzle-orm'
-import { and, count, eq, or, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { type InsertTranslateHistoryFileRefRow, translateHistoryFileRefTable } from '@data/db/schemas/fileRelations'
@@ -95,17 +95,6 @@ export class TranslateHistoryService {
 
     logger.info('Created file translate history', { id: row.id, refCount: refs.length })
     return rowToTranslateHistory(row)
-  }
-
-  countSourceFileRefsTx(tx: DbOrTx, fileEntryId: string): number {
-    const result = tx
-      .select({ count: count() })
-      .from(translateHistoryFileRefTable)
-      .where(
-        and(eq(translateHistoryFileRefTable.fileEntryId, fileEntryId), eq(translateHistoryFileRefTable.role, 'source'))
-      )
-      .get()
-    return result?.count ?? 0
   }
 
   list(query: TranslateHistoryQuery): TranslateHistoryListResponse {

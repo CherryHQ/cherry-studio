@@ -41,6 +41,7 @@ const {
 const { exists } = await import('@main/utils/file')
 const { createInternal, ensureExternal } = await import('../create')
 
+import { runPathMutationExclusive } from '../../../pathMutationLock'
 import type { FileManagerDeps } from '../../deps'
 
 describe('internal/entry/lifecycle', () => {
@@ -297,6 +298,9 @@ describe('internal/entry/lifecycle', () => {
       const entry = fileEntryService.getById(id)
       if (entry.origin !== 'external') throw new Error('expected external entry')
 
+      vi.spyOn(await import('@main/utils/file'), 'getPathStatus').mockRejectedValue(
+        new Error('external path unavailable')
+      )
       await removeExternalFromLibrary(deps, id)
 
       expect(fileEntryService.findById(id)).toBeNull()
@@ -318,7 +322,12 @@ describe('internal/entry/lifecycle', () => {
       expect(await exists(entry.externalPath)).toBe(true)
     })
 
-    it.each(['missing', 'present', 'missing with another reference'] as const)(
+    it.each([
+      'missing',
+      'present',
+      'missing with another reference',
+      'missing with a reference added during the probe'
+    ] as const)(
       'preserves the translation history and its target when the external source is %s',
       async (sourceState) => {
         const sourceId = await makeExternal()
@@ -339,7 +348,34 @@ describe('internal/entry/lifecycle', () => {
         if (sourceState !== 'present') await rm(source.externalPath)
         if (sourceState === 'missing with another reference') await seedPersistentRef(sourceId)
 
-        const result = await batchRemoveFromLibrary(deps, [sourceId])
+        const fileUtils = await import('@main/utils/file')
+        const probe = vi.spyOn(fileUtils, 'getPathStatus')
+        const probeStarted = Promise.withResolvers<void>()
+        const probeFinished = Promise.withResolvers<Awaited<ReturnType<typeof fileUtils.getPathStatus>>>()
+        if (sourceState === 'missing with a reference added during the probe') {
+          probe.mockImplementationOnce(() => {
+            probeStarted.resolve()
+            return probeFinished.promise
+          })
+        }
+
+        const removal = batchRemoveFromLibrary(deps, [sourceId])
+        if (sourceState === 'missing with a reference added during the probe') {
+          let competingWrite: Promise<void> | undefined
+          try {
+            await probeStarted.promise
+            let committed = false
+            competingWrite = runPathMutationExclusive(async () => {
+              await seedPersistentRef(sourceId)
+              committed = true
+            })
+            await vi.waitFor(() => expect(committed).toBe(true), { timeout: 500 })
+          } finally {
+            probeFinished.resolve({ ok: false, reason: 'missing' })
+            await Promise.all([competingWrite, removal])
+          }
+        }
+        const result = await removal
         const canRemove = sourceState === 'missing'
         if (canRemove) {
           expect(result).toEqual({ succeeded: [sourceId], failed: [] })

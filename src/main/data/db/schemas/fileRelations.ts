@@ -1,4 +1,4 @@
-import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
+import { ne, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import {
@@ -345,6 +345,11 @@ export const persistentFileRefTablesBySourceType = {
   | typeof miniAppLogoFileRefTable
   | typeof miniAppFileRefTable
 >
+
+/** References protected during explicit removal of a missing external entry. Unlisted sources protect every ref. */
+export const missingExternalRefProtection: Partial<Record<PersistentFileRefSourceType, SQL>> = {
+  [translateHistorySourceType]: ne(translateHistoryFileRefTable.role, 'source')
+}
 
 /**
  * NOT EXISTS conditions for "no persistent ref points at this file_entry",
