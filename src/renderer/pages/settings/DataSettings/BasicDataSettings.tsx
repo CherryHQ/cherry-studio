@@ -1,6 +1,6 @@
 import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -20,6 +20,7 @@ import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
+  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -44,6 +45,7 @@ import {
   finalizeLegacyV1Cleanup,
   mergeLegacyV1CleanupResults
 } from './legacyV1BrowserData'
+import ModelSettingsConflictPopup from './ModelSettingsConflictPopup'
 import RestorePopup from './RestorePopup'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
@@ -51,6 +53,8 @@ const logger = loggerService.withContext('BasicDataSettings')
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
+  const modelSettingsImportActive = useRef(false)
+  const [importingModelSettings, setImportingModelSettings] = useState(false)
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<CacheCleanupSizeSnapshot | null>()
   const [clearingCache, setClearingCache] = useState(false)
@@ -286,6 +290,78 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
+  const handleExportModelSettings = async () => {
+    const confirmed = await popup.confirm({
+      title: t('settings.data.model_settings.export_title'),
+      content: t('settings.data.model_settings.export_warning'),
+      okText: t('settings.data.model_settings.export_button'),
+      cancelText: t('common.cancel'),
+      centered: true
+    })
+    if (!confirmed) return
+
+    try {
+      const { filePath } = await ipcApi.request('model_settings.export')
+      if (filePath) toast.success(t('settings.data.model_settings.export_success'))
+    } catch (error) {
+      toast.error(t('settings.data.model_settings.export_error'))
+    }
+  }
+
+  const handleImportModelSettings = async () => {
+    if (modelSettingsImportActive.current) return
+    modelSettingsImportActive.current = true
+    setImportingModelSettings(true)
+    try {
+      const preview = await ipcApi.request('model_settings.import_preview')
+      if (!preview) return
+
+      const decisions =
+        preview.conflicts.length > 0 ? await ModelSettingsConflictPopup.show({ conflicts: preview.conflicts }) : {}
+      if (decisions === null) return
+
+      const result = await ipcApi.request('model_settings.import_apply', { handle: preview.handle, decisions })
+      const importDetails = [...result.failed, ...(result.warnings ?? [])]
+      if (result.failed.length > 0) {
+        toast.warning(t('settings.data.model_settings.import_partial', { count: result.failed.length }))
+      } else {
+        toast.success(
+          t('settings.data.model_settings.import_success', {
+            created: result.created,
+            replaced: result.replaced,
+            skipped: result.skipped
+          })
+        )
+      }
+      if (importDetails.length > 0) {
+        await popup.info({
+          title: t(
+            result.failed.length > 0
+              ? 'settings.data.model_settings.import_error'
+              : 'settings.data.model_settings.title'
+          ),
+          content: (
+            <ul className="max-h-80 list-disc space-y-2 overflow-y-auto break-all pl-5">
+              {importDetails.map((failure, index) => (
+                <li key={`${failure.kind}:${failure.id}:${index}`}>
+                  {t(`settings.data.model_settings.conflict_${failure.kind}`)}: {failure.id},{' '}
+                  {failure.reason === 'provider_not_imported' || failure.reason === 'adapter_family_dropped'
+                    ? t(`settings.data.model_settings.${failure.reason}`)
+                    : failure.reason}
+                </li>
+              ))}
+            </ul>
+          )
+        })
+      }
+    } catch (error) {
+      toast.error(t('settings.data.model_settings.import_error'))
+    } finally {
+      modelSettingsImportActive.current = false
+      setImportingModelSettings(false)
+    }
+  }
+
   return (
     <>
       <SettingGroup theme={theme}>
@@ -305,6 +381,23 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
         <SettingDivider />
+        <SettingRow id="setting-data-data-model-settings" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.data.model_settings.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={handleExportModelSettings} variant="outline">
+              <SaveIcon size={14} />
+              {t('settings.data.model_settings.export_button')}
+            </Button>
+            <Button onClick={handleImportModelSettings} disabled={importingModelSettings} variant="outline">
+              <FolderOpen size={14} />
+              {t('settings.data.model_settings.import_button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.model_settings.description')}</SettingHelpText>
+        </SettingRow>
+
         <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
           <SettingRowTitle className="flex items-center gap-1.5">
             {t('settings.data.backup.skip_file_data_title')}{' '}
