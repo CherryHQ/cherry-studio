@@ -30,7 +30,7 @@ Pi and Pi Durable also offer `/skill:<name>` from the managed and workspace Skil
 
 Submitting a Skill command revalidates the candidate against the selected session. The runtime starts a model turn with the Skill reference and optional arguments through the existing slash-command dispatch. Cherry preserves the assistant reply and keeps the invocation out of conversation history and input recall.
 
-Each driver declares its command catalog capabilities. An offline source supplies commands without an open connection. A live source uses the existing connection path on explicit activation or refresh. Native pushes and query results update the current connection's catalog. Passive readers use the published snapshot. The Channel help reader can use the existing catalog without opening a runtime.
+Runtime packages declare how to discover and execute their commands through the common runtime contract. The packages supply native command metadata and declare offline lookup, live push, or live query as applicable. Pi and Pi Durable share metadata with the goal parser, and generic ACP adapters share the protocol's command push. Main resolves the active connection, branch, and authorized Skill sources. Offline readers receive explicit workspace and Skill inputs. Native pushes and query results update the current connection's catalog. The Composer and Channel help can read the published snapshot without opening a runtime.
 
 The Composer retains the identity of a selected or recognized command in its draft. An outdated catalog or a removed command leaves that draft available. Main verifies command identity, session and current branch or connection before dispatch.
 
@@ -60,6 +60,8 @@ Main coordinates one execution entry point. A runtime receipt confirms that the 
 - AC11 — Reading a command snapshot, including from Channel help, leaves an idle or disconnected runtime closed. Explicit activation of a live-capable driver refreshes the catalog, and a late result from a retired connection is discarded. (verification: Main and renderer — implementation owner)
 - AC12 — A selected or recognized command remains a command after a catalog update. If it becomes unavailable, sending it leaves the draft and writes no ordinary chat input. A never-recognized slash path still sends as text. (verification: renderer and Main — implementation owner)
 - AC13 — A Cursor Skill releases the Composer after the SDK accepts the turn. Its later model output and completion still follow the existing runtime events. (verification: runtime and renderer — implementation owner)
+
+- AC14 — Runtime command discovery and local command dispatch are available from package exports with host-supplied inputs. The packages work independently of Cherry session entities, and Main consumes package declarations for the existing harnesses. (verification: package contract, Main integration, and renderer — implementation owner)
 
 ## Risks
 
