@@ -868,7 +868,10 @@
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "http://localhost:1234"
+          "baseUrl": "http://localhost:1234",
+          "dialect": {
+            "requiresMaxOutputTokens": true
+          }
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
@@ -2969,5 +2972,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "01bb511bf73c9ba5"
 }
