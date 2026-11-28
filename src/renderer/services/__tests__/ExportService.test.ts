@@ -146,7 +146,8 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 }))
 
 vi.mock('@renderer/services/NotesService', () => ({
-  addNote: vi.fn()
+  addNote: vi.fn(),
+  resolveNotesPath: vi.fn(async (path: string) => ({ path: path || '/notes', isFallback: false }))
 }))
 
 // PreferenceService is now mocked globally in tests/renderer.setup.ts
