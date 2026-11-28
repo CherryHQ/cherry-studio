@@ -49,6 +49,7 @@ import {
   headersWithoutCredentials,
   routeToEndpoint
 } from '../utils/provider'
+import { withReasoningParamFallback } from '../utils/reasoningParamFallback'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig, ModelUnavailableError } from './cherryCloud'
@@ -427,7 +428,10 @@ export async function resolveProviderAiSdkConfig(
   // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
-  config.providerSettings.fetch ??= customFetch
+  // The outer wrap retries once without reasoning parameters when an
+  // OpenAI-compatible endpoint 400s on them (#24593); it is a pass-through for
+  // every other request and response.
+  config.providerSettings.fetch = withReasoningParamFallback(config.providerSettings.fetch ?? customFetch)
 
   return {
     config,

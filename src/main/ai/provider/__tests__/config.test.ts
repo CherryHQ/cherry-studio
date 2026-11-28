@@ -26,7 +26,6 @@ import type { AuthConfig } from '@shared/data/types/provider'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
-import { customFetch } from '../../utils/customFetch'
 import { splitParamValues } from '../../utils/imageOptions'
 import { resolveImageTransport } from '../custom/imageTransportRegistry'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
@@ -95,6 +94,20 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
 })
+
+/**
+ * The shared tail of providerToAiSdkConfig wraps the proxy-aware customFetch
+ * with the reasoning-parameter fallback (#24593), so `settings.fetch` is never
+ * identical to customFetch anymore. Assert delegation instead: a passthrough
+ * request (200, no reasoning fields) must still land on net.fetch, Chromium's
+ * proxy-aware stack.
+ */
+async function expectFetchDelegatesToCustomFetch(fetchFn: unknown) {
+  expect(fetchFn).toEqual(expect.any(Function))
+  vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+  await (fetchFn as typeof fetch)('https://example.com/v1/chat/completions', { method: 'POST', body: '{}' })
+  expect(net.fetch).toHaveBeenCalled()
+}
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   it.each([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])(
@@ -870,7 +883,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://proxy.example.com/openai')
       expect(settings.apiVersion).toBe('2024-10-21')
       expect(settings.useDeploymentBasedUrls).toBe(true)
-      expect(settings.fetch).toBe(customFetch)
+      await expectFetchDelegatesToCustomFetch(settings.fetch)
     })
   })
 
@@ -1516,7 +1529,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.apiKey).toBeUndefined()
       expect(resolveApiKeyMock).not.toHaveBeenCalled()
       // Still defaulted to the proxy-aware fetch by the shared tail of providerToAiSdkConfig.
-      expect(settings.fetch).toBe(customFetch)
+      await expectFetchDelegatesToCustomFetch(settings.fetch)
     })
   })
 
@@ -1596,8 +1609,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.apiKey).toBe('sk-test-key')
       expect(settings.name).toBeUndefined()
       // A builder that installs no fetch of its own must default to the proxy-aware customFetch
-      // (the `settings.fetch ??= customFetch` in providerToAiSdkConfig — the point of this path).
-      expect(settings.fetch).toBe(customFetch)
+      // (the fetch-defaulting tail of providerToAiSdkConfig — the point of this path).
+      await expectFetchDelegatesToCustomFetch(settings.fetch)
     })
 
     it('routes a preset-derived DashScope instance (UUID id) through DashScope config', async () => {

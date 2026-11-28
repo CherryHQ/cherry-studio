@@ -70,8 +70,8 @@ export async function previewAgentSystemPrompt(draft: AgentSystemPromptDraft): P
   if (draft.agentId && !stored) throw new Error(`Agent not found: ${draft.agentId}`)
 
   const agent = {
-    type: stored?.type ?? draft.agentType ?? 'pi-durable',
     name: stored?.name ?? '',
+    type: stored?.type ?? draft.agentType ?? 'pi-durable',
     disabledTools: draft.disabledTools,
     knowledgeBaseIds: draft.knowledgeBaseIds,
     instructions: draft.instructions,
