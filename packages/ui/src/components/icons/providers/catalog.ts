@@ -5,7 +5,7 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-11-14T13:47:05.564Z
- * Total icons: 175
+ * Total icons: 176
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -110,6 +110,7 @@ import { MinimaxIcon } from './minimax'
 import { MinimaxAgentIcon } from './minimax-agent'
 import { MistralIcon } from './mistral'
 import { MixedbreadIcon } from './mixedbread'
+import { ModelrushIcon } from './modelrush/modelrush'
 import { ModelscopeIcon } from './modelscope'
 import { MonicaIcon } from './monica'
 import { MoonshotIcon } from './moonshot'
@@ -287,6 +288,7 @@ export const PROVIDER_ICON_CATALOG = {
   'minimax-agent': MinimaxAgentIcon,
   mistral: MistralIcon,
   mixedbread: MixedbreadIcon,
+  modelrush: ModelrushIcon,
   modelscope: ModelscopeIcon,
   monica: MonicaIcon,
   moonshot: MoonshotIcon,

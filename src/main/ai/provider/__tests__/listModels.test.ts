@@ -20,7 +20,7 @@ import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { resolveEffectiveEndpoint } from '../endpoint'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
-import { AIHubMixModelsResponseSchema } from '../listModelsSchemas'
+import { AIHubMixModelsResponseSchema, ModelRushModelsResponseSchema } from '../listModelsSchemas'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
@@ -338,6 +338,170 @@ describe('listModels — TokenDance protocol routing', () => {
     const { models } = await listModels(makeTokenDanceProvider('97bd7816-e47f-47ba-b20f-6cbf6de38960'))
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
+})
+
+describe('listModels — ModelRush chat-completions filtering (#20010)', () => {
+  function makeModelRushProvider(id = 'modelrush') {
+    return makeProvider({
+      id,
+      presetProviderId: 'modelrush',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.modelrush.ai/v1' }
+      }
+    })
+  }
+
+  it('keeps only live chat-completions operations from the public discovery shape', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'modelrush/deepseek-v4.1-flash',
+            owned_by: 'modelrush',
+            api_types: ['chat-completions'],
+            gateway_status: 'live'
+          },
+          { id: 'modelrush/grok-4.5', owned_by: 'modelrush', api_types: ['chat-completions'], gateway_status: 'live' },
+          {
+            id: 'modelrush/wan2.7-image',
+            owned_by: 'modelrush',
+            api_types: ['image-generation', 'image-editing'],
+            gateway_status: 'live'
+          },
+          { id: 'modelrush/wan3', owned_by: 'modelrush', api_types: ['video-generation'], gateway_status: 'live' },
+          {
+            id: 'modelrush/qwen3-asr-flash',
+            owned_by: 'modelrush',
+            api_types: ['audio-transcription'],
+            gateway_status: 'live'
+          },
+          {
+            id: 'modelrush/qwen3-tts-flash',
+            owned_by: 'modelrush',
+            api_types: ['text-to-speech'],
+            gateway_status: 'live'
+          },
+          {
+            id: 'modelrush/staged-chat',
+            owned_by: 'modelrush',
+            api_types: ['chat-completions'],
+            gateway_status: 'deploying'
+          }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeModelRushProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/deepseek-v4.1-flash', 'modelrush/grok-4.5'])
+    expect(models[0]).toMatchObject({ ownedBy: 'modelrush', capabilities: [] })
+  })
+
+  it('imports live chat-completions rows with a null display name under their model id (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'modelrush/deepseek-v4.1-flash',
+            name: null,
+            owned_by: 'modelrush',
+            api_types: ['chat-completions'],
+            gateway_status: 'live'
+          }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeModelRushProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/deepseek-v4.1-flash'])
+    expect(models[0]).toMatchObject({ name: 'modelrush/deepseek-v4.1-flash', ownedBy: 'modelrush' })
+  })
+
+  it('routes copied ModelRush providers through the ModelRush fetcher (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'modelrush/glm-5.3', api_types: ['chat-completions'], gateway_status: 'live' },
+          { id: 'modelrush/papaya-1.0', api_types: ['chat-completions'], gateway_status: 'live' },
+          { id: 'modelrush/z-image', api_types: ['image-generation'], gateway_status: 'live' }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeModelRushProvider('550e8400-e29b-41d4-a716-446655440000'))
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/glm-5.3', 'modelrush/papaya-1.0'])
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://api.modelrush.ai/v1/models')
+  })
+
+  it('excludes rows missing live status or chat-completions evidence (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'modelrush/live-chat', api_types: ['chat-completions'], gateway_status: 'live' },
+          // Live image row with null api_types must not become a chat model.
+          { id: 'modelrush/live-image', api_types: null, gateway_status: 'live' },
+          // Chat row without gateway_status must not become a chat model.
+          { id: 'modelrush/unstaged-chat', api_types: ['chat-completions'] },
+          // Row with neither signal must not become a chat model.
+          { id: 'modelrush/bare' }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeModelRushProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/live-chat'])
+  })
+
+  it('routes a pre-existing custom row with id modelrush and no preset through the generic fetcher (REGRESSION)', async () => {
+    const custom = makeProvider({
+      id: 'modelrush',
+      name: 'My Rush',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.modelrush.ai/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [{ id: 'modelrush/z-image', owned_by: 'custom' }]
+      }
+    })
+
+    const { models } = await listModels(custom)
+
+    // Generic OpenAI-compatible discovery keeps the row; the ModelRush
+    // chat-completions filter would have dropped it (no live/chat evidence).
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/z-image'])
+  })
+
+  it('keeps the valid live chat row when one item is malformed (REGRESSION)', () => {
+    const parsed = ModelRushModelsResponseSchema.parse({
+      data: [
+        { id: 'modelrush/live-chat', api_types: ['chat-completions'], gateway_status: 'live' },
+        // Matches OpenAI-compatible tolerance: a malformed row is skipped,
+        // not a whole-list failure surfaced as a Settings error.
+        { id: 42 }
+      ]
+    })
+
+    expect(parsed.data.map((m) => m.id)).toEqual(['modelrush/live-chat'])
+    expect(parsed.skippedModelCount).toBe(1)
+  })
+
+  it('ignores a non-string top-level object and keeps valid rows (REGRESSION)', () => {
+    const parsed = ModelRushModelsResponseSchema.parse({
+      data: [{ id: 'modelrush/live-chat', api_types: ['chat-completions'], gateway_status: 'live' }],
+      object: null
+    })
+
+    expect(parsed.data.map((m) => m.id)).toEqual(['modelrush/live-chat'])
+    expect(parsed.skippedModelCount).toBe(0)
   })
 })
 

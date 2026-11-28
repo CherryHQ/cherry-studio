@@ -54,6 +54,7 @@ const providerKeyMap = {
   lmstudio: 'provider.lmstudio',
   minimax: 'provider.minimax',
   mistral: 'provider.mistral',
+  modelrush: 'provider.modelrush',
   modelscope: 'provider.modelscope',
   moonshot: 'provider.moonshot',
   'new-api': 'provider.new-api',

@@ -80,7 +80,7 @@ export default function ProviderListGroup({
           </span>
           <div className={providerListClasses.itemIdentity}>
             <ProviderAvatar
-              provider={{ id: presetProviderId, name: label }}
+              provider={{ id: presetProviderId, name: label, presetProviderId }}
               size={26}
               className={providerListClasses.itemAvatar}
               displayContext="provider-list"

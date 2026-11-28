@@ -115,10 +115,18 @@ export function getProviderDisplayNameById(providerId: string): string {
 /**
  * Resolve a provider's user-facing name from its runtime metadata.
  * System providers use their canonical label; custom providers keep their user-set name.
+ * A pre-existing custom row that collides with a later preset id (e.g. `modelrush`
+ * created before the preset shipped) keeps its user name: only rows with persisted
+ * preset identity resolve to the preset label.
  */
-export function getProviderDisplayName(provider: Pick<Provider, 'id' | 'name'> | undefined): string {
+export function getProviderDisplayName(
+  provider: Pick<Provider, 'id' | 'name' | 'presetProviderId'> | undefined
+): string {
   if (!provider) return ''
-  return isSystemProviderId(provider.id) ? getProviderDisplayNameById(provider.id) : provider.name
+  if (isSystemProviderId(provider.id) && provider.presetProviderId != null) {
+    return getProviderDisplayNameById(provider.id)
+  }
+  return provider.name
 }
 
 // \uFE0F = VS16 (emoji-presentation selector); \u20E3 = combining enclosing keycap (1️⃣);

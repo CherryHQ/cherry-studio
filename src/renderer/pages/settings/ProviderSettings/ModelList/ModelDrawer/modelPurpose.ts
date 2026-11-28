@@ -8,7 +8,6 @@ import {
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { matchesPreset } from '@shared/utils/provider'
-import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 import type { ModelDrawerMode } from './types'
 
@@ -65,7 +64,10 @@ export function getModelDrawerMode(provider: ModelDrawerProvider): ModelDrawerMo
   if (matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')) {
     return 'endpoint-types'
   }
-  if (provider.presetProviderId == null && !isSystemProviderId(provider.id)) {
+  // A pre-existing custom row that collides with a later preset id (e.g. `modelrush`
+  // created before the preset shipped) keeps custom behavior: only rows with persisted
+  // preset identity are treated as system/legacy. Mirrors `getProviderDisplayName`.
+  if (provider.presetProviderId == null) {
     return 'purpose'
   }
   return 'legacy'

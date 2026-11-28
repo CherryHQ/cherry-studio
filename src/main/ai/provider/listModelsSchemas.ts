@@ -244,6 +244,43 @@ export const TokenDanceModelsResponseSchema = z.object({
   )
 })
 
+// === ModelRush ===
+
+const ModelRushModelSchema = z.looseObject({
+  id: z.string(),
+  name: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? undefined),
+  owned_by: z.string().optional(),
+  modality: z.string().optional(),
+  gateway_status: z.string().optional(),
+  api_types: z
+    .array(z.string())
+    .nullable()
+    .optional()
+    .transform((v) => v ?? undefined)
+})
+
+const ModelRushModelItemSchema = z.unknown().transform((model) => {
+  const parsed = ModelRushModelSchema.safeParse(model)
+  return parsed.success ? parsed.data : undefined
+})
+
+export const ModelRushModelsResponseSchema = z
+  .looseObject({
+    data: z.array(ModelRushModelItemSchema)
+  })
+  .transform((response) => {
+    const data = response.data.filter((model): model is z.output<typeof ModelRushModelSchema> => model !== undefined)
+    return {
+      ...response,
+      data,
+      skippedModelCount: response.data.length - data.length
+    }
+  })
+
 // === OVMS (OpenVINO Model Server) ===
 
 export const OVMSConfigResponseSchema = z.record(

@@ -59,4 +59,10 @@ describe('getProviderDisplayName', () => {
 
     expect(getProviderDisplayName(provider)).toBe('My Local LLM')
   })
+
+  it('keeps the user-set name for a pre-existing custom row colliding with a later preset id (REGRESSION)', () => {
+    const provider = makeProvider({ id: 'modelrush', presetProviderId: undefined, name: 'My Rush' })
+
+    expect(getProviderDisplayName(provider)).toBe('My Rush')
+  })
 })

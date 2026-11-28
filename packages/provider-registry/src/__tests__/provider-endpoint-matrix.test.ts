@@ -161,3 +161,27 @@ describe('aionly NewAPI relay endpoints (#21168)', () => {
     expect(withBaseUrl).toEqual(['openai-chat-completions'])
   })
 })
+
+// ModelRush is a single OpenAI-compatible Chat Completions surface (#20010).
+// No Responses/Anthropic pins: the public /v1/regions advertises chat-completions
+// across regions and the public /v1/models carries chat-completions operations.
+describe('modelrush endpoint matrix (#20010)', () => {
+  it('exposes only the OpenAI-compatible Chat Completions endpoint', () => {
+    expect(Object.keys(provider('modelrush').endpointConfigs ?? {})).toEqual(['openai-chat-completions'])
+  })
+
+  it('routes Chat Completions through the openai-compatible adapter on the public gateway', () => {
+    expect(provider('modelrush').endpointConfigs?.['openai-chat-completions']).toEqual({
+      adapterFamily: 'openai-compatible',
+      baseUrl: 'https://api.modelrush.ai/v1'
+    })
+  })
+
+  it('keeps Chat Completions as the default chat endpoint', () => {
+    expect(provider('modelrush').defaultChatEndpoint).toBe('openai-chat-completions')
+  })
+
+  it('declares no per-model endpoint pins (runtime discovery filters to chat-completions)', () => {
+    expect(providerModelEntries(provider('modelrush'))).toEqual([])
+  })
+})
