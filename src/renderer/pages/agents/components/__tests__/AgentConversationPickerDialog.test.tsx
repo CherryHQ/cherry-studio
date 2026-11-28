@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -42,12 +43,13 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   getResourceCreateDefaultAvatar: () => '🤖',
   ResourceCreateWizard: (props: any) => {
     mocks.createDialogProps = props
+    const [createdId, setCreatedId] = useState<string>()
     return (
       <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind}>
         <button
           type="button"
-          onClick={() =>
-            props.onSubmit({
+          onClick={async () => {
+            const id = await props.onSubmit({
               avatar: '🤖',
               name: 'New Agent',
               modelId: 'p::m',
@@ -58,9 +60,20 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
               agentType: 'claude-code',
               permissionMode: 'auto'
             })
-          }>
+            setCreatedId(id)
+          }}>
           submit-create
         </button>
+        {props.open && createdId && (
+          <button
+            type="button"
+            onClick={() => {
+              props.onStartConversation(createdId)
+              props.onOpenChange(false)
+            }}>
+            Start conversation
+          </button>
+        )}
       </div>
     )
   }
@@ -128,8 +141,11 @@ describe('AgentConversationPickerDialog', () => {
 
     await waitFor(() => expect(mocks.createAgent).toHaveBeenCalledTimes(1))
     expect(onSelect).not.toHaveBeenCalled()
-    mocks.createDialogProps.onStartConversation('agent-new')
+    const resultAction = await screen.findByRole('button', { name: 'Start conversation' })
+    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
+    fireEvent.click(resultAction)
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ type: 'agent', agentId: 'agent-new' }))
+    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'false')
   })
 
   it('defaults to the combined agents and preset catalog list', () => {

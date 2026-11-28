@@ -111,7 +111,6 @@ export function AgentConversationPickerDialog({
         throw error
       }
 
-      setCreateDialogOpen(false)
       return created.id
     },
     [createAgent]
