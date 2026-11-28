@@ -3617,6 +3617,7 @@
   "preview.image": "Görsel önizlemesi {{url}}",
   "preview.label": "Önizleme",
   "preview.next": "Sonraki Görsel",
+  "preview.page_indicator": "Sayfa {{current}} / {{total}}",
   "preview.pan_down": "Aşağı Kaydır",
   "preview.pan_left": "Sola Kaydır",
   "preview.pan_right": "Sağa Kaydır",

@@ -3621,6 +3621,7 @@
   "preview.image": "Náhled obrázku {{url}}",
   "preview.label": "Náhled",
   "preview.next": "Další obrázek",
+  "preview.page_indicator": "Stránka {{current}} z {{total}}",
   "preview.pan_down": "Posunout dolů",
   "preview.pan_left": "Posunout doleva",
   "preview.pan_right": "Posunout doprava",

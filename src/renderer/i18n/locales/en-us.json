@@ -3617,6 +3617,7 @@
   "preview.image": "Preview image {{url}}",
   "preview.label": "Preview",
   "preview.next": "Next Image",
+  "preview.page_indicator": "Page {{current}} of {{total}}",
   "preview.pan_down": "Pan Down",
   "preview.pan_left": "Pan Left",
   "preview.pan_right": "Pan Right",

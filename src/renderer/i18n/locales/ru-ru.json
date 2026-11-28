@@ -3661,6 +3661,7 @@
   "preview.image": "Предпросмотр изображения {{url}}",
   "preview.label": "Предварительный просмотр",
   "preview.next": "Следующее изображение",
+  "preview.page_indicator": "Страница {{current}} из {{total}}",
   "preview.pan_down": "Переместить вниз",
   "preview.pan_left": "Переместить влево",
   "preview.pan_right": "Переместить вправо",

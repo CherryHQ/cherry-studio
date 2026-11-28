@@ -3617,6 +3617,7 @@
   "preview.image": "Bildvorschau {{url}}",
   "preview.label": "Vorschau",
   "preview.next": "Nächstes Bild",
+  "preview.page_indicator": "Seite {{current}} von {{total}}",
   "preview.pan_down": "Nach unten",
   "preview.pan_left": "Nach links",
   "preview.pan_right": "Nach rechts",

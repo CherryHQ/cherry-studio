@@ -3617,6 +3617,7 @@
   "preview.image": "Vista previa de la imagen {{url}}",
   "preview.label": "Vista previa",
   "preview.next": "Siguiente Imagen",
+  "preview.page_indicator": "Página {{current}} de {{total}}",
   "preview.pan_down": "Mover hacia abajo",
   "preview.pan_left": "Desplazarse hacia la izquierda",
   "preview.pan_right": "Desplazarse hacia la derecha",
