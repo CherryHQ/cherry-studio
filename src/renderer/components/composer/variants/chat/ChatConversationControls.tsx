@@ -9,6 +9,7 @@ import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/
 import { getProviderDisplayName, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
+import { trackModelSelected } from '@renderer/services/productAnalytics'
 import { getLeadingEmoji, getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
@@ -119,8 +120,16 @@ export function ChatConversationControls({
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
       onMentionedModelsSelect(nextModels)
+      trackModelSelected('mention', nextModels)
     },
     [onMentionedModelsSelect]
+  )
+  const handleModelSelect = useCallback(
+    (nextModel: Model | undefined) => {
+      onModelSelect(nextModel)
+      if (nextModel) trackModelSelected('chat', [nextModel])
+    },
+    [onModelSelect]
   )
   const handleMentionedModelMultiSelectModeChange = useCallback(
     (nextEnabled: boolean) => {
@@ -247,7 +256,7 @@ export function ChatConversationControls({
           allowPresentationSwitch
           multiple={false}
           value={model}
-          onSelect={onModelSelect}
+          onSelect={handleModelSelect}
           filter={chatModelFilter}
           shortcut="chat.model.select"
           side={side}

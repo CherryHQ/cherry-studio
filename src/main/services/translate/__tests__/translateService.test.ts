@@ -208,12 +208,17 @@ describe('translateService.open', () => {
       WindowType.Main
     )
     const listeners = (streamPromptMock.mock.calls as unknown as Array<[{ listener: unknown }]>)[0][0]
-      .listener as Array<{ id: string; onDone: (result: unknown) => void; onError: () => void; isAlive: () => boolean }>
+      .listener as Array<{
+      id: string
+      onDone: (result: unknown) => void
+      onError: (result: { error: { message: string; statusCode?: number } }) => void
+      isAlive: () => boolean
+    }>
     const analytics = listeners.find((listener) => listener.id.startsWith('analytics:'))!
 
     analytics.onDone(translated('Hello'))
     analytics.onDone(translated('  \n'))
-    analytics.onError()
+    analytics.onError({ error: { message: 'quota exceeded for secret text', statusCode: 402 } })
 
     const base = {
       event: 'feature_used',
@@ -225,7 +230,7 @@ describe('translateService.open', () => {
     expect(trackProductEventMock.mock.calls.map(([event]) => event)).toEqual([
       { ...base, status: 'success', target: 'en-us' },
       { ...base, status: 'error', target: 'en-us' },
-      { ...base, status: 'error', target: 'en-us' }
+      { ...base, status: 'error', errorReason: 'quota', target: 'en-us' }
     ])
     sender.alive = false
     expect(analytics.isAlive()).toBe(false)

@@ -2,8 +2,10 @@ import { t } from 'i18next'
 import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { isMac } from '@renderer/utils/platform'
 import { classNames } from '@renderer/utils/style'
+import type { RendererAnalyticsEvent } from '@shared/ipc/schemas/analytics'
 
 import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 import {
@@ -36,6 +38,18 @@ import {
 const ITEM_HEIGHT = QUICK_PANEL_ITEM_HEIGHT
 
 const INPUT_QUERY_TERMINATOR_REGEX = /\s/
+
+type QuickPanelAnalyticsName = Extract<RendererAnalyticsEvent, { event: 'quick_panel_used' }>['panel']
+// Composer trigger symbols (ComposerPanelSymbol) by analytics name; anything else reports 'other'.
+const QUICK_PANEL_ANALYTICS_NAMES: Record<string, QuickPanelAnalyticsName> = {
+  '/': 'root',
+  '#': 'knowledge_base',
+  'quick-phrases': 'quick_phrases',
+  'mcp-status': 'mcp_status',
+  'mcp-prompts': 'mcp_prompts',
+  'mcp-resources': 'mcp_resources',
+  notes: 'notes'
+}
 
 function isInputQueryAnchorAllowed(text: string, queryAnchor: number) {
   if (queryAnchor === 0) return true
@@ -384,8 +398,20 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     [activeSearchQuery, ctx]
   )
 
+  const reportPanelUse = useCallback(
+    (result: 'selected' | 'closed') =>
+      trackProductEvent({
+        event: 'quick_panel_used',
+        panel: QUICK_PANEL_ANALYTICS_NAMES[ctx.symbol] ?? 'other',
+        via: ctx.triggerInfo?.type ?? 'button',
+        result
+      }),
+    [ctx.symbol, ctx.triggerInfo?.type]
+  )
+
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
+      if (action === 'esc' || action === 'outsideclick') reportPanelUse('closed')
       if (ctx.consumeQueryOnDismiss) {
         consumeInputQueryOnce()
       }
@@ -393,7 +419,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       ctx.close(action, cleanSearchText)
       scrollTriggerRef.current = 'initial'
     },
-    [activeSearchQuery, consumeInputQueryOnce, ctx]
+    [activeSearchQuery, consumeInputQueryOnce, ctx, reportPanelUse]
   )
 
   const handleItemAction = useCallback(
@@ -402,6 +428,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       // like "open config" which are the panel's one intentional affordance.
       if (ctx.readOnly && !isFooterAction) return
       if (item.disabled) return
+      if (!item.isMenu && !isFooterAction) reportPanelUse('selected')
       const cleanSearchText = activeSearchQuery
       const parentPanel = getCurrentPanelOptions(activeIndex)
       const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
@@ -491,7 +518,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       consumeInputQuery,
       consumeInputQueryOnce,
       inputAdapter,
-      handleClose
+      handleClose,
+      reportPanelUse
     ]
   )
 

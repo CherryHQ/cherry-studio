@@ -544,6 +544,42 @@ describe('AssistantDataService', () => {
     })
   })
 
+  describe('countConfiguredForAnalytics', () => {
+    it('counts live assistants by which context options they set, ignoring deleted ones', async () => {
+      await seedKnowledgeBase()
+      assistantDataService.create({ name: 'plain' })
+      assistantDataService.create({
+        name: 'configured',
+        prompt: 'You are helpful',
+        modelId: 'openai::gpt-4',
+        knowledgeBaseIds: ['kb-1'],
+        settings: { ...DEFAULT_ASSISTANT_SETTINGS, enableTemperature: true, enableWebSearch: true }
+      })
+      const deleted = assistantDataService.create({ name: 'gone', prompt: 'x', modelId: 'openai::gpt-4' })
+      assistantDataService.delete(deleted.id)
+
+      expect(assistantDataService.countConfiguredForAnalytics()).toEqual({
+        assistantCount: 2,
+        withPrompt: 1,
+        withModel: 1,
+        withTemperature: 1,
+        withWebSearch: 1,
+        withKnowledge: 1
+      })
+    })
+
+    it('reports zeros when there are no assistants', () => {
+      expect(assistantDataService.countConfiguredForAnalytics()).toEqual({
+        assistantCount: 0,
+        withPrompt: 0,
+        withModel: 0,
+        withTemperature: 0,
+        withWebSearch: 0,
+        withKnowledge: 0
+      })
+    })
+  })
+
   describe('create', () => {
     it('should create and return assistant with generated id', async () => {
       const result = assistantDataService.create({ name: 'test-assistant' })

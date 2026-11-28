@@ -7,6 +7,7 @@ import { omit } from 'es-toolkit'
 import { application } from '@application'
 import { cloneObservationValue } from '@cherrystudio/agent-runtime'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
+import { assistantDataService } from '@data/services/AssistantService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
@@ -14,7 +15,9 @@ import { logAiFailure } from '@main/ai/errorReporting'
 import { AcceptedToolResults } from '@main/ai/messages/AcceptedToolResults'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { classifyAiSdkFailure } from '@main/ai/runtime/aiSdk'
+import { TOOL_INVOKE_TOOL_NAME } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import {
   BaseService,
@@ -62,7 +65,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
 import { matchesPreset } from '@shared/utils/provider'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
+import { isSystemProviderId, SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { AsInProcess } from '../AiService'
 import { applyTurnOutputAttributes } from '../observability'
@@ -411,24 +414,65 @@ function trackCherryInQuotaError(
 const WEB_TOOL_NAMES = new Set([WEB_SEARCH_TOOL_NAME, PROVIDER_WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME])
 const KNOWLEDGE_TOOL_NAMES = new Set([KB_SEARCH_TOOL_NAME, KB_READ_TOOL_NAME, KB_LIST_TOOL_NAME])
 
+// `tool_invoke` runs the real tool inline, so count its target only once the call succeeded.
+function analyticsToolNames(parts: CherryUIMessage['parts']): string[] {
+  return parts.filter(isToolUIPart).flatMap((part) => {
+    const name = getToolName(part)
+    if (name !== TOOL_INVOKE_TOOL_NAME) return [name]
+    const input = part.input as { name?: unknown } | undefined
+    return part.state === 'output-available' && typeof input?.name === 'string' ? [input.name] : []
+  })
+}
+
+function chatTurnAssistant(assistantId: string | undefined) {
+  if (!assistantId) return undefined
+  try {
+    return assistantDataService.getById(assistantId)
+  } catch {
+    return undefined
+  }
+}
+
 /** One ordinary chat reply's outcome; Agent sessions and replies parked for tool approval report elsewhere. */
-function trackChatTurnFinished(topicId: string, request: ManagedAiStreamRequest, exec: StreamExecution): void {
+function trackChatTurnFinished(
+  topicId: string,
+  request: ManagedAiStreamRequest,
+  exec: StreamExecution,
+  assistant: ReturnType<typeof chatTurnAssistant>
+): void {
   if (isAgentSessionTopic(topicId) || exec.status === 'streaming') return
   if (exec.status === 'done' && (exec.pendingApprovalToolCallIds?.size ?? 0) > 0) return
   try {
-    const toolNames = (exec.finalMessage?.parts ?? []).filter(isToolUIPart).map((part) => getToolName(part))
+    const toolNames = analyticsToolNames(exec.finalMessage?.parts ?? [])
     const userParts = request.messages?.findLast((message) => message.role === 'user')?.parts ?? []
+    const { providerId } = parseUniqueModelId(exec.modelId)
+    const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
     // A reply that could not be saved failed for the user, however generation went.
-    const saveFailed = exec.persistence?.status === 'failed'
+    const saveFailure = exec.persistence?.status === 'failed' ? exec.persistence.failure : undefined
+    const failure =
+      saveFailure ?? (exec.status === 'error' && exec.error && toExecutionFailure(exec.error, exec.modelId))
     trackMainProductEvent({
       event: 'chat_turn_finished',
-      status: saveFailed || exec.status === 'error' ? 'error' : exec.status === 'done' ? 'success' : 'stopped',
-      modelSource: analyticsModelSource(parseUniqueModelId(exec.modelId).providerId),
+      status: saveFailure || exec.status === 'error' ? 'error' : exec.status === 'done' ? 'success' : 'stopped',
+      modelSource: analyticsModelSource(providerId),
+      ...(isSystemProviderId(providerId) && { target: providerId }),
+      ...(failure && { errorReason: failure.failure.reasonCode }),
+      origin: request.turnAnalytics?.origin ?? 'send',
+      modelCount: request.turnAnalytics?.modelCount ?? 1,
       durationMs: Math.max(0, Math.round((exec.timings.completedAt ?? performance.now()) - exec.timings.startedAt)),
+      ...(exec.firstTokenAt !== undefined && {
+        firstTokenMs: Math.max(0, Math.round(exec.firstTokenAt - exec.timings.startedAt))
+      }),
+      ...(request.reasoningEffort && { reasoningEffort: request.reasoningEffort }),
+      fastMode: request.fastMode === true,
+      webSearchEnabled: assistant?.settings.enableWebSearch === true,
       usedWebSearch: toolNames.some((name) => WEB_TOOL_NAMES.has(name)),
+      knowledgeBaseCount: knowledgeBaseIds.length,
       usedKnowledge: toolNames.some((name) => KNOWLEDGE_TOOL_NAMES.has(name)),
       mcpToolCount: toolNames.filter((name) => name.startsWith('mcp__')).length,
-      attachmentCount: userParts.filter((part) => part.type === 'file').length
+      attachmentCount: userParts.filter((part) => part.type === 'file').length,
+      imageCount: userParts.filter((part) => part.type === 'file' && part.mediaType?.startsWith('image/')).length,
+      depth: request.messages?.filter((message) => message.role === 'user').length ?? 0
     })
   } catch {
     // Telemetry must never affect stream termination.
@@ -1576,6 +1620,9 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
+    if (exec.firstTokenAt === undefined && (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta')) {
+      exec.firstTokenAt = performance.now()
+    }
     const sourceModelId = modelId
     const anchorMessageId = exec.anchorMessageId
     const payload: StreamChunkPayload = {
@@ -2333,6 +2380,8 @@ export class AiStreamManager extends BaseService {
       : () => this.runExecutionLoop(topicId, modelId, request, exec)
 
     const activity = application.get('RuntimeActivityService').begin(`ai:stream:${topicId}:${modelId}`)
+    // Read when the reply starts, like the runtime that resolves its tools, not after later edits.
+    const turnAssistant = chatTurnAssistant(request.assistantId)
     exec.loopPromise = launchLoop()
       .catch((err) => {
         // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
@@ -2340,7 +2389,7 @@ export class AiStreamManager extends BaseService {
       })
       .finally(() => {
         activity.dispose()
-        if (this.chatReplyExecutions.has(exec)) trackChatTurnFinished(topicId, request, exec)
+        if (this.chatReplyExecutions.has(exec)) trackChatTurnFinished(topicId, request, exec, turnAssistant)
       })
 
     return exec

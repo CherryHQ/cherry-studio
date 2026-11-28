@@ -9,3 +9,6 @@ export function analyticsModelSource(providerId: string): AnalyticsModelSource {
   if (providerId === SystemProviderIds.cherryin) return 'cherryin'
   return 'own_key'
 }
+
+/** Static ids analytics may name (built-in presets, menu ids, provider ids); never user-entered text. */
+export const ANALYTICS_PRESET_ID_PATTERN = /^[a-z0-9][a-z0-9:._-]{0,119}$/

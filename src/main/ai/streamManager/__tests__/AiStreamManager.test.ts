@@ -100,6 +100,8 @@ vi.mock('../context/dispatch', async (importOriginal) => {
   return { ...actual, dispatchStreamRequest: mockDispatchStreamRequest }
 })
 
+const mockGetAssistant = vi.hoisted(() => vi.fn())
+vi.mock('@data/services/AssistantService', () => ({ assistantDataService: { getById: mockGetAssistant } }))
 // Provider rows by id: preset-derived instances carry the preset they were created from.
 const providerPresets: Record<string, string> = { 'cherryin-express': 'cherryin' }
 vi.mock('@data/services/ProviderService', () => ({
@@ -2381,11 +2383,19 @@ describe('AiStreamManager', () => {
         event: 'chat_turn_finished',
         status: 'success',
         modelSource: 'cherryin',
+        target: 'cherryin',
+        origin: 'send',
+        modelCount: 1,
         durationMs: expect.any(Number),
+        fastMode: false,
+        webSearchEnabled: false,
         usedWebSearch: true,
+        knowledgeBaseCount: 0,
         usedKnowledge: true,
         mcpToolCount: 2,
-        attachmentCount: 1
+        attachmentCount: 1,
+        imageCount: 1,
+        depth: 1
       })
     })
 
@@ -2413,7 +2423,89 @@ describe('AiStreamManager', () => {
       feed.close()
 
       await vi.waitFor(() => expect(chatTurns()).toHaveLength(1))
-      expect(chatTurns()[0]).toMatchObject({ status: 'error' })
+      expect(chatTurns()[0]).toMatchObject({ status: 'error', errorReason: 'internal' })
+    })
+
+    it('reports how the turn started, its options, the assistant setup, and time to the first token', async () => {
+      mockTrackProductEvent.mockClear()
+      mockGetAssistant.mockReturnValueOnce({ settings: { enableWebSearch: true }, knowledgeBaseIds: ['kb-a', 'kb-b'] })
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('opts')
+      startSingle(mgr, {
+        topicId: 'opts',
+        modelId: 'my-provider-uuid::m',
+        request: {
+          ...withAttachment('opts'),
+          assistantId: 'assistant-1',
+          knowledgeBaseIds: ['kb-a', 'kb-c'],
+          reasoningEffort: 'high',
+          fastMode: true,
+          turnAnalytics: { origin: 'regenerate', modelCount: 3 }
+        },
+        listeners: [listener]
+      })
+      // Settings edited mid-reply do not describe the reply already running.
+      mockGetAssistant.mockReturnValue({ settings: { enableWebSearch: false }, knowledgeBaseIds: [] })
+      feed.enqueue({ type: 'start', messageId: 'answer' })
+      feed.enqueue({ type: 'text-start', id: 't' })
+      feed.enqueue({ type: 'text-delta', id: 't', delta: 'hi' })
+      feed.enqueue({ type: 'text-end', id: 't' })
+      feed.enqueue({ type: 'finish' })
+      feed.close()
+      await vi.waitFor(() => expect(chatTurns()).toHaveLength(1))
+
+      const [turn] = chatTurns()
+      expect(turn).toMatchObject({
+        modelSource: 'own_key',
+        origin: 'regenerate',
+        modelCount: 3,
+        reasoningEffort: 'high',
+        fastMode: true,
+        webSearchEnabled: true,
+        // The runtime narrows a selection to the assistant's bases: kb-c is dropped.
+        knowledgeBaseCount: 1,
+        firstTokenMs: expect.any(Number)
+      })
+      // A user-created provider is never named.
+      expect(turn).not.toHaveProperty('target')
+      expect(turn.firstTokenMs).toBeLessThanOrEqual(turn.durationMs)
+      mockGetAssistant.mockReset()
+    })
+
+    it('counts tools run through tool_invoke by their real name once the call succeeded', async () => {
+      mockTrackProductEvent.mockClear()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('invoke')
+      startSingle(mgr, { topicId: 'invoke', modelId: 'openai::m', request: req('invoke'), listeners: [listener] })
+      feed.enqueue({ type: 'start', messageId: 'answer' })
+      const invoke = (toolCallId: string, name: string, ok: boolean) => {
+        feed.enqueue({ type: 'tool-input-available', toolCallId, toolName: 'tool_invoke', input: { name, params: {} } })
+        feed.enqueue(
+          ok
+            ? { type: 'tool-output-available', toolCallId, output: {} }
+            : { type: 'tool-output-error', toolCallId, errorText: 'inspect first' }
+        )
+      }
+      invoke('rejected', 'mcp__github__searchIssues', false)
+      invoke('m1', 'mcp__github__searchIssues', true)
+      invoke('w1', 'web_search', true)
+      feed.enqueue({ type: 'finish' })
+      feed.close()
+      await vi.waitFor(() => expect(chatTurns()).toHaveLength(1))
+
+      expect(chatTurns()[0]).toMatchObject({ mcpToolCount: 1, usedWebSearch: true, usedKnowledge: false })
+    })
+
+    it('reports the classified reason of a failed reply, never its message', async () => {
+      mockTrackProductEvent.mockClear()
+      mockStreamText.mockRejectedValueOnce(Object.assign(new Error('Incorrect API key sk-123'), { statusCode: 401 }))
+      startSingle(mgr, { topicId: 'auth', modelId: 'openai::m', request: req('auth'), listeners: [] })
+
+      await vi.waitFor(() => expect(chatTurns()).toHaveLength(1))
+      expect(chatTurns()[0]).toMatchObject({ status: 'error', errorReason: 'auth', target: 'openai' })
+      expect(JSON.stringify(chatTurns()[0])).not.toContain('sk-123')
     })
 
     it('does not report Agent session turns as chat replies', async () => {

@@ -399,6 +399,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     )
 
     expect(regenerated.models[0].request.knowledgeBaseIds).toEqual(knowledgeBaseIds)
+    expect(submitted.models[0].request.turnAnalytics?.origin).toBe('send')
+    expect(regenerated.models[0].request.turnAnalytics?.origin).toBe('regenerate')
   })
 
   it('steer-continuation: opens an assistant turn under the steer user row and preserves its content', async () => {
@@ -438,6 +440,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(resolveModels).toHaveBeenLastCalledWith([MODEL_ID], MODEL_ID)
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-selected-for-steer'])
     expect(prepared.models[0].request.serviceTier).toBe('flex')
+    expect(prepared.models[0].request.turnAnalytics).toEqual({ origin: 'steer', modelCount: 1 })
 
     // A fresh assistant placeholder is created under u2 — no new user row.
     const children = messageService.getChildrenByParentId('u2')
@@ -656,6 +659,11 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(prepared.models.map((m) => m.modelId)).toEqual([MODEL_A, MODEL_B])
     expect(prepared.models[0].rootSpan).toBe(spanA)
     expect(prepared.models[1].rootSpan).toBe(spanB)
+    // Each reply knows it was one of two answers to the same send.
+    expect(prepared.models.map((m) => m.request.turnAnalytics)).toEqual([
+      { origin: 'send', modelCount: 2 },
+      { origin: 'send', modelCount: 2 }
+    ])
 
     // One persisted placeholder per model, both in the shared group, each routed to its
     // own request — placeholders[i]/turnRootSpans[i] alignment proven via per-row modelId.

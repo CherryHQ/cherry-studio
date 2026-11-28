@@ -3,8 +3,11 @@ import { ipcApi } from '@renderer/ipc'
 import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
 import type { SerializedError } from '@renderer/types/error'
 import { serializeHealthCheckError } from '@renderer/utils/error'
+import { classifyError } from '@renderer/utils/errorClassifier'
+import { serializeToastError } from '@renderer/utils/errorToast'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import type { ErrorCategory } from '@shared/utils/errorCategory'
 import {
   isGenerateAudioModel,
   isGenerateImageModel,
@@ -36,6 +39,12 @@ export class ModelCheckCredentialsError extends Error {
     this.name = 'ModelCheckCredentialsError'
     this.code = code
   }
+}
+
+/** The error category reported for a failed API check; missing or rejected credentials are `auth`. */
+export function modelCheckErrorCategory(error: unknown, providerId: string): ErrorCategory {
+  if (error instanceof ModelCheckCredentialsError) return 'auth'
+  return classifyError(serializeToastError(error), providerId).category
 }
 
 export function getModelCheckCredentialPolicy(

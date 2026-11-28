@@ -26,6 +26,7 @@ import {
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { trackProviderCheck } from '@renderer/services/productAnalytics'
 import { joinApiKeyString } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -43,7 +44,7 @@ import {
 } from '../ModelList'
 import { ProviderHelpLink, providerListClasses } from '../primitives/ProviderSettingsPrimitives'
 import DoubaoSetupGuide from '../ProviderSpecific/DoubaoSetupGuide'
-import { checkApi, getModelHealthCheckSkipReason } from '../utils/healthCheck'
+import { checkApi, getModelHealthCheckSkipReason, modelCheckErrorCategory } from '../utils/healthCheck'
 import { getProviderSetupErrorDetails, persistProviderModels } from '../utils/providerModelSetup'
 
 const VERIFICATION_STEP_FEEDBACK_DURATION_MS = 400
@@ -359,7 +360,14 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           timeout: 15000
         })
         probeSucceededModelIdRef.current = probeModel.id
+        trackProviderCheck({ surface: 'setup', providerId, keyCount: verificationApiKey ? 1 : 0 })
       } catch (cause) {
+        trackProviderCheck({
+          surface: 'setup',
+          providerId,
+          keyCount: verificationApiKey ? 1 : 0,
+          errorReason: modelCheckErrorCategory(cause, providerId)
+        })
         setBusyState(null)
         setError(createError('check', 'settings.provider.api_setup.check_failed', cause))
         return
@@ -381,7 +389,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
       setBusyState(null)
       setError(createError('enable', 'settings.provider.api_setup.enable_failed', cause))
     }
-  }, [createError, enableProvider, isBusy, probeModel, verificationApiKey])
+  }, [createError, enableProvider, isBusy, probeModel, providerId, verificationApiKey])
 
   const addSelectedModels = useCallback(async () => {
     if (!provider || selectedModels.length === 0 || isBusy) {

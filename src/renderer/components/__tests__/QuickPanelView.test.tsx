@@ -606,4 +606,36 @@ describe('QuickPanelView', () => {
       expect(getRow('second')).not.toHaveAttribute('data-selected')
     })
   })
+
+  describe('analytics', () => {
+    const tracked = () =>
+      vi
+        .mocked(window.api.ipcApi.request)
+        .mock.calls.filter(([route]) => route === 'analytics.track')
+        .map(([, event]) => event)
+
+    it('reports a pick by panel kind and how it opened, never the item', async () => {
+      vi.mocked(window.api.ipcApi.request).mockClear()
+      renderOpenPanel({ list: createList(2, 'Phrase'), symbol: 'quick-phrases', triggerInfo: { type: 'button' } })
+
+      fireEvent.click(screen.getByText('Phrase 2'))
+
+      await waitFor(() =>
+        expect(tracked()).toEqual([
+          { event: 'quick_panel_used', panel: 'quick_phrases', via: 'button', result: 'selected' }
+        ])
+      )
+    })
+
+    it('reports a dismissed panel and names an unknown panel other', async () => {
+      vi.mocked(window.api.ipcApi.request).mockClear()
+      renderOpenPanel({ list: createList(2), symbol: 'my-plugin-panel' })
+
+      fireEvent.keyDown(window, { key: 'Escape' })
+
+      await waitFor(() =>
+        expect(tracked()).toEqual([{ event: 'quick_panel_used', panel: 'other', via: 'input', result: 'closed' }])
+      )
+    })
+  })
 })

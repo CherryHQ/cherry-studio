@@ -56,4 +56,26 @@ describe('analytics.track schema', () => {
       }).success
     ).toBe(false)
   })
+
+  it('accepts chat interaction events with classified reasons and rejects free-form values', () => {
+    expect(
+      schema.safeParse({ event: 'chat_error_action', action: 'retry', reason: 'rate_limit', surface: 'chat' }).success
+    ).toBe(true)
+    expect(
+      schema.safeParse({ event: 'chat_error_action', action: 'retry', reason: 'Rate limit hit', surface: 'chat' })
+        .success
+    ).toBe(false)
+    expect(schema.safeParse({ event: 'topic_action_used', action: 'topic.export.markdown' }).success).toBe(true)
+    expect(schema.safeParse({ event: 'topic_action_used', action: 'topic.move-to-assistant.My%20Bot' }).success).toBe(
+      false
+    )
+    expect(
+      schema.safeParse({ event: 'feature_used', feature: 'translate', action: 'translated', errorReason: 'quota' })
+        .success
+    ).toBe(true)
+    expect(
+      schema.safeParse({ event: 'feature_used', feature: 'translate', action: 'translated', errorReason: 'oops' })
+        .success
+    ).toBe(false)
+  })
 })

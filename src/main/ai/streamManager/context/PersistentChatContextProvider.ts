@@ -493,6 +493,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           turnOptions.reasoningEffort,
           turnOptions.serviceTier,
           turnOptions.fastMode === true,
+          { origin: isRegenerate ? 'regenerate' : 'send', modelCount: assistantPlaceholders.length },
           retainedContext
         ),
         rootSpan
@@ -583,6 +584,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         turnOptions.reasoningEffort,
         turnOptions.serviceTier,
         turnOptions.fastMode === true,
+        { origin: 'retry', modelCount: 1 },
         retainedContext
       )
       applyTurnInputAttributes(rootSpan, {
@@ -735,6 +737,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.data.turnOptions?.reasoningEffort,
               anchor.data.turnOptions?.serviceTier,
               anchor.data.turnOptions?.fastMode === true,
+              { origin: 'continue', modelCount: 1 },
               retainedContext
             ),
             rootSpan
@@ -836,6 +839,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               req.reasoningEffort,
               req.serviceTier,
               req.fastMode,
+              { origin: 'steer', modelCount: 1 },
               retainedContext
             ),
             rootSpan
@@ -1101,6 +1105,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     reasoningEffort: AiStreamRequest['reasoningEffort'],
     serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
+    turnAnalytics: AiStreamRequest['turnAnalytics'],
     retainedContext?: RetainedContext
   ): AiStreamRequest {
     return {
@@ -1114,6 +1119,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       reasoningEffort,
       serviceTier,
       fastMode,
+      turnAnalytics,
       ...(retainedContext ? { retainedContext } : {})
     }
   }
