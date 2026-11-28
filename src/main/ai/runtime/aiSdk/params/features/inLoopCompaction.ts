@@ -264,7 +264,7 @@ export const inLoopCompactionFeature: RequestFeature = {
     // must not re-fail on every step; one failure disables it for this request.
     let compactionDisabled = false
     return {
-      prepareStep: async ({ messages }) => {
+      prepareStep: async ({ messages, steps }) => {
         const candidate = foldCache
           ? [...foldCache.compactedPrefix, ...messages.slice(foldCache.consumedCount)]
           : messages
