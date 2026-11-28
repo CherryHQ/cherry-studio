@@ -569,6 +569,154 @@ describe('ModelService.update', () => {
 // ModelService.create — merge behavior and batch semantics
 // ─────────────────────────────────────────────────────────────────────────────
 
+describe('ModelService provider metadata', () => {
+  const dbh = setupTestDatabase()
+  function seed() {
+    dbh.db.insert(userProviderTable).values(providerRow('custom-channel', 'Custom')).run()
+    return modelService.create([
+      {
+        dto: {
+          providerId: 'custom-channel',
+          modelId: 'model',
+          contextWindow: 64000,
+          providerMetadata: { contextWindow: 64000, maxOutputTokens: 4000, capabilities: [] }
+        }
+      }
+    ])[0]
+  }
+
+  it('persists provider declarations and provenance across reads', () => {
+    seed()
+    const model = modelService.getByKey('custom-channel', 'model')
+    expect(model).toMatchObject({
+      contextWindow: 64000,
+      maxOutputTokens: 4000,
+      metadataSources: { contextWindow: 'provider', maxOutputTokens: 'provider', capabilities: 'provider' },
+      providerMetadata: { contextWindow: 64000, capabilities: [] }
+    })
+  })
+
+  it('preserves provider provenance on unchanged field blur and permits a later refresh', () => {
+    seed()
+    modelService.update('custom-channel', 'model', { contextWindow: 64000, maxOutputTokens: 4000 })
+    const updated = modelService.applyProviderMetadata('custom-channel', 'model', {
+      contextWindow: 128000,
+      maxOutputTokens: 8000
+    })
+    expect(updated.contextWindow).toBe(128000)
+    expect(updated.maxOutputTokens).toBe(8000)
+    expect(updated.metadataSources?.contextWindow).toBe('provider')
+    expect(updated.metadataSources?.maxOutputTokens).toBe('provider')
+  })
+
+  it('treats a null blur of an absent limit as unchanged but keeps an intentional clear as user', () => {
+    // Absent limit: tabbing through the blank field submits null while the
+    // effective value is undefined. Provenance must not flip to 'user', so a
+    // later refresh may adopt a newly advertised limit.
+    dbh.db.insert(userProviderTable).values(providerRow('blank-channel', 'Blank')).run()
+    dbh.db
+      .insert(userModelTable)
+      .values(modelRow('blank-channel', 'sparse', { contextWindow: null }))
+      .run()
+    modelService.update('blank-channel', 'sparse', { contextWindow: null })
+    expect(modelService.getByKey('blank-channel', 'sparse').metadataSources?.contextWindow).not.toBe('user')
+    const refreshed = modelService.applyProviderMetadata('blank-channel', 'sparse', { contextWindow: 128000 })
+    expect(refreshed.contextWindow).toBe(128000)
+    expect(refreshed.metadataSources?.contextWindow).toBe('provider')
+
+    // Intentional clear of a populated field stays a user override and freezes refresh.
+    seed()
+    modelService.update('custom-channel', 'model', { contextWindow: null })
+    const cleared = modelService.applyProviderMetadata('custom-channel', 'model', { contextWindow: 128000 })
+    expect(cleared.metadataSources?.contextWindow).toBe('user')
+    expect(cleared.contextWindow ?? null).toBeNull()
+  })
+
+  it('refreshes provider and unknown fields but keeps user edits (AC5)', () => {
+    seed()
+    modelService.update('custom-channel', 'model', { contextWindow: 32000 })
+    const model = modelService.applyProviderMetadata('custom-channel', 'model', {
+      contextWindow: 128000,
+      maxOutputTokens: 8000,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    expect(model).toMatchObject({
+      contextWindow: 32000,
+      maxOutputTokens: 8000,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      metadataSources: { contextWindow: 'user', maxOutputTokens: 'provider' },
+      providerMetadata: { contextWindow: 128000 }
+    })
+  })
+
+  it('resets only the selected field to the last provider value (AC6)', () => {
+    seed()
+    modelService.update('custom-channel', 'model', { contextWindow: 32000, maxOutputTokens: 2000 })
+    const model = modelService.applyProviderMetadata('custom-channel', 'model', {}, 'contextWindow')
+    expect(model).toMatchObject({
+      contextWindow: 64000,
+      maxOutputTokens: 2000,
+      metadataSources: { contextWindow: 'provider', maxOutputTokens: 'user' }
+    })
+  })
+
+  it('keeps previous values and snapshots when refresh omits a field', () => {
+    seed()
+    const model = modelService.applyProviderMetadata('custom-channel', 'model', {})
+    expect(model).toMatchObject({
+      contextWindow: 64000,
+      maxOutputTokens: 4000,
+      providerMetadata: { contextWindow: 64000, maxOutputTokens: 4000 }
+    })
+  })
+
+  it('conservatively protects historical explicit values and registry fields', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('custom-channel', 'Custom')).run()
+    dbh.db
+      .insert(userModelTable)
+      .values(modelRow('custom-channel', 'model', { contextWindow: 32000, maxOutputTokens: null }))
+      .run()
+    resolveModelMock.mockReturnValue({
+      presetModel: { id: 'model', name: 'Model', maxOutputTokens: 8000 },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+    const model = modelService.applyProviderMetadata('custom-channel', 'model', {
+      contextWindow: 128000,
+      maxOutputTokens: 16000
+    })
+    expect(model).toMatchObject({
+      contextWindow: 32000,
+      maxOutputTokens: 8000,
+      metadataSources: { contextWindow: 'user', maxOutputTokens: 'registry' }
+    })
+  })
+
+  it('does not replace historical empty capability choices without an explicit reset', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('custom-channel', 'Custom')).run()
+    dbh.db
+      .insert(userModelTable)
+      .values(modelRow('custom-channel', 'model', { capabilities: [] }))
+      .run()
+    const updated = modelService.applyProviderMetadata('custom-channel', 'model', {
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    expect(updated.capabilities).toEqual([])
+    expect(updated.metadataSources?.capabilities).toBe('user')
+    expect(modelService.applyProviderMetadata('custom-channel', 'model', {}, 'capabilities').capabilities).toEqual([
+      MODEL_CAPABILITY.FUNCTION_CALL
+    ])
+  })
+
+  it('rejects resets without a provider snapshot', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('custom-channel', 'Custom')).run()
+    dbh.db.insert(userModelTable).values(modelRow('custom-channel', 'model')).run()
+    expect(() => modelService.applyProviderMetadata('custom-channel', 'model', {}, 'contextWindow')).toThrow(
+      'No provider value'
+    )
+  })
+})
+
 describe('ModelService.create', () => {
   const dbh = setupTestDatabase()
 

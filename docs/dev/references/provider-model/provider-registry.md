@@ -96,9 +96,12 @@ GET /providers/:providerId/models:resolve?ids=gpt-4o&ids=o3
         → mergePresetModel(preset, override, ...) or createCustomModel(...)
     → Return merged Model[]
 
-SDK only provides model IDs. All other data (capabilities, pricing, etc.)
-comes from the registry — SDK data does not overwrite curated registry data.
 ```
+
+Registry resolution supplies the baseline for model IDs. For generic custom OpenAI-compatible discovery, explicit provider limits and canonical capability arrays survive renderer enrichment and model creation. Missing or invalid declarations do not introduce a fallback limit or infer capabilities from the model name.
+
+Existing custom-channel models expose an opt-in metadata refresh in model settings. Each limit and the capability set has independent `provider`, `registry`, `user`, or `unknown` provenance. Refresh updates only provider-owned or unknown fields. User and registry values are kept; a per-field reset uses the last valid provider snapshot. Ordinary model-list refresh does not update existing model metadata. Historical non-null values are treated as user choices when provenance is unavailable.
+
 
 ### 4. CherryIN Endpoint Refresh
 

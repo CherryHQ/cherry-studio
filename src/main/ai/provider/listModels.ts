@@ -55,6 +55,7 @@ import {
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { listWorkflows } from './custom/comfyui/comfyuiWorkflowDiscovery'
 import { partitionListableWorkflows } from './custom/comfyui/comfyuiWorkflows'
+import { readProviderCapabilities } from './listModels/customMetadata'
 import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
@@ -144,6 +145,61 @@ function warnSkippedOpenAIModelEntries(
   if (skippedModelCount > 0) {
     logger.warn('Skipped malformed OpenAI-compatible model entries', { providerId, skippedModelCount })
   }
+}
+
+// Context-window keys the built-in fetchers already map, in precedence order (#20523).
+const OPENAI_CONTEXT_LIMIT_KEYS = ['context_length', 'max_context_window', 'max_context_length'] as const
+
+function parsePositiveTokenLimit(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined
+}
+
+/**
+ * Read provider-advertised token limits from a generic OpenAI-compatible model entry.
+ * Malformed values are ignored with a warning, and contradictory context keys leave the limit
+ * unset rather than guessing — the spec forbids inventing a fallback window.
+ */
+function resolveOpenAITokenLimits(
+  model: { id: string } & Record<string, unknown>,
+  providerId: string
+): { contextWindow?: number; maxOutputTokens?: number } {
+  const validContextValues = new Set<number>()
+  if (OPENAI_CONTEXT_LIMIT_KEYS.every((key) => model[key] == null)) {
+    logger.warn('Provider did not advertise a model context limit', { providerId })
+  }
+  for (const key of OPENAI_CONTEXT_LIMIT_KEYS) {
+    const value = model[key]
+    if (value === undefined || value === null) continue
+    const parsed = parsePositiveTokenLimit(value)
+    if (parsed === undefined) {
+      logger.warn('Ignoring malformed model context limit from provider', { providerId, key })
+    } else {
+      validContextValues.add(parsed)
+    }
+  }
+
+  const limits: { contextWindow?: number; maxOutputTokens?: number } = {}
+  if (validContextValues.size === 1) {
+    limits.contextWindow = [...validContextValues][0]
+  } else if (validContextValues.size > 1) {
+    logger.warn('Ignoring contradictory model context limits from provider', {
+      providerId
+    })
+  }
+
+  const maxTokens = model.max_tokens
+  if (maxTokens === undefined || maxTokens === null) {
+    logger.warn('Provider did not advertise a model output token limit', { providerId })
+  }
+  if (maxTokens !== undefined && maxTokens !== null) {
+    const parsed = parsePositiveTokenLimit(maxTokens)
+    if (parsed === undefined) {
+      logger.warn('Ignoring malformed model output token limit from provider', { providerId })
+    } else {
+      limits.maxOutputTokens = parsed
+    }
+  }
+  return limits
 }
 
 // ── API Layer ──
@@ -999,12 +1055,19 @@ async function listOpenAICompatibleModels(
   })
   warnSkippedOpenAIModelEntries(provider.id, response)
   return listing(
-    dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
+    dedup(response.data, (m) => m.id).map((m) => {
+      const limits = resolveOpenAITokenLimits(m, provider.id)
+      const capabilities = readProviderCapabilities(m, provider.id)
+      const providerMetadata = { ...limits, ...(capabilities !== undefined ? { capabilities } : {}) }
+      return toModel(m.id, provider, {
+        providerMetadata,
         name: m.name || m.id,
-        ownedBy: m.owned_by
+        ownedBy: m.owned_by,
+        ...(capabilities !== undefined ? { capabilities } : {}),
+        ...(limits.contextWindow ? { contextWindow: limits.contextWindow } : {}),
+        ...(limits.maxOutputTokens ? { maxOutputTokens: limits.maxOutputTokens } : {})
       })
-    )
+    })
   )
 }
 
@@ -1125,7 +1188,7 @@ const omlxFetcher: ModelFetcher = {
             // The server reports the window it serves and its output cap; a
             // discovered model would otherwise carry no limits at all.
             ...(m.max_context_window ? { contextWindow: m.max_context_window } : {}),
-            ...(m.max_tokens ? { maxOutputTokens: m.max_tokens } : {}),
+            ...(Number.isSafeInteger(m.max_tokens) && m.max_tokens! > 0 ? { maxOutputTokens: m.max_tokens } : {}),
             // A VLM takes text and images; the image modality has to be stated
             // explicitly, or exported configurations read it as text-only even
             // though the capability says otherwise.

@@ -37,6 +37,7 @@ import { ModelBasicFields } from './ModelBasicFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import { ModelPricingFields } from './ModelPricingFields'
+import { ModelProviderMetadataControls } from './ModelProviderMetadataControls'
 import {
   applyModelPurpose,
   getInitialChatEndpointType,
@@ -118,6 +119,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [maxInputTokens, setMaxInputTokens] = useState<number | null>(null)
   const [maxOutputTokens, setMaxOutputTokens] = useState<number | null>(null)
   const [pricing, setPricing] = useState<Model['pricing']>()
+  const [isSaving, setIsSaving] = useState(false)
+  const [metadataModel, setMetadataModel] = useState<Model | null>(null)
   const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
@@ -154,11 +157,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setMaxOutputTokens(model.maxOutputTokens ?? null)
     setPricing(model.pricing)
     setInitializedModel(model)
+    setMetadataModel(model)
   }, [model, open])
 
   const handleUpdateModel = useCallback(
     async ({ providerId, modelId, patch }: AutoSaveQueueItem) => {
-      await updateModel(providerId, modelId, patch)
+      const updated = await updateModel(providerId, modelId, patch)
+      if (updated) setMetadataModel(updated)
     },
     [updateModel]
   )
@@ -265,6 +270,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     }
 
     autoSaveRunningRef.current = true
+    setIsSaving(true)
     try {
       while (autoSavePendingItemsRef.current.size > 0) {
         const [key, item] = autoSavePendingItemsRef.current.entries().next().value!
@@ -278,6 +284,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       }
     } finally {
       autoSaveRunningRef.current = false
+      setIsSaving(false)
     }
   }, [handleUpdateModel, t])
 
@@ -485,6 +492,24 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               </div>
 
               <div className={drawerClasses.sectionCard}>
+                {model && (mode === 'purpose' || model.providerMetadata !== undefined) && (
+                  <ModelProviderMetadataControls
+                    model={metadataModel?.id === model.id ? metadataModel : model}
+                    disabled={isSaving}
+                    onChange={(updated) => {
+                      setMetadataModel(updated)
+                      setContextWindow(updated.contextWindow ?? null)
+                      setMaxOutputTokens(updated.maxOutputTokens ?? null)
+                      setClassification(getInitialModelClassification(updated))
+                      setPurposeFields({
+                        endpointTypes: updated.endpointTypes,
+                        capabilities: updated.capabilities,
+                        inputModalities: updated.inputModalities,
+                        outputModalities: updated.outputModalities
+                      })
+                    }}
+                  />
+                )}
                 <ModelContextWindowFields
                   contextWindow={contextWindow}
                   maxInputTokens={maxInputTokens}
@@ -532,7 +557,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.switchCard}>
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
+                    <span className="truncate text-[13px] leading-5 font-normal text-muted-foreground">
                       {t('settings.models.add.supported_text_delta.label')}
                     </span>
                     <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>

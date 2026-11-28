@@ -20,6 +20,7 @@ import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSuppor
 import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { readToolResult } from '@main/ai/messages/toolResultRead'
 import { generateProfileStarters } from '@main/ai/profileStarters'
+import { refreshCustomModelMetadata, resetCustomModelMetadata } from '@main/ai/provider/modelMetadataActions'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { checkLocalAgent, listLocalAgentModels, readLocalAgentAccount } from '@main/ai/runtime/LocalRuntimeDriver'
 import { AiStreamAdmissionError, type MainDispatchRequest, persistentChatContextProvider } from '@main/ai/streamManager'
@@ -251,6 +252,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── Provider model catalog & reachability probe. ──
   'ai.provider.model.list': (request) =>
     exposeAiError('ai.provider.model.list', () => application.get('AiService').listModels(request)),
+  'ai.provider.model.refresh_metadata': ({ providerId, modelId }) => refreshCustomModelMetadata(providerId, modelId),
+  'ai.provider.model.reset_metadata': async ({ providerId, modelId, field }) =>
+    resetCustomModelMetadata(providerId, modelId, field),
   'ai.provider.model.check': (request) =>
     exposeAiError('ai.provider.model.check', () => application.get('AiService').checkModel(request)),
 

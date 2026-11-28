@@ -66,6 +66,7 @@ import {
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
+import { MODEL_METADATA_FIELDS } from '@shared/data/types/modelMetadata'
 import { TopicSchema } from '@shared/data/types/topic'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
@@ -377,6 +378,18 @@ export const aiRequestSchemas = {
       models: z.array(ModelSchema.partial()),
       skippedModels: z.array(z.string()).optional()
     })
+  }),
+  'ai.provider.model.refresh_metadata': defineRoute({
+    input: z.strictObject({ providerId: z.string().min(1), modelId: z.string().min(1) }),
+    output: ModelSchema
+  }),
+  'ai.provider.model.reset_metadata': defineRoute({
+    input: z.strictObject({
+      providerId: z.string().min(1),
+      modelId: z.string().min(1),
+      field: z.enum(MODEL_METADATA_FIELDS)
+    }),
+    output: ModelSchema
   }),
   'ai.provider.model.check': defineRoute({
     input: z.strictObject({

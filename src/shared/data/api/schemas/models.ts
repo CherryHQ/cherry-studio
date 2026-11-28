@@ -20,6 +20,7 @@ import {
   type UniqueModelId,
   UniqueModelIdSchema
 } from '../../types/model'
+import { ProviderModelMetadataSchema } from '../../types/modelMetadata'
 
 /** Query parameters for listing models */
 export const ListModelsQuerySchema = z.object({
@@ -56,6 +57,8 @@ export const CreateModelSchema = z.strictObject({
   outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
+  /** Provider declarations captured at discovery, not registry enrichment. */
+  providerMetadata: ProviderModelMetadataSchema.optional(),
   /** Context window size */
   contextWindow: PositiveModelTokenLimitSchema.optional(),
   /** Maximum input tokens */
@@ -94,7 +97,8 @@ export type CreateModelsDto = z.infer<typeof CreateModelsSchema>
 export const UpdateModelSchema = CreateModelSchema.omit({
   providerId: true,
   modelId: true,
-  presetModelId: true
+  presetModelId: true,
+  providerMetadata: true
 })
   .partial()
   .extend({
