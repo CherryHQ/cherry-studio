@@ -42,11 +42,13 @@ export function useStreamCommands(topicId: string, onError?: (error: Error) => v
     }
   }, [projection])
 
+  // Resolves whether main reserved a reply for the request.
   const dispatch = useCallback(
-    async (request: AiStreamOpenRequest) => {
+    async (request: AiStreamOpenRequest): Promise<boolean> => {
       const result = await streamDispatchService.dispatch(topicId, request)
-      if (currentOwner.current !== owner || result.ok) return
-      errorHandler.current?.(result.error)
+      if (result.ok) return result.ack.mode !== 'blocked'
+      if (currentOwner.current === owner) errorHandler.current?.(result.error)
+      return false
     },
     [owner, topicId]
   )
@@ -74,7 +76,7 @@ export function useStreamCommands(topicId: string, onError?: (error: Error) => v
   const regenerate = useCallback(
     async (options?: ChatRequestOptions) => {
       const body = (options?.body ?? {}) as Partial<AiChatRequestBody>
-      await dispatch({
+      return dispatch({
         trigger: 'regenerate-message',
         topicId,
         parentAnchorId: body.parentAnchorId ?? '',

@@ -191,6 +191,27 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
+  it('reports each time the branch pane opens, not when it closes', () => {
+    const request = vi.mocked(window.api.ipcApi.request)
+    request.mockClear()
+    const panelOpened = { event: 'chat_branch_used', action: 'panel_opened' }
+    const trackedEvents = () =>
+      request.mock.calls.filter(([route]) => route === 'analytics.track').map(([, event]) => event)
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+    expect(trackedEvents()).toEqual([])
+
+    act(triggerRightSidebarShortcut)
+    act(triggerRightSidebarShortcut)
+    expect(trackedEvents()).toEqual([panelOpened])
+
+    act(triggerRightSidebarShortcut)
+    expect(trackedEvents()).toEqual([panelOpened, panelOpened])
+  })
+
   it('opens the resource pane from the right sidebar keyboard shortcut when resources are available', () => {
     render(
       <TopicRightPane.Scope

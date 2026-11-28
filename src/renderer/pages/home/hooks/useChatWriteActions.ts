@@ -8,6 +8,7 @@ import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
@@ -23,6 +24,7 @@ import type {
 } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
+import type { ChatBranchSource } from '@shared/ipc/schemas/analytics'
 
 import type { useTopicMessagesCache } from './useTopicMessagesCache'
 
@@ -58,6 +60,10 @@ function getInheritedTurnOptions(
   return source?.metadata?.turnOptions
 }
 
+function reportBranchCreated(source: ChatBranchSource) {
+  trackProductEvent({ event: 'chat_branch_used', action: 'created', source })
+}
+
 function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
   return {
     ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
@@ -75,7 +81,8 @@ interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
   activeNodeId: string | null
-  regenerate: (options?: ChatRequestOptions) => Promise<void>
+  /** Resolves whether main reserved a new reply. */
+  regenerate: (options?: ChatRequestOptions) => Promise<boolean>
   stop: () => Promise<void>
   refresh: () => Promise<void>
   cache: ReturnType<typeof useTopicMessagesCache>
@@ -314,6 +321,7 @@ export function useChatWriteActions(params: Params): Result {
         parentAnchorId !== undefined &&
         retryModelId !== undefined &&
         (regenerateModelId === undefined || regenerateModelId === target.metadata?.modelId)
+      const branchSource: ChatBranchSource = options?.modelId ? 'mention' : 'regenerate'
 
       if (canRetryInPlace) {
         const ack = await ipcApi.request('ai.stream.open', {
@@ -343,6 +351,8 @@ export function useChatWriteActions(params: Params): Result {
           ...turnOptionsRequestFields(turnOptions)
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        // Main adds a sibling reply whether or not it joins a live group.
+        reportBranchCreated(branchSource)
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
           preserveActiveNode: ack.preserveActiveNode
@@ -350,7 +360,7 @@ export function useChatWriteActions(params: Params): Result {
         return
       }
 
-      await regenerate({
+      const reserved = await regenerate({
         body: {
           ...capabilityBody,
           ...(parentAnchorId && { parentAnchorId }),
@@ -358,6 +368,7 @@ export function useChatWriteActions(params: Params): Result {
           ...turnOptionsRequestFields(turnOptions)
         }
       })
+      if (reserved) reportBranchCreated(branchSource)
     },
     [regenerate, capabilityBody, uiMessages, seedReservedMessages, topic.id, composerModelId]
   )
@@ -371,6 +382,7 @@ export function useChatWriteActions(params: Params): Result {
         params: { id: messageId },
         body: { parts: editedParts }
       })
+      reportBranchCreated('edit')
       await seedReservedMessages([
         {
           id: newMessage.id,
@@ -498,8 +510,9 @@ export function useChatWriteActions(params: Params): Result {
         }
         throw err
       }
+      if (leafId !== activeNodeId) trackProductEvent({ event: 'chat_branch_used', action: 'switched' })
     },
-    [setActiveNodeTrigger, t, topic.id]
+    [activeNodeId, setActiveNodeTrigger, t, topic.id]
   )
 
   const handlePause = useCallback<ChatWriteActions['pause']>(() => {
