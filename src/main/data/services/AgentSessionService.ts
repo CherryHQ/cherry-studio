@@ -1331,6 +1331,21 @@ export class AgentSessionService {
     return row
   }
 
+  private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): void {
+    const [message] = tx
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), sql`${agentSessionMessageTable.role} != 'root'`))
+      .limit(1)
+      .all()
+    if (message) {
+      throw DataApiErrorFactory.invalidOperation(
+        'update session workspace',
+        'workspace cannot be changed after messages are sent'
+      )
+    }
+  }
+
   private insertTx(
     tx: DbOrTx,
     values: {

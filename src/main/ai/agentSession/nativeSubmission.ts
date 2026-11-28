@@ -44,8 +44,6 @@ export function prepareNativeSubmission(
     const note = agentSessionService.consumeWorkspaceChangeNoteTx(tx, sessionId)
     if (note) return { ...draft, text: `${note}\n\n${draft.text}` }
     return draft
-    if (prepared) assertInputContent(message, prepared.parts)
-    return submissionDraft(message, prepared?.text)
   })
 }
 

@@ -132,7 +132,7 @@ export const defaultServiceInstances = {
   },
   LocalAgentInstallService: { isUninstalling: vi.fn(() => false) },
   AgentDelegationService: { cancelOwnedBy: vi.fn(async () => {}) },
-  AgentSessionRuntimeService: { closeIdleSessions: vi.fn(async () => true) },
+  AgentSessionRuntimeService: { closeIdleSessions: vi.fn(async () => true), isSessionBusy: vi.fn(() => false) },
   BinaryManager: { getToolSnapshots: vi.fn(async () => ({})) },
   AgentImportService: {
     pause: vi.fn(() => ({ dispose: vi.fn() })),
@@ -143,7 +143,6 @@ export const defaultServiceInstances = {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))
   },
-  AgentSessionRuntimeService: { isSessionBusy: vi.fn(() => false) },
   RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const
 
