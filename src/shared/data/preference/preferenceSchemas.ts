@@ -296,6 +296,8 @@ export interface PreferenceSchemas {
     'data.backup.local.dir': string
     // redux/settings/localBackupMaxBackups
     'data.backup.local.max_backups': number
+    // target-key-definitions/complex/complex
+    'data.backup.local.schedule': PreferenceTypes.BackupSchedule
     // redux/settings/localBackupSkipBackupFile
     'data.backup.local.skip_backup_file': boolean
     // redux/settings/localBackupSyncInterval
@@ -306,6 +308,8 @@ export interface PreferenceSchemas {
     'data.backup.nutstore.max_backups': number
     // redux/nutstore/nutstorePath
     'data.backup.nutstore.path': string
+    // target-key-definitions/complex/complex
+    'data.backup.nutstore.schedule': PreferenceTypes.BackupSchedule
     // redux/nutstore/nutstoreSkipBackupFile
     'data.backup.nutstore.skip_backup_file': boolean
     // redux/nutstore/nutstoreSyncInterval
@@ -326,6 +330,8 @@ export interface PreferenceSchemas {
     'data.backup.s3.region': string
     // redux/settings/s3.root
     'data.backup.s3.root': string
+    // target-key-definitions/complex/complex
+    'data.backup.s3.schedule': PreferenceTypes.BackupSchedule
     // redux/settings/s3.secretAccessKey
     'data.backup.s3.secret_access_key': string
     // redux/settings/s3.skipBackupFile
@@ -346,6 +352,8 @@ export interface PreferenceSchemas {
     'data.backup.webdav.pass': string
     // redux/settings/webdavPath
     'data.backup.webdav.path': string
+    // target-key-definitions/complex/complex
+    'data.backup.webdav.schedule': PreferenceTypes.BackupSchedule
     // redux/settings/webdavSkipBackupFile
     'data.backup.webdav.skip_backup_file': boolean
     // redux/settings/webdavSyncInterval
@@ -872,11 +880,13 @@ export const DefaultPreferences: PreferenceSchemas = {
     'data.backup.local.auto_sync': false,
     'data.backup.local.dir': '',
     'data.backup.local.max_backups': 0,
+    'data.backup.local.schedule': { entries: [], mode: 'interval' },
     'data.backup.local.skip_backup_file': false,
     'data.backup.local.sync_interval': 0,
     'data.backup.nutstore.auto_sync': false,
     'data.backup.nutstore.max_backups': 0,
     'data.backup.nutstore.path': '/cherry-studio',
+    'data.backup.nutstore.schedule': { entries: [], mode: 'interval' },
     'data.backup.nutstore.skip_backup_file': false,
     'data.backup.nutstore.sync_interval': 0,
     'data.backup.nutstore.token': '',
@@ -887,6 +897,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'data.backup.s3.max_backups': 0,
     'data.backup.s3.region': '',
     'data.backup.s3.root': '',
+    'data.backup.s3.schedule': { entries: [], mode: 'interval' },
     'data.backup.s3.secret_access_key': '',
     'data.backup.s3.skip_backup_file': false,
     'data.backup.s3.sync_interval': 0,
@@ -897,6 +908,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'data.backup.webdav.max_backups': 0,
     'data.backup.webdav.pass': '',
     'data.backup.webdav.path': '/cherry-studio',
+    'data.backup.webdav.schedule': { entries: [], mode: 'interval' },
     'data.backup.webdav.skip_backup_file': false,
     'data.backup.webdav.sync_interval': 0,
     'data.backup.webdav.user': '',
@@ -1100,7 +1112,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 350
+ * - 总配置项: 354
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0
