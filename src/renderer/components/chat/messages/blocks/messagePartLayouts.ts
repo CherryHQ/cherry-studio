@@ -155,7 +155,12 @@ function isVisibleProcessPart(part: CherryMessagePart): boolean {
 
 export function isInlineLayoutPart(part: CherryMessagePart): boolean {
   if (isToolUIPart(part)) return !isProcessToolPart(part)
-  return part.type === 'data-agent-session-fork' || (part.type !== 'text' && isSubstantiveAnswerPart(part))
+  // Attachment notices explain the whole reply payload, so they stay outside process history.
+  return (
+    part.type === 'data-agent-session-fork' ||
+    part.type === 'data-attachment-notice' ||
+    (part.type !== 'text' && isSubstantiveAnswerPart(part))
+  )
 }
 
 function projectOrderedMessageParts(

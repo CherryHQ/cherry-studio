@@ -31,7 +31,11 @@ import {
 import { projectRuntimeMessage } from '@main/ai/agentSession/ThreadMessageProjection'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
-import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
+import {
+  collectFileAttachments,
+  prepareChatMessages,
+  type ImageOcrFallbackEvent
+} from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import {
   appendAgentAttachmentPaths,
@@ -231,11 +235,13 @@ export abstract class ClaudeSdkConnection<
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
+    const ocrImageNames = new Set<string>()
     const sdkMessage = await toSdkUserMessage(
       withAgentContext(input.message, input.context),
       this.resumeToken,
       input.systemReminder,
       {
+        onImageOcrFallback: ({ displayName }) => ocrImageNames.add(displayName),
         supportsAttachmentReads: this.assistantFileToolsEnabled,
         supportsImages: !isUniqueModelId(this.input.modelId) || resolveModelImageSupport(this.input.modelId)
       }
@@ -252,6 +258,17 @@ export abstract class ClaudeSdkConnection<
     const result = await operation.submit({ inputId: draft.inputId, content: sdkMessage.message.content })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+    this.publishAttachmentNotice(input.message.id, ocrImageNames)
+  }
+
+  private publishAttachmentNotice(messageId: string, fileNames: Set<string>): void {
+    if (fileNames.size === 0) return
+    this.eventQueue.push({
+      type: 'data-attachment-notice',
+      inputId: messageId,
+      id: `attachment-notice:${messageId}`,
+      data: { kind: 'image-ocr', fileNames: [...fileNames] }
+    })
   }
 
   lookupInput(contextId: string, inputId: string) {
@@ -283,9 +300,11 @@ export abstract class ClaudeSdkConnection<
           const epoch = this.interruptEpoch
           const canSteer = () => !this.closing && this.handle === handle
           if (!canSteer()) return reject('closed', 'Claude session is unavailable')
+          const ocrImageNames = new Set<string>()
           let sdkMessage: SDKUserMessage
           try {
             sdkMessage = await toSdkUserMessage(withAgentContext(message, context), this.resumeToken, systemReminder, {
+              onImageOcrFallback: ({ displayName }) => ocrImageNames.add(displayName),
               supportsAttachmentReads: this.assistantFileToolsEnabled,
               supportsImages: !isUniqueModelId(this.input.modelId) || resolveModelImageSupport(this.input.modelId)
             })
@@ -296,7 +315,9 @@ export abstract class ClaudeSdkConnection<
             return reject('cancelled-before-dispatch', 'Claude stopped before dispatching the input')
           if (!canSteer()) return reject('closed', 'Claude session is unavailable')
           this.promptSuggestion.clear()
-          return steer.submit({ inputId, content: sdkMessage.message.content })
+          const result = await steer.submit({ inputId, content: sdkMessage.message.content })
+          if (result.status === 'acknowledged') this.publishAttachmentNotice(message.id, ocrImageNames)
+          return result
         }
       }
     }
@@ -904,10 +925,15 @@ async function toSdkUserMessage(
   systemReminder = false,
   {
     supportsAttachmentReads = false,
-    supportsImages = true
-  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
+    supportsImages = true,
+    onImageOcrFallback
+  }: {
+    supportsAttachmentReads?: boolean
+    supportsImages?: boolean
+    onImageOcrFallback?: (event: ImageOcrFallbackEvent) => void
+  } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
+  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads, onImageOcrFallback)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -952,7 +978,8 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
   supportsImages: boolean,
-  supportsAttachmentReads: boolean
+  supportsAttachmentReads: boolean,
+  onImageOcrFallback?: (event: ImageOcrFallbackEvent) => void
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
   const firstPartyFileParts = parts.filter(
@@ -984,6 +1011,7 @@ async function materializeUserContent(
     const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments,
+      onImageOcrFallback,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
       isToolCapable: supportsAttachmentReads,
       // An unlisted-extension image (AVIF/HEIC — accepted wildcard on the agent surface) must

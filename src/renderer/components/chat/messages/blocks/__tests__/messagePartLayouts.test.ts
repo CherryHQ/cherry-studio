@@ -617,3 +617,21 @@ it('preserves imported reasoning and tool chronology outside the answer lane', (
   expect(indexes(historyEntries(layout.items))).toEqual([0, 1, 2, 3])
   expect(indexes(inlineEntries(layout.items))).toEqual([4, 5])
 })
+
+it.each([false, true])(
+  'keeps an OCR attachment notice outside process history (intermediate text=%s)',
+  (keepIntermediateAssistantText) => {
+    const parts = entries([
+      { type: 'data-attachment-notice', data: { kind: 'image-ocr', fileNames: ['screenshot.png'] } },
+      { type: 'reasoning', text: 'Reading the image', state: 'done' },
+      { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+      { type: 'text', text: 'Final answer', state: 'done' }
+    ])
+    const live = projectLiveMessageParts(parts, { keepIntermediateAssistantText })
+    expect(indexes(inlineEntries(live))).toContain(0)
+    expect(indexes(historyEntries(live))).toEqual([1, 2])
+    const completed = projectCompletedMessageParts(parts, { keepIntermediateAssistantText })
+    expect(indexes(inlineEntries(completed.items))).toContain(0)
+    expect(indexes(historyEntries(completed.items))).toEqual([1, 2])
+  }
+)

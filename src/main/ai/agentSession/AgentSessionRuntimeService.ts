@@ -388,6 +388,7 @@ type AgentSessionRuntimeEntry = {
       input: AgentRuntimeUserInput
       nextTurn: QueuedAgentSessionInput
       generation: string
+      chunks?: Exclude<AgentControlChunk, { type: 'start' }>[]
       readonly contextId: string
     }
   >
@@ -1133,10 +1134,12 @@ export class AgentSessionRuntimeService extends BaseService {
     if (deferred && ids.includes(deferred.userMessage.id)) {
       if (followUp) this.awaitFollowedOutcome(entry)
       this.applyRuntimeStateEvent(entry, { type: 'run-placed', turn: deferred })
+      this.deliverBufferedChunks(entry, this.takeBufferedChunks(entry, ids), deferred)
       return true
     }
     const owned = new Set(getAgentSessionRuntimeTurns(entry.runtimeState).flatMap((turn) => turn.taskIds))
     const placed = ids.filter((id) => !owned.has(id))
+    const bufferedChunks = this.takeBufferedChunks(entry, placed)
     const inputs = this.pendingInputValues(entry, placed, true)
     if (connection?.threadInput?.followUp?.persistence === 'durable' && connection.contextId)
       for (const id of placed) {
@@ -1152,14 +1155,38 @@ export class AgentSessionRuntimeService extends BaseService {
       const run = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
       if (run && this.isTurnLive(entry, run)) {
         this.attachRunInputs(entry, run, inputs)
+        this.deliverBufferedChunks(entry, bufferedChunks, run)
         return true
       }
       return false
     }
     const turn = this.reservePlacedRun(entry, inputs)
     if (turn && followUp) this.awaitFollowedOutcome(entry)
-    if (turn) this.applyRuntimeStateEvent(entry, { type: 'run-placed', turn })
+    if (turn) {
+      this.applyRuntimeStateEvent(entry, { type: 'run-placed', turn })
+      this.deliverBufferedChunks(entry, bufferedChunks, turn)
+    }
     return turn !== undefined
+  }
+
+  /** Collects chunks buffered while their input awaited admission (e.g. OCR notices). */
+  private takeBufferedChunks(
+    entry: AgentSessionRuntimeEntry,
+    ids: readonly string[]
+  ): Exclude<AgentControlChunk, { type: 'start' }>[] {
+    return ids.flatMap((id) => {
+      const pending = entry.pendingInputs?.get(id)
+      return pending?.generation === entry.connectionGeneration ? (pending?.chunks ?? []) : []
+    })
+  }
+
+  /** Redelivers buffered chunks onto the turn their input was steered into. */
+  private deliverBufferedChunks(
+    entry: AgentSessionRuntimeEntry,
+    chunks: readonly Exclude<AgentControlChunk, { type: 'start' }>[],
+    turn: AgentSessionRun
+  ): void {
+    for (const chunk of chunks) this.deliverRuntimeChunk(entry, chunk, turn)
   }
 
   /** A follow-up settles the open reply as answered; Durable reports its input's outcome only when the run ends. */
@@ -3016,6 +3043,19 @@ export class AgentSessionRuntimeService extends BaseService {
         this.clearApiRetry(entry)
         this.deliverRuntimeChunk(entry, event)
         break
+      case 'data-attachment-notice': {
+        const { inputId, ...chunk } = event
+        const pending = entry.pendingInputs?.get(inputId)
+        if (pending && pending.generation === entry.connectionGeneration) {
+          // Dispatch acknowledgement can precede the native ownership boundary.
+          // Keep this input's notice off the currently answering assistant row.
+          ;(pending.chunks ??= []).push(chunk)
+        } else {
+          const turn = getAgentSessionRuntimeTurns(entry.runtimeState).find((turn) => turn.taskIds.includes(inputId))
+          if (turn) this.deliverRuntimeChunk(entry, chunk, turn)
+        }
+        break
+      }
       case 'tool-approval-request':
         this.handleToolApprovalRequest(entry, event.request)
         break
@@ -4187,9 +4227,9 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private deliverRuntimeChunk(
     entry: AgentSessionRuntimeEntry,
-    chunk: Exclude<AgentControlChunk, { type: 'start' }>
+    chunk: Exclude<AgentControlChunk, { type: 'start' }>,
+    turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
   ): boolean {
-    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
     if (!turn) return false
     if (chunk.type !== 'message-metadata') {
       const contextId = this.currentConnection(entry)?.contextId

@@ -179,7 +179,9 @@ export type AgentControlChunk =
   | { type: 'start' }
   | Extract<
       CherryUIMessageChunk,
-      { type: 'tool-approval-request' | 'data-compaction-anchor' | 'data-agent-task-event' }
+      {
+        type: 'tool-approval-request' | 'data-compaction-anchor' | 'data-agent-task-event' | 'data-attachment-notice'
+      }
     >
 
 export type AgentRuntimeEvent =
@@ -192,6 +194,8 @@ export type AgentRuntimeEvent =
   | { type: 'local-tool-terminal'; contextId: string; itemId: string; part: number; delta: ToolTerminalDelta }
   | { type: 'response-start'; responseId: string; messageId?: string }
   | RuntimeStreamControl
+  // Input-owned notice: must follow that input's reply, even before a steer ownership boundary.
+  | (Extract<CherryUIMessageChunk, { type: 'data-attachment-notice' }> & { inputId: string })
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
   | { type: 'tool-approval-withdrawn'; contextId: string; toolCallId: string; approvalId: string }
   | {

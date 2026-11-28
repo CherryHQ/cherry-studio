@@ -93,6 +93,7 @@ import {
 } from './addressedPartLayout'
 import { AgentPlanBlock } from './AgentPlanBlock'
 import AgentSessionForkBlock from './AgentSessionForkBlock'
+import AttachmentNoticeBlock from './AttachmentNoticeBlock'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
@@ -873,6 +874,9 @@ function renderPart(
 
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
+
+    case 'data-attachment-notice':
+      return <AttachmentNoticeBlock key={partId} data={part.data} />
 
     case 'data-agent-session-fork':
       return <AgentSessionForkBlock key={partId} sourceSessionId={part.data.sourceSessionId} />
