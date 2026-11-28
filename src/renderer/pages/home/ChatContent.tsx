@@ -260,7 +260,7 @@ const ChatContentInner: FC<InnerProps> = ({
           'ai.topic.estimate_context',
           {
             topicId: topic.id,
-            anchorId: parentAnchorId,
+            anchorId: parentAnchorId ?? undefined,
             modelId: composerModelId,
             fillsAnchor: nextTurnFillsActiveNode
           },
@@ -276,7 +276,7 @@ const ChatContentInner: FC<InnerProps> = ({
   const { percentage: multiModelHandoffPercentage, refresh: refreshHandoffEstimate } = useHandoffContextPercentage({
     enabled: canPreviewContextWindow && multiModelHandoff,
     topicId: topic.id,
-    anchorId: parentAnchorId,
+    anchorId: parentAnchorId ?? undefined,
     fillsAnchor: nextTurnFillsActiveNode,
     candidates: composerModelCandidates,
     revision: [maxMessages, assistant?.updatedAt, contextRevision]

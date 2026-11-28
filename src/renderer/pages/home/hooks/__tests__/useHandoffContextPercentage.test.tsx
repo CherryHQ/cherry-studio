@@ -17,7 +17,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 const models = [
   { id: 'provider::a', contextWindow: 100 },
   { id: 'provider::b', contextWindow: 200 }
-] as Model[]
+] as unknown as Model[]
 function Harness({ enabled = true, candidates = models }: { enabled?: boolean; candidates?: Model[] }) {
   const { percentage } = useHandoffContextPercentage({
     enabled,
