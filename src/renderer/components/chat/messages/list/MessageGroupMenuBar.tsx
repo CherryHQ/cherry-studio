@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
@@ -46,6 +47,7 @@ function selectRetryCandidates(
 }
 
 interface Props {
+  sticky?: boolean
   multiModelMessageStyle: MultiModelMessageStyle
   setMultiModelMessageStyle: (style: MultiModelMessageStyle) => void
   messages: MessageListItem[]
@@ -54,6 +56,7 @@ interface Props {
 }
 
 const MessageGroupMenuBar: FC<Props> = ({
+  sticky = false,
   multiModelMessageStyle,
   setMultiModelMessageStyle,
   messages,
@@ -63,6 +66,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   const { t } = useTranslation()
   const partsMap = usePartsMap()
   const actions = useMessageListActions()
+  const composerInsets = useChatBottomOverlayInset()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const foldDisplayMode = renderConfig.multiModelFoldDisplayMode
   const isCompactFoldDisplay = foldDisplayMode === 'compact'
@@ -136,7 +140,10 @@ const MessageGroupMenuBar: FC<Props> = ({
   } as const
 
   return (
-    <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
+    <GroupMenuBar
+      $layout={multiModelMessageStyle}
+      className={sticky ? 'sticky z-10 bg-chat-message-well-solid' : undefined}
+      style={sticky ? { bottom: (composerInsets?.contentBottomPadding ?? 0) + 8 } : undefined}>
       <RowFlex className="min-w-0 flex-1 items-center gap-1 overflow-hidden">
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (

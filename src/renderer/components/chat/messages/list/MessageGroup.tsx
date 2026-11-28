@@ -494,6 +494,7 @@ const MessageGroup = ({
       </GridContainer>
       {isGrouped && (
         <MessageGroupMenuBar
+          sticky={!captureMode && multiModelMessageStyle === 'fold'}
           multiModelMessageStyle={multiModelMessageStyle}
           setMultiModelMessageStyle={(style) => {
             setMultiModelMessageStyle(style)

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as Ui from '@cherrystudio/ui'
+import { ChatBottomOverlayInsetProvider } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 import MessageGroupMenuBar from '../MessageGroupMenuBar'
@@ -63,6 +64,22 @@ const messages = [
 ]
 
 describe('MessageGroupMenuBar', () => {
+  it('pins above the measured composer overlap instead of underneath its dock', () => {
+    const { container } = render(
+      <ChatBottomOverlayInsetProvider value={{ contentBottomPadding: 144, scrollerBottomMargin: 20 }}>
+        <MessageGroupMenuBar
+          sticky
+          multiModelMessageStyle="fold"
+          setMultiModelMessageStyle={vi.fn()}
+          messages={messages}
+          selectMessageId="assistant-1"
+          setSelectedMessage={vi.fn()}
+        />
+      </ChatBottomOverlayInsetProvider>
+    )
+    expect((container.querySelector('.group-menu-bar') as HTMLElement).style.bottom).toBe('152px')
+  })
+
   beforeEach(() => {
     mocks.actions = {}
     mocks.partsMap = {}
