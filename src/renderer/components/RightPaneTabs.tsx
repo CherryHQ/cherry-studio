@@ -98,7 +98,7 @@ export function RightPaneTabs({
             <div
               key={tab.key}
               className={cn(
-                'flex h-7 max-w-48 min-w-0 flex-1 basis-28 items-center gap-1 rounded-md pr-1 pl-2 text-sm transition-colors',
+                'flex h-7 max-w-48 min-w-0 flex-1 basis-28 items-center gap-1 rounded-md pr-1 pl-2 text-sm transition-[color]',
                 active
                   ? 'bg-resource-list-row-selected text-resource-list-row-selected-foreground'
                   : 'text-muted-foreground hover:bg-resource-list-row-hover hover:text-foreground'

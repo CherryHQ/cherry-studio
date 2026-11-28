@@ -277,6 +277,31 @@ describe('Browser data cleanup', () => {
     expect(browserHistoryService.list({ offset: 0, limit: 10 }).items).toEqual([])
   })
 
+  it('clears rebuildable agent-browser caches while preserving persistent website data', async () => {
+    const profile = session.fromPartition('persist:agent-browser')
+    const data = new Set(['http', 'cacheStorage', 'shader', 'code', 'cookies', 'indexedDB', 'localStorage'])
+    vi.spyOn(profile, 'clearCache').mockImplementation(async () => {
+      data.delete('http')
+    })
+    vi.spyOn(profile, 'clearData').mockImplementation(async ({ dataTypes } = {}) => {
+      if (dataTypes?.includes('cache')) {
+        for (const cache of ['http', 'cacheStorage', 'shader']) data.delete(cache)
+      } else {
+        data.clear()
+      }
+    })
+    vi.spyOn(profile, 'clearCodeCaches').mockImplementation(async () => {
+      data.delete('code')
+    })
+    vi.spyOn(profile, 'clearStorageData').mockImplementation(async () => {
+      data.clear()
+    })
+
+    await service.clearData('cache')
+
+    expect([...data]).toEqual(['cookies', 'indexedDB', 'localStorage'])
+  })
+
   it.each(['cache', 'history'] as const)('clears %s and cancels pending favicon writes', async (kind) => {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aetkAAAAASUVORK5CYII=',
@@ -286,7 +311,6 @@ describe('Browser data cleanup', () => {
     cache.setPersist('browser.favicons', { 'https://example.com': `data:image/png;base64,${png.toString('base64')}` })
     browserHistoryService.record({ url: 'https://example.com', title: 'Keep this visit', visitedAt: 1 })
     const profile = session.fromPartition('persist:agent-browser')
-    vi.mocked(profile.clearCache).mockResolvedValue(undefined)
     let complete!: (response: Response) => void
     let signal!: AbortSignal
     vi.mocked(profile.fetch).mockImplementationOnce((_url, options) => {

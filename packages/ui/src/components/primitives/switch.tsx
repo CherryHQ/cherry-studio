@@ -11,9 +11,10 @@ import { Tooltip } from './tooltip'
 const switchRootVariants = cva(
   [
     'cs-switch cs-switch-root',
-    'group peer relative inline-flex shrink-0 cursor-pointer items-center rounded-full shadow-xs transition-all',
+    'group peer relative inline-flex shrink-0 cursor-pointer items-center rounded-full shadow-xs transition-all outline-none',
     'data-[state=checked]:bg-brand-600 data-[state=unchecked]:bg-gray-500/20',
-    'disabled:cursor-not-allowed disabled:opacity-40'
+    'disabled:cursor-not-allowed disabled:opacity-40',
+    'focus-visible:[box-shadow:inset_0_0_0_1px_var(--ring)]'
   ],
   {
     variants: {

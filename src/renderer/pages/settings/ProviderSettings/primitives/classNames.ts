@@ -39,7 +39,7 @@ export const actionClasses = {
 } as const
 
 const providerListItemFrame =
-  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-0.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0'
+  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-0.5 text-left shadow-none outline-none transition-[color,border-color] focus-visible:ring-0'
 
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
@@ -320,9 +320,9 @@ export const modelSyncClasses = {
   fetchWarning:
     'my-2 gap-2 rounded-lg border-warning-border bg-warning-subtle px-2.5 py-2 text-warning-subtle-foreground text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border-subtle hover:bg-accent/30 focus-visible:border-ring focus-visible:bg-accent/30 focus-visible:outline-none data-[checked=true]:border-border-subtle data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-[color,border-color] hover:border-border-subtle hover:bg-accent/30 focus-visible:border-ring focus-visible:bg-accent/30 focus-visible:outline-none data-[checked=true]:border-border-subtle data-[checked=true]:bg-background',
   fetchRowRemoved:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-error-border hover:bg-error-subtle focus-visible:border-error-border focus-visible:bg-error-subtle focus-visible:outline-none data-[checked=true]:border-error-border data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-[color,border-color] hover:border-error-border hover:bg-error-subtle focus-visible:border-error-border focus-visible:bg-error-subtle focus-visible:outline-none data-[checked=true]:border-error-border data-[checked=true]:bg-background',
   fetchAvatar:
     'flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs leading-none text-foreground-tertiary',
   fetchRowId: 'truncate text-sm leading-tight text-foreground',

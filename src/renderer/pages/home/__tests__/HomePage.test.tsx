@@ -310,6 +310,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
       ({
         'chat.home.welcome_title': 'Welcome',
         'chat.topics.title': '对话',
+        'common.back': 'Back',
         'common.loading': 'Loading...'
       })[key] ?? key
   })
@@ -662,9 +663,11 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
     open,
     onRecordSelect,
     onActiveRecordChange,
-    onLocalPermanentDeletePendingChange
+    onLocalPermanentDeletePendingChange,
+    toolbarLeading
   }: {
     open?: boolean
+    toolbarLeading?: ReactNode
     onRecordSelect?: (topic: Topic) => void
     onActiveRecordChange?: (topic: Topic | null) => void
     onLocalPermanentDeletePendingChange?: (id: string | null) => void
@@ -673,6 +676,7 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
     homeMocks.historyOnPending = onLocalPermanentDeletePendingChange
     return open ? (
       <div data-testid="history-records-view">
+        {toolbarLeading}
         <button type="button" onClick={() => onRecordSelect?.(historyTopic)}>
           Open history topic
         </button>
@@ -815,32 +819,20 @@ describe('HomePage', () => {
     expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', false)
   })
 
-  it('renders history records in the chat center and toggles them from the sidebar', () => {
+  it.each(['time', 'assistant'])('returns from history to the same chat and sidebar in %s layout', (displayMode) => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', displayMode)
+    homeMocks.preferenceValues.set('topic.tab.show', true)
     render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-
-    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
-
-    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-
-    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
-    expect(screen.getByTestId('active-topic')).toBeInTheDocument()
-  })
-
-  it('closes classic-layout history records when the active assistant is clicked', () => {
-    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-
-    render(<HomePage />)
+    const topicId = screen.getByTestId('active-topic').textContent
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
     expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
-
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
+    expect(screen.getByTestId('active-topic').textContent).toBe(topicId)
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
   it('keeps the assistant resource view open until the selected assistant topic is ready', async () => {
@@ -872,24 +864,16 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
   })
 
-  it('keeps a sidebar toggle beside resource search so a collapsed pane can be reopened', async () => {
+  it('returns from assistant management with the sidebar restored', () => {
     homeMocks.preferenceValues.set('topic.tab.show', true)
-
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
-    const shell = screen.getByTestId('home-chat-shell')
-    expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true')
-
-    const toolbarLeading = within(shell).getByTestId('resource-toolbar-leading')
-
-    // Collapse the pane from the resource toolbar toggle, then confirm the toggle survives the collapse.
-    fireEvent.click(within(toolbarLeading).getByRole('button'))
-    await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('false'))
-
-    fireEvent.click(within(toolbarLeading).getByRole('button'))
-    await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true'))
+    fireEvent.click(within(screen.getByTestId('resource-catalog-assistant')).getByRole('button', { name: 'Back' }))
+    expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
   it('creates an empty modern-layout topic from the inline assistant catalog go-to-chat action', async () => {
