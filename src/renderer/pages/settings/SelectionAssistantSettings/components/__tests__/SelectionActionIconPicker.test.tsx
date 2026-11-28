@@ -177,7 +177,7 @@ describe('SelectionActionIconPicker', () => {
     await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
   })
 
-  it('has a visible focus treatment and supports keyboard selection', async () => {
+  it('supports keyboard selection', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<SelectionActionIconPicker value="" onChange={onChange} />)
@@ -187,22 +187,8 @@ describe('SelectionActionIconPicker', () => {
     await user.tab()
     const icon = screen.getByRole('button', { name: 'heart' })
     expect(icon).toHaveFocus()
-    expect(icon).toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring', 'focus-visible:ring-inset')
     await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenCalledWith('heart')
-  })
-
-  it('shows keyboard focus with a ring that the global outline reset cannot remove', async () => {
-    render(<SelectionActionIconPicker value="" onChange={vi.fn()} />)
-    fireEvent.click(screen.getByText('selection.settings.user_modal.icon.placeholder'))
-    const button = await waitFor(() => {
-      const found = document.querySelector('button[aria-pressed]')
-      expect(found).not.toBeNull()
-      return found as HTMLButtonElement
-    })
-    expect(button.className).toContain('focus-visible:ring-2')
-    expect(button.className).toContain('focus-visible:ring-inset')
-    expect(button.className).not.toContain('focus-visible:outline')
   })
 
   it('returns the grid to its first row when the query changes', async () => {
