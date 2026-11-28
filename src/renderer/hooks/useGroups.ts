@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
@@ -12,6 +12,9 @@ export function useGroups(entityType: EntityType, options: { enabled?: boolean }
     ...(options.enabled !== undefined && { enabled: options.enabled }),
     query: { entityType }
   })
+  // Cross-window convergence: group mutations in any window broadcast
+  // DataApi_DataChanged from GroupService; refetch this window's cache.
+  useDataChange(options.enabled !== false ? '/groups' : [], () => void refetch())
   const groups = useMemo(() => data ?? [], [data])
 
   return { groups, isLoading, error, refetch }

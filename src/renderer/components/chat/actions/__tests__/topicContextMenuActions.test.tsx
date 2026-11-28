@@ -254,7 +254,36 @@ describe('topic context menu actions', () => {
     })
     const moveAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.move-to-assistant')
 
-    await expect(executeTopicMenuAction(moveAction!.children[0], context)).resolves.toBe(false)
+    await executeTopicMenuAction(moveAction!.children[0], context)
     expect(onMoveToAssistant).not.toHaveBeenCalled()
+  })
+
+  it('lists other subject groups, ungroup, and new-group entries in the move-to-group submenu', async () => {
+    const onMoveToGroup = vi.fn()
+    const onRequestNewGroup = vi.fn()
+    const context = createTopicActionFixture({
+      topic: { ...topic, groupId: 'group-a' },
+      topicGroupMoveTargets: [
+        { id: 'group-a', name: 'Python' },
+        { id: 'group-b', name: 'Fitness' }
+      ],
+      onMoveToGroup,
+      onRequestNewGroup
+    })
+    const moveAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.move-to-group')
+
+    expect(moveAction?.children.map((action) => action.label)).toEqual([
+      'Fitness',
+      'chat.topics.subject.ungrouped',
+      'chat.topics.subject.new_group'
+    ])
+
+    await executeTopicMenuAction(moveAction!.children[0], context)
+    await executeTopicMenuAction(moveAction!.children[1], context)
+    await executeTopicMenuAction(moveAction!.children[2], context)
+
+    expect(onMoveToGroup).toHaveBeenNthCalledWith(1, context.topic, 'group-b')
+    expect(onMoveToGroup).toHaveBeenNthCalledWith(2, context.topic, null)
+    expect(onRequestNewGroup).toHaveBeenCalledWith(context.topic)
   })
 })

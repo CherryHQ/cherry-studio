@@ -15,6 +15,8 @@ export type Topic = {
    * callers should branch on `undefined` and fall back to UI defaults.
    */
   assistantId: string | undefined
+  /** User-managed subject group (entityType 'topic'); independent of the assistant. */
+  groupId?: string
   name: string
   lastActivityAt: string
   createdAt: string

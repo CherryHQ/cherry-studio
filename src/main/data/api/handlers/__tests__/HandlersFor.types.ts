@@ -18,8 +18,9 @@ import type { HandlersFor } from '@shared/data/api/types'
 // path/method/param invariants, not response types, so short-circuit via cast.
 const ok = async (): Promise<any> => ({}) as any
 const auxiliaryTopicHandlers = {
-  '/topics/:id/move': { POST: ok }
-} satisfies Pick<HandlersFor<TopicSchemas>, '/topics/:id/move'>
+  '/topics/:id/move': { POST: ok },
+  '/topics/:id/group': { POST: ok }
+} satisfies Pick<HandlersFor<TopicSchemas>, '/topics/:id/move' | '/topics/:id/group'>
 
 // ============================================================================
 // P1 — POSITIVE: a fully-covered, correctly-typed handler compiles.

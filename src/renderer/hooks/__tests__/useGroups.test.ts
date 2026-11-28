@@ -11,11 +11,13 @@ const mocks = vi.hoisted(() => ({
   reorderGroup: vi.fn(),
   updateGroup: vi.fn(),
   refetch: vi.fn(),
+  useDataChange: vi.fn(),
   useMutation: vi.fn(),
   useQuery: vi.fn()
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
+  useDataChange: mocks.useDataChange,
   useMutation: mocks.useMutation,
   useQuery: mocks.useQuery
 }))
@@ -65,6 +67,19 @@ describe('group hooks', () => {
 
     const { result } = renderHook(() => useGroups('assistant'))
     expect(result.current.groups).toEqual([cached])
+  })
+
+  it('refetches when another window broadcasts a group data change', () => {
+    let listener: (() => void) | undefined
+    mocks.useDataChange.mockImplementation((_endpoints: unknown, cb: () => void) => {
+      listener = cb
+    })
+
+    renderHook(() => useGroups('assistant'))
+
+    expect(mocks.useDataChange).toHaveBeenCalledWith('/groups', expect.any(Function))
+    act(() => listener?.())
+    expect(mocks.refetch).toHaveBeenCalledTimes(1)
   })
 
   it('reorders a group and refreshes group collections', async () => {

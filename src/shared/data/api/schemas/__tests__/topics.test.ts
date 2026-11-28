@@ -30,7 +30,7 @@ describe('UpdateTopicSchema', () => {
   // Schema is strict (inherited from TopicSchema.strictObject), so disallowed
   // keys throw a ZodError; pinning that behavior so a refactor to non-strict
   // (z.object / .passthrough()) is caught.
-  it.each(['sortOrder', 'isPinned', 'pinnedOrder', 'orderKey', 'groupId'])('throws on disallowed key %s', (key) => {
+  it.each(['sortOrder', 'isPinned', 'pinnedOrder', 'orderKey'])('throws on disallowed key %s', (key) => {
     expect(() => UpdateTopicSchema.parse({ name: 'x', [key]: 99 })).toThrow(/unrecognized/i)
   })
 

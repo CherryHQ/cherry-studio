@@ -566,7 +566,11 @@ describe('artifact migrate-forward from 2.2.3', () => {
   const dbh = setupTestDatabase({ beforeMigration: '0042_agent_history_artifacts_and_mcp' })
 
   it('adds artifact storage and skill permissions while preserving existing rows', () => {
-    dbh.db.insert(topicTable).values({ id: 'existing', name: 'Existing topic', orderKey: 'a0' }).run()
+    dbh.sqlite
+      .prepare(
+        'INSERT INTO topic (id, name, order_key, last_activity_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      .run('existing', 'Existing topic', 'a0', NOW, NOW, NOW)
     dbh.sqlite
       .prepare('INSERT INTO mcp_server (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
       .run('existing-server', 'Existing MCP server', NOW, NOW)

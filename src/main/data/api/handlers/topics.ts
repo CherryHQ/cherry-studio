@@ -17,6 +17,7 @@ import {
   DuplicateTopicSchema,
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
+  CreateTopicGroupSchema,
   MoveTopicSchema,
   ReuseOrCreateTopicSchema,
   SetActiveNodeSchema,
@@ -77,6 +78,13 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = MoveTopicSchema.parse(body)
       return topicService.move(params.id, parsed)
+    }
+  },
+
+  '/topics/:id/group': {
+    POST: async ({ params, body }) => {
+      const parsed = CreateTopicGroupSchema.parse(body)
+      return topicService.createGroupAndAssign(params.id, parsed)
     }
   },
 
