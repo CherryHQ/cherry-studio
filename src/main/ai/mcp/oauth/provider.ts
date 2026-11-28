@@ -22,7 +22,12 @@ const logger = loggerService.withContext('Mcp:OAuthClientProvider')
 
 export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage
-  private readonly authorizationFlow = new AsyncLocalStorage<{ discovery?: OAuthDiscoveryState; callback: boolean }>()
+  private readonly authorizationFlow = new AsyncLocalStorage<{
+    discovery?: OAuthDiscoveryState
+    callback: boolean
+    redirectUrl?: string
+  }>()
+  private registeredRedirectUrl?: string
   public readonly config: Required<OAuthProviderOptions>
   public prepareAuthorization?: () => Promise<void>
   public beginAuthorization?: () => Promise<void>
@@ -41,7 +46,12 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   get redirectUrl(): string {
-    return `http://127.0.0.1:${this.config.callbackPort}${this.config.callbackPath}`
+    const flow = this.authorizationFlow.getStore()
+    return (flow ? flow.redirectUrl : this.registeredRedirectUrl) ?? this.defaultRedirectUrl
+  }
+
+  private get defaultRedirectUrl(): string {
+    return `http://localhost:${this.config.callbackPort}${this.config.callbackPath}`
   }
 
   get clientMetadata() {
@@ -66,6 +76,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 
   reloadCredentials(): void {
     this.storage = new JsonFileStorage(this.config.serverUrlHash, this.config.configDir)
+    this.registeredRedirectUrl = undefined
   }
 
   withAuthorizationFlow<T>(callback: () => Promise<T>): Promise<T> {
@@ -87,7 +98,19 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   async clientInformation(ctx?: OAuthClientInformationContext): Promise<StoredOAuthClientInformation | undefined> {
-    return this.storage.getClientInformation(ctx)
+    const info = await this.storage.getClientInformation(ctx)
+    const legacyRedirectUrl = `http://127.0.0.1:${this.config.callbackPort}${this.config.callbackPath}`
+    const redirects = info && 'redirect_uris' in info ? info.redirect_uris : undefined
+    // Existing clients without metadata predate the localhost default. Do not
+    // change their registered URI when the SDK reuses the saved client ID.
+    const redirectUrl =
+      info && !redirects?.includes(this.defaultRedirectUrl) && (!redirects || redirects.includes(legacyRedirectUrl))
+        ? legacyRedirectUrl
+        : this.defaultRedirectUrl
+    const flow = this.authorizationFlow.getStore()
+    if (flow) flow.redirectUrl = redirectUrl
+    else this.registeredRedirectUrl = redirectUrl
+    return info
   }
 
   async saveClientInformation(info: StoredOAuthClientInformation, ctx?: OAuthClientInformationContext): Promise<void> {
@@ -106,6 +129,9 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     // Only an active authorized request can consume the callback and finish authorization.
     const prepareAuthorization = this.prepareAuthorization
     if (!prepareAuthorization) throw new UnauthorizedError()
+    const state = await this.storage.getState()
+    if (!state) throw new Error('OAuth authorization state is missing')
+    authorizationUrl.searchParams.set('state', state)
     await prepareAuthorization()
     if (this.prepareAuthorization !== prepareAuthorization) throw new UnauthorizedError()
     try {
@@ -145,8 +171,15 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
       ? { issuer: discovery.authorizationServerMetadata?.issuer ?? discovery.authorizationServerUrl }
       : undefined
     await this.storage.clear(scope, ctx)
-    if (scope === 'tokens' && !(discovery ?? (await this.storage.getDiscoveryState()))?.authorizationServerUrl) {
-      await this.storage.clear('client', ctx)
+    const clearsLegacyClient =
+      scope === 'tokens' && !(discovery ?? (await this.storage.getDiscoveryState()))?.authorizationServerUrl
+    if (clearsLegacyClient) await this.storage.clear('client', ctx)
+    if (scope === 'all' || scope === 'client' || clearsLegacyClient) {
+      // The SDK snapshots registration metadata before its next client lookup.
+      // Once that client is discarded, select the new-client URI before retrying.
+      const flow = this.authorizationFlow.getStore()
+      if (flow) flow.redirectUrl = undefined
+      else this.registeredRedirectUrl = undefined
     }
   }
 }
