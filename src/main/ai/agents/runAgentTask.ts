@@ -39,6 +39,7 @@ import { loggerService } from '@logger'
 import { agentDataDirectoryPath, assertAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { pauseHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
+import { trackScheduledTaskDelivery } from '@main/ai/agents/scheduledTaskAnalytics'
 import { frameScheduledTrigger } from '@main/ai/agents/scheduledTriggerFraming'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
@@ -46,6 +47,7 @@ import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ScheduledTaskSkipReason } from '@shared/ipc/schemas/analytics'
 
@@ -258,7 +260,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     if (!adapter) return []
     // Suppress the listener's generic `Error: …` — `notifyTaskError` below sends a richer
     // `[Task failed]` summary to the same chats, so leaving it on would double-notify.
-    return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId, true))
+    const onDelivered = scheduleId
+      ? (delivered: boolean) => trackScheduledTaskDelivery(scheduleId, channel.type, 'result', delivered)
+      : undefined
+    return adapter.notifyChatIds.map(
+      (chatId) => new ChannelAdapterListener(adapter, chatId, true, undefined, onDelivered)
+    )
   })
 
   const { signal: runSignal, dispose } = makeRunSignal(ctx.signal, timeoutMinutes)
@@ -426,7 +433,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 async function notifyTaskError(
   task: { id: string | null; name: string | null; durationMs: number },
   error: string,
-  subscribedChannels: Array<{ id: string }>
+  subscribedChannels: Array<{ id: string; type: AgentChannelType }>
 ): Promise<void> {
   const channelManager = application.get('ChannelManager')
   try {
@@ -438,14 +445,20 @@ async function notifyTaskError(
       const adapter = channelManager.getAdapter(ch.id)
       if (!adapter) continue
       for (const chatId of adapter.notifyChatIds) {
-        adapter.sendMessage(chatId, text).catch((err) => {
-          logger.warn('Failed to deliver task error notification', {
-            scheduleId: task.id,
-            channelId: ch.id,
-            chatId,
-            error: err instanceof Error ? err.message : String(err)
-          })
-        })
+        const track = (delivered: boolean) =>
+          task.id && trackScheduledTaskDelivery(task.id, ch.type, 'failure_notice', delivered)
+        adapter.sendMessage(chatId, text).then(
+          () => track(true),
+          (err) => {
+            logger.warn('Failed to deliver task error notification', {
+              scheduleId: task.id,
+              channelId: ch.id,
+              chatId,
+              error: err instanceof Error ? err.message : String(err)
+            })
+            track(false)
+          }
+        )
       }
     }
   } catch (err) {

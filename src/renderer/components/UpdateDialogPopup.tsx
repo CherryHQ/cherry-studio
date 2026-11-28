@@ -16,6 +16,7 @@ import { loggerService } from '@logger'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 
 import { UpgradeReleaseNotes } from './UpgradeReleaseNotes'
@@ -28,7 +29,7 @@ interface ShowParams {
 
 type Props = ShowParams & PopupInjectedProps<Record<string, never>>
 
-const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
+export const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
   const { t } = useTranslation()
   const [isInstalling, setIsInstalling] = useState(false)
   const { updateAppUpdateState } = useAppUpdateState()
@@ -53,11 +54,14 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
   }
 
   const onCancel = () => {
+    // Closing while Install is in flight does not defer it; main can still start the install.
+    if (!isInstalling) trackProductEvent({ event: 'update_install_deferred', choice: 'dismissed' })
     updateAppUpdateState({ manualCheck: false })
     resolve({})
   }
 
   const onIgnore = () => {
+    trackProductEvent({ event: 'update_install_deferred', choice: 'later' })
     updateAppUpdateState({ ignore: true, manualCheck: false })
     resolve({})
   }

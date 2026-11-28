@@ -151,6 +151,12 @@ type TestJobContextOverrides = Omit<Partial<JobContext<TestAgentTaskInput>>, 'in
   input?: Partial<TestAgentTaskInput>
 }
 
+const deliveries = () =>
+  vi
+    .mocked(application.get('AnalyticsService').trackProductEvent)
+    .mock.calls.map(([event]) => event)
+    .filter((event) => event.event === 'scheduled_task_delivery')
+
 function makeCtx(overrides: TestJobContextOverrides = {}) {
   const { input: inputOverride, ...rest } = overrides
   return {
@@ -671,6 +677,47 @@ describe('runAgentTask', () => {
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'daily summary', undefined)
     expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
+    expect(deliveries()).toEqual([
+      { event: 'scheduled_task_delivery', taskId: 's1', channelType: 'telegram', content: 'result', status: 'success' }
+    ])
+  })
+
+  it('reports a failure notice that could not reach its channel', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn(async () => {
+        throw new Error('bot was blocked by the user')
+      }),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => true)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    for (const listener of captured.listeners) listener.onError?.({ error: new Error('boom'), status: 'error' })
+    await expect(promise).rejects.toThrow('boom')
+
+    await vi.waitFor(() =>
+      expect(deliveries()).toEqual([
+        {
+          event: 'scheduled_task_delivery',
+          taskId: 's1',
+          channelType: 'telegram',
+          content: 'failure_notice',
+          status: 'error'
+        }
+      ])
+    )
   })
 
   it.each([undefined, 'user-requested', 'remote-cancel'])(

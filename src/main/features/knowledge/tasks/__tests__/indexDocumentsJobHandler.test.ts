@@ -156,6 +156,39 @@ describe('index-documents job handler', () => {
     ])
   })
 
+  it('names why an item failed by kind, never by its message', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    const failures: Array<[string, string]> = [
+      ['Unsupported knowledge file type: /Users/me/notes/a.xyz', 'unsupported_format'],
+      ['anydoc conversion produced no text', 'invalid_format'],
+      ['Failed to read epub chapters: bad zip', 'invalid_format'],
+      ['jina request failed: HTTP 404 Not Found', 'url_unreachable'],
+      // The production aggregate when Jina and the direct fetch both fail; the 404 inside is not a model.
+      [
+        'Web fetch failed after fallback: jina request failed: HTTP 404 Not Found; fetch failed: 404 Not Found',
+        'url_unreachable'
+      ],
+      ['Knowledge URL returned empty markdown: https://example.com/a', 'url_unreachable'],
+      ['401 Unauthorized: invalid api key', 'auth']
+    ]
+    for (const [message] of failures) {
+      await handler.onSettled?.({
+        jobId: 'failed-job',
+        type: 'knowledge.index-documents',
+        scheduleId: null,
+        parentId: null,
+        status: 'failed',
+        input: { baseId: 'kb-1', itemId: NOTE_ITEM_ID },
+        error: { code: 'HANDLER_THREW', message, retryable: true },
+        attempt: 3,
+        metadata: {}
+      })
+    }
+
+    expect(processedEvents().map((event) => event.errorReason)).toEqual(failures.map(([, reason]) => reason))
+  })
+
   it('does not notify when indexing was skipped because the source disappeared', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue({ ...createNoteItem(NOTE_ITEM_ID), status: 'deleting' })

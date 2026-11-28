@@ -1913,9 +1913,22 @@ describe('AgentJobsService', () => {
         agentKind: 'custom',
         hasWorkspace: false,
         reuseSession: false,
-        channelCount: 1
+        channelCount: 1,
+        taskId: task.id
       })
       expect(changes[3]).toMatchObject({ reuseSession: true })
+      expect(new Set(changes.map((event) => event.taskId))).toEqual(new Set([task.id]))
+    })
+
+    it('names which built-in Agent a task runs on', () => {
+      dbh.db
+        .update(agentTable)
+        .set({ configuration: { builtin_role: 'assistant' } })
+        .where(eq(agentTable.id, AGENT_ID))
+        .run()
+      service.createTask(AGENT_ID, form)
+
+      expect(reported('scheduled_task_changed')).toMatchObject([{ agentKind: 'builtin', builtinRole: 'assistant' }])
     })
 
     it('reports a Run-now as a manual run and stays silent when the task is not found', async () => {
