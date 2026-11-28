@@ -22,6 +22,13 @@ describe('getFileIconName', () => {
     expect(getFileIconName('C:\\proj\\globals.d.ts')).toBe('typescript-def')
   })
 
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty', 'notes.constructor', 'notes.__proto__'])(
+    'falls back to the document icon for an inherited object key: %s',
+    (filename) => {
+      expect(getFileIconName(filename)).toBe('document')
+    }
+  )
+
   it('only references icon names that exist in material-icon-theme', () => {
     // Every name is handed to `material-icon-theme:<name>`; a name the collection does not have
     // resolves to nothing at runtime, so the file silently loses its icon (this is how `shell`,
