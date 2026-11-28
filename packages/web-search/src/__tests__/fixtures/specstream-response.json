@@ -1,0 +1,10 @@
+{
+  "data": {
+    "sources": [
+      { "title": " SpecStream Title ", "url": "https://specstream.example/result", "snippet": " SpecStream Snippet " },
+      { "title": "Second Title", "url": "https://specstream.example/second", "snippet": "Second Snippet" },
+      { "title": "Third Title", "url": "https://specstream.example/third", "snippet": "Third Snippet" }
+    ],
+    "passages": [{ "url": "https://specstream.example/result", "text": " Passage from the first page " }]
+  }
+}
