@@ -4,7 +4,7 @@
 
 上下文长度与最大输出以 K / M 缩写并四舍五入（1K 约为 1,000～1,024 tokens，1M 约为 100 万 tokens），例如 131,072 与 128,000 均写作 128K。悬停可查看完整数值，精确限制请以模型服务商为准。
 
-> **数据更新时间**: 2026-11-03 16:01:16 UTC / 2026-11-04 00:01:16 CST (北京时间)
+> **数据更新时间**: 2026-11-27 17:59:10 UTC / 2026-11-28 01:59:10 CST (北京时间)
 
 <div data-models-table="num:2,3;sort:1;search:0,1;cap:4:函数调用,推理,识图,语音识别,视频理解,结构化输出,文件输入,电脑操作,文件检索;in:5:文本输入=文本,图片输入=图片,音频输入=音频,视频输入=视频">
 
@@ -62,6 +62,7 @@
 | Anthropic: Claude Opus Latest<br><code>claude-opus-latest</code> | anthropic | <span title="1,000,000">1M</span> | - | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Claude Fable 5<br><code>claude-fable-5</code> | anthropic | <span title="1,000,000">1M</span> | <span title="128,000">128K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Claude Fable 5.1<br><code>claude-fable-5-1</code> | anthropic | <span title="1,000,000">1M</span> | <span title="128,000">128K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
+| Claude Fable 5.2<br><code>claude-fable-5-2</code> | anthropic | <span title="1,000,000">1M</span> | <span title="128,000">128K</span> | 推理、函数调用、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Claude Haiku 3<br><code>claude-3-haiku</code> | anthropic | <span title="200,000">200K</span> | <span title="4,096">4K</span> | 函数调用、识图、文件输入 | 文本、图片 | 文本 |
 | Claude Haiku 4.5<br><code>claude-haiku-4-5</code> | anthropic | <span title="200,000">200K</span> | <span title="64,000">64K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Claude Haiku 5.5<br><code>claude-haiku-5-5</code> | anthropic | <span title="1,000,000">1M</span> | <span title="128,000">128K</span> | 推理、函数调用、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
@@ -84,8 +85,6 @@
 | Baidu: ERNIE 4.5 VL 424B A47B <br><code>ernie-4-5-vl-424b-a47b</code> | baidu | <span title="123,000">123K</span> | - | 推理、识图 | 文本、图片 | 文本 |
 | ERNIE 4.5 Turbo VL<br><code>ernie-4-5-turbo-vl</code> | baidu | <span title="32,768">32K</span> | - | 函数调用、识图 | 文本、图片 | - |
 | ERNIE 4.5 VL A3B<br><code>ernie-4-5-vl-a3b</code> | baidu | <span title="32,768">32K</span> | - | 推理、识图 | 文本、图片 | - |
-| Inkling<br><code>inkling</code> | bailing | <span title="1,048,576">1.05M</span> | <span title="256,000">256K</span> | 函数调用、推理、识图、语音识别、结构化输出、文件输入 | 文本、图片、音频 | 文本 |
-| Inkling Small<br><code>inkling-small</code> | bailing | <span title="1,048,576">1.05M</span> | <span title="1,000,000">1M</span> | 函数调用、推理、识图、语音识别、文件输入 | 文本、图片、音频 | 文本 |
 | Doubao 1.5 Thinking Vision Pro<br><code>doubao-1-5-thinking-vision-pro</code> | bytedance | <span title="131,072">128K</span> | <span title="16,384">16K</span> | 推理、函数调用、识图 | 文本、图片 | 文本 |
 | Doubao 1.5 UI-TARS<br><code>doubao-1-5-ui-tars</code> | bytedance | - | - | 电脑操作、识图、函数调用 | 文本、图片 | 文本 |
 | Doubao 1.5 Vision Lite<br><code>doubao-1-5-vision-lite</code> | bytedance | - | - | 识图、函数调用 | 文本、图片 | 文本 |
@@ -111,9 +110,9 @@
 | Command A Vision<br><code>command-a-vision-07-2025</code> | cohere | <span title="131,072">128K</span> | <span title="8,192">8K</span> | 函数调用、识图 | 文本、图片 | 文本 |
 | Command A+<br><code>command-a-plus-05-2026</code> | cohere | <span title="131,072">128K</span> | <span title="65,536">64K</span> | 函数调用、推理、识图 | 文本、图片 | 文本 |
 | DeepSeek V4 Flash Vision Exp<br><code>deepseek-v4-flash-vision-exp</code> | deepseek | <span title="1,048,576">1.05M</span> | <span title="393,216">384K</span> | 函数调用、识图、推理、结构化输出 | 文本、图片 | 文本 |
-| DeepSeek V4.1 Flash<br><code>deepseek-flash</code> | deepseek | <span title="1,000,000">1M</span> | <span title="393,216">384K</span> | 函数调用、识图、推理、结构化输出 | 文本、图片 | 文本 |
+| DeepSeek V4.1 Flash<br><code>deepseek-flash</code> | deepseek | <span title="1,048,576">1.05M</span> | <span title="393,216">384K</span> | 函数调用、识图、推理、结构化输出 | 文本、图片 | 文本 |
+| DeepSeek V4.1 Flash<br><code>deepseek-v4-1-flash</code> | deepseek | <span title="1,048,576">1.05M</span> | <span title="393,216">384K</span> | 函数调用、识图、推理、结构化输出 | 文本、图片 | 文本 |
 | DeepSeek V4.1 Flash Beta<br><code>deepseek-v4-1-flash-beta</code> | deepseek | <span title="1,000,000">1M</span> | <span title="384,000">384K</span> | 函数调用、推理、识图、文件输入 | 文本、图片 | 文本 |
-| DeepSeek: DeepSeek V4.1 Flash<br><code>deepseek-v4-1-flash</code> | deepseek | <span title="1,048,576">1.05M</span> | - | 函数调用、推理、识图、结构化输出 | 文本、图片 | 文本 |
 | Gemini 2.5 Computer Use Preview 10-2025<br><code>gemini-2-5-computer-use-preview-10-2025</code> | google | <span title="131,072">128K</span> | <span title="65,536">64K</span> | 函数调用、推理、识图、文件输入 | 文本、图片 | 文本 |
 | Gemini 2.5 Flash<br><code>gemini-2-5-flash</code> | google | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
 | Gemini 2.5 Flash-Lite<br><code>gemini-2-5-flash-lite</code> | google | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
@@ -130,6 +129,9 @@
 | Gemini 3.7 Flash<br><code>gemini-3-7-flash</code> | google | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
 | Gemini 3.8 Flash<br><code>gemini-3-8-flash</code> | google | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
 | Gemini 4 Argon<br><code>gemini-4-argon</code> | google | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 推理、函数调用、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
+| Gemini 4 Carbon<br><code>gemini-4-carbon</code> | google | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 推理、函数调用、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
+| Gemini 4 Hydrogen<br><code>gemini-4-hydrogen</code> | google | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 推理、函数调用、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
+| Gemini 4 Neon<br><code>gemini-4-neon</code> | google | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 推理、函数调用、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
 | Gemini Flash Latest<br><code>gemini-flash-latest</code> | google | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
 | Gemini Flash-Lite Latest<br><code>gemini-flash-lite-latest</code> | google | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
 | Gemma 3 12B IT<br><code>gemma-3-12b-it</code> | google | <span title="131,072">128K</span> | <span title="16,384">16K</span> | 函数调用、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
@@ -179,6 +181,7 @@
 | Mistral Small (latest)<br><code>mistral-small</code> | mistral | <span title="262,144">256K</span> | <span title="256,000">256K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Mistral Small (latest)<br><code>mistral-small-latest</code> | mistral | <span title="256,000">256K</span> | <span title="256,000">256K</span> | 函数调用、推理、识图、文件输入 | 文本、图片 | 文本 |
 | mistral-small-4-119b-2603<br><code>mistral-small-4-119b</code> | mistral | <span title="128,000">128K</span> | <span title="8,192">8K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
+| Mistral: Mistral Large 4<br><code>mistral-large-4-0</code> | mistral | <span title="1,048,576">1.05M</span> | - | 函数调用、推理、识图、结构化输出 | 文本、图片 | 文本 |
 | Mistral: Mistral Medium 3<br><code>mistral-medium-3</code> | mistral | <span title="131,072">128K</span> | - | 函数调用、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Mistral: Mistral Medium 3.1<br><code>mistral-medium-3-1</code> | mistral | <span title="131,072">128K</span> | - | 函数调用、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Mistral: Mistral Small 3.1 24B<br><code>mistral-small-3-1-24b-instruct</code> | mistral | <span title="128,000">128K</span> | - | 识图 | 文本、图片 | 文本 |
@@ -190,7 +193,8 @@
 | Voxtral Small (latest)<br><code>voxtral-small-latest</code> | mistral | <span title="32,000">32K</span> | <span title="32,000">32K</span> | 函数调用、语音识别、文件输入 | 文本、音频 | 文本 |
 | Voxtral Small 24B 2507<br><code>voxtral-small-24b</code> | mistral | <span title="32,768">32K</span> | <span title="8,192">8K</span> | 函数调用、语音识别、结构化输出、文件输入 | 文本、音频 | 文本 |
 | Kimi K2.7 Code<br><code>kimi-k2-7-code</code> | moonshot | <span title="262,144">256K</span> | <span title="262,144">256K</span> | 函数调用、推理、识图、视频理解、结构化输出、文件输入 | 文本、图片、视频 | 文本 |
-| Kimi K2.7 Code High Speed<br><code>kimi-k2-7-code-highspeed</code> | moonshot | <span title="262,144">256K</span> | <span title="262,144">256K</span> | 函数调用、推理、识图、视频理解、结构化输出、文件输入 | 文本、图片、视频 | 文本 |
+| Kimi K2.7 Code HighSpeed<br><code>kimi-k2-7-code-highspeed</code> | moonshot | <span title="262,144">256K</span> | <span title="262,144">256K</span> | 函数调用、推理、识图、视频理解、结构化输出、文件输入 | 文本、图片、视频 | 文本 |
+| Kimi K2.8 Preview<br><code>kimi-k2-8-preview</code> | moonshot | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | 推理、函数调用、识图、视频理解、结构化输出 | 文本、图片、视频 | 文本 |
 | Kimi K3<br><code>kimi-k3</code> | moonshot | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | 函数调用、推理、识图、视频理解、结构化输出、文件输入 | 文本、图片、视频 | 文本 |
 | Kimi K3 Fast<br><code>kimi-k3-fast</code> | moonshot | <span title="1,000,000">1M</span> | <span title="131,072">128K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Kimi K3.1 Pro<br><code>kimi-k3-1-pro</code> | moonshot | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 推理、函数调用、识图、视频理解、结构化输出 | 文本、图片、视频 | 文本 |
@@ -249,6 +253,8 @@
 | GPT-6 Sol<br><code>gpt-6-sol</code> | openai | <span title="1,050,000">1.05M</span> | <span title="128,000">128K</span> | 推理、函数调用、识图、结构化输出、文件检索 | 文本、图片 | 文本 |
 | GPT-6.1 Sol<br><code>gpt-6-1-sol</code> | openai | <span title="1,050,000">1.05M</span> | <span title="128,000">128K</span> | 推理、函数调用、识图、结构化输出、文件检索 | 文本、图片 | 文本 |
 | GPT-6.1 Terra<br><code>gpt-6-1-terra</code> | openai | <span title="1,050,000">1.05M</span> | <span title="128,000">128K</span> | 推理、函数调用、识图、结构化输出、文件检索 | 文本、图片 | 文本 |
+| GPT-6.2 Astra<br><code>gpt-6-2-astra</code> | openai | <span title="1,050,000">1.05M</span> | <span title="128,000">128K</span> | 推理、函数调用、识图、结构化输出、文件检索 | 文本、图片 | 文本 |
+| GPT-6.2 Sol<br><code>gpt-6-2-sol</code> | openai | <span title="1,050,000">1.05M</span> | <span title="128,000">128K</span> | 推理、函数调用、识图、结构化输出、文件检索 | 文本、图片 | 文本 |
 | o1<br><code>o1</code> | openai | <span title="200,000">200K</span> | <span title="100,000">100K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | o1-pro<br><code>o1-pro</code> | openai | <span title="200,000">200K</span> | <span title="100,000">100K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | o3<br><code>o3</code> | openai | <span title="200,000">200K</span> | <span title="100,000">100K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
@@ -266,17 +272,26 @@
 | Sonar Pro<br><code>sonar-pro</code> | perplexity | <span title="200,000">200K</span> | <span title="8,192">8K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Sonar Reasoning Pro<br><code>sonar-reasoning-pro</code> | perplexity | <span title="128,000">128K</span> | <span title="8,000">8K</span> | 推理、识图、文件输入 | 文本、图片 | 文本 |
 | Reka Edge<br><code>reka-edge</code> | reka | <span title="16,384">16K</span> | - | 函数调用、识图、视频理解、结构化输出 | 文本、图片、视频 | 文本 |
+| Fugu Max<br><code>fugu-max</code> | sakana | <span title="1,000,000">1M</span> | <span title="128,000">128K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
+| Fugu Ultra<br><code>fugu-ultra</code> | sakana | <span title="1,000,000">1M</span> | <span title="1,000,000">1M</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
+| Fugu Ultra v2<br><code>fugu-ultra-v2</code> | sakana | <span title="1,000,000">1M</span> | <span title="128,000">128K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
+| Sakana Namazu<br><code>namazu</code> | sakana | <span title="262,144">256K</span> | <span title="65,536">64K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Step 3.5 Flash 2603<br><code>step-3-5-flash</code> | stepfun | <span title="262,144">256K</span> | <span title="262,114">262.11K</span> | 函数调用、推理、识图 | 文本、图片 | 文本 |
 | Step 3.7 Flash<br><code>step-3-7-flash</code> | stepfun | <span title="262,144">256K</span> | <span title="256,000">256K</span> | 函数调用、推理、识图、视频理解、结构化输出、文件输入 | 文本、图片、视频 | 文本 |
+| Step 5 Preview<br><code>step-5-preview</code> | stepfun | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 推理、函数调用、识图、视频理解 | 文本、图片、视频 | 文本 |
 | Kat Coder Air V2.5<br><code>kat-coder-air-v2-5</code> | streamlake | <span title="256,000">256K</span> | <span title="80,000">80K</span> | 函数调用、推理、识图 | 文本、图片 | 文本 |
 | Kat Coder Pro V2.5<br><code>kat-coder-pro-v2-5</code> | streamlake | <span title="262,144">256K</span> | <span title="80,000">80K</span> | 函数调用、推理、识图、结构化输出 | 文本、图片 | 文本 |
-| Fugu Ultra<br><code>fugu-ultra</code> | vercel | <span title="1,000,000">1M</span> | <span title="1,000,000">1M</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
+| Hunyuan 4<br><code>hy4</code> | tencent | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | 推理、函数调用、结构化输出、识图 | 文本、图片 | - |
+| Hunyuan 4 Flash<br><code>hy4-flash</code> | tencent | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | 推理、函数调用、结构化输出、识图 | 文本、图片 | - |
+| Inkling<br><code>inkling</code> | thinkingmachines | <span title="1,048,576">1.05M</span> | <span title="256,000">256K</span> | 函数调用、推理、识图、结构化输出、文件输入、语音识别 | 文本、图片、音频 | 文本 |
+| Inkling 2 Mini<br><code>inkling-2-mini</code> | thinkingmachines | <span title="1,048,576">1.05M</span> | <span title="65,536">64K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
+| Inkling 2 Small<br><code>inkling-2-small</code> | thinkingmachines | <span title="1,048,576">1.05M</span> | <span title="262,144">256K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
+| Inkling Small<br><code>inkling-small</code> | thinkingmachines | <span title="1,048,576">1.05M</span> | <span title="1,000,000">1M</span> | 函数调用、推理、识图、语音识别、文件输入 | 文本、图片、音频 | 文本 |
 | Interfaze Beta<br><code>interfaze-beta</code> | vercel | <span title="1,000,000">1M</span> | <span title="32,000">32K</span> | 推理、识图 | 文本、图片 | 文本 |
 | Muse Spark 1.1<br><code>muse-spark-1-1</code> | vercel | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
 | Muse Spark 1.2<br><code>muse-spark-1-2</code> | vercel | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
 | Muse Spark 1.2 Contributor<br><code>muse-spark-1-2-contributor</code> | vercel | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
 | Muse Spark 1.3 Contributor<br><code>muse-spark-1-3-contributor</code> | vercel | <span title="1,048,576">1.05M</span> | <span title="1,048,576">1.05M</span> | 函数调用、推理、识图、语音识别、视频理解、结构化输出、文件输入 | 文本、图片、音频、视频 | 文本 |
-| Sakana Namazu<br><code>namazu</code> | vercel | <span title="262,144">256K</span> | <span title="256,000">256K</span> | 函数调用、推理、识图、结构化输出、文件输入 | 文本、图片 | 文本 |
 | Grok 2 Vision<br><code>grok-2-vision</code> | xai | <span title="32,768">32K</span> | - | 函数调用、识图 | 文本、图片 | - |
 | Grok 4.1 Fast Non-Reasoning<br><code>grok-4-1-fast-non-reasoning</code> | xai | <span title="1,000,000">1M</span> | <span title="1,000,000">1M</span> | 函数调用、识图、文件输入 | 文本、图片 | 文本 |
 | Grok 4.1 Fast Reasoning<br><code>grok-4-1-fast</code> | xai | <span title="1,000,000">1M</span> | <span title="1,000,000">1M</span> | 函数调用、推理、识图、文件输入 | 文本、图片 | 文本 |
@@ -307,6 +322,7 @@
 | GLM-4V-Flash<br><code>glm-4v-flash</code> | zhipu | <span title="8,192">8K</span> | - | 识图 | 文本、图片 | - |
 | GLM-4V-Plus<br><code>glm-4v-plus</code> | zhipu | <span title="8,192">8K</span> | - | 识图 | 文本、图片 | - |
 | GLM-5.3-Flash<br><code>glm-5-3-flash</code> | zhipu | <span title="1,000,000">1M</span> | <span title="131,072">128K</span> | 函数调用、推理、识图、视频理解、结构化输出、文件输入 | 文本、图片、视频 | 文本 |
+| GLM-5.3-FlashX<br><code>glm-5-3-flashx</code> | zhipu | <span title="1,000,000">1M</span> | <span title="131,072">128K</span> | 函数调用、推理、识图、视频理解、结构化输出、文件输入 | 文本、图片、视频 | 文本 |
 | Z.ai: GLM Flash Latest<br><code>glm-flash-latest</code> | zhipu | <span title="1,310,720">1.31M</span> | - | 函数调用、推理、识图、视频理解、结构化输出 | 文本、图片、视频 | 文本 |
 
 </div>

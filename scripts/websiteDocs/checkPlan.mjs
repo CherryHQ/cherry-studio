@@ -27,8 +27,14 @@ export async function checkPlan(side, revision) {
     const current = {}
     for (const key of Object.keys(repositories)) {
       const main = sha(await head(key))
-      fetchRevision(work.repo, remote(key), main)
-      current[key] = contentTree(work.repo, main, key)
+      // Avoid reusing shallow metadata from earlier fetches.
+      const mainWork = scratch()
+      try {
+        fetchRevision(mainWork.repo, remote(key), main)
+        current[key] = contentTree(mainWork.repo, main, key)
+      } finally {
+        mainWork.close()
+      }
     }
     assertCurrentPlan(plan, current)
   } finally {

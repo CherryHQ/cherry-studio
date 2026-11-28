@@ -457,10 +457,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
       this.assertAppendable(validated)
+      const followUp = req.trigger === 'submit-message' ? req.followUp : undefined
+      const stageFollowup = validated.agentType === 'pi-durable' && followUp === true
       const savedUserMessage = agentSessionMessageService.saveMessage(
         {
           sessionId: validated.sessionId,
           parentId: validated.parentMessageId,
+          ...(stageFollowup && { stageFollowup: true }),
           message: {
             id: validated.userMessageId,
             role: 'user',
@@ -479,13 +482,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
         fastMode: validated.fastMode,
-        followUp: req.trigger === 'submit-message' ? req.followUp : undefined
+        followUp
       })
 
       return {
         topicId: validated.topicId,
         models: [],
-        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
+        reservedMessages: stageFollowup ? [] : [toReservedAgentUIMessage(savedUserMessage)],
         listeners: [subscriber]
       }
     }

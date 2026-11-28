@@ -31,7 +31,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { isAbortError } from '@main/utils/error'
 import { projectAgentNonTextPart } from '@main/utils/messageOutputProjection'
-import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { StreamIdleTimeoutError, withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { extractAgentContextId, extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { ExecutionId } from '@shared/ai/executionIdentity'
@@ -54,7 +54,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
 
-import type { AsInProcess } from '../AiService'
+import type { AiRequestOptions, AsInProcess } from '../AiService'
 import { applyTurnOutputAttributes } from '../observability'
 import type {
   AiStreamRequest,
@@ -138,6 +138,7 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
 
 const logger = loggerService.withContext('AiStreamManager')
 type ManagedAiStreamRequest = AiStreamRequest & {
+  requestOptions?: AsInProcess<AiStreamRequest>['requestOptions']
   taskIds?: readonly string[]
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
@@ -1109,6 +1110,7 @@ export class AiStreamManager extends BaseService {
     /** Per-request retry limit; `0` also disables model fallback. */
     maxRetries?: number
     utilityTask?: boolean
+    onModelTransportFailure?: AiRequestOptions['onModelTransportFailure']
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -1137,11 +1139,12 @@ export class AiStreamManager extends BaseService {
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
       source: input.source,
-      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined
+      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined || input.onModelTransportFailure
         ? {
             requestOptions: {
               ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
-              ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {})
+              ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {}),
+              onModelTransportFailure: input.onModelTransportFailure
             }
           }
         : {})
@@ -2489,6 +2492,10 @@ export class AiStreamManager extends BaseService {
     }
 
     exec.timings.completedAt = result.broadcastCompletedAt
+
+    if (signal.reason instanceof StreamIdleTimeoutError) {
+      request.requestOptions?.onModelTransportFailure?.('interrupted')
+    }
 
     if (result.accumulationError !== undefined) {
       logAiFailure(

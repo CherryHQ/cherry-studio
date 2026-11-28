@@ -157,10 +157,10 @@ index 54f3ef34ddf1bf85e3ad9c41bdbd216c081a476f..99c298b83638e0f1c61e40fc24aad6f4
      const result = current.owner === undefined
          ? {
 diff --git a/dist/harness/generation.d.ts b/dist/harness/generation.d.ts
-index 840a966f75087d5a7b91ea82085f0ea7b6ced06d..235794fc87ff8e81751f3d404273d740a82bec6e 100644
+index 840a966f75087d5a7b91ea82085f0ea7b6ced06d..78b0bde6eeca8000504660d8434e8e1bc03d6536 100644
 --- a/dist/harness/generation.d.ts
 +++ b/dist/harness/generation.d.ts
-@@ -4,7 +4,7 @@ import type { ConversationId, EntryId, SubmissionId, Task, TaskId, Tx } from "..
+@@ -4,10 +4,11 @@ import type { ConversationId, EntryId, SubmissionId, Task, TaskId, Tx } from "..
  import { type LiveState } from "./live.ts";
  import { type ToolTaskResult } from "./tool.ts";
  import type { CompactionResult, ConversationStreamOptions, GenerationHooks, ModelRef, RunSummary } from "./types.ts";
@@ -169,21 +169,53 @@ index 840a966f75087d5a7b91ea82085f0ea7b6ced06d..235794fc87ff8e81751f3d404273d740
  export type GenerationCheckpoint = {
      phase: "prepare";
      attempt: number;
++    retryStreak?: number;
+     /** The blocking compaction this generation waited for; it starts no other compaction (spec §8.3). */
+     compacted?: TaskId<CompactionResult>;
+     /** Error text of the overflow that started `compacted`; checked once when `prepare` resumes. */
+@@ -17,6 +18,7 @@ export type GenerationCheckpoint = {
+ } | {
+     phase: "request";
+     attempt: number;
++    retryStreak?: number;
+     compacted?: TaskId<CompactionResult>;
+     model: ModelRef;
+     thinkingLevel: ModelThinkingLevel;
+@@ -27,6 +29,8 @@ export type GenerationCheckpoint = {
+ } | {
+     phase: "retry";
+     attempt: number;
++    nextAttempt?: number;
++    retryStreak?: number;
+     compacted?: TaskId<CompactionResult>;
+     until: number;
+     /**
 diff --git a/dist/harness/generation.js b/dist/harness/generation.js
-index 27e60bb9b479b5600a7314f13bba25177a5e47d9..331fc1d7be0424bdcf629aad59fd12485d6dec39 100644
+index 27e60bb9b479b5600a7314f13bba25177a5e47d9..726a0ff802a8c7a3b9eaff1027177b11ebb475f0 100644
 --- a/dist/harness/generation.js
 +++ b/dist/harness/generation.js
-@@ -92,7 +92,8 @@ export const GenerationTask = defineTask({
+@@ -48,7 +48,7 @@ export const GenerationTask = defineTask({
+             const resolved = model === undefined ? undefined : runtime.models.getModel(model.provider, model.modelId);
+             if (model === undefined || resolved === undefined)
+                 return failNoModel(runtime, model, context);
+-            const { attempt, compacted, overflow, threshold: blocked } = task.state.checkpoint;
++            const { attempt, compacted, overflow, threshold: blocked, retryStreak } = task.state.checkpoint;
+             if (compacted !== undefined && overflow !== undefined) {
+                 const [outcome] = await runtime.outcomes([compacted], context);
+                 if (outcome?.status !== "completed" || outcome.result.entryId === undefined) {
+@@ -92,8 +92,9 @@ export const GenerationTask = defineTask({
              if (threshold === "blocking") {
                  // Compact first and prepare again; the transcript is unchanged until the compaction appends.
                  await runtime.commit(async (tx) => {
 -                    const child = await createCompaction(tx, conversationId, { reason: "threshold" }, runtime.taskId);
+-                    const checkpoint = { phase: "prepare", attempt, compacted: child, threshold: true };
 +                    const ownerAt = await tx.latestEntryId(conversationId);
 +                    const child = await createCompaction(tx, conversationId, { reason: "threshold", ...(ownerAt !== undefined && { ownerAt }) }, runtime.taskId);
-                     const checkpoint = { phase: "prepare", attempt, compacted: child, threshold: true };
++                    const checkpoint = { phase: "prepare", attempt, compacted: child, threshold: true, ...(retryStreak === undefined ? {} : { retryStreak }) };
                      return { status: "waiting", checkpoint, on: [child], policy: "allSettled" };
                  }, context);
-@@ -105,7 +106,7 @@ export const GenerationTask = defineTask({
+                 return;
+@@ -105,13 +106,14 @@ export const GenerationTask = defineTask({
                      cutoff = (await tx.appendEntry(SystemEntry, conversationId, entry)).id;
                  // Checked in this commit, so a compaction admitted during preparation counts.
                  if (threshold === "background" && (await tx.doc(LiveDoc, conversationId)).compactions === undefined) {
@@ -192,7 +224,49 @@ index 27e60bb9b479b5600a7314f13bba25177a5e47d9..331fc1d7be0424bdcf629aad59fd1248
                  }
                  const request = {
                      attempt,
-@@ -346,7 +347,7 @@ async function failModelError(runtime, text, context) {
+                     ...(compacted === undefined ? {} : { compacted }),
+                     model,
+                     thinkingLevel,
++                    ...(retryStreak === undefined ? {} : { retryStreak }),
+                     streamOptions: settings.stream,
+                     cutoff,
+                 };
+@@ -125,7 +127,7 @@ export const GenerationTask = defineTask({
+             // The host stopped while this request was in flight: a failed attempt, not a resend (spec §8.3).
+             if (task.restarts !== undefined)
+                 return interrupted(runtime, task.state.checkpoint, context);
+-            const { attempt, compacted, model: ref, thinkingLevel, streamOptions, cutoff } = task.state.checkpoint;
++            const { attempt, compacted, model: ref, thinkingLevel, streamOptions, cutoff, retryStreak } = task.state.checkpoint;
+             const conversationId = runtime.conversationId;
+             // The attempt shown is presentation, stored like progress (`PROGRESS_COMMIT`); converting a partial left by an
+             // interrupted attempt appends an entry, which makes the commit immediate.
+@@ -154,12 +156,12 @@ export const GenerationTask = defineTask({
+                 onPayload: (payload) => providerPayload(runtime, model, payload, context),
+             };
+             const message = await streamResponse(runtime, model, messages, options, attempt, context);
+-            const request = { attempt, compacted, model: ref, thinkingLevel, cutoff, messages: view.messages };
++            const request = { attempt, compacted, model: ref, thinkingLevel, cutoff, messages: view.messages, retryStreak };
+             await classify(runtime, request, message, context);
+         },
+         /** After the backoff's sleep; a run before `until` (an early wake, or a record of an earlier version) sleeps again. */
+         retry: async (task, runtime, context) => {
+-            const { attempt, compacted, until, poll } = task.state.checkpoint;
++            const { attempt, compacted, until, poll, retryStreak, nextAttempt = attempt + 1 } = task.state.checkpoint;
+             if (cutOffTooOften(task, runtime))
+                 return endCutOff(runtime, task, context);
+             if (until > runtime.now())
+@@ -176,8 +178,8 @@ export const GenerationTask = defineTask({
+                         checkpoint: { phase: "poll", attempt: attempt + 1, ...kept, ...poll, pollAt },
+                     };
+                 }
+-                live.generation = { attempt: attempt + 1 };
+-                return { status: "running", checkpoint: { phase: "prepare", attempt: attempt + 1, ...kept } };
++                live.generation = { attempt: nextAttempt };
++                return { status: "running", checkpoint: { phase: "prepare", attempt: nextAttempt, ...kept, ...(retryStreak === undefined ? {} : { retryStreak }) } };
+             }, context);
+         },
+         /** After the sleep until `pollAt`; a run before it (an early wake, or a record of an earlier version) sleeps again. */
+@@ -346,7 +348,7 @@ async function failModelError(runtime, text, context) {
  async function interrupted(runtime, checkpoint, context) {
      const { attempt, compacted } = checkpoint;
      const policy = runtime.settings.retry;
@@ -201,7 +275,7 @@ index 27e60bb9b479b5600a7314f13bba25177a5e47d9..331fc1d7be0424bdcf629aad59fd1248
      const until = retry ? runtime.now() + retryDelayMs(policy, attempt) : 0;
      const polled = checkpoint.phase === "poll" ? checkpoint : undefined;
      const text = polled === undefined
-@@ -615,7 +616,7 @@ async function classify(runtime, request, message, context) {
+@@ -615,7 +617,7 @@ async function classify(runtime, request, message, context) {
                  const live = await tx.doc(LiveDoc, conversationId);
                  await appendAssistant(tx, conversationId, message);
                  delete live.generation;
@@ -210,7 +284,53 @@ index 27e60bb9b479b5600a7314f13bba25177a5e47d9..331fc1d7be0424bdcf629aad59fd1248
                  const checkpoint = { phase: "prepare", attempt, compacted: child, overflow: text };
                  return { status: "waiting", checkpoint, on: [child], policy: "allSettled" };
              }, context);
-@@ -687,7 +688,7 @@ async function answer(runtime, message, context) {
+@@ -624,23 +626,36 @@ async function classify(runtime, request, message, context) {
+     }
+     const policy = settings.retry;
+     // An overflow is never retried: only a compaction can make the next request fit.
+-    const retry = message.stopReason === "error" &&
+-        !overflow &&
+-        isRetryableAssistantError(message) &&
+-        policy.enabled &&
+-        attempt <= policy.maxRetries;
+-    const until = retry ? runtime.now() + retryDelayMs(policy, attempt) : 0;
++    const canRetry = message.stopReason === "error" && !overflow;
++    const transport = canRetry
++        ? policy.transportRetry?.(message, { attempt, retryStreak: request.retryStreak })
++        : undefined;
++    const nativeRetry = canRetry && policy.enabled && attempt <= policy.maxRetries && isRetryableAssistantError(message);
++    const delay = transport?.delayMs ?? (nativeRetry ? retryDelayMs(policy, attempt) : undefined);
++    const until = delay === undefined ? 0 : runtime.now() + delay;
+     await runtime.commit(async (tx) => {
+         // Read before the first table write; only a failure uses it.
+-        const failure = retry ? undefined : await prepareFailure(tx, runtime);
++        const failure = delay === undefined ? await prepareFailure(tx, runtime) : undefined;
+         const live = await tx.doc(LiveDoc, conversationId);
+-        await appendAssistant(tx, conversationId, message);
++        if (!transport || message.content.length > 0)
++            await appendAssistant(tx, conversationId, transport ? { ...message, stopReason: "aborted" } : message);
++        else
++            await recordUsage(tx, conversationId, "models", `${message.provider}/${message.model}`, message.usage);
+         if (failure === undefined) {
+-            live.generation = { attempt, retry: { at: until, error: message.errorMessage ?? "" } };
++            live.generation = {
++                attempt,
++                retry: {
++                    at: until,
++                    error: message.errorMessage ?? "",
++                    ...(transport ? { model: message.model, nextAttempt: transport.visibleAttempt } : {}),
++                },
++            };
+             const checkpoint = {
+                 phase: "retry",
+                 attempt,
+                 ...(compacted === undefined ? {} : { compacted }),
++                ...(transport === undefined ? {} : { nextAttempt: transport.nextAttempt }),
++                ...(transport?.retryStreak === undefined ? {} : { retryStreak: transport.retryStreak }),
+                 until,
+             };
+             return { status: "sleeping", checkpoint, until };
+@@ -687,7 +702,7 @@ async function answer(runtime, message, context) {
              // The continuation starts the run's turn count over: bounding `onYield` loops is the extension's job.
              if (live.run?.taskId === runtime.taskId)
                  live.run.turns = 0;
@@ -219,7 +339,7 @@ index 27e60bb9b479b5600a7314f13bba25177a5e47d9..331fc1d7be0424bdcf629aad59fd1248
              delete live.generation;
              return result;
          }
-@@ -917,9 +918,12 @@ async function finishToolRound(runtime, assistant, tools, context) {
+@@ -917,9 +932,12 @@ async function finishToolRound(runtime, assistant, tools, context) {
              else {
                  delete live.tools;
                  delete live.nestedTools;
@@ -234,7 +354,7 @@ index 27e60bb9b479b5600a7314f13bba25177a5e47d9..331fc1d7be0424bdcf629aad59fd1248
              }
          }
          return { status: "terminal", outcome: { status: "completed", result: { entryId: assistant } } };
-@@ -931,7 +935,11 @@ async function finishToolRound(runtime, assistant, tools, context) {
+@@ -931,7 +949,11 @@ async function finishToolRound(runtime, assistant, tools, context) {
   */
  async function appendAssistant(tx, conversationId, message) {
      await recordUsage(tx, conversationId, "models", `${message.provider}/${message.model}`, message.usage);
@@ -247,7 +367,7 @@ index 27e60bb9b479b5600a7314f13bba25177a5e47d9..331fc1d7be0424bdcf629aad59fd1248
  }
  /**
   * Start a run for `inputs`, placed input submissions, whose first entry is `first` (`LiveRun.first`): a new generation
-@@ -940,18 +948,21 @@ async function appendAssistant(tx, conversationId, message) {
+@@ -940,18 +962,21 @@ async function appendAssistant(tx, conversationId, message) {
   */
  export async function startRun(tx, conversationId, live, run, options) {
      const { inputs, first } = run;
@@ -274,6 +394,7 @@ index 27e60bb9b479b5600a7314f13bba25177a5e47d9..331fc1d7be0424bdcf629aad59fd1248
 +    }
  }
  //# sourceMappingURL=generation.js.map
+\ No newline at end of file
 diff --git a/dist/harness/harness.js b/dist/harness/harness.js
 index e286f00f872ebec79367a594938040c6a37a879f..a8fed26b515c5f595edfb261819f82887747fecf 100644
 --- a/dist/harness/harness.js
@@ -375,7 +496,7 @@ index e286f00f872ebec79367a594938040c6a37a879f..a8fed26b515c5f595edfb261819f8288
              create: (target, createOptions, context) => this.#create(target, createOptions, context),
          };
 diff --git a/dist/harness/live.d.ts b/dist/harness/live.d.ts
-index f5df47714c20273c2c353635a998d3817b436ba0..1841b895f377f8d00e7a72f7db95fdf41c46f59c 100644
+index f5df47714c20273c2c353635a998d3817b436ba0..07fba27a88bfb7269b24462fd82b7516282cb10b 100644
 --- a/dist/harness/live.d.ts
 +++ b/dist/harness/live.d.ts
 @@ -7,6 +7,7 @@ import type { SchedulerOutcome } from "./scheduler.ts";
@@ -395,6 +516,15 @@ index f5df47714c20273c2c353635a998d3817b436ba0..1841b895f377f8d00e7a72f7db95fdf4
      /** The task that settles the run's inputs: its generation, handed from one to the next. */
      taskId: TaskId;
      /** The run's placed inputs, settled when it ends; `[]` once it answered and runs only its `afterRun` tasks. */
+@@ -143,6 +146,8 @@ export type LiveState = {
+         retry?: {
+             at: number;
+             error: string;
++            model?: string;
++            nextAttempt?: number;
+         };
+         /** Provider-side deferred response being polled. */
+         deferred?: {
 diff --git a/dist/harness/prompt.js b/dist/harness/prompt.js
 index d9433a83bb9c548c5a4a87aa7bc9281acce47f15..e689c179bdaf465dbfdc376501a3221abc34a7d0 100644
 --- a/dist/harness/prompt.js
@@ -507,7 +637,7 @@ index 2da76582241fad1f38970312a9135c290333560e..d7cf741be9d5936e269496550c40d37a
          toolName: call.name,
          content,
 diff --git a/dist/harness/types.d.ts b/dist/harness/types.d.ts
-index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..8a2f5b367517343df6e713986879bcd9c8ef450b 100644
+index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..4abc4dc8ab0a8a60f33eba25b3b996e9581718ac 100644
 --- a/dist/harness/types.d.ts
 +++ b/dist/harness/types.d.ts
 @@ -1,3 +1,4 @@
@@ -562,16 +692,26 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..8a2f5b367517343df6e713986879bcd9
      /** Extension sections, then `instructions` when set. */
      readonly sections: readonly PromptSection<Tool>[];
      readonly instructions?: string;
-@@ -510,6 +516,8 @@ export type ConversationStreamOptions = {
+@@ -510,6 +516,18 @@ export type ConversationStreamOptions = {
  /** Durable generation attempt retries; the JSON shape of pi-ai `RetryPolicy`. */
  export type ConversationRetryPolicy = {
      enabled: boolean;
 +    /** Resume a generation interrupted by host exit even when provider retries are disabled. */
 +    resumeInterrupted?: boolean;
++    /** Host plan for retrying a failed model request on the current generation. */
++    transportRetry?: (message: AssistantMessage, state: {
++        attempt: number;
++        retryStreak?: number;
++    }) => {
++        delayMs: number;
++        nextAttempt: number;
++        retryStreak?: number;
++        visibleAttempt: number;
++    } | undefined;
      maxRetries: number;
      baseDelayMs: number;
      maxAgentDelayMs?: number;
-@@ -758,8 +766,20 @@ export type ContextView = {
+@@ -758,8 +776,20 @@ export type ContextView = {
      readonly messages: readonly Message[];
  };
  /** Stateless handle for one conversation, bound to the Harness that returned it. Compare handles by `id`. */
@@ -592,7 +732,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..8a2f5b367517343df6e713986879bcd9
      /** Resolved with the current registry snapshot and settings. */
      agent(context: Context): Promise<Agent>;
      /** `configure()` in its own commit. */
-@@ -990,6 +1010,10 @@ export interface ToolHooks {
+@@ -990,6 +1020,10 @@ export interface ToolHooks {
  }
  /** Hooks of the built-in compaction task. */
  export interface CompactionHooks {
@@ -603,7 +743,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..8a2f5b367517343df6e713986879bcd9
      /**
       * After range selection, before summarizing; the first decision wins. `entries` are the active entries the summary
       * replaces, the head marker first, and `messages` their model context, the summarizer's source; `firstKept` is the
-@@ -997,6 +1021,7 @@ export interface CompactionHooks {
+@@ -997,6 +1031,7 @@ export interface CompactionHooks {
       */
      beforeCompact(compaction: {
          readonly reason: CompactionReason;
@@ -611,7 +751,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..8a2f5b367517343df6e713986879bcd9
          readonly entries: readonly EntryRecord[];
          readonly messages: readonly Message[];
          readonly firstKept: EntryId;
-@@ -1005,6 +1030,8 @@ export interface CompactionHooks {
+@@ -1005,6 +1040,8 @@ export interface CompactionHooks {
          readonly decline: true;
      } | {
          readonly summary: string;

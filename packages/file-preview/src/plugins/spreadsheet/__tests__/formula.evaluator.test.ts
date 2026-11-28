@@ -1,4 +1,4 @@
-import type { FunctionArg } from 'fast-formula-parser'
+import FormulaParser, { type FunctionArg } from 'fast-formula-parser'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -465,26 +465,39 @@ describe('createFormulaEvaluator — oversized range guard', () => {
 })
 
 describe('createFormulaEvaluator — recursion depth guard', () => {
-  it('does not stack-overflow or hang on an extremely deep non-cyclic reference chain', () => {
+  it('bounds evaluation on an extremely deep non-cyclic reference chain', () => {
     // Depth 200 is far above the suggested limit of 64. Verify the depth guard keeps evaluation bounded.
-    // Do not assert the chain head's exact value: once a middle link hits the limit, it becomes unevaluated and
-    // contributes 0 to arithmetic, producing a degraded but well-defined value at the top.
     const DEPTH = 200
     const sheets: Record<string, StubSheet> = { Sheet1: { '1:1': { value: 0 } } }
     for (let row = 2; row <= DEPTH; row++) {
       sheets.Sheet1[`${row}:1`] = { formula: `A${row - 1}+1` }
     }
-    const { evaluator } = setup(sheets)
+    const { evaluator, callCount } = setup(sheets)
+    const parseSpy = vi.spyOn(FormulaParser.prototype, 'parse')
+
+    // Short-chain control: the evaluator still evaluates an in-limit chain exactly,
+    // so any degradation below is attributable to the depth guard, not broken evaluation.
+    expect(evaluator.evaluate('A9+1', { sheet: 'Sheet1', row: 10, col: 1 })).toEqual({
+      state: 'evaluated',
+      value: 9
+    })
+
     const start = Date.now()
     let outcome: ReturnType<typeof evaluator.evaluate> | undefined
     expect(() => {
       outcome = evaluator.evaluate(`A${DEPTH - 1}+1`, { sheet: 'Sheet1', row: DEPTH, col: 1 })
     }).not.toThrow()
     expect(Date.now() - start).toBeLessThan(1000)
-    expect(outcome).toBeDefined()
-    expect(['evaluated', 'unevaluated']).toContain(outcome!.state)
-    if (outcome!.state === 'evaluated') {
-      expect(typeof outcome!.value === 'number' || outcome!.value === null).toBe(true)
-    }
+    const visitedRows = Array.from({ length: DEPTH - 10 }, (_, index) => index + 10).filter(
+      (row) => callCount({ sheet: 'Sheet1', row, col: 1 }) > 0
+    )
+    expect(visitedRows.length).toBeGreaterThan(9)
+    expect(visitedRows.length).toBeLessThan(DEPTH - 10)
+    expect(visitedRows).toEqual(
+      Array.from({ length: visitedRows.length }, (_, index) => DEPTH - visitedRows.length + index)
+    )
+    expect(outcome).toEqual({ state: 'evaluated', value: visitedRows.length })
+    expect(parseSpy.mock.results.every((result) => result.type === 'return')).toBe(true)
+    parseSpy.mockRestore()
   })
 })
