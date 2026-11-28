@@ -83,6 +83,18 @@ describe('portable registry', () => {
     }
   )
 
+  it.each([false, true])('prefers the untagged dated offer on canonical lookup (reverse=%s)', (reverse) => {
+    const dated = { providerId: '302ai', modelId: 'claude-opus-4-1', apiModelId: 'claude-opus-4-1-20250805' }
+    const thinking = { ...dated, apiModelId: 'claude-opus-4-1-20250805-thinking' }
+    const registry = createRegistry({
+      ...catalog(),
+      providerModels: { version: 'v1', overrides: reverse ? [thinking, dated] : [dated, thinking] }
+    })
+
+    expect(registry.findOverride(dated.providerId, dated.modelId)?.apiModelId).toBe(dated.apiModelId)
+    expect(registry.findOverride(thinking.providerId, thinking.apiModelId)?.apiModelId).toBe(thinking.apiModelId)
+  })
+
   it('creates independent views when an application activates a new snapshot', () => {
     const original = createRegistry(catalog())
     const replacement = createRegistry({
@@ -106,6 +118,68 @@ describe('portable registry', () => {
       expect.objectContaining({ kind: 'effort', values: expect.arrayContaining(['low', 'max']) })
     )
     expect(registry.findOverride('cherryin', 'qwen/qwen3.5-9b')?.modelId).toBe('qwen3-5-9b')
+  })
+
+  it('keeps CherryIN free prices on the exact free IDs', () => {
+    const registry = createRegistry(bundledCatalog)
+    const free = registry.findOverride('cherryin', 'deepseek/deepseek-v3.2(free)')
+
+    expect(free).toMatchObject({
+      apiModelId: 'deepseek/deepseek-v3.2(free)',
+      pricing: {
+        input: { perMillionTokens: 0 },
+        output: { perMillionTokens: 0 },
+        cacheRead: { perMillionTokens: 0 }
+      }
+    })
+    expect(registry.findOverride('cherryin', 'deepseek/deepseek-v3.2')?.pricing).toMatchObject({
+      input: { perMillionTokens: null },
+      output: { perMillionTokens: null }
+    })
+    expect(registry.findOverride('cherryin', 'qwen/qwen3.5-4b')).toBeNull()
+  })
+
+  it('resolves CherryIN generation models with their advertised per-image prices', () => {
+    const registry = createRegistry(bundledCatalog)
+    expect(registry.findOverride('cherryin', 'qwen/z-image-turbo')).toMatchObject({
+      endpointTypes: ['openai-image-generation'],
+      imageGeneration: { modes: { generate: { supports: {} } } },
+      pricing: { perImage: { price: 0.013698630137, currency: 'USD', unit: 'image' } }
+    })
+  })
+
+  it('preserves the different 200K pricing thresholds for CherryIN Gemini and Grok', () => {
+    const registry = createRegistry(bundledCatalog)
+    expect(registry.findOverride('cherryin', 'google/gemini-3-pro-preview')?.pricing).toMatchObject({
+      input: { perMillionTokens: 2 },
+      inputTokenTiers: [{ minInputTokens: 200_001, input: { perMillionTokens: 4 } }]
+    })
+    expect(registry.findOverride('cherryin', 'x-ai/grok-4.2-agents')?.pricing).toMatchObject({
+      input: { perMillionTokens: 1.25 },
+      inputTokenTiers: [{ minInputTokens: 200_000, input: { perMillionTokens: 2.5 } }]
+    })
+  })
+
+  it('retains standard CherryIN capabilities for bare IDs without inheriting their exact price', () => {
+    const registry = createRegistry(bundledCatalog)
+
+    expect(registry.findOverride('cherryin', 'qwen3.5-122b-a10b')).toMatchObject({
+      capabilities: { remove: ['audio-recognition'] },
+      apiModelId: undefined,
+      pricing: undefined
+    })
+  })
+
+  it('keeps CherryIN paid aliases from supplying prices to a different API ID', () => {
+    const registry = createRegistry(bundledCatalog)
+    const agent = registry.findOverride('cherryin', 'agent/glm-5')
+    const standard = registry.findOverride('cherryin', 'z-ai/glm-5')
+
+    expect(agent?.apiModelId).toBe('agent/glm-5')
+    expect(standard?.apiModelId).toBe('z-ai/glm-5')
+    expect(agent?.pricing?.input?.perMillionTokens).toBe(0.86)
+    expect(standard?.pricing?.input?.perMillionTokens).toBeGreaterThan(0)
+    expect(registry.findOverride('cherryin', 'unknown/glm-5')).toBeNull()
   })
 })
 

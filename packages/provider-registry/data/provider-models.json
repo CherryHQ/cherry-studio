@@ -3496,17 +3496,587 @@
       "providerId": "cerebras"
     },
     {
+      "apiModelId": "baai/bge-m3(free)",
+      "endpointTypes": ["openai-embeddings"],
+      "modelId": "bge-m3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "baai/bge-m3",
+      "endpointTypes": ["openai-embeddings"],
+      "modelId": "bge-m3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.0004
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "BAAI/bge-reranker-v2-m3(free)",
+      "endpointTypes": ["jina-rerank"],
+      "modelId": "bge-reranker-v2-m3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "BAAI/bge-reranker-v2-m3",
+      "endpointTypes": ["jina-rerank"],
+      "modelId": "bge-reranker-v2-m3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-fable-5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-fable-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-fable-5.1",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-fable-5-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
       "apiModelId": "anthropic/claude-fable-5.2",
       "capabilities": {
         "remove": ["structured-output"]
       },
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
       "modelId": "claude-fable-5-2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 40
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-haiku-4.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-haiku-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-haiku-5.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-haiku-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-opus-4.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 25
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-opus-4.6",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-6",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 25
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-opus-4.7",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 25
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-opus-4.8",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-8",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 25
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-opus-5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 25
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-opus-5.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-sonnet-4",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "limits": {
+        "contextWindow": 200000
+      },
+      "modelId": "claude-sonnet-4",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 22.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-sonnet-4.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "limits": {
+        "contextWindow": 200000
+      },
+      "modelId": "claude-sonnet-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 22.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-sonnet-4.6",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-sonnet-4-6",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-sonnet-5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-sonnet-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "anthropic/claude-sonnet-5.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-sonnet-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-flash",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "deepseek-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-ocr(free)",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "deepseek-ocr",
+      "name": "DeepSeek OCR (Free)",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
       "providerId": "cherryin"
     },
     {
       "apiModelId": "deepseek/deepseek-v3.2",
       "modelId": "deepseek-v3-2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
       "providerId": "cherryin",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -3549,12 +4119,3740 @@
       }
     },
     {
+      "apiModelId": "deepseek/deepseek-v3.2(free)",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "limits": {
+        "contextWindow": 128000
+      },
+      "modelId": "deepseek-v3-2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "extra_body.thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "extra_body.thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "extra_body.thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "agent/deepseek-v3.2(free)",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "limits": {
+        "contextWindow": 128000
+      },
+      "modelId": "deepseek-v3-2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "extra_body.thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "extra_body.thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "extra_body.thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "deepseek-v4.1-flash",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "deepseek-v4-1-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-v4.1-flash-1017",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "deepseek-v4-1-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/deepseek-v4-flash",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "deepseek-v4-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-v4-flash",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "deepseek-v4-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-v4-flash-vision-exp",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "deepseek-v4-flash-vision-exp",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/deepseek-v4-pro",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "deepseek-v4-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "deepseek/deepseek-v4-pro",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "deepseek-v4-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-2.5-flash",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-2-5-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-2.5-flash-image",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-2-5-flash-image",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-2.5-flash-lite",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-2-5-flash-lite",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-2.5-pro",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-2-5-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.125
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.25
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": null
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 2.5
+            },
+            "minInputTokens": 200001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 15
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.1-flash-image",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-1-flash-image",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.1-flash-image-preview",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 65536
+      },
+      "modelId": "gemini-3-1-flash-image-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.1-flash-lite",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-1-flash-lite",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.1-flash-lite-image",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-1-flash-lite-image",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.1-flash-lite-preview",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-1-flash-lite-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.025
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.1-pro-preview",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-1-pro-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": null
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 4
+            },
+            "minInputTokens": 200001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 18
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.5-flash",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-5-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 9
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.5-flash-lite",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-5-flash-lite",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.6-flash",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-6-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.7-flash",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-7-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3.8-flash",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-8-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3-flash-preview",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-flash-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3-pro-image",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-3-pro-image",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3-pro-image-preview",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 65536
+      },
+      "modelId": "gemini-3-pro-image-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-3-pro-preview",
+      "capabilities": {
+        "add": [
+          "reasoning",
+          "function-call",
+          "image-recognition",
+          "video-recognition",
+          "audio-recognition",
+          "file-input"
+        ]
+      },
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "inputModalities": ["text", "image", "video", "audio"],
+      "limits": {
+        "contextWindow": 1000000
+      },
+      "modelId": "gemini-3-pro-preview",
+      "name": "Gemini 3 Pro Preview",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": null
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 4
+            },
+            "minInputTokens": 200001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 18
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-4-argon",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-4-carbon",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-4-carbon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-4-hydrogen",
+      "endpointTypes": ["google-generate-content"],
+      "modelId": "gemini-4-hydrogen",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "google/gemini-nano-banana-2.1",
+      "endpointTypes": ["google-generate-content", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gemini-nano-banana-2-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/glm-5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "glm-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.215
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.86
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.1562
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "z-ai/glm-5",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "glm-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.215
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.86
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.1562
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/glm-5.1",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "glm-5-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.191
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.883
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.294
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": null
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 1.178
+            },
+            "minInputTokens": 32001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 4.122
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.533
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "z-ai/glm-5.1",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "glm-5-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.191
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.883
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.294
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": null
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 1.178
+            },
+            "minInputTokens": 32001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 4.122
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.533
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/glm-5.2",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "glm-5-2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.30000000000048
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.18
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.13
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "z-ai/glm-5.2",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "glm-5-2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.30000000000048
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.18
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.13
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "z-ai/glm-5.3",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "glm-5-3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.30000000000048
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.18
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.13
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "z-ai/glm-5.3-flash",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "glm-5-3-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-4.1",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "gpt-4-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-4.1-mini",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "gpt-4-1-mini",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.6
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-4.1-nano",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "gpt-4-1-nano",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-4o",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "gpt-4o",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-4o-mini",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "gpt-4o-mini",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07999999999995
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "gpt-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.125
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.1",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.125
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.1-chat",
+      "capabilities": {
+        "add": ["function-call", "image-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 128000
+      },
+      "modelId": "gpt-5-1-chat",
+      "name": "GPT-5.1 Chat",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.125
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.1-codex",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "gpt-5-1-codex",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.2",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.175
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.2-chat",
+      "capabilities": {
+        "add": ["function-call", "image-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 128000
+      },
+      "modelId": "gpt-5-2-chat",
+      "name": "GPT-5.2 Chat",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.2-codex",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "gpt-5-2-codex",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.3-chat",
+      "capabilities": {
+        "add": ["function-call"]
+      },
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 128000
+      },
+      "modelId": "gpt-5-3-chat",
+      "name": "GPT-5.3 Chat",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.3-codex",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "gpt-5-3-codex",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.175
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.4",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-4",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.4-mini",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-4-mini",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.04
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 0.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 1.8
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.4-nano",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-4-nano",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.04
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 0.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 1.8
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.4-pro",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "gpt-5-4-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 60
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 270
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.5",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-luna",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-6-luna",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.04
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 0.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 1.8
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-sol",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-6-sol",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 6.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 1
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 12.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 10
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 45
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-terra",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-6-terra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 4
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 18
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5-chat",
+      "capabilities": {
+        "add": ["function-call", "image-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 128000
+      },
+      "modelId": "gpt-5-chat",
+      "name": "GPT-5 Chat",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5-codex",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "gpt-5-codex",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.175
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5-mini",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "gpt-5-mini",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.025
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5-nano",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-5-nano",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.04
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 0.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 1.8
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-5-pro",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "gpt-5-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 120
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-6.1-sol",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "gpt-6-1-sol",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.2
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 4
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 15
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-6.1-terra",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "gpt-6-1-terra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.1
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 2.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 2
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 7.5
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-6.2-astra",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "gpt-6-2-astra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 11
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 8.8
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.88
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 22
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 17.6
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 66
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 44
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-6.2-sol",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "gpt-6-2-sol",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.11
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.75
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.22
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 5.5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 4.4
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 16.5
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 11
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-6-astra",
+      "endpointTypes": ["openai-responses", "anthropic-messages"],
+      "modelId": "gpt-6-astra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 2
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 25
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 20
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 75
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-6-luna",
+      "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gpt-6-luna",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.02
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 0.25
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.2
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 0.75
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-6-sol",
+      "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "gpt-6-sol",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 5
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 4
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 15
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-image-1",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "gpt-image-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-image-2",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "gpt-image-2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-image-2.5-flare",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-5-flare",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-image-2.5-sunburst",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-5-sunburst",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-image-2.6-flare",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-6-flare",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/gpt-image-2.6-sunburst",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-6-sunburst",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "x-ai/grok-4-1-fast-reasoning",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 2000000
+      },
+      "modelId": "grok-4-1-fast",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "x-ai/grok-4-1-fast-non-reasoning",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 2000000
+      },
+      "modelId": "grok-4-1-fast-non-reasoning",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "x-ai/grok-4.2-agents",
+      "capabilities": {
+        "add": ["reasoning", "image-recognition"]
+      },
+      "endpointTypes": ["openai-chat-completions", "openai-responses"],
+      "inputModalities": ["text", "image"],
+      "modelId": "grok-4-2-agents",
+      "name": "Grok 4.2 Agents",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.4
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": null
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 2.5
+            },
+            "minInputTokens": 200000,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 5
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "x-ai/grok-4.3",
+      "endpointTypes": ["openai-chat-completions", "openai-responses", "anthropic-messages"],
+      "modelId": "grok-4-3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "x-ai/grok-4.5",
+      "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
+      "limits": {
+        "contextWindow": 1000000
+      },
+      "modelId": "grok-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "x-ai/grok-4.6",
+      "endpointTypes": ["openai-chat-completions", "openai-responses"],
+      "modelId": "grok-4-6",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "x-ai/grok-4.7",
+      "endpointTypes": ["openai-chat-completions", "openai-responses"],
+      "limits": {
+        "contextWindow": 524288
+      },
+      "modelId": "grok-4-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 1
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": null
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 4
+            },
+            "minInputTokens": 200000,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 12
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "tencent/hunyuan-mt-7b(free)",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "inputModalities": ["text"],
+      "modelId": "hunyuan-mt-7b",
+      "name": "Hunyuan MT 7B (Free)",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "tencent/hy4",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "hy4",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.04199999999982
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.834
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.501000000000322
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "tencent/hy4-flash",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "hy4-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.281
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/kimi-k2.5",
+      "endpointTypes": ["anthropic-messages"],
+      "modelId": "kimi-k2-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.105
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "moonshotai/kimi-k2.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "kimi-k2-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.105
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/kimi-k2.6",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "kimi-k2-6",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1600000000004
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.95
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.9499999999999
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "moonshotai/kimi-k2.6",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "kimi-k2-6",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1600000000004
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.95
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.9499999999999
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/kimi-k2.7-code",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "kimi-k2-7-code",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.19000000000032
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.96
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.97999999999968
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "moonshotai/kimi-k2.7-code",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "kimi-k2-7-code",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.19000000000032
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.96
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.97999999999968
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "moonshotai/kimi-k3",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "kimi-k3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "moonshotai/kimi-k3.1-pro",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "kimi-k3-1-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "moonshotai/kimi-k3.1-pro-highspeed",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "kimi-k3-1-pro-highspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "kwai-kolors/kolors(free)",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "kolors",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "minimax/minimax-m2.1--lightning",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "limits": {
+        "contextWindow": 200000
+      },
+      "modelId": "minimax-m2-1",
+      "name": "MiniMax M2.1 Lightning",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "minimax/minimax-m2.1",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "minimax-m2-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/minimax-m2.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "minimax-m2-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "minimax/minimax-m2.5",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "minimax-m2-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/minimax-m2.5-highspeed",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "minimax-m2-5-highspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.4
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "minimax/minimax-m2.5-highspeed",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "minimax-m2-5-highspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.4
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/minimax-m2.7",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "minimax-m2-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "minimax/minimax-m2.7",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "minimax-m2-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/minimax-m2.7-highspeed",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "minimax-m2-7-highspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.4
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "minimax/minimax-m2.7-highspeed",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "minimax-m2-7-highspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.4
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "minimax/minimax-m3",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "minimax-m3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.12000000000014
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.62
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.48
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/o1",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "o1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/o1-mini",
+      "capabilities": {
+        "add": ["reasoning"]
+      },
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 128000
+      },
+      "modelId": "o1-mini",
+      "name": "OpenAI o1-mini",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.28
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.1
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/o3",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "o3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "openai/o4-mini",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "o4-mini",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2799999999995
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.1
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen-image(free)",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "qwen-image",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen-image",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "qwen-image",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0.034246575342,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen-image-2.0",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "qwen-image-2-0",
+      "name": "Qwen Image 2.0",
+      "outputModalities": ["image"],
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0.027397260274,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen-image-2.0-pro",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "qwen-image-2-0-pro",
+      "name": "Qwen Image 2.0 Pro",
+      "outputModalities": ["image"],
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0.068493150685,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen-image-edit(free)",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "qwen-image-edit",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen-image-edit-2509",
+      "endpointTypes": ["openai-image-edit"],
+      "modelId": "qwen-image-edit",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0.041095890411,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen-image-edit-2509(free)",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "qwen-image-edit-2509-free",
+      "name": "Qwen Image Edit 2509 (Free)",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen-image-plus",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "qwen-image-plus",
+      "name": "Qwen Image Plus",
+      "outputModalities": ["image"],
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0.027397260274,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-30b-a3b-instruct-2507(free)",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "qwen3-30b-a3b-instruct",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
       "apiModelId": "qwen/qwen3.5-122b-a10b",
       "capabilities": {
         "remove": ["audio-recognition"]
       },
+      "endpointTypes": ["openai-chat-completions"],
       "inputModalities": ["text", "image", "video"],
       "modelId": "qwen3-5-122b-a10b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.114
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.912
+        }
+      },
       "providerId": "cherryin",
       "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
     },
@@ -3563,8 +7861,28 @@
       "capabilities": {
         "remove": ["audio-recognition"]
       },
+      "endpointTypes": ["openai-chat-completions"],
       "inputModalities": ["text", "image", "video"],
       "modelId": "qwen3-5-27b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.085714
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.685712
+        }
+      },
       "providerId": "cherryin",
       "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
     },
@@ -3573,8 +7891,28 @@
       "capabilities": {
         "remove": ["audio-recognition"]
       },
+      "endpointTypes": ["openai-chat-completions"],
       "inputModalities": ["text", "image", "video"],
       "modelId": "qwen3-5-35b-a3b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.057142
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.457136
+        }
+      },
       "providerId": "cherryin",
       "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
     },
@@ -3583,10 +7921,33 @@
       "capabilities": {
         "remove": ["audio-recognition", "video-recognition"]
       },
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 262144
+      },
       "modelId": "qwen3-5-35b-a3b-free",
       "modelVariants": ["35b", "free"],
       "name": "Qwen3.5 35B A3B (Free)",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
       "providerId": "cherryin",
       "reason": "CherryIN free endpoint accepts text and image_url parts only"
     },
@@ -3595,8 +7956,28 @@
       "capabilities": {
         "remove": ["audio-recognition"]
       },
+      "endpointTypes": ["openai-chat-completions"],
       "inputModalities": ["text", "image", "video"],
       "modelId": "qwen3-5-397b-a17b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.171428
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.028568
+        }
+      },
       "providerId": "cherryin",
       "reason": "CherryIN rejects native audio; base Qwen3.5 supports text/image/video input"
     },
@@ -3605,10 +7986,33 @@
       "capabilities": {
         "remove": ["video-recognition"]
       },
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 262144
+      },
       "modelId": "qwen3-5-4b",
       "modelVariants": ["4b", "free"],
       "name": "Qwen3.5 4B (Free)",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
       "providerId": "cherryin",
       "reason": "CherryIN free endpoint accepts text and image_url parts only"
     },
@@ -3619,6 +8023,25 @@
       },
       "inputModalities": ["text", "image"],
       "modelId": "qwen3-5-9b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        }
+      },
       "providerId": "cherryin",
       "reason": "CherryIN rejects native audio and video for the Qwen3.5 9B endpoint"
     },
@@ -3627,12 +8050,889 @@
       "capabilities": {
         "remove": ["audio-recognition", "video-recognition"]
       },
+      "endpointTypes": ["openai-chat-completions"],
       "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 262144
+      },
       "modelId": "qwen3-5-9b-free",
       "modelVariants": ["9b", "free"],
       "name": "Qwen3.5 9B (Free)",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
       "providerId": "cherryin",
       "reason": "CherryIN free endpoint accepts text and image_url parts only"
+    },
+    {
+      "apiModelId": "agent/qwen3.5-flash",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "qwen3-5-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.171428
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.71428
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-flash",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "qwen3-5-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.171428
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.71428
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/qwen3.5-plus",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "qwen3-5-plus",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.571428
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.428568
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3.5-plus",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "qwen3-5-plus",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.571428
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.428568
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/qwen3.6-plus",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "qwen3-6-plus",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.285714
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.714284
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3.6-plus",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "qwen3-6-plus",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.285714
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.714284
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/qwen3.7-max",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "qwen3-7-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.34999999999938
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.77
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5.30000000000022
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3.7-max",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "qwen3-7-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.34999999999938
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.77
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5.30000000000022
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3.7-plus",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "qwen3-7-plus",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.029535
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.3691875
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.29535
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.088605
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 1.1075625
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.88605
+            },
+            "minInputTokens": 256001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 3.54421
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.1814
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3.8-flash",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "qwen3-8-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.00738375
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.092296875
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.0738375
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2215125
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/qwen3.8-max",
+      "capabilities": {
+        "add": ["image-recognition", "video-recognition"]
+      },
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.147675
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.215125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.7721
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5.3163
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3.8-max",
+      "capabilities": {
+        "add": ["image-recognition", "video-recognition"]
+      },
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "qwen3-8-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.147675
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.215125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.7721
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5.3163
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-coder-30b-a3b-instruct(free)",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "qwen3-coder-30b-a3b-instruct",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "agent/qwen3-coder-30b-a3b-instruct(free)",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "limits": {
+        "contextWindow": 262144
+      },
+      "modelId": "qwen3-coder-30b-a3b-instruct-free",
+      "name": "Qwen3 Coder 30B A3B Instruct (Free, Agent)",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-embedding-0.6b(free)",
+      "endpointTypes": ["openai-embeddings"],
+      "modelId": "qwen3-embedding-0-6b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-embedding-0.6b",
+      "endpointTypes": ["openai-embeddings"],
+      "modelId": "qwen3-embedding-0-6b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.00962
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.00962
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-embedding-4b",
+      "endpointTypes": ["openai-embeddings"],
+      "modelId": "qwen3-embedding-4b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.002
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-embedding-8b",
+      "endpointTypes": ["openai-embeddings"],
+      "modelId": "qwen3-embedding-8b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.112
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.56
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.56
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-reranker-0.6b(free)",
+      "endpointTypes": ["jina-rerank"],
+      "modelId": "qwen3-reranker-0-6b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-reranker-0.6b",
+      "endpointTypes": ["jina-rerank"],
+      "modelId": "qwen3-reranker-0-6b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.00962
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.00962
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-reranker-4b",
+      "endpointTypes": ["jina-rerank"],
+      "modelId": "qwen3-reranker-4b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003844
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.01922
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.01922
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-reranker-8b",
+      "endpointTypes": ["jina-rerank"],
+      "modelId": "qwen3-reranker-8b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.112
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.56
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.56
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen3-vl-30b-a3b-instruct(free)",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "qwen3-vl-30b-a3b-instruct",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/qwen4-max",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 1000000
+      },
+      "modelId": "qwen4-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.875
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.5
+        }
+      },
+      "providerId": "cherryin",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "high"
+              },
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "bytedance/seed-oss-36b-instruct(free)",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "limits": {
+        "contextWindow": 512000
+      },
+      "modelId": "seed-oss-36b-instruct",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "bytedance/seedream-4.0",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "seedream-4-0",
+      "name": "Seedream 4.0",
+      "outputModalities": ["image"],
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0.027397260274,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "wan/wan2.7-image",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "wan2-7-image",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0.027397260274,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "wan/wan2.7-image-pro",
+      "endpointTypes": ["openai-image-generation"],
+      "modelId": "wan2-7-image-pro",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0.068493150685,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
+    },
+    {
+      "apiModelId": "qwen/z-image-turbo",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "outputModalities": ["image"],
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": null
+        },
+        "perImage": {
+          "currency": "USD",
+          "price": 0.013698630137,
+          "unit": "image"
+        }
+      },
+      "providerId": "cherryin"
     },
     {
       "modelId": "claude-fable-5",
@@ -16343,19 +21643,42 @@
     },
     {
       "apiModelId": "nvidia/nemotron-3.5-lightning",
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 131072
+      },
       "modelId": "nemotron-3-5-lightning",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01
+          "perMillionTokens": 0.03
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.06
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.16
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "nvidia/nemotron-3.5-lightning-free",
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 65000
+      },
+      "modelId": "nemotron-3-5-lightning",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
         }
       },
       "providerId": "gateway"
@@ -33858,6 +39181,13 @@
     },
     {
       "apiModelId": "nvidia/nemotron-3.5-lightning:free",
+      "capabilities": {
+        "remove": ["structured-output"]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 65536
+      },
       "modelId": "nemotron-3-5-lightning",
       "pricing": {
         "input": {
@@ -33867,6 +39197,41 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "nvidia/nemotron-3.5-lightning",
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 235929
+      },
+      "modelId": "nemotron-3-5-lightning",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
         }
       },
       "providerId": "openrouter",
@@ -35786,6 +41151,52 @@
         }
       },
       "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "qwen/qwen4-max",
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 131072
+      },
+      "modelId": "qwen4-max",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07125
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.78125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.425
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.275
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["xhigh", "high", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["xhigh", "high", "low", "none"]
+          }
+        }
+      }
     },
     {
       "apiModelId": "recraft/recraft-v3",
@@ -43877,6 +49288,9 @@
     },
     {
       "apiModelId": "Qwen/Qwen3-VL-235B-A22B-Thinking",
+      "capabilities": {
+        "add": ["reasoning"]
+      },
       "modelId": "qwen3-vl-235b-a22b",
       "pricing": {
         "input": {
@@ -43891,6 +49305,15 @@
       "providerId": "silicon",
       "reasoningContracts": {
         "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "budget",
+                "max": 38912,
+                "min": 1024
+              }
+            ]
+          },
           "wire": {
             "auto": {
               "budget": {
@@ -46426,5 +51849,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "6ccad83ba9155937"
+  "version": "834048a4dfbaa2d1"
 }

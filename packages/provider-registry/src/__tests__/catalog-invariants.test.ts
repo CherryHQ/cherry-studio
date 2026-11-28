@@ -9,12 +9,14 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isDeepStrictEqual } from 'node:util'
 
 import { describe, expect, it } from 'vitest'
 
 import { canonOf, isModelsDevRoutingAlias } from '../../scripts/canonicalize'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
 import { PROVIDERS } from '../providers'
+import { ProviderModelIndex } from '../registry-index'
 import { SERVER_TOOL } from '../schemas/enums'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
@@ -100,6 +102,53 @@ describe('catalog invariants (data/*.json)', () => {
     expect(invalid).toEqual([])
   })
 
+  it.each([
+    ['gateway', 'nvidia/nemotron-3.5-lightning-free'],
+    ['openrouter', 'nvidia/nemotron-3.5-lightning:free']
+  ])('keeps paid and free Nemotron pricing tied to their exact %s IDs', (providerId, freeId) => {
+    const index = new ProviderModelIndex([...providerModelOverrides].reverse())
+    const paidId = 'nvidia/nemotron-3.5-lightning'
+    const paid = index.findOverride(providerId, paidId)
+    const free = index.findOverride(providerId, freeId)
+
+    expect(paid?.apiModelId).toBe(paidId)
+    expect(paid?.pricing?.input?.perMillionTokens).toBeGreaterThan(0)
+    expect(paid?.pricing?.output?.perMillionTokens).toBeGreaterThan(0)
+    expect(index.findOverride(providerId, 'nemotron-3-5-lightning')?.apiModelId).toBe(paidId)
+    expect(free?.apiModelId).toBe(freeId)
+    expect(free?.pricing?.input?.perMillionTokens).toBe(0)
+    expect(free?.pricing?.output?.perMillionTokens).toBe(0)
+  })
+
+  it('does not advertise structured output on the free OpenRouter Nemotron route', () => {
+    const index = new ProviderModelIndex(providerModelOverrides)
+    const paid = index.findOverride('openrouter', 'nvidia/nemotron-3.5-lightning')
+    const free = index.findOverride('openrouter', 'nvidia/nemotron-3.5-lightning:free')
+
+    expect(free?.capabilities?.remove ?? []).toContain('structured-output')
+    expect(paid?.capabilities?.remove ?? []).not.toContain('structured-output')
+  })
+
+  it('keeps Kimi K3 Fast on the three always-on reasoning tiers', () => {
+    const model = ModelListSchema.parse(modelsRaw).models.find(({ id }) => id === 'kimi-k3-fast')
+    expect(model?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'high', 'max'] }])
+  })
+
+  it('keeps native Gemini minimal effort and Silicon Thinking budgets in regenerated data', () => {
+    const parsed = ModelListSchema.parse(modelsRaw)
+    const gemini = parsed.models.find(({ id }) => id === 'gemini-3-1-flash-lite-preview')
+    expect(gemini?.reasoning?.supportedEfforts).toContain('minimal')
+
+    const index = new ProviderModelIndex(providerModelOverrides)
+    const silicon = index.findOverride('silicon', 'Qwen/Qwen3-VL-235B-A22B-Thinking')
+    expect(silicon?.capabilities?.add).toContain('reasoning')
+    expect(silicon?.reasoningContracts?.['openai-chat-completions']?.support?.controls).toContainEqual({
+      kind: 'budget',
+      min: 1024,
+      max: 38_912
+    })
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })
@@ -183,18 +232,15 @@ describe('catalog invariants (data/*.json)', () => {
     expect(offenders).toEqual([])
   })
 
-  // The loader's canonical override index (`overrideByKey`) resolves a duplicated key to the self
-  // variant (`apiModelId === modelId`) — see registry-loader.ts `buildOverrideIndex`. A duplicated key
-  // with NO self variant makes the winning override file-order-dependent, so forbid it.
-  it('every duplicated providerId::modelId key contains a self variant', () => {
-    const byKey = new Map<string, Array<(typeof overrides)[number]>>()
-    for (const o of overrides) {
-      const key = `${o.providerId}::${o.modelId}`
-      byKey.set(key, [...(byKey.get(key) ?? []), o])
-    }
-    const orderDependent = [...byKey.entries()]
-      .filter(([, rows]) => rows.length > 1 && !rows.some((r) => (r.apiModelId ?? r.modelId) === r.modelId))
-      .map(([key]) => key)
+  it('chooses the same canonical provider override regardless of catalog order', () => {
+    const forward = new ProviderModelIndex(providerModelOverrides)
+    const reversed = new ProviderModelIndex([...providerModelOverrides].reverse())
+    const orderDependent = providerModelOverrides
+      .filter(
+        ({ providerId, modelId }) =>
+          !isDeepStrictEqual(forward.findOverride(providerId, modelId), reversed.findOverride(providerId, modelId))
+      )
+      .map(({ providerId, modelId }) => `${providerId}::${modelId}`)
     expect(orderDependent).toEqual([])
   })
 

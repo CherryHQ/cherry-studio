@@ -77,6 +77,7 @@ interface LanguageCostUsage {
     noCacheTokens?: number
     cacheReadTokens?: number
     cacheWriteTokens?: number
+    cacheWriteBillableTokens?: number
   }
 }
 
@@ -128,11 +129,15 @@ export function computeLanguageCost(
   const buckets = [
     ['input', nonCacheInput, rates.inputPerMillionTokens],
     ['cacheRead', cacheReadTokens, rates.cacheReadPerMillionTokens ?? rates.inputPerMillionTokens],
-    ['cacheWrite', cacheWriteTokens, rates.cacheWritePerMillionTokens ?? rates.inputPerMillionTokens],
+    [
+      'cacheWrite',
+      details?.cacheWriteBillableTokens ?? cacheWriteTokens,
+      rates.cacheWritePerMillionTokens ?? rates.inputPerMillionTokens
+    ],
     ['output', usage.outputTokens, rates.outputPerMillionTokens]
   ] as const
 
-  if (!buckets.some(([, tokens]) => tokens !== undefined)) return undefined
+  if (!buckets.some(([, tokens, rate]) => tokens !== undefined && rate !== undefined)) return undefined
   if (buckets.some(([, tokens, rate]) => tokens !== undefined && tokens > 0 && rate === undefined)) return undefined
 
   const breakdown: AiUsageCostBreakdown = {}

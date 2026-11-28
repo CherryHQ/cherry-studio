@@ -10,6 +10,7 @@ import {
   type ModelMessage,
   NoImageGeneratedError
 } from 'ai'
+import { isPlainObject } from 'es-toolkit'
 
 import { application } from '@application'
 import {
@@ -26,6 +27,7 @@ import {
   type AiUsageCaptureContext,
   aiUsageRecordService,
   type MessageRef,
+  type RecordAiInvocationInput,
   type SourceSnapshot
 } from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -66,7 +68,12 @@ import {
   isRerankModel
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
-import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
+import {
+  CHERRYIN_GEMINI_MODALITY_VERSION,
+  CHERRYIN_OPENAI_IMAGE_VERSION,
+  getCherryInPublishedPricing,
+  getDefaultProviderBilling
+} from '@shared/utils/providerBillingDefaults'
 
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
@@ -110,6 +117,12 @@ import type {
   InProcessUsageContext,
   ListModelsRequest
 } from './types'
+import {
+  computeCherryInGeminiModalityCost,
+  computeCherryInOpenAIImageCost,
+  readNativeGeminiTokenUsage,
+  readOpenAIImageTokenUsage
+} from './utils/cherryinModalityPricing'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
@@ -217,17 +230,17 @@ function createCaptureContext(input: {
     try {
       const provider = providerService.getByProviderId(input.provider.id)
       const model = modelService.getByKey(input.provider.id, modelId)
+      const defaultBilling = getDefaultProviderBilling(
+        input.provider,
+        model,
+        resolveEffectiveEndpoint(input.provider, input.model).baseUrl
+      )
+      const publishedPricing = defaultBilling?.source === 'cherryin' ? getCherryInPublishedPricing(modelId) : undefined
       pricingSnapshot = createAiUsageCaptureContext({
         providerId: provider.id,
         modelId,
-        pricing: model.pricing,
-        billing:
-          provider.settings.billing ??
-          getDefaultProviderBilling(
-            input.provider,
-            model,
-            resolveEffectiveEndpoint(input.provider, input.model).baseUrl
-          )
+        pricing: publishedPricing ?? model.pricing,
+        billing: provider.settings.billing ?? defaultBilling
       }).pricingSnapshot
     } catch (error) {
       logger.warn('Could not capture invocation pricing', { error })
@@ -247,7 +260,49 @@ function createCaptureContext(input: {
   }
 }
 
-function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
+function imageUsageToRecord(
+  event: Extract<RuntimeProviderCallEvent, { modality: 'image' }>,
+  context: AiUsageCaptureContext,
+  hasInputImages: boolean
+): Pick<RecordAiInvocationInput, 'usage' | 'localEstimate'> {
+  const ruleVersion = context.pricingSnapshot?.billing?.ruleVersion
+  if (ruleVersion === CHERRYIN_GEMINI_MODALITY_VERSION) {
+    const metadata: unknown = event.providerMetadata?.google
+    const usage = isPlainObject(metadata) ? readNativeGeminiTokenUsage(metadata.usageMetadata) : undefined
+    if (usage) {
+      return {
+        usage: {
+          inputTokens: usage.input,
+          outputTokens: usage.output,
+          totalTokens: usage.input + usage.output,
+          reasoningTokens: usage.reasoning,
+          cacheReadTokens: usage.cached,
+          noCacheTokens: usage.input - usage.cached
+        },
+        localEstimate: computeCherryInGeminiModalityCost(context.modelId, usage.raw) ?? null
+      }
+    }
+  } else if (ruleVersion === CHERRYIN_OPENAI_IMAGE_VERSION) {
+    const metadata: unknown = event.providerMetadata?.openaiCompatible
+    const raw = isPlainObject(metadata) ? metadata.usage : undefined
+    const usage = readOpenAIImageTokenUsage(raw)
+    if (usage) {
+      return {
+        usage: {
+          inputTokens: usage.input,
+          outputTokens: usage.output,
+          totalTokens: usage.total,
+          cacheReadTokens: usage.cached,
+          noCacheTokens: usage.input - usage.cached
+        },
+        localEstimate: computeCherryInOpenAIImageCost(raw, hasInputImages) ?? null
+      }
+    }
+  }
+  return { usage: event.usage }
+}
+
+function createProviderCallHandler(context: AiUsageCaptureContext, hasInputImages = false): RuntimeProviderCallHandler {
   return (event: RuntimeProviderCallEvent) => {
     aiUsageRecordService.recordInvocation({
       requestId: event.requestId,
@@ -255,16 +310,13 @@ function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProvi
       modality: event.modality,
       ...(event.modality === 'embedding' && event.usage
         ? { usage: { inputTokens: event.usage.tokens, totalTokens: event.usage.tokens } }
-        : event.modality === 'image' && event.usage
-          ? {
-              usage: {
-                ...(event.usage.inputTokens !== undefined ? { inputTokens: event.usage.inputTokens } : {}),
-                ...(event.usage.outputTokens !== undefined ? { outputTokens: event.usage.outputTokens } : {}),
-                ...(event.usage.totalTokens !== undefined ? { totalTokens: event.usage.totalTokens } : {})
-              }
-            }
-          : {}),
-      ...(event.modality === 'image' ? { imageCount: event.imageCount } : {}),
+        : {}),
+      ...(event.modality === 'image'
+        ? {
+            imageCount: event.imageCount,
+            ...imageUsageToRecord(event, context, hasInputImages)
+          }
+        : {}),
       metrics: event.metrics,
       completedAt: event.completedAt
     })
@@ -1309,7 +1361,7 @@ export class AiService extends BaseService {
         sdkConfig.providerSettings,
         {
           ...imageParams,
-          onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
+          onProviderCallStart: () => createProviderCallHandler(imageUsageContext(), Boolean(inputImages?.length))
         }
       ).catch((error: unknown) => {
         if (

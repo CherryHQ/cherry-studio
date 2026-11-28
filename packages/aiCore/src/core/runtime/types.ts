@@ -1,7 +1,13 @@
 /**
  * Runtime 层类型定义
  */
-import type { EmbeddingModelV3, ImageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type {
+  EmbeddingModelV3,
+  ImageModelV3,
+  ImageModelV3ProviderMetadata,
+  ProviderV3,
+  RerankingModelV3
+} from '@ai-sdk/provider'
 import type { JSONObject } from '@ai-sdk/provider'
 import type { embedMany, Experimental_DownloadFunction, generateImage, generateText, rerank, streamText } from 'ai'
 
@@ -25,6 +31,7 @@ export type RuntimeProviderCallEvent =
       modelId: string
       imageCount: number
       usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
+      providerMetadata?: ImageModelV3ProviderMetadata
       metrics: { timeCompletionMs: number }
       completedAt: number
     }

@@ -170,6 +170,7 @@ export class RuntimeExecutor<
                         modelId: activeModel.modelId,
                         imageCount: result.images.length,
                         ...(result.usage ? { usage: result.usage } : {}),
+                        ...(result.providerMetadata ? { providerMetadata: result.providerMetadata } : {}),
                         metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
                         completedAt: Date.now()
                       })

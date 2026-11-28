@@ -57,6 +57,7 @@ const stable = (v: unknown): string =>
 // source `description`). The result is the exact source-derived provider payload the generator emits.
 const GEN_ONLY_PROVIDER_FIELDS = [
   'modelsDevProvider',
+  'modelsDevEndpoint',
   'fetchModels',
   'standaloneModelIds',
   'overrides',

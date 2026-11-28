@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..2477976c00102c510606b325bc8b149c883e0a2b 100644
+index ea415b8..f8b2ab5 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -219,6 +219,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
@@ -254,7 +254,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..2477976c00102c510606b325bc8b149c
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1667,7 +1729,11 @@ var OpenAICompatibleImageModel = class {
+@@ -1667,8 +1729,13 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -265,9 +265,11 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..2477976c00102c510606b325bc8b149c
 +          return [];
 +        }),
          warnings,
++        ...imageUsageMetadata(response2.usage),
          response: {
            timestamp: currentDate,
-@@ -1676,7 +1742,7 @@ var OpenAICompatibleImageModel = class {
+           modelId: this.modelId,
+@@ -1676,7 +1743,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -276,7 +278,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..2477976c00102c510606b325bc8b149c
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1687,8 +1753,8 @@ var OpenAICompatibleImageModel = class {
+@@ -1687,8 +1754,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -287,7 +289,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..2477976c00102c510606b325bc8b149c
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1699,8 +1765,28 @@ var OpenAICompatibleImageModel = class {
+@@ -1699,9 +1766,30 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -315,19 +317,27 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..2477976c00102c510606b325bc8b149c
 +        return [];
 +      }),
        warnings,
++      ...imageUsageMetadata(response.usage),
        response: {
          timestamp: currentDate,
-@@ -1711,7 +1797,7 @@ var OpenAICompatibleImageModel = class {
+         modelId: this.modelId,
+@@ -1711,8 +1799,13 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
 -  data: import_v48.z.array(import_v48.z.object({ b64_json: import_v48.z.string() }))
-+  data: import_v48.z.array(import_v48.z.object({ b64_json: import_v48.z.string().nullish(), url: import_v48.z.string().nullish() }))
++  data: import_v48.z.array(import_v48.z.object({ b64_json: import_v48.z.string().nullish(), url: import_v48.z.string().nullish() })),
++  usage: import_v48.z.unknown().optional()
  });
++function imageUsageMetadata(raw) {
++  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return {};
++  return { providerMetadata: { openaiCompatible: { images: [], usage: raw } } };
++}
  async function fileToBlob(file) {
    if (file.type === "url") {
+     return (0, import_provider_utils5.downloadBlob)(file.url);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..d241dc8f08b0f11e1074c240ce3c91ccda6cf64d 100644
+index 66ab6a1..c89ce5c 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -203,6 +203,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
@@ -583,7 +593,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..d241dc8f08b0f11e1074c240ce3c91cc
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1680,7 +1742,11 @@ var OpenAICompatibleImageModel = class {
+@@ -1680,8 +1742,13 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -594,9 +604,11 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..d241dc8f08b0f11e1074c240ce3c91cc
 +          return [];
 +        }),
          warnings,
++        ...imageUsageMetadata(response2.usage),
          response: {
            timestamp: currentDate,
-@@ -1689,7 +1755,7 @@ var OpenAICompatibleImageModel = class {
+           modelId: this.modelId,
+@@ -1689,7 +1756,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -605,7 +617,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..d241dc8f08b0f11e1074c240ce3c91cc
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1700,8 +1766,8 @@ var OpenAICompatibleImageModel = class {
+@@ -1700,8 +1767,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -616,7 +628,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..d241dc8f08b0f11e1074c240ce3c91cc
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1712,8 +1778,28 @@ var OpenAICompatibleImageModel = class {
+@@ -1712,9 +1779,30 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -644,14 +656,22 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..d241dc8f08b0f11e1074c240ce3c91cc
 +        return [];
 +      }),
        warnings,
++      ...imageUsageMetadata(response.usage),
        response: {
          timestamp: currentDate,
-@@ -1724,7 +1810,7 @@ var OpenAICompatibleImageModel = class {
+         modelId: this.modelId,
+@@ -1724,8 +1812,13 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = z8.object({
 -  data: z8.array(z8.object({ b64_json: z8.string() }))
-+  data: z8.array(z8.object({ b64_json: z8.string().nullish(), url: z8.string().nullish() }))
++  data: z8.array(z8.object({ b64_json: z8.string().nullish(), url: z8.string().nullish() })),
++  usage: z8.unknown().optional()
  });
++function imageUsageMetadata(raw) {
++  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return {};
++  return { providerMetadata: { openaiCompatible: { images: [], usage: raw } } };
++}
  async function fileToBlob(file) {
    if (file.type === "url") {
+     return downloadBlob(file.url);

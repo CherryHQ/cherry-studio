@@ -186,6 +186,10 @@ Cached, indexed access to registry JSON with idle auto-expiry.
 
 ### Query API
 
+An exact provider API ID selects its own offer. A canonical model ID prefers
+the matching base offer when both it and a tagged offer share a model. The base
+offer can have a namespace and use a different version separator in its API ID.
+
 ```typescript
 loader.findModel(modelId)                    // O(1): exact → normalized fallback
 loader.findOverride(providerId, modelId)     // O(1): exact → normalized fallback
@@ -252,6 +256,11 @@ Runtime models expose `hasCustomPricing` from whether the stored `pricing` colum
 is non-null. This is read-only provenance, not a persisted field or a comparison
 against current catalog prices. Automatic provider billing defaults use it to
 preserve user-owned model prices.
+
+CherryIN catalog prices apply to the exact API model ID. Its published price
+replaces the base model price. The catalog leaves flat rates blank for routes
+with time, modality, or cache-duration rules. The desktop can estimate eligible
+routes when it has the required [billing details](../ai/ai-usage-records.md).
 
 ## Provider Configuration Merge
 

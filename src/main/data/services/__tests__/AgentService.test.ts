@@ -306,7 +306,10 @@ describe('AgentService', () => {
       expect(customCreated?.modelName).toBe('Custom Reasoner')
 
       expect(presetModel?.capabilities).toContain(MODEL_CAPABILITY.REASONING)
-      expect(presetModel?.reasoning?.controls).toEqual([{ kind: 'budget', min: 1024, max: 64_000 }, { kind: 'toggle' }])
+      expect(presetModel?.reasoning?.controls).toHaveLength(2)
+      expect(presetModel?.reasoning?.controls).toEqual(
+        expect.arrayContaining([{ kind: 'budget', min: 1024, max: 64_000 }, { kind: 'toggle' }])
+      )
       expect(customModel?.capabilities).toContain(MODEL_CAPABILITY.REASONING)
       expect(customModel?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
       expect(customModel?.requestControls?.serviceTier).toEqual({

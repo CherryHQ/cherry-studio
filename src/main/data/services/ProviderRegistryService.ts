@@ -563,9 +563,12 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens
   let maxInputTokens = presetModel.maxInputTokens
-  const mergedPricing = presetModel.pricing
-    ? { ...presetModel.pricing, ...catalogOverride?.pricing }
-    : catalogOverride?.pricing
+  const mergedPricing =
+    catalogOverride?.providerId === 'cherryin' && catalogOverride.pricing
+      ? catalogOverride.pricing
+      : presetModel.pricing
+        ? { ...presetModel.pricing, ...catalogOverride?.pricing }
+        : catalogOverride?.pricing
   let pricing: RuntimeModelPricing | undefined
   const parameterSupport = presetModel.parameterSupport
     ? { ...presetModel.parameterSupport, ...catalogOverride?.parameterSupport }

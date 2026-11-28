@@ -241,7 +241,7 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
         </p>
       )}
       {parsed.success && (
-        <BillingPreview billing={parsed.data} models={models} defaultProvider={resetRequested ? provider : undefined} />
+        <BillingPreview billing={parsed.data} models={models} provider={provider} useDefaults={resetRequested} />
       )}
     </ProviderSettingsDrawer>
   )

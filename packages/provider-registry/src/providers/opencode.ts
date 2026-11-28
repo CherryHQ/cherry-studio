@@ -210,5 +210,15 @@ export default defineProvider({
     }
   },
   modelsDevProvider: 'opencode-go',
+  modelsDevEndpoint: (sdk) => {
+    switch (sdk) {
+      case '@ai-sdk/anthropic':
+        return 'anthropic-messages'
+      case '@ai-sdk/openai':
+        return 'openai-responses'
+      default:
+        return 'openai-chat-completions'
+    }
+  },
   modelTemplates: endpointOverrides
 })

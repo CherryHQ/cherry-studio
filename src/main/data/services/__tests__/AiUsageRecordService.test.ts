@@ -550,6 +550,37 @@ describe('AiUsageRecordService', () => {
     }
   })
 
+  it('requires a known rate before recording zero token usage as zero cost', () => {
+    for (const inputRate of [null, 0] as const) {
+      const capture = context({
+        pricingSnapshot: undefined,
+        pricing: {
+          input: { perMillionTokens: inputRate, currency: 'USD' },
+          output: { perMillionTokens: null, currency: 'USD' }
+        }
+      })
+      aiUsageRecordService.recordInvocation(
+        invocation({
+          requestId: `zero-usage-${inputRate}`,
+          context: capture,
+          usage: { inputTokens: 0, outputTokens: 0 }
+        })
+      )
+    }
+
+    const rows = dbh.db.select().from(aiUsageRecordTable).all()
+    expect(rows.find(({ requestId }) => requestId === 'zero-usage-null')).toMatchObject({
+      cost: null,
+      costCurrency: null,
+      costSource: null
+    })
+    expect(rows.find(({ requestId }) => requestId === 'zero-usage-0')).toMatchObject({
+      cost: 0,
+      costCurrency: 'USD',
+      costSource: 'computed'
+    })
+  })
+
   it('counts logical requests separately from stored rows in stats and timeline', () => {
     aiUsageRecordService.recordLegacyAggregatesTx(dbh.db, [
       {

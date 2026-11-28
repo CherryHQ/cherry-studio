@@ -31,6 +31,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'qwen-max-latest$', budget: { min: 0, max: 81920 }, template: true },
   { pattern: '^qwen3[.-][5-7](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
   { pattern: 'qwen3-(?!max)(?!\\d+[.-]max).*$', budget: { min: 1024, max: 38912 }, template: true },
+  { pattern: '^qwen4-max$' },
   { pattern: '^qwen3.*thinking' },
   { pattern: 'qwq|qvq' },
   { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen-?3[.-][5-9](?!\\d)' },
@@ -182,10 +183,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^(?:gemini-nano-banana|nano-banana-pro)', wireDialect: 'effort', template: true },
   { pattern: '^gemma-?4', toggle: true },
   { pattern: '^gemini-nano-banana', effort: ['minimal', 'medium', 'high'] },
-  {
-    pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
-    effort: ['minimal', 'low', 'medium', 'high']
-  },
+  { pattern: '^gemini-3(?:[.-]\\d+)?-flash|^gemini-flash-latest', effort: ['minimal', 'low', 'medium', 'high'] },
   { pattern: '^(?:gemini-3-pro|nano-banana-pro)', effort: ['low', 'high'] },
   { pattern: '^gemini-3\\.\\d+-pro|^gemini-pro-latest', effort: ['low', 'medium', 'high'] },
   { pattern: '^gemini-robotics', toggle: true },
@@ -201,7 +199,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gemini-3(?:[.-]\\d+)?-flash-tts' },
   {
     pattern:
-      '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
+      '^(?!.*(?:tts|gemini-2[.-]5-flash-image$)).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
   },
   { pattern: '^gemini-omni-flash' },
   { pattern: '^gemini-robotics' },

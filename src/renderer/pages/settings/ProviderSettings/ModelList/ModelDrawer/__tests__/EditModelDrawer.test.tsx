@@ -581,6 +581,28 @@ describe('EditModelDrawer', () => {
     })
   })
 
+  it('keeps the unknown output rate when explicitly setting a zero input rate', async () => {
+    const user = userEvent.setup()
+    const model = {
+      ...modelWithFullPricing,
+      pricing: {
+        input: { perMillionTokens: null, currency: CURRENCY.USD },
+        output: { perMillionTokens: null, currency: CURRENCY.USD }
+      }
+    }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    expect(screen.getByLabelText('models.price.input')).toHaveValue('')
+    expect(screen.getByLabelText('models.price.output')).toHaveValue('')
+    await user.type(screen.getByLabelText('models.price.input'), '0')
+    await user.tab()
+
+    expect(updateModelMock.mock.lastCall?.[2].pricing).toEqual({
+      input: { perMillionTokens: 0, currency: CURRENCY.USD },
+      output: { perMillionTokens: null, currency: CURRENCY.USD }
+    })
+  })
+
   it('moves every pricing tier to the newly selected currency', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)

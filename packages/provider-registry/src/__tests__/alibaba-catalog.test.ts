@@ -16,6 +16,19 @@ const loader = new RegistryLoader({
 })
 
 describe('Alibaba Qwen catalog', () => {
+  it('uses the OpenRouter offer limit rather than the native Qwen4 Max limit', () => {
+    expect(loader.findModel('qwen4-max')).toMatchObject({ contextWindow: 1_000_000, maxOutputTokens: 262_144 })
+    expect(loader.findOverride('openrouter', 'qwen/qwen4-max')).toMatchObject({
+      apiModelId: 'qwen/qwen4-max',
+      limits: { maxOutputTokens: 131_072 },
+      reasoningContracts: {
+        'openai-chat-completions': {
+          support: { defaultEffort: 'high', supportedEfforts: ['xhigh', 'high', 'low', 'none'] }
+        }
+      }
+    })
+  })
+
   it('preserves Flash Next video inputs in the creator source and shipped catalog', () => {
     const creator = CREATORS.find(({ id }) => id === 'alibaba')
     const source = creator?.models?.find(({ id }) => id === 'qwen3-8-flash-next')

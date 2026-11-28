@@ -3741,6 +3741,60 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
+      "contextWindow": 1000000,
+      "family": "qwen-max",
+      "id": "qwen4-max",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 262144,
+      "metadata": {},
+      "name": "Qwen4 Max",
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.875
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "high",
+            "kind": "effort",
+            "values": ["low", "high", "xhigh"]
+          },
+          {
+            "kind": "budget",
+            "max": 262144,
+            "min": 1
+          },
+          {
+            "default": true,
+            "kind": "toggle"
+          }
+        ],
+        "defaultEffort": "high",
+        "supportedEfforts": ["low", "high", "xhigh", "none"],
+        "thinkingTokenLimits": {
+          "max": 262144,
+          "min": 1
+        }
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning"],
       "contextWindow": 131072,
       "family": "qwen",
@@ -8932,7 +8986,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "capabilities": ["image-recognition", "image-generation", "file-input"],
       "contextWindow": 32768,
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image",
@@ -8955,6 +9009,7 @@
         }
       },
       "inputModalities": ["text", "image"],
+      "maxOutputTokens": 32768,
       "metadata": {},
       "name": "gemini-2.5-flash-image",
       "outputModalities": ["text", "image"],
@@ -8972,24 +9027,6 @@
           "currency": "USD",
           "perMillionTokens": 30
         }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "budget",
-            "max": 24576,
-            "min": 0
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 24576,
-          "min": 0
-        },
-        "wireDialect": "budget"
       }
     },
     {
@@ -16447,20 +16484,6 @@
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "nvidia",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.01
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        }
-      },
       "reasoning": {
         "controls": [
           {
@@ -25104,5 +25127,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "36cb08a3f0bb47ba"
+  "version": "b6a1db92de585a1f"
 }

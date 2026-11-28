@@ -17,6 +17,8 @@ import {
   type JSONValue,
   type LanguageModelV3,
   type LanguageModelV3CallOptions,
+  type LanguageModelV3StreamPart,
+  type LanguageModelV3Usage,
   type ProviderV3,
   type RerankingModelV3,
   type SpeechModelV3,
@@ -30,7 +32,7 @@ import { applyReasoningModelMaxTokensConversion } from './reasoningModelTransfor
 export const CHERRYIN_PROVIDER_NAME = 'cherryin' as const
 export const DEFAULT_CHERRYIN_BASE_URL = 'https://open.cherryin.net/v1'
 export const DEFAULT_CHERRYIN_ANTHROPIC_BASE_URL = 'https://open.cherryin.net/v1'
-export const DEFAULT_CHERRYIN_GEMINI_BASE_URL = 'https://open.cherryin.net/v1beta/models'
+export const DEFAULT_CHERRYIN_GEMINI_BASE_URL = 'https://open.cherryin.net/v1beta'
 
 const ANTHROPIC_PREFIX = /^anthropic\//i
 const GEMINI_PREFIX = /^google\//i
@@ -66,7 +68,7 @@ export interface CherryInProviderSettings {
   /**
    * Base URL for Gemini-compatible endpoints.
    *
-   * Defaults to `https://open.cherryin.net/gemini/v1beta`.
+   * Defaults to `https://open.cherryin.net/v1beta`.
    */
   geminiBaseURL?: string
   /**
@@ -117,28 +119,42 @@ const isQwenImageModel = (modelId: string) => {
   const normalized = modelId.toLowerCase()
   return normalized.includes('qwen') && normalized.includes('image')
 }
-const stripGooglePrefix = (modelId: string) => modelId.replace(/^google\//i, '')
-const isGoogleImageModel = (modelId: string) => {
+const stripGooglePrefix = (modelId: string) => modelId.replace(/^(?:models\/)?google\//i, '')
+const isGoogleGeminiImageModel = (modelId: string) => {
   const normalized = stripGooglePrefix(modelId).toLowerCase()
-  return normalized.startsWith('imagen-') || (normalized.startsWith('gemini-') && normalized.includes('image'))
+  return normalized === 'gemini-nano-banana-2.1' || (normalized.startsWith('gemini-') && normalized.includes('image'))
 }
-const isGoogleGeminiImageModel = (modelId: string) => stripGooglePrefix(modelId).toLowerCase().startsWith('gemini-')
+const isGoogleImageModel = (modelId: string) =>
+  stripGooglePrefix(modelId).toLowerCase().startsWith('imagen-') || isGoogleGeminiImageModel(modelId)
 
-const createCustomFetch = (originalFetch?: any) => {
-  return async (url: string, options: any) => {
-    if (options?.body) {
+const createCustomFetch = (originalFetch?: FetchFunction): FetchFunction => {
+  return async (input, options) => {
+    if (typeof options?.body === 'string') {
       try {
         const body = JSON.parse(options.body)
-        if (body.tools && Array.isArray(body.tools) && body.tools.length === 0 && body.tool_choice) {
+        let changed = false
+        if (Array.isArray(body.tools) && body.tools.length === 0 && body.tool_choice) {
           delete body.tool_choice
-          options.body = JSON.stringify(body)
+          changed = true
         }
+        const thinkingDisabled = body.enable_thinking === false || body.reasoning_effort === 'none'
+        if (body.model === 'qwen/qwen4-max' && thinkingDisabled) {
+          // CherryIN Chat Completions rejects larger non-thinking requests.
+          const maxOutputTokens = 131_072
+          for (const field of ['max_tokens', 'max_completion_tokens']) {
+            if (typeof body[field] === 'number' && body[field] > maxOutputTokens) {
+              body[field] = maxOutputTokens
+              changed = true
+            }
+          }
+        }
+        if (changed) options = { ...options, body: JSON.stringify(body) }
       } catch (error) {
         // ignore error
       }
     }
 
-    return originalFetch ? originalFetch(url, options) : fetch(url, options)
+    return (originalFetch ?? fetch)(input, options)
   }
 }
 
@@ -301,6 +317,39 @@ class CherryInAnthropicMessagesLanguageModel extends AnthropicMessagesLanguageMo
   }
 }
 
+function includeGeminiToolPromptUsage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
+  const toolPrompt = usage.raw?.toolUsePromptTokenCount
+  const prompt = usage.raw?.promptTokenCount ?? 0
+  if (typeof toolPrompt !== 'number' || toolPrompt <= 0 || typeof prompt !== 'number' || prompt < 0) return usage
+
+  // CherryIN bills promptTokenCount and toolUsePromptTokenCount together.
+  const total = prompt + toolPrompt
+  const noCache = total - (usage.inputTokens.cacheRead ?? 0)
+  if (!Number.isSafeInteger(total) || noCache < 0 || total === usage.inputTokens.total) return usage
+  return { ...usage, inputTokens: { ...usage.inputTokens, total, noCache } }
+}
+
+class CherryInGeminiLanguageModel extends GoogleGenerativeAILanguageModel {
+  override async doGenerate(options: LanguageModelV3CallOptions) {
+    const result = await super.doGenerate(options)
+    return { ...result, usage: includeGeminiToolPromptUsage(result.usage) }
+  }
+
+  override async doStream(options: LanguageModelV3CallOptions) {
+    const result = await super.doStream(options)
+    const stream = result.stream.pipeThrough(
+      new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
+        transform(part, controller) {
+          controller.enqueue(
+            part.type === 'finish' ? { ...part, usage: includeGeminiToolPromptUsage(part.usage) } : part
+          )
+        }
+      })
+    )
+    return { ...result, stream }
+  }
+}
+
 export const createCherryIn = (options: CherryInProviderSettings = {}): CherryInProvider => {
   const {
     baseURL = DEFAULT_CHERRYIN_BASE_URL,
@@ -312,6 +361,20 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
 
   const getJsonHeaders = createJsonHeadersGetter(options)
   const getAuthHeaders = createAuthHeadersGetter(options)
+  const geminiApiRoot = geminiBaseURL.replace(/\/models\/?$|\/$/, '')
+
+  const geminiFetch = (apiModelId: string): FetchFunction | undefined => {
+    const modelId = stripGooglePrefix(apiModelId)
+    if (modelId === apiModelId) return fetch
+    // The SDK uses bare model IDs for feature detection; the relay needs the catalog ID.
+    const sdkPath = `${geminiApiRoot}/models/${modelId}:`
+    const relayPath = `${geminiApiRoot}/models/${apiModelId.replace(/^models\//i, '')}:`
+    return (input, init) =>
+      (fetch ?? globalThis.fetch)(
+        typeof input === 'string' && input.startsWith(sdkPath) ? `${relayPath}${input.slice(sdkPath.length)}` : input,
+        init
+      )
+  }
 
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
 
@@ -335,9 +398,9 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     })
 
   const createGeminiModel = (modelId: string) =>
-    new GoogleGenerativeAILanguageModel(modelId, {
+    new CherryInGeminiLanguageModel(stripGooglePrefix(modelId), {
       provider: `${CHERRYIN_PROVIDER_NAME}.google`,
-      baseURL: geminiBaseURL,
+      baseURL: geminiApiRoot,
       headers: () => {
         const headers = getJsonHeaders()
         const apiKey = toBearerToken(headers.Authorization)
@@ -346,7 +409,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
           'x-goog-api-key': apiKey
         }
       },
-      fetch,
+      fetch: geminiFetch(modelId),
       generateId: () => `${CHERRYIN_PROVIDER_NAME}-${Date.now()}`,
       supportedUrls: () => ({})
     })
@@ -443,16 +506,16 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     if (isGoogleImageModel(modelId)) {
       const googleProvider = createGoogleGenerativeAI({
         apiKey: resolveApiKey(options),
-        baseURL: geminiBaseURL,
+        baseURL: geminiApiRoot,
         headers: {
           ...resolveConfiguredHeaders(options.headers),
           ...settings.headers
         },
-        fetch,
+        fetch: geminiFetch(modelId),
         name: `${CHERRYIN_PROVIDER_NAME}.google`
       })
       const isGeminiImage = isGoogleGeminiImageModel(modelId)
-      const googleImageModel = googleProvider.image(modelId)
+      const googleImageModel = googleProvider.image(stripGooglePrefix(modelId))
       return withGoogleImageOptions(googleImageModel, CHERRYIN_PROVIDER_NAME, isGeminiImage)
     }
 

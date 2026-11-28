@@ -65,6 +65,8 @@ type ProviderWebsite = ProviderConfig['metadata']['website']
 export interface Provider extends ProviderConnection {
   /** models.dev provider key whose listing is this provider's served catalog (with per-model pricing). */
   modelsDevProvider?: string
+  /** Select a listed model's endpoint from the models.dev SDK package. */
+  modelsDevEndpoint?: (sdk: string | undefined) => NonNullable<ProviderModelOverride['endpointTypes']>[number]
   /** …or fetch the served list from the provider's own `/models` API (see `../creators/_api.ts`). */
   fetchModels?: () => Promise<{ id: string }[]>
   /** Upstream routes owned by this provider rather than by the creator named in their API id. */

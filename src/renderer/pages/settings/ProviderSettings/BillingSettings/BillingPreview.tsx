@@ -23,7 +23,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { billingTimeMinutes, type ProviderBilling } from '@shared/data/types/providerBilling'
 import { resolveProviderBilling } from '@shared/utils/providerBilling'
-import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
+import { getCherryInPublishedPricing, getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 import { createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
 dayjs.extend(utc)
@@ -35,16 +35,19 @@ const formatTime = (minutes: number) =>
 export function BillingPreview({
   billing,
   models,
-  defaultProvider
+  provider,
+  useDefaults
 }: {
   billing: ProviderBilling
   models: readonly Model[]
-  defaultProvider?: Provider
+  provider: Provider
+  useDefaults: boolean
 }) {
   const { t } = useTranslation()
   const [modelId, setModelId] = useState<string>(models[0]?.id ?? '')
   const model = models.find((item) => item.id === modelId) ?? models[0]
-  const effectiveBilling = defaultProvider && model ? getDefaultProviderBilling(defaultProvider, model) : billing
+  const defaultBilling = model ? getDefaultProviderBilling(provider, model) : undefined
+  const effectiveBilling = useDefaults ? defaultBilling : billing
   const [date, setDate] = useState('')
   const boundaries = [
     ...new Set([
@@ -64,7 +67,9 @@ export function BillingPreview({
   const day = dayjs.tz(date || today, billing.timeZone).startOf('day')
   const ranges = boundaries.slice(0, -1).map((start, index) => {
     const resolved = resolveProviderBilling(
-      model?.pricing,
+      (defaultBilling?.source === 'cherryin' && model
+        ? getCherryInPublishedPricing(model.apiModelId ?? parseUniqueModelId(model.id).modelId)
+        : undefined) ?? model?.pricing,
       effectiveBilling,
       model ? parseUniqueModelId(model.id).modelId : '',
       day.add(start, 'minute').toDate()
@@ -139,7 +144,9 @@ export function BillingPreview({
                 input: tier.inputPerMillionTokens,
                 output: tier.outputPerMillionTokens,
                 cacheRead: tier.cacheReadPerMillionTokens ?? tier.inputPerMillionTokens,
-                cacheWrite: tier.cacheWritePerMillionTokens ?? tier.inputPerMillionTokens
+                cacheWrite:
+                  tier.cacheWritePerMillionTokens ??
+                  (defaultBilling?.source === 'cherryin' ? undefined : tier.inputPerMillionTokens)
               }
               return (
                 <TableRow

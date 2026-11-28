@@ -15,6 +15,7 @@ repos:
         language: system
         entry: pnpm eslint --fix
         files: '\.(js|jsx|ts|tsx|cjs|mjs|cts|mts)$'
+        exclude: '^packages/provider-registry/compat/v[0-9]+-validator\.mjs$'
         pass_filenames: true
 
       - id: oxfmt-format-other

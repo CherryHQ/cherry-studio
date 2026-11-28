@@ -80,6 +80,140 @@ function callOptions(tool = exampleTool()): LanguageModelV3CallOptions {
 
 const advancedBeta = 'advanced-tool-use-2025-11-20'
 
+it.each(['none', 'low', 'high', 'xhigh'] as const)(
+  'sends Qwen4 Max reasoning selection %s on both CherryIN endpoints',
+  async (effort) => {
+    const { requests, fetch } = captureRequest()
+    const id = 'qwen/qwen4-max'
+    const chat = createCherryIn({ apiKey: 'test-key', endpointType: 'openai', fetch })(id)
+    const messages = createCherryIn({ apiKey: 'test-key', endpointType: 'anthropic', fetch })(id)
+    const prompt = callOptions().prompt
+    const chatOptions =
+      effort === 'none' ? { enable_thinking: false } : { enable_thinking: true, reasoningEffort: effort }
+    const messagesOptions = effort === 'none' ? { thinking: { type: 'disabled' } } : { effort }
+
+    await expect(
+      chat.doGenerate({ prompt, maxOutputTokens: 4096, providerOptions: { cherryin: chatOptions } })
+    ).rejects.toMatchObject({ statusCode: 400 })
+    await expect(
+      messages.doGenerate({ prompt, maxOutputTokens: 4096, providerOptions: { anthropic: messagesOptions } })
+    ).rejects.toMatchObject({
+      statusCode: 400
+    })
+
+    expect(new URL(requests[0].url).pathname).toBe('/v1/chat/completions')
+    expect(new URL(requests[1].url).pathname).toBe('/v1/messages')
+    expect(requests.map(({ body }) => body)).toEqual([
+      expect.objectContaining({ max_tokens: 4096 }),
+      expect.objectContaining({ max_tokens: 4096 })
+    ])
+    if (effort === 'none') {
+      expect(requests[0].body).toMatchObject({ model: id, enable_thinking: false })
+      expect(requests[0].body).not.toHaveProperty('reasoning_effort')
+      expect(requests[1].body).toMatchObject({ model: id, thinking: { type: 'disabled' } })
+      expect(requests[1].body).not.toHaveProperty('output_config')
+    } else {
+      expect(requests[0].body).toMatchObject({ model: id, enable_thinking: true, reasoning_effort: effort })
+      expect(requests[0].body).not.toHaveProperty('thinking_budget')
+      expect(requests[1].body).toMatchObject({ model: id, output_config: { effort } })
+      expect(requests[1].body).not.toHaveProperty('thinking')
+    }
+  }
+)
+
+it('caps the explicit Chat Completions output budget when Qwen4 Max reasoning effort is none', async () => {
+  const { requests, fetch } = captureRequest()
+  const model = createCherryIn({ apiKey: 'test-key', endpointType: 'openai', fetch })('qwen/qwen4-max')
+  await expect(
+    model.doGenerate({
+      prompt: callOptions().prompt,
+      providerOptions: { cherryin: { reasoningEffort: 'none', max_completion_tokens: 262_144 } }
+    })
+  ).rejects.toMatchObject({ statusCode: 400 })
+
+  expect(requests[0].body).toMatchObject({ reasoning_effort: 'none', max_completion_tokens: 131_072 })
+})
+
+it.each(['generate', 'stream'] as const)(
+  'counts Gemini tool prompt tokens and preserves modality details on %s',
+  async (mode) => {
+    const payload = {
+      candidates: [{ content: { role: 'model', parts: [{ text: 'ok' }] }, finishReason: 'STOP' }],
+      usageMetadata: {
+        promptTokenCount: 30,
+        toolUsePromptTokenCount: 12,
+        cachedContentTokenCount: 8,
+        candidatesTokenCount: 7,
+        thoughtsTokenCount: 3,
+        totalTokenCount: 52,
+        promptTokensDetails: [{ modality: 'AUDIO', tokenCount: 6 }],
+        toolUsePromptTokensDetails: [{ modality: 'AUDIO', tokenCount: 4 }],
+        candidatesTokensDetails: [{ modality: 'IMAGE', tokenCount: 5 }]
+      }
+    }
+    const fetch: typeof globalThis.fetch = async (input) => {
+      expect(new URL(String(input)).pathname).toBe(
+        `/v1beta/models/google/gemini-3.1-flash-lite:${mode === 'generate' ? 'generateContent' : 'streamGenerateContent'}`
+      )
+      return mode === 'generate'
+        ? Response.json(payload)
+        : new Response(`data: ${JSON.stringify(payload)}\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+    }
+    const model = createCherryIn({ apiKey: 'test-key', endpointType: 'gemini', fetch })('google/gemini-3.1-flash-lite')
+    const { prompt } = callOptions()
+    const usage = await (async () => {
+      if (mode === 'generate') return (await model.doGenerate({ prompt })).usage
+      const { stream } = await model.doStream({ prompt })
+      for await (const chunk of stream as unknown as AsyncIterable<LanguageModelV3StreamPart>) {
+        if (chunk.type === 'finish') return chunk.usage
+      }
+      return undefined
+    })()
+
+    expect(usage).toMatchObject({
+      inputTokens: { total: 42, noCache: 34, cacheRead: 8 },
+      outputTokens: { total: 10, text: 7, reasoning: 3 },
+      raw: payload.usageMetadata
+    })
+  }
+)
+
+it.each(['google/gemini-2.5-flash-image', 'google/gemini-nano-banana-2.1'])(
+  'generates images through Gemini for %s',
+  async (modelId) => {
+    const fetch: typeof globalThis.fetch = async (input, options) => {
+      expect(new URL(String(input)).pathname).toBe(`/v1beta/models/${modelId}:generateContent`)
+      expect(JSON.parse(String(options?.body)).generationConfig).toMatchObject({ responseModalities: ['IMAGE'] })
+      return Response.json({
+        candidates: [
+          {
+            content: { role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: 'aW1hZ2U=' } }] },
+            finishReason: 'STOP'
+          }
+        ]
+      })
+    }
+    const provider = createCherryIn({
+      apiKey: 'test-key',
+      geminiBaseURL: 'https://proxy.example/v1beta/models/',
+      fetch
+    })
+    const model = provider.image(modelId)
+    const result = await model.doGenerate({
+      prompt: 'Draw a square',
+      n: 1,
+      size: undefined,
+      aspectRatio: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: {}
+    })
+
+    expect(result.images).toEqual(['aW1hZ2U='])
+  }
+)
+
 describe('CherryIN Anthropic tool streaming', () => {
   it.each(['anthropic/claude-sonnet-4.5', 'claude-sonnet-4-5-20250929'])(
     'omits default and explicitly enabled eager streaming for %s',
@@ -194,7 +328,7 @@ describe('CherryIN Anthropic tool input examples', () => {
         }
       ])
     } else {
-      expect(new URL(url).pathname).toBe('/v1beta/models/models/gemini-3.5-flash:generateContent')
+      expect(new URL(url).pathname).toBe('/v1beta/models/gemini-3.5-flash:generateContent')
       expect(body.contents).toEqual([{ role: 'user', parts: [{ text: 'hello' }] }])
       expect(body.tools[0].functionDeclarations).toEqual([
         {

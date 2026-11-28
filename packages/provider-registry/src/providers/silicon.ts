@@ -62,8 +62,14 @@ export default openaiCompatible({
   modelsDevProvider: 'siliconflow',
   modelTemplates: siliconReasoningModels.map((modelId) => ({
     modelId,
+    ...(modelId === 'qwen3-vl-235b-a22b' ? { capabilities: { add: ['reasoning' as const] } } : {}),
     reasoningContracts: {
-      'openai-chat-completions': { wire: siliconReasoningWire }
+      'openai-chat-completions': {
+        wire: siliconReasoningWire,
+        ...(modelId === 'qwen3-vl-235b-a22b'
+          ? { support: { controls: [{ kind: 'budget' as const, min: 1024, max: 38_912 }] } }
+          : {})
+      }
     }
   }))
 })

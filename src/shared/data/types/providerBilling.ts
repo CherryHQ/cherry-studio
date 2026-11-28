@@ -34,7 +34,7 @@ export const ProviderBillingSchema = z
     scheduleEnabled: z.boolean(),
     /** Restrict periods to Monday–Friday in the configured time zone. */
     calendar: z.literal('cn-weekdays').optional(),
-    source: z.literal('deepseek').optional(),
+    source: z.enum(['deepseek', 'cherryin']).optional(),
     timeZone: z.string().refine((value) => {
       try {
         new Intl.DateTimeFormat('en', { timeZone: value }).format(0)
@@ -91,7 +91,7 @@ export const BillingResolutionSchema = z.strictObject({
   periodId: z.string().optional(),
   periodName: z.string().optional(),
   reason: z.enum(['default', 'period', 'model_fallback', 'unknown_start', 'peak_fallback']),
-  source: z.literal('deepseek').optional(),
+  source: z.enum(['deepseek', 'cherryin']).optional(),
   ruleVersion: z.string().optional(),
   pricedAt: z.iso.datetime().optional()
 })

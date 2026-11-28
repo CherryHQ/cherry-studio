@@ -67,6 +67,7 @@ import type {
   MessageStats
 } from '@shared/data/types/message'
 import type { Currency } from '@shared/data/types/model'
+import { settleCherryInPricingSnapshot } from '@shared/utils/providerBilling'
 import { computeLanguageCost } from '@shared/utils/usagePricing'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -125,8 +126,11 @@ export interface RecordAiInvocationInput {
     noCacheTokens?: number
     cacheReadTokens?: number
     cacheWriteTokens?: number
+    /** Duration-weighted writes for cost calculation only. */
+    cacheWriteBillableTokens?: number
   }
   imageCount?: number
+  localEstimate?: { amount: number; breakdown: AiUsageCostBreakdown } | null
   providerCost?: {
     amount: number
     currency: Currency
@@ -1260,6 +1264,7 @@ function computedCost(
 ): { amount: number; breakdown: AiUsageCostBreakdown } | undefined {
   if (!pricing) return undefined
 
+  if (input.localEstimate !== undefined) return input.localEstimate ?? undefined
   if (input.modality === 'image') {
     if (!pricing.perImage || pricing.perImage.unit !== 'image' || input.imageCount === undefined) return undefined
     const amount = input.imageCount * pricing.perImage.price
@@ -1269,6 +1274,14 @@ function computedCost(
 
   const usage = input.usage
   if (!usage) return undefined
+  const cacheWriteBillableTokens = pricing.billing?.source === 'cherryin' ? usage.cacheWriteBillableTokens : undefined
+  if (
+    pricing.billing?.source === 'cherryin' &&
+    (usage.cacheWriteTokens ?? 0) > 0 &&
+    cacheWriteBillableTokens === undefined
+  ) {
+    return undefined
+  }
   const computed = computeLanguageCost(
     {
       inputTokens: usage.inputTokens,
@@ -1276,7 +1289,8 @@ function computedCost(
       inputTokenDetails: {
         noCacheTokens: usage.noCacheTokens,
         cacheReadTokens: usage.cacheReadTokens,
-        cacheWriteTokens: usage.cacheWriteTokens
+        cacheWriteTokens: usage.cacheWriteTokens,
+        cacheWriteBillableTokens
       }
     },
     pricing
@@ -1297,6 +1311,8 @@ function completeProviderBreakdown(
 
 function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow {
   const { context, usage, metrics } = input
+  const completedAt = requiredTimestamp(input.completedAt, 'completedAt')
+  const pricingSnapshot = settleCherryInPricingSnapshot(context.pricingSnapshot, context.modelId, completedAt)
   const providerCost =
     context.trustProviderReportedCost &&
     input.providerCost &&
@@ -1304,7 +1320,7 @@ function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow
     input.providerCost.amount >= 0
       ? input.providerCost
       : undefined
-  const localCost = providerCost ? undefined : computedCost(input, context.pricingSnapshot)
+  const localCost = providerCost ? undefined : computedCost(input, pricingSnapshot)
   const cost = providerCost?.amount ?? localCost?.amount
   const credential = context.credentialReceipt
 
@@ -1339,16 +1355,16 @@ function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow
     cacheWriteTokens: optionalCount(usage?.cacheWriteTokens, 'cacheWriteTokens'),
     imageCount: input.modality === 'image' ? optionalCount(input.imageCount ?? 0, 'imageCount') : null,
     cost: cost ?? null,
-    costCurrency: providerCost?.currency ?? (localCost ? context.pricingSnapshot?.currency : null) ?? null,
+    costCurrency: providerCost?.currency ?? (localCost ? pricingSnapshot?.currency : null) ?? null,
     costSource: providerCost ? 'provider' : localCost ? 'computed' : null,
     costBreakdown: providerCost
       ? completeProviderBreakdown(providerCost.amount, providerCost.breakdown)
       : (localCost?.breakdown ?? null),
-    pricingSnapshot: context.pricingSnapshot,
+    pricingSnapshot,
     timeFirstTokenMs: optionalCount(metrics?.timeFirstTokenMs, 'timeFirstTokenMs'),
     timeCompletionMs: optionalCount(metrics?.timeCompletionMs, 'timeCompletionMs'),
     timeThinkingMs: optionalCount(metrics?.timeThinkingMs, 'timeThinkingMs'),
-    createdAt: requiredTimestamp(input.completedAt, 'completedAt')
+    createdAt: completedAt
   }
 }
 
