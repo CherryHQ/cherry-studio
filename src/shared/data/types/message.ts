@@ -86,10 +86,7 @@ export const MessageStatsSchema = z.strictObject({
   inputTokens: z.number().optional(),
   outputTokens: z.number().optional(),
   totalTokens: z.number().optional(),
-  /**
-   * Real end-of-turn context size: the last step's total tokens, rather than
-   * the cumulative per-invocation sum. Message-owned durable-compaction anchor.
-   */
+  /** @deprecated Legacy context count retained for reading stored messages. */
   contextTokens: z.number().optional(),
 
   /** Input token breakdown (cache accounting). Mirrors v6 `inputTokenDetails`. */

@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/bug-fix/2026-11-28-chat-context-request-footprint.md
-2026-11-28-chat-context-request-footprint.md: 46efb64948e93435e42e5d6ea02953a717d90137
-2026-11-28-chat-context-request-footprint.zh.md: 92cb25c699fd95bf5f551a5b07c87fe877d27e88
