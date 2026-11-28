@@ -1,5 +1,5 @@
 import { first } from 'es-toolkit/compat'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 
 import { Avatar, AvatarFallback } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
@@ -22,19 +22,22 @@ interface Props {
   model?: AvatarModel
   size: number
   className?: string
+  fallback?: ReactNode
 }
 
-const ModelAvatar: FC<Props> = ({ model, size, className }) => {
+const ModelAvatar: FC<Props> = ({ model, size, className, fallback }) => {
   const Icon = useIcon(getModelLogoRef(model))
   if (Icon) {
     return <Icon.Avatar size={size} className={className} />
   }
   return (
-    <Avatar
-      className={cn('flex items-center justify-center rounded-lg', className)}
-      style={{ width: size, height: size }}>
-      <AvatarFallback className="rounded-lg">{first(model?.name)}</AvatarFallback>
-    </Avatar>
+    fallback ?? (
+      <Avatar
+        className={cn('flex items-center justify-center rounded-lg', className)}
+        style={{ width: size, height: size }}>
+        <AvatarFallback className="rounded-lg">{first(model?.name)}</AvatarFallback>
+      </Avatar>
+    )
   )
 }
 

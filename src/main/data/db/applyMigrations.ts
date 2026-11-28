@@ -7,6 +7,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { loggerService } from '@logger'
 
 import { CUSTOM_SQL_STATEMENTS } from './customSqls'
+import { repairLegacyAgentSessionTrees } from './repairLegacyAgentSessionTrees'
 import type { DbType } from './types'
 
 const logger = loggerService.withContext('applyMigrations')
@@ -20,6 +21,8 @@ const logger = loggerService.withContext('applyMigrations')
  * and the backup restore pipeline (detached work.sqlite migrate-forward).
  */
 export function applyMigrations(db: DbType, migrationsFolder: string): void {
+  repairLegacyAgentSessionTrees(db, migrationsFolder)
+
   // SQLite cannot alter a table constraint in place, so drizzle-kit compiles any
   // constraint / column-type change into a table recreate (CREATE __new_x →
   // INSERT SELECT → DROP x → RENAME) guarded by its own `PRAGMA foreign_keys=OFF`.

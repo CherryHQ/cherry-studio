@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
@@ -131,15 +132,16 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   )
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [false],
-  useSharedCache: (key: string) =>
-    key === 'agent.model_switch_confirmation.skipped'
-      ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
-      : [null, vi.fn()],
-  useSharedCacheValue: () => undefined,
-  usePersistCache: () => [undefined, vi.fn()]
-}))
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+  return {
+    ...MockUseCache,
+    useSharedCache: (key: string) =>
+      key === 'agent.model_switch_confirmation.skipped'
+        ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
+        : [null, vi.fn()]
+  }
+})
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn(),
@@ -305,10 +307,12 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
 vi.mock('../components/AgentSessionMessages', () => ({
   default: ({
     sessionId,
-    onOpenCitationsPanel
+    onOpenCitationsPanel,
+    onLocalRestoreChecked
   }: {
     sessionId: string
     onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
+    onLocalRestoreChecked?: (unavailable: boolean) => void
   }) => (
     <div data-testid="agent-messages">
       <button
@@ -316,6 +320,16 @@ vi.mock('../components/AgentSessionMessages', () => ({
         onClick={() => onOpenCitationsPanel({ citations: [{ number: 1, url: `/tmp/${sessionId}.md` }] })}>
         open citations
       </button>
+      {onLocalRestoreChecked && (
+        <>
+          <button type="button" onClick={() => onLocalRestoreChecked(true)}>
+            Restore unavailable
+          </button>
+          <button type="button" onClick={() => onLocalRestoreChecked(false)}>
+            Restore available
+          </button>
+        </>
+      )}
     </div>
   )
 }))
@@ -366,6 +380,7 @@ describe('AgentChat settings panel', () => {
     )
 
   beforeEach(() => {
+    MockUseCacheUtils.resetMocks()
     partsByMessageIdMock.value = {}
     topicStreamStatusMock.isPending = false
     activeAgentMock.value = { id: 'agent-1', model: 'provider::model-1' }
@@ -397,6 +412,40 @@ describe('AgentChat settings panel', () => {
       value: {}
     })
   })
+
+  it.each([true, false])(
+    'keeps ACP task history visible while checking whether it can be continued (%s)',
+    async (unavailable) => {
+      const user = userEvent.setup()
+      const openNew = vi.fn()
+      activeAgentMock.value = {
+        id: 'agent-1',
+        type: 'local',
+        localRuntime: {
+          providerId: 'custom-provider',
+          executableOverride: '/custom/acp',
+          enabled: true,
+          args: [],
+          env: {}
+        }
+      }
+      renderAgentChat({ onStartNewTaskConversation: openNew })
+
+      expect(screen.getByTestId('agent-messages')).toBeInTheDocument()
+      expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: unavailable ? 'Restore unavailable' : 'Restore available' }))
+
+      if (unavailable) {
+        expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+        expect(screen.getByText('local_agents.no_resume')).toBeInTheDocument()
+        await user.click(screen.getByRole('button', { name: 'chat.add.topic.title' }))
+        expect(openNew).toHaveBeenCalledWith('agent-1')
+      } else {
+        expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
+        expect(screen.queryByText('local_agents.no_resume')).not.toBeInTheDocument()
+      }
+    }
+  )
 
   it('loads citations on first open and keeps the panel mounted while closing', async () => {
     const user = userEvent.setup()

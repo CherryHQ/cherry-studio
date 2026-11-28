@@ -50,8 +50,10 @@ describe('CherryAssistantSeeder', () => {
     new CherryAssistantSeeder().run(dbh.db)
 
     const [agent] = builtinAgents(dbh.db)
+    expect(agent.type).toBe('pi-durable')
     expect(agent.configuration).toMatchObject({
-      builtin_role: 'assistant'
+      builtin_role: 'assistant',
+      permission_mode: 'auto'
     })
     const [session] = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.agentId, agent.id)).all()
     expect(session).toMatchObject({ agentId: agent.id })

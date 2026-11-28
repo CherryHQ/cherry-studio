@@ -9,6 +9,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -31,6 +32,7 @@ import {
   HoverCardTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { KeyedMessageActivityStore } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -79,6 +81,7 @@ import { useAgentDesktopControls } from '@renderer/hooks/agent/useAgentDesktopCo
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionCost } from '@renderer/hooks/agent/useAgentSessionCost'
 import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useAgentToolParts } from '@renderer/hooks/agent/useAgentToolParts'
@@ -138,12 +141,14 @@ import {
   AgentSessionDetailsLayout
 } from './AgentSessionDetails'
 import { AgentRunTaskStopsProvider, AgentSessionDetailsSections, TaskStatusIcon } from './AgentSessionDetailsSections'
+import { AgentSubscriptionUsage } from './AgentSubscriptionUsage'
 import { AgentWorkspaceOpenShortcut } from './AgentWorkspaceOpenShortcut'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 import { useAgentSessionDetails } from './useAgentSessionDetails'
 
 // ── Agent-specific composition over the generic right panel ─────────────────
 
+const logger = loggerService.withContext('AgentRightPane')
 const FLOW_TAB_PREFIX = 'flow:'
 const FILES_PANE_ID = 'files'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
@@ -208,6 +213,7 @@ interface AgentFlowTab {
 
 interface AgentRightPaneMeta {
   runtimeType?: string
+  subscriptionUsageRevision?: string
   sessionId?: string
   sessionName?: string
   /** Container-level trace id for the session. When developer mode is on, the Trace tab renders this trace tree. */
@@ -611,6 +617,7 @@ function AgentRightPaneActionsProvider({
 
 function AgentRightPaneStateProvider({
   runtimeType,
+  subscriptionUsageRevision,
   children,
   workspaceId,
   workspacePath,
@@ -982,6 +989,7 @@ function AgentRightPaneStateProvider({
   const meta = useMemo<AgentRightPaneMeta>(
     () => ({
       runtimeType,
+      subscriptionUsageRevision,
       sessionId,
       sessionName,
       traceId,
@@ -999,6 +1007,7 @@ function AgentRightPaneStateProvider({
     [
       agentAvatar,
       runtimeType,
+      subscriptionUsageRevision,
       agentId,
       agentName,
       conversationState,
@@ -1770,12 +1779,26 @@ function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPa
 
 function AgentDetailsContent() {
   const meta = useAgentRightPaneMeta()
+  const { sessionId } = meta
   const actions = useAgentRightPaneActions()
   const details = useAgentSessionDetails()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId, meta.model)
-  const compaction = useAgentSessionCompaction(meta.sessionId)
+  const { usage, percentage } = useAgentSessionContextUsage(sessionId, meta.model)
+  const cost = useAgentSessionCost(sessionId)
+  const compaction = useAgentSessionCompaction(sessionId)
   const desktopControls = use(DesktopControlsContext)
+  const refreshMissingUsage = useEffectEvent(async (sessionId: string) => {
+    if (percentage !== null || compaction.status === 'compacting') return
+    try {
+      await ipcApi.request('ai.agent.session.refresh_context_usage', { sessionId })
+    } catch (error) {
+      logger.warn('Could not refresh context usage', { sessionId, error })
+    }
+  })
+  useEffect(() => {
+    if (sessionId) void refreshMissingUsage(sessionId)
+  }, [sessionId])
+
   return (
     <div key={meta.sessionId}>
       <AgentSessionDetailsSections
@@ -1783,11 +1806,15 @@ function AgentDetailsContent() {
         pendingDesktopControls={desktopControls?.pending}
         stopDesktopControl={desktopControls?.stopApp}
         contextUsage={
-          <AgentContextUsageSummary
-            usage={usage}
-            percentage={percentage}
-            isCompacting={compaction.status === 'compacting'}
-          />
+          usage?.used ? (
+            <AgentContextUsageSummary
+              cost={cost}
+              usage={usage}
+              percentage={percentage}
+              isCompacting={compaction.status === 'compacting'}
+              className="py-2"
+            />
+          ) : null
         }
         status={status}
         sessionId={meta.sessionId}
@@ -1811,6 +1838,13 @@ function AgentDetailsContent() {
             : undefined
         }
       />
+      {sessionId && meta.agentId && meta.subscriptionUsageRevision && (
+        <AgentSubscriptionUsage
+          key={JSON.stringify([sessionId, meta.agentId, meta.subscriptionUsageRevision])}
+          agentId={meta.agentId}
+          sessionId={sessionId}
+        />
+      )}
     </div>
   )
 }
