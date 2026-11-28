@@ -4320,6 +4320,41 @@ describe('AiStreamManager', () => {
       void view
     })
 
+    it.each([400, 404, 429, 500])(
+      'does not promote nested image-resource HTTP %s into provider status',
+      async (status) => {
+        vi.useRealTimers()
+        const errorText = `invalid_request_error: The supplied image URL returned HTTP ${status}`
+        const controlled = controlledStream()
+        mockStreamText.mockResolvedValueOnce(controlled.stream)
+        const listener = new FakeListener('l:a')
+        const sender = Object.assign(new EventEmitter(), {
+          isDestroyed: () => false
+        }) as unknown as Electron.WebContents
+        const view = await mgr.attachProjection(sender, 'a', 'subscription', () => undefined)
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [listener]
+        })
+        controlled.enqueue({ type: 'start', messageId: 'reply' })
+        controlled.enqueue({ type: 'error', errorText })
+        controlled.close()
+
+        await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+        expect(listener.errorResults[0].error).toEqual({
+          name: 'StreamError',
+          message: errorText,
+          stack: null,
+          streamStage: 'response-stream'
+        })
+        mgr.detachProjection(sender, 'subscription')
+        sender.emit('destroyed')
+        void view
+      }
+    )
+
     it('keeps app-owned guidance when lossy chunk text precedes a typed rejection', async () => {
       vi.useRealTimers()
       const typedError = Object.assign(new Error('Missing finish reason'), {

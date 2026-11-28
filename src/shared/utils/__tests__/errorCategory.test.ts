@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyErrorCategory, isProxyErrorMessage, isQuotaErrorMessage } from '../errorCategory'
+import {
+  classifyErrorCategory,
+  extractProviderRequestStatus,
+  isProxyErrorMessage,
+  isQuotaErrorMessage
+} from '../errorCategory'
 
 describe('classifyErrorCategory unusable API responses', () => {
   const text =
@@ -617,5 +622,31 @@ describe('request body buffer limit', () => {
     'Failed to buffer the request body: connection closed'
   ])('does not infer a request size rejection from %s', (text) => {
     expect(classifyErrorCategory({ text })).not.toBe('payload')
+  })
+})
+
+describe('provider request status recovery', () => {
+  it.each([
+    '400: Invalid image count',
+    'HTTP 400 Invalid image count',
+    'HTTP/1.1 400 Bad Request',
+    'API Error: 400 Invalid image count',
+    'Request rejected (400)',
+    'API error (400)'
+  ])('recovers the provider request marker: %s', (text) => {
+    expect(extractProviderRequestStatus(text)).toBe(400)
+    expect(classifyErrorCategory({ text })).toBe('bad_request')
+  })
+
+  it.each([400, 404, 429, 500])('ignores nested resource HTTP %s in validation text', (status) => {
+    const text = `invalid_request_error: The supplied image URL returned HTTP ${status}`
+    expect(classifyErrorCategory({ text })).toBe('bad_request')
+    expect(extractProviderRequestStatus(text)).toBeUndefined()
+  })
+
+  it('does not promote an embedded 400 without validation evidence', () => {
+    const text = 'The supplied image URL returned HTTP 400'
+    expect(extractProviderRequestStatus(text)).toBeUndefined()
+    expect(classifyErrorCategory({ text })).toBe('unknown')
   })
 })
