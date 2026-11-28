@@ -619,6 +619,67 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('detects a truncated Windows npm prefix install via the package entry, not the launcher', async () => {
+      // Windows npm global layout: launcher at the install prefix, host nested
+      // under the top package's own node_modules. createRequire from the
+      // launcher cannot see the host, so the fast path alone would report
+      // healthy. The package-entry fallback must still fail closed.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      const prefix = '/mock/mise/installs/npm-deepseek-ai-dsh/0.1.1-rc.2'
+      const launcher = `${prefix}/dsh`
+      const nestedHost = `${prefix}/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-agent-loop/lib/index.js`
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true, install_path: prefix }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') {
+          return { stdout: `${launcher}\n`, stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) =>
+        String(candidate).includes(path.join('node_modules', '@deepseek-ai', 'dsh'))
+      )
+      mockCreateRequire.mockImplementation((filename: string) => ({
+        resolve: (request: string) => {
+          if (filename === launcher) {
+            // Launcher at the prefix cannot see the nested host.
+            throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
+              code: 'MODULE_NOT_FOUND'
+            })
+          }
+          if (String(filename).includes(path.join('node_modules', '@deepseek-ai', 'dsh'))) {
+            if (request === '@deepseek-ai/dsh-agent-loop') return nestedHost
+            if (request === '@deepseek-ai/dsh-scope') {
+              throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
+                code: 'MODULE_NOT_FOUND'
+              })
+            }
+          }
+          if (filename === nestedHost) {
+            throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
+              code: 'MODULE_NOT_FOUND'
+            })
+          }
+          throw new Error(`Unexpected package resolution: ${request} from ${filename}`)
+        }
+      }))
+
+      await expect(service.getToolSnapshots(['dsh'])).resolves.toMatchObject({
+        dsh: {
+          availability: { source: 'none' },
+          application: { status: 'broken', version: '0.1.1-rc.2' }
+        }
+      })
+    })
+
     it('stays applied when the recipe restructured away the package that hosts its required peer', async () => {
       // A renamed/absorbed host says the package graph moved on, not that this
       // install is incomplete — failing closed would strand the tool at broken
@@ -2860,8 +2921,11 @@ describe('BinaryManager', () => {
 
       expect(reinstalled).toBe(true)
       // A truncated tree still reports an active version, so a plain `mise use`
-      // would no-op. The repair must wipe the recipe first (#19313).
-      expect(miseArgs()).toContainEqual(['uninstall', '--all', 'npm:@deepseek-ai/dsh'])
+      // would no-op. The repair must wipe the affected install first (#19313).
+      // Scoped to the broken version; `--all` is only the fallback when the
+      // active version cannot be proven.
+      expect(miseArgs()).toContainEqual(['uninstall', 'npm:@deepseek-ai/dsh@0.1.1-rc.2'])
+      expect(miseArgs()).not.toContainEqual(['uninstall', '--all', 'npm:@deepseek-ai/dsh'])
       expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest'])
       const dshUseCall = mockExecFileAsync.mock.calls.find((call: any[]) =>
         (call[1] as string[]).includes('npm:@deepseek-ai/dsh@latest')
@@ -2905,6 +2969,121 @@ describe('BinaryManager', () => {
       await expect(service.installByName({ name: 'dsh' })).rejects.toThrow(
         `missing '@deepseek-ai/dsh-scope' required by '@deepseek-ai/dsh-agent-loop'`
       )
+    })
+
+    it('repairs a truncated Windows npm prefix install through the version-scoped reinstall', async () => {
+      // End-to-end through the repair path: launcher at the prefix misses the
+      // nested host, but the package-entry fallback still detects the missing
+      // peer and triggers a scoped wipe with Node provisioned first.
+      const service = makeService()
+      let reinstalled = false
+      ;(service as any).isolatedEnv = {
+        env: { PATH: ['/mock/mise/shims', '/usr/bin'].join(path.delimiter) },
+        usesDefaultChinaPipIndex: false
+      }
+      const prefix = '/mock/mise/installs/npm-deepseek-ai-dsh/0.1.1-rc.2'
+      const launcher = `${prefix}/dsh`
+      const nestedHost = `${prefix}/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-agent-loop/lib/index.js`
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) =>
+        String(candidate).includes(path.join('node_modules', '@deepseek-ai', 'dsh'))
+      )
+      mockCreateRequire.mockImplementation((filename: string) => ({
+        resolve: (request: string) => {
+          if (filename === launcher) {
+            throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
+              code: 'MODULE_NOT_FOUND'
+            })
+          }
+          if (String(filename).includes(path.join('node_modules', '@deepseek-ai', 'dsh'))) {
+            if (request === '@deepseek-ai/dsh-agent-loop') return nestedHost
+            if (request === '@deepseek-ai/dsh-scope' && !reinstalled) {
+              throw Object.assign(new Error(`Cannot find package ${request}`), { code: 'MODULE_NOT_FOUND' })
+            }
+            if (request === '@deepseek-ai/dsh-scope') return '/mock/dsh-scope/lib/index.js'
+          }
+          if (filename === nestedHost) {
+            if (request === '@deepseek-ai/dsh-scope' && !reinstalled) {
+              throw Object.assign(new Error(`Cannot find package ${request}`), { code: 'MODULE_NOT_FOUND' })
+            }
+            if (request === '@deepseek-ai/dsh-scope') return '/mock/dsh-scope/lib/index.js'
+          }
+          if (filename === '/mock/dsh/lib/bin.js' && request === '@deepseek-ai/dsh-agent-loop') {
+            return nestedHost
+          }
+          throw new Error(`Unexpected package resolution: ${request} from ${filename}`)
+        }
+      }))
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true, install_path: prefix }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args.includes('npm:@deepseek-ai/dsh@latest')) reinstalled = true
+        if (args[0] === 'which' && args[1] === 'node') {
+          return { stdout: `${path.join(NODE_RUNTIME_BIN, 'node')}\n`, stderr: '' }
+        }
+        if (args[0] === 'which' && args[1] === 'npm') {
+          return { stdout: `${path.join(NODE_RUNTIME_BIN, 'npm')}\n`, stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: `${launcher}\n`, stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'dsh' })).resolves.toBeUndefined()
+
+      expect(reinstalled).toBe(true)
+      // Scoped to the broken version, not a recipe-wide wipe.
+      expect(miseArgs()).toContainEqual(['uninstall', 'npm:@deepseek-ai/dsh@0.1.1-rc.2'])
+      expect(miseArgs()).not.toContainEqual(['uninstall', '--all', 'npm:@deepseek-ai/dsh'])
+      // Node is provisioned before the destructive repair so a Node failure
+      // cannot delete versions the base path would have kept.
+      const calls = miseArgs()
+      const nodePin = calls.findIndex((args: string[]) => args.includes('node@22.23.2') && args[0] === 'use')
+      const unuse = calls.findIndex((args: string[]) => args[0] === 'unuse')
+      expect(nodePin).toBeGreaterThanOrEqual(0)
+      expect(unuse).toBeGreaterThanOrEqual(0)
+      expect(nodePin).toBeLessThan(unuse)
+    })
+
+    it('keeps an intact tree when only the shim is missing and reports a runnable failure', async () => {
+      // A missing shim with a present peer must not trigger a destructive
+      // repair, and the post-install gate must not mislabel it as a peer loss.
+      const service = makeService()
+      ;(service as any).isolatedEnv = {
+        env: { PATH: ['/mock/mise/shims', '/usr/bin'].join(path.delimiter) },
+        usesDefaultChinaPipIndex: false
+      }
+      mockCreateRequire.mockImplementation(() => ({
+        resolve: (request: string) => {
+          if (request === '@deepseek-ai/dsh-agent-loop') return '/mock/dsh-agent-loop/lib/index.js'
+          if (request === '@deepseek-ai/dsh-scope') return '/mock/dsh-scope/lib/index.js'
+          throw new Error(`Unexpected package resolution: ${request}`)
+        }
+      }))
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which' && (args[1] === 'node' || args[1] === 'npm')) {
+          return { stdout: `${path.join(NODE_RUNTIME_BIN, args[1])}\n`, stderr: '' }
+        }
+        // The managed shim target is gone, but the package tree is intact.
+        if (args[0] === 'which') throw new Error('tool dsh not found')
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'dsh' })).rejects.toThrow('not runnable')
+      await expect(service.installByName({ name: 'dsh' })).rejects.toThrow(/^((?!dsh-scope).)*$/s)
+      expect(miseArgs().some((args: string[]) => args[0] === 'uninstall')).toBe(false)
     })
   })
 

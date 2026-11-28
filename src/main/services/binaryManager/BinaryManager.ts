@@ -632,7 +632,7 @@ export class BinaryManager extends BaseService {
         if (!(await this.isWithinInstall(activeEntry, runnable.canonical))) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
-        if (!this.hasRequiredRuntimeDependencies(tool, runnable.canonical)) {
+        if (!this.hasRequiredRuntimeDependencies(tool, runnable.canonical, activeEntry.install_path)) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
         return {
@@ -1376,7 +1376,7 @@ export class BinaryManager extends BaseService {
     return (
       runnable !== null &&
       (await this.isWithinInstall(activeEntry, runnable.canonical)) &&
-      this.hasRequiredRuntimeDependencies(tool, runnable.canonical)
+      this.hasRequiredRuntimeDependencies(tool, runnable.canonical, activeEntry.install_path)
     )
   }
 
@@ -1384,27 +1384,113 @@ export class BinaryManager extends BaseService {
    * Whether a recipe declaring a required peer still has it, resolved the way the
    * tool's own runtime would. A recipe declaring none passes untouched, so this
    * costs nothing for the tools that install completely.
+   *
+   * The launcher path alone is not a reliable base on Windows: the default npm
+   * global layout puts the launcher at the install prefix while the host can live
+   * under the top package's own `node_modules`. A `createRequire` from the
+   * launcher then misses the host and would report a truncated tree as healthy.
+   * When the fast path cannot see the host, fall back to the top package's own
+   * entry (`<install>/node_modules/<pkg>/package.json`) so a nested host still
+   * resolves and a missing peer still fails closed (#19313).
    */
-  private hasRequiredRuntimeDependencies(tool: string, entryPath: string): boolean {
+  private hasRequiredRuntimeDependencies(tool: string, entryPath: string, installPath?: string): boolean {
     const required = MISE_REQUIRED_PEERS.get(tool)
     if (!required) return true
-    let hostEntry: string
     try {
-      hostEntry = createRequire(entryPath).resolve(required.host)
+      const hostEntry = createRequire(entryPath).resolve(required.host)
+      try {
+        createRequire(hostEntry).resolve(required.peer)
+        return true
+      } catch (error) {
+        logger.warn('Managed tool dependency tree is incomplete', {
+          tool,
+          ...required,
+          error: this.errorMessage(error)
+        })
+        return false
+      }
     } catch {
-      // An absent host means the recipe restructured its packages, which is not
-      // evidence that THIS install lost the peer — never fail a tool closed on it.
+      // Fast path missed the host: either the recipe restructured (healthy) or
+      // the launcher sits outside the package tree (Windows npm prefix). Only the
+      // package-entry fallback can tell them apart.
+    }
+    const topPackage = tool
+      .split(':')
+      .slice(1)
+      .join(':')
+      .replace(/\[[^\]]*\]/g, '')
+    if (!topPackage || !topPackage.includes('/')) {
+      // Non-scoped or unparseable spec: no package-entry fallback to try.
       return true
     }
+    const candidateBases: string[] = []
+    if (typeof installPath === 'string' && installPath) candidateBases.push(installPath)
     try {
-      createRequire(hostEntry).resolve(required.peer)
-      return true
-    } catch (error) {
-      logger.warn('Managed tool dependency tree is incomplete', {
-        tool,
-        ...required,
-        error: this.errorMessage(error)
-      })
+      const launcherDir = path.dirname(entryPath)
+      candidateBases.push(launcherDir, path.dirname(launcherDir))
+    } catch {
+      // entryPath without a dirname: fall back to installPath candidates only.
+    }
+    for (const base of candidateBases) {
+      for (const pkgDir of [
+        path.join(base, 'node_modules', topPackage),
+        path.join(base, 'lib', 'node_modules', topPackage)
+      ]) {
+        let pkgFile = path.join(pkgDir, 'package.json')
+        try {
+          if (!fs.existsSync(pkgDir) && !fs.existsSync(pkgFile)) continue
+        } catch {
+          continue
+        }
+        // createRequire needs a file inside the package; package.json keeps the
+        // lookup anchored to the package dir even when its main entry moves.
+        try {
+          pkgFile = fs.existsSync(pkgFile) ? pkgFile : path.join(pkgDir, 'index.js')
+        } catch {
+          continue
+        }
+        let hostEntry: string
+        try {
+          hostEntry = createRequire(pkgFile).resolve(required.host)
+        } catch {
+          continue
+        }
+        try {
+          createRequire(hostEntry).resolve(required.peer)
+          return true
+        } catch (error) {
+          logger.warn('Managed tool dependency tree is incomplete', {
+            tool,
+            ...required,
+            error: this.errorMessage(error)
+          })
+          return false
+        }
+      }
+    }
+    // An absent host means the recipe restructured its packages, which is not
+    // evidence that THIS install lost the peer — never fail a tool closed on it.
+    return true
+  }
+
+  /**
+   * Whether the required peer is verified missing (not just a missing shim).
+   * Returns true only when a runnable target resolves but its peer does not;
+   * a missing shim or unreadable backend returns false so callers keep the
+   * generic runnable failure and avoid destructive repair of an intact tree.
+   */
+  private async isPeerMissing(definition: InstallableToolDefinition): Promise<boolean> {
+    if (!MISE_REQUIRED_PEERS.has(definition.tool)) return false
+    try {
+      const { stdout } = await this.runMise(['ls', '--json', definition.tool])
+      const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+      const activeEntry = entries.find((entry) => entry.active)
+      if (!activeEntry) return false
+      const runnable = await this.resolveRunnableShim(definition.name, definition.tool)
+      if (!runnable) return false
+      if (!(await this.isWithinInstall(activeEntry, runnable.canonical))) return false
+      return !this.hasRequiredRuntimeDependencies(definition.tool, runnable.canonical, activeEntry.install_path)
+    } catch {
       return false
     }
   }
@@ -1562,7 +1648,7 @@ export class BinaryManager extends BaseService {
     definition: InstallableToolDefinition,
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[],
-    opts?: { forceCleanReinstall?: boolean }
+    opts?: { forceCleanReinstall?: boolean; cleanVersion?: string }
   ): Promise<string> {
     const requested = targetVersion ?? definition.requestedVersion ?? 'latest'
     const backend = definition.tool.split(':')[0]
@@ -1615,9 +1701,16 @@ export class BinaryManager extends BaseService {
     const installTimeoutMs =
       definition.installTimeoutMs ?? MISE_INSTALL_TIMEOUT_OVERRIDES.get(definition.tool) ?? MISE_INSTALL_TIMEOUT_MS
 
+    // Provision the npm runtime before any destructive repair: if Node lookup
+    // fails, Retry must keep the existing tree so the base path still applies.
+    // A missing shim alone must not wipe an otherwise intact install.
+    const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
+
     // A truncated tree still reports an active version, so a plain `mise use`
     // can no-op on the same version and leave the missing peer behind. Wipe
-    // the recipe first so the retry below performs a full reinstall (#19313).
+    // the affected install first so the retry below performs a full reinstall
+    // (#19313). Scoped to the broken version when known; `--all` is only the
+    // fallback when the active version cannot be proven.
     if (opts?.forceCleanReinstall) {
       try {
         await this.runMise(['unuse', '-g', definition.tool], { timeoutMs: installTimeoutMs })
@@ -1627,11 +1720,15 @@ export class BinaryManager extends BaseService {
           error: this.errorMessage(error)
         })
       }
-      await this.runMise(['uninstall', '--all', definition.tool], { timeoutMs: installTimeoutMs })
+      if (opts.cleanVersion) {
+        await this.runMise(['uninstall', `${definition.tool}@${opts.cleanVersion}`], {
+          timeoutMs: installTimeoutMs
+        })
+      } else {
+        await this.runMise(['uninstall', '--all', definition.tool], { timeoutMs: installTimeoutMs })
+      }
       await this.runMise(['reshim'])
     }
-
-    const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
     // Cherry provisions Python itself, so the pipx runtime stays out of `mise
     // use` — naming it there is what makes mise fetch its own Python.
     const pythonPath =
@@ -1839,7 +1936,7 @@ export class BinaryManager extends BaseService {
     definition: InstallableToolDefinition,
     targetVersion: string | undefined,
     definitions: CustomToolDefinition[],
-    opts?: { forceCleanReinstall?: boolean }
+    opts?: { forceCleanReinstall?: boolean; cleanVersion?: string }
   ): Promise<void> {
     const isRuntime = isRuntimeDependency(definition.tool)
     // Adoption stays deliberately looser than the post-install gate: it only asks
@@ -1862,7 +1959,10 @@ export class BinaryManager extends BaseService {
     await this.installWithMise(definition, targetVersion, definitions, opts)
     if (!(await this.isRecipeRunnable(definition.name, definition.tool))) {
       const required = MISE_REQUIRED_PEERS.get(definition.tool)
-      if (required) {
+      // A missing shim alone leaves an otherwise intact tree: report the
+      // runnable failure, not a peer failure, so Retry does not mislabel it.
+      // Only a verified peer loss names the missing package.
+      if (required && (await this.isPeerMissing(definition))) {
         throw new Error(
           `Tool installed but incomplete: missing '${required.peer}' required by '${required.host}'. Retry the install; if it persists, remove the tool and install again`
         )
@@ -1993,8 +2093,21 @@ export class BinaryManager extends BaseService {
           // A broken required-peer install (e.g. DSH missing dsh-scope) still
           // reports an active version, so a plain `mise use` would no-op.
           // Force a clean reinstall so Retry actually repairs the tree (#19313).
-          const forceCleanReinstall = status === 'broken' && MISE_REQUIRED_PEERS.has(definition.tool)
-          await this.applyDefinition(definition, targetVersion, definitions, { forceCleanReinstall })
+          // Only a verified peer loss wipes: a missing shim alone keeps its tree
+          // so a later Node failure does not delete versions the base path kept.
+          let forceCleanReinstall = false
+          let cleanVersion: string | undefined
+          if (status === 'broken' && MISE_REQUIRED_PEERS.has(definition.tool)) {
+            if (await this.isPeerMissing(definition)) {
+              forceCleanReinstall = true
+              cleanVersion = snapshot.application?.status === 'broken' ? snapshot.application.version : undefined
+            } else {
+              logger.info('Skipping clean reinstall; required peer is present (likely a shim failure)', {
+                name: definition.name
+              })
+            }
+          }
+          await this.applyDefinition(definition, targetVersion, definitions, { forceCleanReinstall, cleanVersion })
           return { kind: 'done' }
         } catch (err) {
           return { kind: 'failed', error: err instanceof Error ? err.message : String(err) }
