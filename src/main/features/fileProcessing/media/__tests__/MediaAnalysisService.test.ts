@@ -1259,7 +1259,10 @@ describe('MediaAnalysisService', () => {
         }
       })
 
-      await Promise.all([service.analyze(file), service.analyze(file)])
+      // One service shares concurrent sends, so a second instance is what still overlaps on the cache.
+      BaseService.resetInstances()
+      const otherService = new MediaAnalysisService()
+      await Promise.all([service.analyze(file), otherService.analyze(file)])
       runtime.generateText.mockImplementation(async () => ({ text: '' }))
       const third = await service.analyze(file)
 
