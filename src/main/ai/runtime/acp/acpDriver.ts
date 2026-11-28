@@ -91,9 +91,9 @@ async function readAcpSubscriptionUsage(
 
 export function bindAccount(config: LocalAgentConfiguration): RuntimeAccountAccess {
   const cwd = application.getPath('cherry.bin')
-  const target = usesPresetAcpLaunch(config) ? acpPreset(config.presetId) : undefined
-  const usage = target?.subscriptionUsage
-  const account = target?.account
+  const preset = acpPreset(config.presetId)
+  const usePreset = usesPresetAcpLaunch(config)
+  const account = usePreset ? preset?.account : undefined
   return {
     ...(account && {
       async readAccount(signal) {
@@ -104,7 +104,9 @@ export function bindAccount(config: LocalAgentConfiguration): RuntimeAccountAcce
       }
     }),
     async readSubscriptionUsage(signal) {
-      if (config.sourceModelViaGateway) return { status: 'unsupported' }
+      const presetUsage = preset?.subscriptionUsage
+      if (config.sourceModelViaGateway || presetUsage === 'unsupported') return { status: 'unsupported' }
+      const usage = usePreset ? presetUsage : undefined
       if (!usage || usage.transport === 'acp') {
         return readAcpSubscriptionUsage(config, cwd, usage?.read ?? readNegotiatedAcpUsage, signal)
       }
