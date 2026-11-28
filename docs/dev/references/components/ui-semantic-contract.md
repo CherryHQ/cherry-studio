@@ -149,8 +149,10 @@ The maintained feature surfaces currently include:
 - `notes.view`, `notes.navigation`, `notes.editor`, and `notes.editor-footer`;
 - `translate.view`, `translate.input`, `translate.output`, `translate.custom-languages`, and `translate.custom-language`;
 - `paintings.view`;
-- `code.view`, `code.navigation`, `code.content`, and `code.provider-card`;
+- `code.view`, `code.navigation`, and `code.content` for Agent Services;
 - `mini-apps.view`.
+
+The legacy `code.provider-card` selector applied to the provider cards on the former CLI page. Agent Services shows model lists in their place.
 
 The maintained chat surface currently includes:
 

@@ -28,7 +28,7 @@ function ChatCitationSupRenderer(props: MarkdownRendererProps<'sup'>) {
 function getCodeFilePath({ text, language, isIncomplete }: ReturnType<typeof useMarkdownCode>) {
   if (isIncomplete || (language !== null && language !== 'text')) return null
   const path = normalizeInlineFilePath(text)
-  return path && (isKnownNavigationPath(path) || (!isWin && isInlineFilePath(text))) ? path : null
+  return path && (isKnownNavigationPath(path) || isInlineFilePath(text, isWin ? 'windows' : 'posix')) ? path : null
 }
 
 function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {

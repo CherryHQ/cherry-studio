@@ -16,6 +16,7 @@ const { generateTextMock, ipcRequestMock, ipcEvents } = vi.hoisted(() => ({
       (args: {
         requestId?: string
         uniqueModelId: string
+        utilityTask?: boolean
         reasoningEffort?: string
         system?: string
         prompt?: string
@@ -63,6 +64,20 @@ beforeEach(async () => {
 describe('aiGeneration reasoning opt-out', () => {
   it('fetchNoteSummary disables reasoning on the naming request', async () => {
     expect(await fetchNoteSummary({ content: 'note body' })).toBe('A title')
+  })
+})
+
+describe('signed-out CherryAI opt-in', () => {
+  it('lets topic and note naming use the built-in free model while signed out', async () => {
+    await fetchMessagesSummary({ messages: [] })
+    await fetchNoteSummary({ content: 'note body' })
+    expect(generateTextMock.mock.calls.map(([input]) => input.utilityTask)).toEqual([true, true])
+  })
+
+  it('fetchGenerate opts in only when its caller asks', async () => {
+    await fetchGenerate({ prompt: 'p', content: 'c', utilityTask: true })
+    await fetchGenerate({ prompt: 'p', content: 'c' })
+    expect(generateTextMock.mock.calls.map(([input]) => input.utilityTask)).toEqual([true, undefined])
   })
 })
 

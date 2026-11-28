@@ -40,6 +40,8 @@ export type ClaudeControl =
       sessionId: string
       messageUuid?: string
       terminal: boolean
+      stopReason?: SDKResultMessage['stop_reason']
+      permissionDenied?: true
       usage: SDKResultMessage['usage']
       reasoningTokens?: number
       failure?: ClaudeResultFailure
@@ -169,6 +171,8 @@ export class ClaudeControlState {
         sessionId: message.session_id,
         messageUuid: this.messageUuid,
         terminal: this.isTurnActive,
+        ...(message.stop_reason && { stopReason: message.stop_reason }),
+        ...(message.permission_denials?.length && { permissionDenied: true as const }),
         usage: message.usage,
         reasoningTokens: this.reasoningTokens,
         failure: resultFailure(message)

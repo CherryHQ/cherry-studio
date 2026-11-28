@@ -83,6 +83,7 @@ export function useResourceAutoConfigure(kind: AutoConfigKind) {
         content: buildAutoConfigInput({ kind, catalogs, ...input }),
         throwOnError: true,
         signal,
+        utilityTask: true,
         onTextDelta: onProgress
           ? (delta) => {
               streamed += delta
