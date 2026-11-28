@@ -455,4 +455,17 @@ describe('ModelSettings', () => {
     ).toHaveAccessibleDescription('GPT-4o')
     expect(harness.preferenceSetters[preferenceKey]).not.toHaveBeenCalled()
   })
+
+  it('shows a stored vision model that lost image input as unset', () => {
+    const preferenceKey = 'feature.file_processing.default_video_vision_model'
+    const editedModel: Model = { ...createModel('openai', 'gpt-4o'), name: 'GPT-4o' }
+    harness.preferenceValues[preferenceKey] = editedModel.id
+    harness.modelsById[editedModel.id] = editedModel
+
+    render(<ModelSettings />)
+
+    const picker = screen.getByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })
+    expect(picker).toHaveTextContent('settings.models.empty')
+    expect(picker).not.toHaveTextContent('GPT-4o')
+  })
 })

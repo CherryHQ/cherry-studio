@@ -130,6 +130,9 @@ const VideoVisionModelSettings: FC<VideoVisionModelSettingsProps> = ({ providers
   const [modelId, setModelId] = usePreference('feature.file_processing.default_video_vision_model')
   const selectedModelId = isUniqueModelId(modelId) ? modelId : undefined
   const { model } = useModelById(selectedModelId)
+  // Media analysis rejects a saved model that lost image input, so show it as unset like a deleted one.
+  const modelProvider = model && providers.find((item) => item.id === model.providerId)
+  const eligibleModel = model && isVideoVisionSelectableModel(model, modelProvider) ? model : undefined
   const title = t('settings.tool.file_processing.video_vision.title')
   const handleSelect = useCallback(
     (selected: Model | undefined) => {
@@ -149,7 +152,7 @@ const VideoVisionModelSettings: FC<VideoVisionModelSettingsProps> = ({ providers
       description={showDescription ? t('settings.tool.file_processing.video_vision.description') : undefined}>
       <DefaultModelSelector
         aria-label={title}
-        model={model}
+        model={eligibleModel}
         providers={providers}
         filter={isVideoVisionSelectableModel}
         offerFilter={isVideoVisionOffer}
