@@ -99,7 +99,10 @@ describe('CherryCloudQuotaNotice', () => {
     expect(screen.getByText('登录 AMD 授权后即可免费使用')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'AMD 授权' }))
 
-    expect(request).toHaveBeenCalledWith('cherry_cloud.amd_entry.open', { modelId: 'amd/qwen' })
+    expect(request).toHaveBeenCalledWith('cherry_cloud.amd_entry.open', {
+      modelId: 'amd/qwen',
+      flowId: expect.any(String)
+    })
     expect(tracked()).toContainEqual(expect.objectContaining({ event: 'amd_entry_clicked', modelId: 'amd/qwen' }))
     expect(startCherryCloudSubscription).not.toHaveBeenCalled()
   })

@@ -41,6 +41,7 @@ import {
 } from '@shared/ipc/schemas/cherryCloud'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import { Sequencer } from '@shared/utils/async'
+import { sinceClickBucket } from '@shared/utils/sinceClick'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
 import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
@@ -85,6 +86,7 @@ const SYNC_INVALIDATING_FORBIDDEN_CODES = new Set([
 ])
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
+type AmdEntryClick = { flowId: string; modelId: string; at: number }
 type CherryCloudDevice = ReturnType<typeof createDeviceKeyPair>
 type AuthorizationOperation = {
   controller: AbortController
@@ -233,7 +235,12 @@ export class CherryCloudService extends BaseService {
   private authorizationOperation: AuthorizationOperation | null = null
   private loginPromise: { operation: AuthorizationOperation; promise: Promise<CherryCloudLoginResult> } | null = null
   private subscriptionPromise: Promise<void> | null = null
-  private amdEntryPromise: Promise<void> | null = null
+  // The in-flight entry and the clicks that joined it; each click gets the shared outcome under its own flow.
+  private amdEntry: { promise: Promise<void>; clicks: AmdEntryClick[] } | null = null
+  // AMD analytics: the latest entry per model, AMD models in the catalog, and those locked at the last signed-in sync.
+  private readonly amdEntries = new Map<string, { flowId: string; at: number; scopeId: string }>()
+  private amdModelIds = new Set<string>()
+  private lockedAmdModels: { scopeId: string; ids: Set<string> } | null = null
   private revision = 0
   private readonly accountRefreshQueue = new Sequencer()
   private readonly accountRefreshes = new Set<AbortController>()
@@ -304,7 +311,7 @@ export class CherryCloudService extends BaseService {
     this.authorizationOperation = null
     this.loginPromise = null
     this.subscriptionPromise = null
-    this.amdEntryPromise = null
+    this.amdEntry = null
   }
 
   protected async onDestroy(): Promise<void> {
@@ -946,22 +953,55 @@ export class CherryCloudService extends BaseService {
   }
 
   /** Signs in when required, then opens the single-use AMD entry the server issues for the model. */
-  public async openAmdEntry(senderId: WindowId | null, modelId: string): Promise<void> {
-    if (!this.amdEntryPromise) {
-      const entry = this.openAmdEntryOnce(senderId, modelId).finally(() => {
-        if (this.amdEntryPromise === entry) this.amdEntryPromise = null
-      })
-      this.amdEntryPromise = entry
+  public async openAmdEntry(senderId: WindowId | null, modelId: string, flowId?: string): Promise<void> {
+    let entry = this.amdEntry
+    if (!entry) {
+      const clicks: AmdEntryClick[] = []
+      entry = { promise: this.openAmdEntryOnce(senderId, modelId, clicks), clicks }
+      this.amdEntry = entry
     }
-    return this.amdEntryPromise
+    if (flowId) entry.clicks.push({ flowId, modelId, at: Date.now() })
+    return entry.promise
   }
 
-  private async openAmdEntryOnce(senderId: WindowId | null, modelId: string): Promise<void> {
+  private async openAmdEntryOnce(senderId: WindowId | null, modelId: string, clicks: AmdEntryClick[]): Promise<void> {
+    let scopeId: string | null = null
+    const settle = (outcome: 'opened' | 'already_authorized' | 'not_signed_in' | 'cancelled' | 'failed') => {
+      // Later clicks start a new attempt instead of joining one that has already settled.
+      if (this.amdEntry?.clicks === clicks) this.amdEntry = null
+      // An attempt that outlived its account is reported unscoped and leaves no correlation behind.
+      const result = scopeId && !this.isCurrentScope(scopeId) ? 'cancelled' : outcome
+      if (result === 'opened' && scopeId) {
+        for (const click of clicks) this.amdEntries.set(click.modelId, { ...click, scopeId })
+      }
+      // A cancelled attempt may have crossed an account switch, so it is not credited to any account.
+      const reportScope = result === 'cancelled' ? null : scopeId
+      for (const click of clicks)
+        void trackCherryCloudAnalyticsEvent(
+          { event: 'amd_entry_open', flowId: click.flowId, modelId: click.modelId, result },
+          reportScope
+        ).catch(() => undefined)
+    }
+    try {
+      settle(await this.openAmdEntryAttempt(senderId, modelId, (id) => (scopeId = id)))
+    } catch (error) {
+      settle('failed')
+      throw error
+    }
+  }
+
+  private async openAmdEntryAttempt(
+    senderId: WindowId | null,
+    modelId: string,
+    onScope: (scopeId: string) => void
+  ): Promise<'opened' | 'already_authorized' | 'not_signed_in' | 'cancelled'> {
     const generation = this.lifecycleGeneration
     let status = await this.getStatus()
+    onScope(status.scopeId)
     if (status.phase !== 'signed-in') {
       const result = await this.startLogin()
-      if (result.outcome !== 'signed-in') return
+      onScope(result.status.scopeId)
+      if (result.outcome !== 'signed-in') return 'not_signed_in'
       status = result.status
     }
     const isSenderCurrent = () => {
@@ -973,13 +1013,14 @@ export class CherryCloudService extends BaseService {
         this.isCurrentScope(status.scopeId)
       )
     }
-    if (!isSenderCurrent()) return
+    if (!isSenderCurrent()) return 'cancelled'
     const models = await this.syncEntitledModelsIfStale()
     // Signing in may reveal the account already authorized AMD; the refreshed picker then offers the model.
-    if (models.entitledModelIds.includes(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, modelId))) return
+    if (models.entitledModelIds.includes(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, modelId)))
+      return 'already_authorized'
     const endpoint = models.amdActivationRequiredModels.find((model) => model.id === modelId)?.activation_endpoint
     if (!endpoint) throw new CherryCloudAmdEntryError('the model offers no activation entry')
-    if (!isSenderCurrent()) return
+    if (!isSenderCurrent()) return 'cancelled'
     // authenticatedFetch refuses any endpoint outside the Cloud API origin.
     const response = await this.authenticatedFetch(endpoint, {
       method: 'POST',
@@ -996,8 +1037,47 @@ export class CherryCloudService extends BaseService {
     if (new URL(entryUrl).origin !== new URL(resolveCherryCloudApiOrigin()).origin) {
       throw new CherryCloudAmdEntryError('entry is not on the Cherry Cloud API origin')
     }
-    if (!isSenderCurrent()) return
+    if (!isSenderCurrent()) return 'cancelled'
     await abortable(shell.openExternal(entryUrl), AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS))
+    return 'opened'
+  }
+
+  /**
+   * Returns a reporter for one request's model invocations, bound to the account scope at its start: an
+   * invocation that finished after an account switch is not credited to the new account.
+   */
+  public amdModelUseReporter(composer: 'chat' | 'agent'): (providerId: string, modelId: string) => void {
+    const scopeId = this.getCurrentScopeId()
+    return (providerId, modelId) => {
+      if (!this.amdModelIds.has(createUniqueModelId(providerId, modelId))) return
+      void trackCherryCloudAnalyticsEvent({ event: 'amd_model_used', modelId, composer }, scopeId).catch(
+        () => undefined
+      )
+    }
+  }
+
+  /** Locked AMD models of this account that a later sync shows usable; the first sync only records the baseline. */
+  private reportAmdActivations(amdModels: CloudCatalogModel[]): void {
+    const scopeId = this.getCurrentScopeId()
+    const locked = new Set(amdModels.filter((model) => model.activation_required === true).map((model) => model.id))
+    const before = this.lockedAmdModels?.scopeId === scopeId ? this.lockedAmdModels.ids : null
+    this.lockedAmdModels = { scopeId, ids: locked }
+    if (!before) return
+    for (const model of amdModels) {
+      if (!before.has(model.id) || locked.has(model.id)) continue
+      const recorded = this.amdEntries.get(model.id)
+      const entry = recorded?.scopeId === scopeId ? recorded : undefined
+      const sinceClick = entry ? sinceClickBucket(Date.now() - entry.at) : 'none'
+      void trackCherryCloudAnalyticsEvent(
+        {
+          event: 'amd_activation_detected',
+          modelId: model.id,
+          sinceClick,
+          ...(entry && sinceClick !== 'over_24h' && { flowId: entry.flowId })
+        },
+        scopeId
+      ).catch(() => undefined)
+    }
   }
 
   private invalidateAccountRefreshes(): void {
@@ -1154,6 +1234,9 @@ export class CherryCloudService extends BaseService {
           ? signedIn || model.requires_login === false
           : entitledModelIds.has(model.id)
     const lockedAmdModels = catalog.data.filter((model) => isAmdModel(model) && model.activation_required === true)
+    const amdModels = catalog.data.filter(isAmdModel)
+    this.amdModelIds = new Set(amdModels.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)))
+    if (signedIn) this.reportAmdActivations(amdModels)
     const signInRequiredModels = catalog.data.filter((model) => model.standalone === true && !usable(model))
     const models = catalog.data.filter(usable)
     const quotaAvailableByModelId = new Map<string, boolean>()
@@ -1610,7 +1693,7 @@ export class CherryCloudService extends BaseService {
     this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
     this.subscriptionPromise = null
-    this.amdEntryPromise = null
+    this.amdEntry = null
     this.invalidateAccountRefreshes()
     this.resetAccountFacts()
     this.clearSessionExpiryTimer()

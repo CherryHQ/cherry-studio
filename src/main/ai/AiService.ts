@@ -26,6 +26,7 @@ import {
   type AiUsageCaptureContext,
   aiUsageRecordService,
   type MessageRef,
+  type RecordAiInvocationInput,
   type SourceSnapshot
 } from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -701,6 +702,8 @@ export class AiService extends BaseService {
     reportTransportFailure?: (error: unknown) => void
   ): Promise<AiStreamSource> {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
+    // Created before setup awaits so AMD use stays with the account the request started under.
+    const recordInvocation = this.invocationRecorder(request.usageContext?.recordInvocation, request.tokenUsageSource)
     const {
       sdkConfig,
       endpointType,
@@ -735,7 +738,7 @@ export class AiService extends BaseService {
           ? { kind: 'chat', id: request.messageId }
           : null
     })
-    const usagePlugin = createAiUsagePlugin(usageContext, request.usageContext?.recordInvocation)
+    const usagePlugin = createAiUsagePlugin(usageContext, recordInvocation)
     repairUsagePlugins.current = [usagePlugin]
 
     const mediaCapabilities = resolveMediaCapabilities(model)
@@ -798,7 +801,7 @@ export class AiService extends BaseService {
         createUsagePlugin: (fallbackReceipt) =>
           createAiUsagePlugin(
             () => createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt }),
-            request.usageContext?.recordInvocation
+            recordInvocation
           )
       })
       const retryPolicy = resolveTextRetryPolicy(
@@ -836,7 +839,7 @@ export class AiService extends BaseService {
                 source: usageContext().source,
                 messageRef: usageContext().messageRef
               }),
-              request.usageContext?.recordInvocation
+              recordInvocation
             )
         }),
         onFallbackActivated: (fallback) => {
@@ -913,6 +916,33 @@ export class AiService extends BaseService {
     }
   }
 
+  /**
+   * Records each model invocation (primary, fallback, or retried key), then tells Cherry Cloud which model
+   * answered so AMD model use is counted per invocation; Cherry Cloud ignores every other model.
+   */
+  private invocationRecorder(
+    record: ((input: RecordAiInvocationInput) => void) | undefined,
+    source: TokenUsageSource = 'chat'
+  ): (input: RecordAiInvocationInput) => void {
+    const persist = record ?? ((input: RecordAiInvocationInput) => aiUsageRecordService.recordInvocation(input))
+    let reportAmdUse: ((providerId: string, modelId: string) => void) | undefined
+    try {
+      reportAmdUse = application.get('CherryCloudService').amdModelUseReporter(source)
+    } catch {
+      // Telemetry must never affect a model call.
+    }
+    return (input) => {
+      persist(input)
+      // Billing records every finish; only an invocation that produced output tokens counts as AMD use.
+      if (!((input.usage?.outputTokens ?? 0) > 0)) return
+      try {
+        reportAmdUse?.(input.context.providerId, input.context.modelId)
+      } catch {
+        // Telemetry must never affect a model call.
+      }
+    }
+  }
+
   private analyticsHookPart(model: Model, source: TokenUsageSource = 'chat'): Partial<AgentLoopHooks> {
     return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage, source))
   }
@@ -982,6 +1012,7 @@ export class AiService extends BaseService {
     const { messages, ...parameterRequest } = request
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
+    const recordInvocation = this.invocationRecorder(undefined, request.tokenUsageSource)
     const {
       sdkConfig,
       replayRouteId: primaryReplayRouteId,
@@ -1004,7 +1035,7 @@ export class AiService extends BaseService {
       source: sourceSnapshotForAssistant(assistant),
       messageRef: null
     })
-    const usagePlugin = createAiUsagePlugin(usageContext)
+    const usagePlugin = createAiUsagePlugin(usageContext, recordInvocation)
     repairUsagePlugins.current = [usagePlugin]
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
@@ -1028,8 +1059,9 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(() =>
-            createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
+          createAiUsagePlugin(
+            () => createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt }),
+            recordInvocation
           )
       })
       const retryPolicy = resolveTextRetryPolicy(
@@ -1062,7 +1094,8 @@ export class AiService extends BaseService {
                 credentialReceipt,
                 source: usageContext().source,
                 messageRef: usageContext().messageRef
-              })
+              }),
+              recordInvocation
             )
         }),
         onFallbackActivated: (fallback) => {

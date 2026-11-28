@@ -689,6 +689,86 @@ describe('AiService', () => {
     })
   })
 
+  it('keeps recording each invocation and reports the model that actually answered to Cherry Cloud', () => {
+    const service = createService()
+    const report = vi.fn()
+    const amdModelUseReporter = vi.fn(() => report)
+    mockApplicationGet.mockReturnValue({ amdModelUseReporter })
+    const persist = vi.fn()
+    const record = (service as any).invocationRecorder(persist, 'agent')
+    const fallbackInvocation = {
+      context: { providerId: 'cherryai-subscription', modelId: 'amd/qwen' },
+      usage: { inputTokens: 3, outputTokens: 5 }
+    }
+
+    record(fallbackInvocation)
+
+    expect(persist.mock.calls).toEqual([[fallbackInvocation]])
+    expect(amdModelUseReporter.mock.calls).toEqual([['agent']])
+    expect(report.mock.calls).toEqual([['cherryai-subscription', 'amd/qwen']])
+  })
+
+  it('records a failed invocation without counting it as AMD model use', () => {
+    const service = createService()
+    const report = vi.fn()
+    mockApplicationGet.mockReturnValue({ amdModelUseReporter: () => report })
+    const persist = vi.fn()
+    const context = { providerId: 'cherryai-subscription', modelId: 'amd/qwen' }
+    const failedInvocation = { context, usage: {} }
+    const promptOnlyInvocation = { context, usage: { inputTokens: 5, totalTokens: 5 } }
+
+    const record = (service as any).invocationRecorder(persist)
+    record(failedInvocation)
+    record(promptOnlyInvocation)
+
+    expect(persist.mock.calls).toEqual([[failedInvocation], [promptOnlyInvocation]])
+    expect(report).not.toHaveBeenCalled()
+  })
+
+  it.each(['stream', 'generate'] as const)(
+    'takes the AMD use account in the %s path before request setup, so a sign-in during setup is not credited',
+    async (path) => {
+      const service = createService()
+      let account = 'A'
+      const reporterAccounts: string[] = []
+      mockApplicationGet.mockReturnValue({
+        amdModelUseReporter: () => {
+          reporterAccounts.push(account)
+          return vi.fn()
+        }
+      })
+      const setup = Promise.withResolvers<never>()
+      vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockReturnValue(setup.promise)
+
+      const request =
+        path === 'stream'
+          ? service.streamText({
+              conversation: { id: 'conversation-1', topicId: 'topic-1' },
+              trigger: 'submit-message',
+              messages: [],
+              requestOptions: { signal: new AbortController().signal }
+            })
+          : service.generateText({ uniqueModelId: 'test-provider::test-model', prompt: 'hello' } as never)
+      account = 'B'
+      setup.reject(new Error('setup stopped'))
+      await expect(request).rejects.toThrow('setup stopped')
+
+      expect(reporterAccounts).toEqual(['A'])
+    }
+  )
+
+  it('still records an invocation when Cherry Cloud is unavailable', () => {
+    const service = createService()
+    mockApplicationGet.mockImplementation(() => {
+      throw new Error('service not registered')
+    })
+    const persist = vi.fn()
+
+    ;(service as any).invocationRecorder(persist)({ context: { providerId: 'openai', modelId: 'gpt-5' } })
+
+    expect(persist).toHaveBeenCalledOnce()
+  })
+
   it('flushes accumulated token analytics when a completed step is followed by cancellation', async () => {
     const service = createService()
     const trackTokenUsage = vi.fn()

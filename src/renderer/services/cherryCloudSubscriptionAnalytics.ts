@@ -1,5 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
 import type { CherryCloudAnalyticsEvent, SubscriptionEntrySource } from '@shared/ipc/schemas/cherryCloud'
+import { sinceClickBucket } from '@shared/utils/sinceClick'
 
 type ActivationEvent = Extract<CherryCloudAnalyticsEvent, { event: 'subscription_entitlement_refresh_result' }>
 
@@ -30,10 +31,8 @@ export class CherryCloudSubscriptionAnalyticsService {
 
   clickAttribution(): Pick<ActivationEvent, 'sinceClick' | 'flowId'> {
     if (this.lastSubscribeClick === null) return { sinceClick: 'none' }
-    const minutes = (Date.now() - this.lastSubscribeClick.at) / 60_000
-    if (minutes >= 24 * 60) return { sinceClick: 'over_24h' }
-    const sinceClick = minutes < 5 ? 'under_5m' : minutes < 30 ? 'under_30m' : 'under_24h'
-    return { sinceClick, flowId: this.lastSubscribeClick.flowId }
+    const sinceClick = sinceClickBucket(Date.now() - this.lastSubscribeClick.at)
+    return sinceClick === 'over_24h' ? { sinceClick } : { sinceClick, flowId: this.lastSubscribeClick.flowId }
   }
 }
 
