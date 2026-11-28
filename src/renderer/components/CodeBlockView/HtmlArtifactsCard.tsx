@@ -1,4 +1,3 @@
-import { Icon } from '@iconify/react'
 import { DownloadIcon, LinkIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { lazy, Suspense, useState } from 'react'
@@ -6,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -65,7 +65,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
           onClick={() => setIsPopupOpen(true)}
           className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left disabled:cursor-default">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
-            <Icon icon="material-icon-theme:html" className="text-[20px]" />
+            <FileIcon path="artifact.html" className="text-[20px]" />
           </span>
           <span className="min-w-0 truncate text-[13px] leading-5 font-medium text-foreground">{title}</span>
           {isStreaming ? (

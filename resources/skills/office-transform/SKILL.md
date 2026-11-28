@@ -35,6 +35,10 @@ Chat surfaces may hand you a fenced `selection-ref` block:
 
 The `anchor` object is exactly what the scripts take via `--anchor`.
 
+A block may also carry `comment`: what the user wants done at that location, in their own words.
+Treat it as the user's instruction for that anchor. It is not part of the anchor, so never pass it
+to a script.
+
 **Freshness check.** `fileStamp.mtimeMs` is milliseconds since the Unix epoch, floored to
 whole milliseconds. Do not compare it to `stat`'s default output: `stat -f %m` (macOS) and
 `stat -c %Y` (GNU) give whole *seconds*, so multiplying by 1000 loses the sub-second part and

@@ -1,13 +1,15 @@
-import { spawn } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type { Readable } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
 
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import crossSpawn from 'cross-spawn'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { killProcessTree } from '@main/utils/processRunner'
 
 import {
   type ClaudeCodeProcessDiagnostics,
@@ -46,6 +48,7 @@ export type SpawnProcess = (
     stdio: ['pipe', 'pipe', 'pipe']
     uid?: number
     windowsHide: true
+    detached?: boolean
   }
 ) => SpawnedChildProcess
 
@@ -85,7 +88,8 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
 
   constructor(
     private readonly child: SpawnedChildProcess,
-    private readonly diagnostics: ClaudeCodeProcessDiagnostics
+    private readonly diagnostics: ClaudeCodeProcessDiagnostics,
+    private readonly detached: boolean
   ) {
     const decoder = new StringDecoder('utf8')
     child.stderr.on('data', (chunk: Buffer | string) => this.appendStderr(decoder.write(Buffer.from(chunk))))
@@ -139,6 +143,18 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
   }
 
   kill(signal: NodeJS.Signals): boolean {
+    // Windows has no signal-driven process-group cleanup, so a plain kill orphans the CLI's descendants.
+    if (process.platform === 'win32' && this.child.pid !== undefined) {
+      killProcessTree(this.child as unknown as ChildProcess)
+      return true
+    }
+    if (this.detached && this.child.pid && this.child.exitCode === null && !this.child.signalCode) {
+      try {
+        return process.kill(-this.child.pid, signal)
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) throw error
+      }
+    }
     return this.child.kill(signal)
   }
 
@@ -186,9 +202,13 @@ export class ClaudeCodeProcessManager extends BaseService {
   private readonly processes = new Set<TrackedSpawnedProcess>()
 
   /** Seam for tests. A constructor parameter would break the container's `ServiceConstructor` shape. */
-  protected spawnProcess: SpawnProcess = (command, args, options) => spawn(command, args, options)
+  protected spawnProcess: SpawnProcess = (command, args, options) =>
+    (process.platform === 'win32' ? crossSpawn.spawn : spawn)(command, args, options)
 
-  spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
+  spawn(
+    options: SpawnOptions & { detached?: boolean },
+    diagnostics = createClaudeCodeProcessDiagnostics()
+  ): SpawnedProcess {
     resetClaudeCodeProcessDiagnostics(diagnostics)
     const spawnOptions: Parameters<SpawnProcess>[2] = {
       cwd: options.cwd,
@@ -196,7 +216,8 @@ export class ClaudeCodeProcessManager extends BaseService {
       signal: options.signal,
       // Keeping stdin a pipe is also what makes the CLI exit on its own once this app dies.
       stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
+      windowsHide: true,
+      ...(options.detached && { detached: true })
     }
     let rawChild: SpawnedChildProcess
     try {
@@ -224,7 +245,11 @@ export class ClaudeCodeProcessManager extends BaseService {
         if (rawChild.pid === undefined) resolve()
       })
     })
-    const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
+    const child = new ManagedClaudeCodeProcess(
+      rawChild,
+      diagnostics,
+      options.detached === true
+    ) as TrackedSpawnedProcess
     this.processes.add(child)
     // Untracked on the raw exit, not the wrapper's — no reason to hold a dead handle through the drain.
     rawChild.once('exit', () => this.processes.delete(child))
@@ -270,5 +295,5 @@ export { createClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 export const createSpawnClaudeCodeProcess =
   (diagnostics: ClaudeCodeProcessDiagnostics) =>
-  (options: SpawnOptions): SpawnedProcess =>
+  (options: SpawnOptions & { detached?: boolean }): SpawnedProcess =>
     application.get('ClaudeCodeProcessManager').spawn(options, diagnostics)

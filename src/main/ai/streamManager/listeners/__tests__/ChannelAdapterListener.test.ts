@@ -1,14 +1,16 @@
-import type { UIMessageChunk } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
-import { t } from '@main/i18n'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { ChannelAdapterListener } from '../ChannelAdapterListener'
 
 const SECRET = 'sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345'
 
-function makeAdapter(overrides: Partial<ChannelAdapter> = {}): ChannelAdapter {
+type StreamingAdapter = ChannelAdapter & Required<Pick<ChannelAdapter, 'onTextUpdate'>>
+
+function makeAdapter(overrides: Partial<ChannelAdapter> = {}): StreamingAdapter {
   return {
     channelId: 'ch-1',
     connected: true,
@@ -18,24 +20,54 @@ function makeAdapter(overrides: Partial<ChannelAdapter> = {}): ChannelAdapter {
     onStreamComplete: vi.fn().mockResolvedValue(false),
     sendMessage: vi.fn().mockResolvedValue(undefined),
     ...overrides
-  } as unknown as ChannelAdapter
+  } as unknown as StreamingAdapter
 }
 
-function delta(text: string): UIMessageChunk {
-  return { type: 'text-delta', id: 't', delta: text }
+function message(text: string): CherryUIMessage {
+  return { id: 'reply', role: 'assistant', parts: [{ type: 'text', text }] }
 }
 
 describe('ChannelAdapterListener', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers()
   })
 
-  it('accumulates text-delta via .delta and redacts secrets before live onTextUpdate', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('streams visible parts in timeline order across a reasoning anchor and an earlier text append', () => {
+    const adapter = makeAdapter()
+    const { content } = new ChannelAdapterListener(adapter, 'chat-1')
+    content.snapshot(
+      {
+        id: 'reply',
+        role: 'assistant',
+        partIds: ['a', 'reason', 'c'],
+        parts: [
+          { type: 'text', text: 'A' },
+          { type: 'reasoning', text: 'private' },
+          { type: 'text', text: 'C' }
+        ]
+      },
+      'messages'
+    )
+    content.part({ type: 'part-open', messageId: 'reply', partId: 'b', pos: 4, kind: 'text' })
+    content.part({ type: 'part-append', partId: 'b', text: 'B' })
+    content.part({ type: 'part-append', partId: 'reason', text: ' secret' })
+    content.part({ type: 'part-append', partId: 'a', text: '1' })
+    vi.advanceTimersByTime(250)
+    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'A1CB', undefined)
+  })
+
+  it('publishes authoritative text and redacts secrets before live onTextUpdate', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('here is the key: '))
-    listener.onChunk(delta(SECRET))
+    listener.content.snapshot(message('here is the key: '), 'chunks')
+    listener.content.snapshot(message(`here is the key: ${SECRET}`), 'chunks')
+    vi.runOnlyPendingTimers()
 
     const lastCall = vi.mocked(adapter.onTextUpdate).mock.calls.at(-1)
     expect(lastCall?.[0]).toBe('chat-1')
@@ -47,7 +79,7 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta(`final answer ${SECRET} done`))
+    listener.content.snapshot(message(`final answer ${SECRET} done`), 'chunks')
     await listener.onDone({ status: 'success' })
 
     // onStreamComplete (finalize UI) gets the sanitized text; sendMessage falls back since it returned false.
@@ -60,30 +92,108 @@ describe('ChannelAdapterListener', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('Claim '))
-    listener.onChunk(delta('[ci'))
-    listener.onChunk(delta('te:source-'))
-    listener.onChunk(delta('1]'))
-    listener.onChunk(delta(' confirmed'))
+    for (const text of [
+      'Claim ',
+      'Claim [ci',
+      'Claim [cite:source-',
+      'Claim [cite:source-1]',
+      'Claim [cite:source-1] confirmed'
+    ]) {
+      listener.content.snapshot(message(text), 'chunks')
+      vi.runOnlyPendingTimers()
+    }
 
     const updates = vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)
-    expect(updates).toEqual(['Claim ', 'Claim', 'Claim', 'Claim', 'Claim confirmed'])
+    expect(updates).toEqual(['Claim ', 'Claim', 'Claim confirmed'])
   })
 
   it('does not withhold a trailing bracket sequence once it is ruled out as a citation', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('Array [city'))
+    listener.content.snapshot(message('Array [city'), 'chunks')
+    vi.runOnlyPendingTimers()
 
     expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city', undefined)
+  })
+
+  it('coalesces message updates and delivers the latest text without waiting for more output', () => {
+    const adapter = makeAdapter()
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.content.snapshot(message('one '), 'chunks')
+    listener.content.snapshot(message('one two '), 'chunks')
+    listener.content.snapshot(message('one two three'), 'chunks')
+    expect(adapter.onTextUpdate).not.toHaveBeenCalled()
+
+    vi.runOnlyPendingTimers()
+
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls).toEqual([['chat-1', 'one two three', undefined]])
+  })
+
+  it.each([
+    ['onDone', (listener: ChannelAdapterListener) => listener.onDone({ status: 'success' })],
+    ['onPaused', (listener: ChannelAdapterListener) => listener.onPaused({ status: 'paused' })],
+    [
+      'onError',
+      (listener: ChannelAdapterListener) =>
+        listener.onError({ status: 'error', error: { stack: '', name: 'Error', message: 'failed' } })
+    ]
+  ])('sends no live update after %s settles the stream', async (_name, settle) => {
+    const adapter = makeAdapter()
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.content.snapshot(message('pending text'), 'chunks')
+    await settle(listener)
+    vi.runAllTimers()
+
+    expect(adapter.onTextUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sends no live update once the adapter is retired before the pending update fires', () => {
+    let alive = true
+    const adapter = makeAdapter({ isStreamListenerAlive: () => alive })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.content.snapshot(message('pending text'), 'chunks')
+    alive = false
+    vi.runAllTimers()
+
+    expect(adapter.onTextUpdate).not.toHaveBeenCalled()
+  })
+
+  it('warns about a redacted secret once per response, not once per live update', async () => {
+    const adapter = makeAdapter()
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.content.snapshot(message(`key ${SECRET}`), 'chunks')
+    for (const text of [`key ${SECRET} more`, `key ${SECRET} more and more`, `key ${SECRET} more and more done`]) {
+      vi.runOnlyPendingTimers()
+      listener.content.snapshot(message(text), 'chunks')
+    }
+    vi.runOnlyPendingTimers()
+    await listener.onDone({ status: 'success' })
+
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls.length).toBeGreaterThan(1)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('does no live-update work for an adapter that cannot stream, and still delivers the final reply', async () => {
+    const adapter = makeAdapter({ onTextUpdate: undefined })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.content.snapshot(message(`answer ${SECRET}`), 'chunks')
+    expect(vi.getTimerCount()).toBe(0)
+    await listener.onDone({ status: 'success' })
+
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'answer [REDACTED]', undefined)
   })
 
   it('preserves an incomplete citation-like suffix in the final delivery', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('Literal [cite:unfinished'))
+    listener.content.snapshot(message('Literal [cite:unfinished'), 'chunks')
     await listener.onDone({ status: 'success' })
 
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished', undefined)
@@ -99,17 +209,15 @@ describe('ChannelAdapterListener', () => {
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
-  it('appends a stopped suffix on onPaused and falls back to sendMessage when onStreamComplete is false', async () => {
+  it('delivers the paused partial through sendMessage when onStreamComplete is false', async () => {
     const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
-    listener.onChunk(delta('partial answer'))
+    listener.content.snapshot(message('partial answer'), 'chunks')
     await listener.onPaused({ status: 'paused' })
 
-    // onStreamComplete (finalize UI) gets the plain text; sendMessage falls back
-    // since it returned false, and carries the truncation suffix.
     expect(vi.mocked(adapter.onStreamComplete).mock.calls[0][1]).toBe('partial answer')
-    expect(vi.mocked(adapter.sendMessage).mock.calls[0][1]).toBe(`partial answer\n\n_(${t('common.channel_stopped')})_`)
+    expect(vi.mocked(adapter.sendMessage).mock.calls[0][1]).toContain('partial answer')
   })
 
   it('finalizes an empty paused turn without sending an empty fallback', async () => {
@@ -125,7 +233,7 @@ describe('ChannelAdapterListener', () => {
   it('delivers a terminal response only once even when terminal callbacks repeat', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
-    listener.onChunk(delta('Answer'))
+    listener.content.snapshot(message('Answer'), 'chunks')
     await listener.onDone({ status: 'success' })
     await listener.onDone({ status: 'success' })
     await listener.onError({ status: 'error', error: { stack: '', name: 'Error', message: 'late error' } })

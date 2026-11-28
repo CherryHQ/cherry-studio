@@ -1,4 +1,5 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockNotificationService } from '@test-mocks/main/application'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -88,6 +89,7 @@ describe('AgentTaskJobHandler', () => {
 
   beforeEach(() => {
     vi.mocked(application.get).mockImplementation((name: string) => {
+      if (name === 'NotificationService') return mockNotificationService as never
       if (name === 'JobManager')
         return { updateJobScheduleTx: updateTxSpy, syncJobScheduleTimerById: syncTimerSpy } as never
       if (name === 'DbService') return MockMainDbServiceExport.dbService as never
@@ -117,28 +119,6 @@ describe('AgentTaskJobHandler', () => {
     vi.clearAllMocks()
   })
 
-  describe('metadata', () => {
-    it('allows three concurrent tasks per agent while keeping retry-on-restart policy', () => {
-      expect(agentTaskJobHandler.recovery).toBe('retry')
-      expect(agentTaskJobHandler.defaultConcurrency).toBe(3)
-      expect(agentTaskJobHandler.defaultRetryPolicy).toEqual({
-        maxAttempts: 1,
-        backoff: 'none',
-        baseDelayMs: 0,
-        maxDelayMs: 0
-      })
-      expect(
-        agentTaskJobHandler.defaultQueue?.({
-          agentId: 'a-42',
-          prompt: 'x',
-          timeoutMinutes: 2,
-          workspace: WORKSPACE_SOURCE,
-          reuseRevision: 0
-        })
-      ).toBe('agent:a-42')
-    })
-  })
-
   describe('onEnqueued', () => {
     it('announces log membership while a scheduled job is still pending', () => {
       agentTaskJobHandler.onEnqueued?.({ ...makeTerminal('completed', 'j1'), status: 'pending', startedAt: null })
@@ -154,24 +134,11 @@ describe('AgentTaskJobHandler', () => {
   })
 
   describe('execute', () => {
-    it('delegates to runAgentTask with the JobContext', async () => {
-      vi.mocked(runAgentTask).mockResolvedValueOnce({ result: 'ok' })
-      const ctx = {
-        jobId: 'j1',
-        input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
-      } as JobContext<AgentTaskInput>
-
-      const out = await agentTaskJobHandler.execute(ctx)
-
-      expect(out).toEqual({ result: 'ok' })
-      expect(runAgentTask).toHaveBeenCalledWith(ctx)
-    })
-
     it('publishes the run-state change before running so open task lists leave the previous state', async () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeTerminal('completed', 'j1'))
       vi.mocked(runAgentTask).mockImplementationOnce(async () => {
         expect(vi.mocked(agentTaskService.notifyRunChange).mock.calls).toEqual([['s1', 'j1', 'projection']])
-        return { result: 'ok' }
+        return { kind: 'executed', result: 'ok' }
       })
 
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)
@@ -227,6 +194,27 @@ describe('AgentTaskJobHandler', () => {
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'failed' }))
 
       expect(jobScheduleService.getById('s1')?.enabled).toBe(true)
+    })
+
+    it('keeps a skipped one-shot eligible for another manual catch-up', async () => {
+      const at = Date.now() - 1000
+      jobScheduleService.update('s1', {
+        trigger: { kind: 'once', at },
+        enabled: false,
+        metadata: { missed: { reason: 'agent_archived', at, jobId: 'job-1' } }
+      })
+
+      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed', output: { kind: 'skipped' } }))
+
+      expect(jobScheduleService.getById('s1')).toMatchObject({
+        metadata: { missed: { reason: 'agent_archived', at } },
+        lastRun: null
+      })
+
+      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed', output: { kind: 'executed' } }))
+
+      expect(jobScheduleService.getById('s1')?.metadata).not.toHaveProperty('missed')
+      expect(jobScheduleService.getById('s1')?.lastRun).not.toBeNull()
     })
 
     it('does not act on non-failed terminal events', async () => {

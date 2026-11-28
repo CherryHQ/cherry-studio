@@ -3,18 +3,16 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox } from '@cherrystudio/ui'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import {
   CLAUDE_MODEL_ROLES,
-  CLAUDE_PERMISSION_MODES,
-  CLAUDE_REASONING_EFFORTS,
   gatewayExpectedModel,
   gatewayModelIdFromAddress,
-  safeCreateUniqueModelId,
   setClaudeOneMMarker,
   stripClaudeOneMMarker
-} from '@renderer/pages/code/cliConfig'
+} from '@renderer/services/codeCliConfig'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { CLAUDE_PERMISSION_MODES, CLAUDE_REASONING_EFFORTS, safeCreateUniqueModelId } from '@shared/utils/cliConfig'
 
 import { ModelSelectorTrigger } from '../ModelSelectorTrigger'
 import { TogglePill } from '../TogglePill'
@@ -338,6 +336,8 @@ const ClaudeRoleModelSelector: FC<{
   return (
     <div className="min-w-0 flex-1">
       <ModelSelector
+        showSubscriptionOffers={false}
+        includeAgentOnlyModels
         multiple={false}
         selectionType="id"
         value={value}

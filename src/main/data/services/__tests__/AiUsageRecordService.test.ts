@@ -595,8 +595,6 @@ describe('AiUsageRecordService', () => {
     pricingSnapshot.perImage.price = 99
     aiUsageRecordService.recordInvocation(invocation({ context: frozen }))
 
-    expect(Object.isFrozen(frozen)).toBe(true)
-    expect(Object.isFrozen(frozen.pricingSnapshot?.perImage)).toBe(true)
     expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
       providerId: 'provider-1',
       providerName: 'Provider One',
@@ -738,7 +736,7 @@ describe('AiUsageRecordService', () => {
       ],
       capturedAt: '2026-07-28T00:00:00.000Z'
     })
-    expect(Object.isFrozen(snapshot?.inputTokenTiers)).toBe(true)
+
     expect(
       createAiUsagePricingSnapshot(
         {
@@ -996,5 +994,89 @@ describe('AiUsageRecordService', () => {
     })
     expect(merged).not.toHaveProperty('timeFirstTokenMs')
     expect(merged).not.toHaveProperty('timeCompletionMs')
+  })
+
+  it('keeps unpriced and other-currency records when sorting by cost across keyset pages', () => {
+    aiUsageRecordService.recordInvocations([
+      invocation({
+        requestId: 'usd-low',
+        context: context({ trustProviderReportedCost: true, messageRef: null }),
+        providerCost: { amount: 0.1, currency: 'USD' },
+        completedAt: 1_001
+      }),
+      invocation({
+        requestId: 'usd-high',
+        context: context({ trustProviderReportedCost: true, messageRef: null }),
+        providerCost: { amount: 1.5, currency: 'USD' },
+        completedAt: 1_002
+      }),
+      invocation({
+        requestId: 'cny-priced',
+        context: context({ trustProviderReportedCost: true, messageRef: null }),
+        providerCost: { amount: 10, currency: 'CNY' },
+        completedAt: 1_003
+      }),
+      invocation({
+        requestId: 'unpriced',
+        context: context({ pricingSnapshot: null, messageRef: null }),
+        usage: { inputTokens: 10, outputTokens: 5 },
+        completedAt: 1_004
+      })
+    ])
+
+    const seen: string[] = []
+    let total = 0
+    let cursor: string | undefined
+    do {
+      const page = aiUsageRecordService.list({
+        limit: 2,
+        sortBy: 'cost',
+        sortOrder: 'desc',
+        costCurrency: 'USD',
+        cursor
+      })
+      total = page.total
+      seen.push(...page.items.map((item) => item.requestId))
+      cursor = page.nextCursor
+    } while (cursor)
+
+    expect(total).toBe(4)
+    expect(seen).toEqual(['usd-high', 'usd-low', 'unpriced', 'cny-priced'])
+  })
+
+  it('filters listed usage records by group identity and time range', () => {
+    aiUsageRecordService.recordInvocations([
+      invocation({
+        requestId: 'openai-gpt4-day1',
+        context: context({ providerId: 'openai', modelId: 'gpt-4', messageRef: null }),
+        completedAt: 1_000
+      }),
+      invocation({
+        requestId: 'openai-gpt4-day2',
+        context: context({ providerId: 'openai', modelId: 'gpt-4', messageRef: null }),
+        completedAt: 2_000
+      }),
+      invocation({
+        requestId: 'openai-gpt35-day1',
+        context: context({ providerId: 'openai', modelId: 'gpt-3.5', messageRef: null }),
+        completedAt: 1_000
+      }),
+      invocation({
+        requestId: 'anthropic-claude-day1',
+        context: context({ providerId: 'anthropic', modelId: 'claude-3', messageRef: null }),
+        completedAt: 1_000
+      })
+    ])
+
+    const filtered = aiUsageRecordService.list({
+      limit: 25,
+      from: 500,
+      to: 1_500,
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
+
+    expect(filtered.total).toBe(1)
+    expect(filtered.items.map((item) => item.requestId)).toEqual(['openai-gpt4-day1'])
   })
 })

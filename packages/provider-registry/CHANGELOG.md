@@ -1,5 +1,153 @@
 # @cherrystudio/provider-registry
 
+## 0.8.4
+
+### Patch Changes
+
+- [#25510](https://github.com/CherryHQ/cherry-studio/pull/25510) [`26977f6`](https://github.com/CherryHQ/cherry-studio/commit/26977f616c428205453ef197f04981471cde36e3) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Register missing Alibaba Qwen Image (`qwen-image-max`, `qwen-image-plus`, `qwen-image-2.0`, `qwen-image-2.0-pro`, `qwen-image-2.1-pro`, `qwen-image-2.1-turbo`, `qwen-image-edit-max`, `qwen-image-edit-plus`) and `z-image-turbo` image-generation models in the Alibaba creator catalog and DashScope provider overrides.
+
+- [#25539](https://github.com/CherryHQ/cherry-studio/pull/25539) [`68a0f22`](https://github.com/CherryHQ/cherry-studio/commit/68a0f2285d6a8a0de5b49044894a89417f08e384) Thanks [@DeJeune](https://github.com/DeJeune)! - Recognize reasoning effort controls for SWE-2, Flint, Beam, Fugu, and Namazu models added through custom providers.
+
+## 0.8.3
+
+### Patch Changes
+
+- [`973740c`](https://github.com/CherryHQ/cherry-studio/commit/973740ce1636e01839849049e20a24ab844d1466) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Cursor Composer 2.5 and Cognition SWE model metadata. Resolve the Grok CLI Composer route to the Cursor model entry.
+
+- [`199e811`](https://github.com/CherryHQ/cherry-studio/commit/199e8113e5ca5d495c2b5cec3bc978b0427a392e) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Inkling 2 Mini, Inkling 2 Small, MAI Image 2.7, and MAI Image 2.7 Flash model metadata. Attribute the Inkling family to Thinking Machines Lab.
+  
+  Attribute Muse Image to Meta and add OpenRouter reference-image editing capabilities.
+  
+  Add Vercel AI Gateway model metadata for Recursive Flint, Reflection Beam, Sakana Fugu and Namazu, and ScaleDown Extract and Summarize.
+
+- [#25464](https://github.com/CherryHQ/cherry-studio/pull/25464) [`28d12fa`](https://github.com/CherryHQ/cherry-studio/commit/28d12fa39846a1decc61c3ab77b44f84df832e48) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Serve the catalog that is compiled into the package when a registry file on disk cannot be read, and report the fallback with a bounded cause instead of failing every lookup. A fallback expires after the idle TTL so a repaired file is picked up, and `models`/`provider-models` always come from a single snapshot.
+
+## 0.8.2
+
+### Patch Changes
+
+- [#25206](https://github.com/CherryHQ/cherry-studio/pull/25206) [`2bd7725`](https://github.com/CherryHQ/cherry-studio/commit/2bd772550b6d16825687853f3d35f63fd018028a) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Default Ollama chat to its native endpoint so disabling reasoning sends the correct request option.
+
+## 0.8.1
+
+### Patch Changes
+
+- [#25094](https://github.com/CherryHQ/cherry-studio/pull/25094) [`78d3d5c`](https://github.com/CherryHQ/cherry-studio/commit/78d3d5c2b3a7cdda708b5dc66f5ba96f292e1367) Thanks [@LWWZH](https://github.com/LWWZH)! - Enable AiHubMix native web search and URL context for Gemini 4 Hydrogen, Carbon and Neon models.
+
+- [#25193](https://github.com/CherryHQ/cherry-studio/pull/25193) [`fcbe28a`](https://github.com/CherryHQ/cherry-studio/commit/fcbe28a0f466a6517afb44c7cad032cf4ecc27b6) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Claude Fable 5.2 model limits and reasoning controls, along with its CherryIN model ID and supported endpoints.
+
+- [#25090](https://github.com/CherryHQ/cherry-studio/pull/25090) [`b37ce6f`](https://github.com/CherryHQ/cherry-studio/commit/b37ce6fa174cbee26ec2abbde8e5ded9598b2ff3) Thanks [@LWWZH](https://github.com/LWWZH)! - Sync the Tencent Cloud TokenHub model list to the latest served models (GLM-5.3 series, Kimi K3/K2.8, DeepSeek V4.1/V4-Pro-0813, MiniMax M3.1-Flash, MiMo, Step-5-Preview, Hy3, Hunyuan-Role-Latest).
+
+## 0.8.0
+
+### Minor Changes
+
+- [#24429](https://github.com/CherryHQ/cherry-studio/pull/24429) [`f309588`](https://github.com/CherryHQ/cherry-studio/commit/f309588a91210158dc1ba0ab83b71b7675ccd71a) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Seedream 5.5 image generation support.
+
+## 0.7.1
+
+### Patch Changes
+
+- [#24874](https://github.com/CherryHQ/cherry-studio/pull/24874) [`9c6a014`](https://github.com/CherryHQ/cherry-studio/commit/9c6a0146a6bf30a68719b74af0667e852f875403) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Gemini 4 Neon model metadata, four reasoning levels, and native search and URL context eligibility for Gemini and Vertex AI.
+
+- [#24849](https://github.com/CherryHQ/cherry-studio/pull/24849) [`84a8fc6`](https://github.com/CherryHQ/cherry-studio/commit/84a8fc615806b4271d27e6ecef338e70ae62b914) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Enable Vertex native web search and URL context for Gemini 4 Hydrogen and Carbon models.
+
+## 0.7.0
+
+### Minor Changes
+
+- [#23236](https://github.com/CherryHQ/cherry-studio/pull/23236) [`4dac4a0`](https://github.com/CherryHQ/cherry-studio/commit/4dac4a0fc63903a10082b57807c41bd682c65150) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Expose native Mistral Large 4 low/medium/high reasoning controls while keeping OpenRouter reasoning support provider-specific.
+
+## 0.6.4
+
+### Patch Changes
+
+- [#24776](https://github.com/CherryHQ/cherry-studio/pull/24776) [`2e3424b`](https://github.com/CherryHQ/cherry-studio/commit/2e3424be3be4229195cd05cc5604dd6313e261f9) Thanks [@DeJeune](https://github.com/DeJeune)! - Correct sampling support for GPT 5.6 Luna, Kimi K3, and MiniMax M3 models, and declare official GLM 5-series sampling ranges.
+
+## 0.6.3
+
+### Patch Changes
+
+- [#24749](https://github.com/CherryHQ/cherry-studio/pull/24749) [`442ccc5`](https://github.com/CherryHQ/cherry-studio/commit/442ccc59195cc4cc070da9770c79b9ed65ceddb3) Thanks [@DeJeune](https://github.com/DeJeune)! - Add GPT-6.2 Astra and Sol with API pricing, reasoning controls, web search, and Codex model offers.
+
+## 0.6.2
+
+### Patch Changes
+
+- [#24624](https://github.com/CherryHQ/cherry-studio/pull/24624) [`0e75713`](https://github.com/CherryHQ/cherry-studio/commit/0e757139a979cf8f9b059066406d3cb56df7d40b) Thanks [@Contentment003111](https://github.com/Contentment003111)! - Add Tencent Hunyuan 4 Flash model metadata and the TokenHub model mapping.
+
+## 0.6.1
+
+### Patch Changes
+
+- [#24527](https://github.com/CherryHQ/cherry-studio/pull/24527) [`9f853cd`](https://github.com/CherryHQ/cherry-studio/commit/9f853cd5073a366c1beafc058b012cea17211c90) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Use current Flash peak token prices for DeepSeek's retired Flash API aliases without changing third-party provider prices.
+
+## 0.6.0
+
+### Minor Changes
+
+- [#24517](https://github.com/CherryHQ/cherry-studio/pull/24517) [`5db46f5`](https://github.com/CherryHQ/cherry-studio/commit/5db46f59b909f21bee6496816f078da83b220965) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Gemini 4 Hydrogen with low, medium, high, and xhigh reasoning levels. Update Google SDK support and the Pi adapter patch so all four levels reach the provider.
+
+### Patch Changes
+
+- [#24476](https://github.com/CherryHQ/cherry-studio/pull/24476) [`f62d636`](https://github.com/CherryHQ/cherry-studio/commit/f62d636d5b1e75378ae6ba848456cebd2e73a6b8) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Gemini 4 Carbon to the model catalog with low/medium/high reasoning effort, and recognize the id on custom providers.
+
+## 0.5.2
+
+### Patch Changes
+
+- [#23402](https://github.com/CherryHQ/cherry-studio/pull/23402) [`5ed9f0c`](https://github.com/CherryHQ/cherry-studio/commit/5ed9f0c7068eae541ac9897ce7c75a2b446a3578) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Route Claude Opus 5.5 Bedrock requests through the adaptive reasoning wire contract.
+
+## 0.5.1
+
+### Patch Changes
+
+- [#24343](https://github.com/CherryHQ/cherry-studio/pull/24343) [`6cfe3be`](https://github.com/CherryHQ/cherry-studio/commit/6cfe3be3e9e87b5f74ab907fe75b49426c1598ea) Thanks [@DeJeune](https://github.com/DeJeune)! - Share the documented DeepSeek V4.1 Flash capacity across its model IDs so versioned IDs resolve the output token limit correctly.
+
+## 0.5.0
+
+### Minor Changes
+
+- [#23363](https://github.com/CherryHQ/cherry-studio/pull/23363) [`c53a5e0`](https://github.com/CherryHQ/cherry-studio/commit/c53a5e02941bc2f35d3270dc73a33b13da82df15) Thanks [@raullenchai](https://github.com/raullenchai)! - Add Rapid-MLX as a keyless local provider, with its provider icon.
+
+## 0.4.0
+
+### Minor Changes
+
+- [#23684](https://github.com/CherryHQ/cherry-studio/pull/23684) [`7a3bb0b`](https://github.com/CherryHQ/cherry-studio/commit/7a3bb0b7af2ebe9a2a468edab2c018ebbbeba65f) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT Image 2.6 scene complexity and animated GIF generation parameters, with a new catalog publication stream for compatible Desktop clients.
+
+## 0.3.6
+
+### Patch Changes
+
+- [#23535](https://github.com/CherryHQ/cherry-studio/pull/23535) [`4fb6b8a`](https://github.com/CherryHQ/cherry-studio/commit/4fb6b8a5dc954baf7a42020ac9bd8fe5c89989bb) Thanks [@Contentment003111](https://github.com/Contentment003111)! - Add the stable Hunyuan 4 model to the Tencent catalog and TokenHub with image input support.
+
+## 0.3.5
+
+### Patch Changes
+
+- [#23648](https://github.com/CherryHQ/cherry-studio/pull/23648) [`52aecc0`](https://github.com/CherryHQ/cherry-studio/commit/52aecc057f6140b279d6bc4d9872f0197574e99e) Thanks [@ousugo](https://github.com/ousugo)! - Add GPT Image 2.6 Sunburst and Flare with official image API IDs, generation and editing support, and supported painting controls.
+
+## 0.3.4
+
+### Patch Changes
+
+- [#23471](https://github.com/CherryHQ/cherry-studio/pull/23471) [`e19a772`](https://github.com/CherryHQ/cherry-studio/commit/e19a772a0620902507fd844f163b122c93512a48) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Discover OpenRouter reranking models and rerank through the OpenRouter provider: the model list now reads the rerank catalog (`?output_modalities=rerank`) and marks those models as rerank-capable, and the OpenRouter extension now provides a reranking model so the connection check reaches `POST /api/v1/rerank` instead of failing with `No such rerankingModel`.
+
+## 0.3.3
+
+### Patch Changes
+
+- [#23425](https://github.com/CherryHQ/cherry-studio/pull/23425) [`6466ef9`](https://github.com/CherryHQ/cherry-studio/commit/6466ef98b47f902fdee26b11fdccd23757a7adc5) Thanks [@ousugo](https://github.com/ousugo)! - Add the stable LongCat-2.5 model with multimodal capabilities, documented token limits, and endpoint-specific reasoning controls.
+
+- [#23393](https://github.com/CherryHQ/cherry-studio/pull/23393) [`befc2f5`](https://github.com/CherryHQ/cherry-studio/commit/befc2f5cb5d31b5c5310f68702660c0ffc659c5c) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Expose reasoning-effort controls for Qwen 3.8 Flash Next and other compatible Alibaba providers.
+
+## 0.3.2
+
+### Patch Changes
+
+- [#22768](https://github.com/CherryHQ/cherry-studio/pull/22768) [`7f18ffb`](https://github.com/CherryHQ/cherry-studio/commit/7f18ffb7d8afbe4f0be48dc714854e5180729a90) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Correct Xiaomi MiMo catalog API model IDs to use the dotted version spelling required by the official endpoint.
+
 ## 0.3.1
 
 ### Patch Changes

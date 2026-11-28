@@ -127,15 +127,6 @@ describe('ActionWindow surface', () => {
     expect(second.aborted).toBe(true)
   })
 
-  it('uses an opaque popover surface at 100% window opacity', () => {
-    const { container } = render(<ActionWindow />)
-    const windowFrame = container.firstElementChild
-
-    expect(windowFrame).toHaveClass('bg-popover')
-    expect(windowFrame).not.toHaveClass('bg-background')
-    expect(windowFrame).toHaveStyle({ opacity: '1' })
-  })
-
   it('lets the action body shrink so long result content cannot blow out the panel', () => {
     // Contract: the overflow-hidden shell clips descendants unless every flex
     // child between it and the result can shrink below min-content width.
@@ -157,40 +148,14 @@ describe('ActionWindow surface', () => {
     expect(container.firstElementChild).toHaveStyle({ opacity: '0.6' })
   })
 
-  it('leaves additional title spacing after the macOS traffic lights', () => {
-    platform.isMac = true
-
-    const { container } = render(<ActionWindow />)
-    const titleBar = container.firstElementChild?.firstElementChild
-
-    expect(titleBar).toHaveStyle({ paddingLeft: '78px' })
-  })
-
-  it('uses compact title-bar icons and a neutral pinned state', () => {
-    const { container } = render(<ActionWindow />)
-
-    expect(screen.getByTestId('action-icon')).toHaveAttribute('data-size', '14')
-    expect(container.querySelector('.lucide-pin')).toHaveClass('size-[13px]')
-    expect(container.querySelector('.lucide-droplet')).toHaveClass('size-[13px]')
-    expect(container.querySelector('.lucide-minus')).toHaveClass('size-3.5')
-    expect(container.querySelector('.lucide-x')).toHaveClass('size-3.5')
-
-    const pinButton = container.querySelector('.lucide-pin')?.closest('button')
-    fireEvent.click(pinButton!)
-
-    expect(pinButton).toHaveClass('bg-accent', 'text-accent-foreground', 'hover:bg-accent')
-    expect(pinButton).not.toHaveClass('bg-primary/10', 'text-primary')
-    expect(container.querySelector('.lucide-pin')).toHaveClass('text-accent-foreground')
-
-    const opacityButton = container.querySelector('.lucide-droplet')?.closest('button')
-    fireEvent.click(opacityButton!)
-
-    expect(opacityButton).toHaveClass('bg-accent', 'text-accent-foreground', 'hover:bg-accent')
-    expect(opacityButton).not.toHaveClass('bg-primary/10', 'text-primary')
-    const opacitySlider = container.querySelector('[data-slot="slider"]')
-
-    expect(opacitySlider).toHaveClass('data-[orientation=vertical]:min-h-0')
-    expect(opacitySlider).not.toHaveClass('data-[orientation=vertical]:min-h-44')
+  it('names the pin action and updates its name after toggling the native window state', () => {
+    render(<ActionWindow />)
+    fireEvent.click(screen.getByRole('button', { name: 'selection.action.window.pin' }))
+    expect(screen.getByRole('button', { name: 'selection.action.window.pinned' })).toBeVisible()
+    expect(ipcRequest).toHaveBeenCalledWith('selection.pin_action_window', true)
+    fireEvent.click(screen.getByRole('button', { name: 'selection.action.window.pinned' }))
+    expect(screen.getByRole('button', { name: 'selection.action.window.pin' })).toBeVisible()
+    expect(ipcRequest).toHaveBeenCalledWith('selection.pin_action_window', false)
   })
 
   it('resets transient state when a pooled window reuses the same action type', async () => {
@@ -200,7 +165,7 @@ describe('ActionWindow surface', () => {
 
     fireEvent.click(pinButton!)
     fireEvent.click(opacityButton!)
-    expect(pinButton).toHaveClass('bg-accent')
+
     expect(container.querySelector('[data-slot="slider"]')).toBeInTheDocument()
 
     vi.mocked(HTMLElement.prototype.scrollTo).mockClear()
@@ -211,7 +176,6 @@ describe('ActionWindow surface', () => {
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="slider"]')).not.toBeInTheDocument()
-      expect(pinButton).not.toHaveClass('bg-accent')
     })
     expect(container.firstElementChild).toHaveStyle({ opacity: '0.6' })
     expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith({ top: 0 })

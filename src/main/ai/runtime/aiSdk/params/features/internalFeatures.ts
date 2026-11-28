@@ -14,7 +14,10 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { anthropicThinkingBindingFeature, anthropicThinkingReplayFeature } from './anthropicThinkingBinding'
+import { bedrockAnthropicCacheFeature } from './bedrockAnthropicCache'
 import { contextBuildFeature } from './contextBuild'
+import { conversationStateReplayFeature } from './conversationStateReplay'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
@@ -30,7 +33,6 @@ import { qwenEnableThinkingFeature } from './qwenEnableThinking'
 import { qwenThinkingFeature } from './qwenThinking'
 import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
-import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 import { steerYieldFeature } from './steerYield'
 import { stripReasoningReplayFeature } from './stripReasoningReplay'
 import { terminalToolFailureFeature } from './terminalToolFailure'
@@ -44,6 +46,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // DeepSeek-only: tag replayed reasoning so the Responses serializer passes it back (#18150).
   deepseekResponsesReasoningReplayFeature,
   grokReasoningReplayFeature,
+  conversationStateReplayFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
   // Must precede anthropic-cache: middleware array order = transformParams
@@ -52,16 +55,19 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // the context middleware's IR round-trip — pinned by contextBuild.test.ts).
   contextBuildFeature,
   anthropicCacheFeature,
+  // Bedrock drops the `anthropic` markers above and reads message-level cache points instead.
+  bedrockAnthropicCacheFeature,
   // Vercel AI Gateway drops the `anthropic` markers above and caches on its own option instead.
   gatewayAnthropicCacheFeature,
   anthropicHeadersFeature,
+  anthropicThinkingReplayFeature,
+  anthropicThinkingBindingFeature,
   // Provider compatibility: strip unsupported schema keywords, then apply Gemini-specific tool filtering.
   toolSchemaCompatibilityFeature,
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,
   qwenEnableThinkingFeature,
-  skipGeminiThoughtSignatureFeature,
   // The HuggingFace router rejects reasoning input items — strip them on replay.
   stripReasoningReplayFeature,
   providerWebSearchFeature,

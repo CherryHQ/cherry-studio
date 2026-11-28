@@ -26,7 +26,7 @@ describe('replaceReasoningPartText', () => {
     expect(next[2]).toBe(parts[2])
   })
 
-  it('keeps cherry timing metadata but drops provider signatures that signed the old text', () => {
+  it('keeps cherry timing metadata, drops signatures, and marks signed edits for think replay', () => {
     const parts = [
       reasoningPart('old thought', {
         providerMetadata: {
@@ -42,10 +42,42 @@ describe('replaceReasoningPartText', () => {
     expect(next).toMatchObject({
       type: 'reasoning',
       text: 'new thought',
-      providerMetadata: { cherry: { thinkingMs: 1200, startedAt: 1700000000000 } }
+      providerMetadata: {
+        cherry: { thinkingMs: 1200, startedAt: 1700000000000, editedReasoningReplay: 'think' }
+      }
     })
     expect((next as { providerMetadata: Record<string, unknown> }).providerMetadata).not.toHaveProperty('openai')
     expect((next as { providerMetadata: Record<string, unknown> }).providerMetadata).not.toHaveProperty('google')
+  })
+
+  it('keeps the think marker when a signed edit is edited again after its signature is gone', () => {
+    const [first] = replaceReasoningPartText(
+      [reasoningPart('old thought', { providerMetadata: { anthropic: { signature: 'sig' } } })],
+      0,
+      'first edit'
+    )
+
+    const [second] = replaceReasoningPartText([first], 0, 'second edit')
+
+    expect(second).toMatchObject({
+      text: 'second edit',
+      providerMetadata: { cherry: { editedReasoningReplay: 'think' } }
+    })
+  })
+
+  it('does not mark unsigned reasoning for think replay', () => {
+    const [next] = replaceReasoningPartText(
+      [reasoningPart('plain thought', { providerMetadata: { cherry: { thinkingMs: 5 } } })],
+      0,
+      'new thought'
+    )
+
+    expect(next).toMatchObject({
+      text: 'new thought',
+      providerMetadata: { cherry: { thinkingMs: 5 } }
+    })
+    const metadata = (next as { providerMetadata?: { cherry?: Record<string, unknown> } }).providerMetadata
+    expect(metadata?.cherry).not.toHaveProperty('editedReasoningReplay')
   })
 
   it('returns the original array when the text is unchanged', () => {

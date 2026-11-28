@@ -48,6 +48,8 @@ export const DocumentToMarkdownCapabilitySchema = z
     output: z.literal('markdown'),
     apiHost: z.string().optional(),
     modelId: z.string().min(1).optional(),
+    formulaLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+    mergeCrossPageForms: z.boolean().optional(),
     maxInputBytes: z.int().positive().optional(),
     maxInputPages: z.int().positive().optional()
   })
@@ -129,7 +131,9 @@ export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z
 export const FileProcessorCapabilityOverrideSchema: z.ZodType<FileProcessorCapabilityOverride> = z
   .object({
     apiHost: z.string().optional(),
-    modelId: z.string().min(1).optional()
+    modelId: z.string().min(1).optional(),
+    formulaLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+    mergeCrossPageForms: z.boolean().optional()
   })
   .strict()
 
@@ -248,6 +252,8 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         output: 'markdown',
         apiHost: 'https://v2.doc2x.noedgeai.com',
         modelId: 'v3-2026',
+        formulaLevel: 0,
+        mergeCrossPageForms: false,
         maxInputBytes: GB,
         maxInputPages: 1000
       }

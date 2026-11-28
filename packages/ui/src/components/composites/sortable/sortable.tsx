@@ -1,58 +1,26 @@
 import { RestrictToHorizontalAxis, RestrictToVerticalAxis } from '@dnd-kit/abstract/modifiers'
 import { closestCenter } from '@dnd-kit/collision'
-import type { Draggable } from '@dnd-kit/dom'
-import { Accessibility, PointerActivationConstraints } from '@dnd-kit/dom'
+import { Accessibility } from '@dnd-kit/dom'
 import { RestrictToElement, RestrictToWindow } from '@dnd-kit/dom/modifiers'
 import { getFirstScrollableAncestor } from '@dnd-kit/dom/utilities'
 import { arrayMove } from '@dnd-kit/helpers'
-import type { DragDropManager, DragEndEvent, DragMoveEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/react'
-import { DragDropProvider, DragOverlay, KeyboardSensor, PointerSensor, useDragDropManager } from '@dnd-kit/react'
-import React, { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { DragDropManager, DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/react'
+import { DragOverlay } from '@dnd-kit/react'
+import React, { type ComponentProps, useCallback, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 
+import { DragDropRoot } from './drag-drop-root'
 import { ItemRenderer } from './item-renderer'
 import { SortableItem } from './sortable-item'
 import type { RenderItemType, SortableAccessibility, SortableItemId } from './types'
-
-function preventActivation(event: PointerEvent, source: Draggable) {
-  // PointerSensor checks that the target is an Element before it calls this.
-  const target = event.target as Element
-  // A nested list inside the marked region stays draggable: the marker only guards rows that contain it.
-  const noDnd = target.closest('[data-no-dnd]')
-  if (noDnd && source.element?.contains(noDnd)) return true
-  // The row itself is a button (nav item, launchpad tile), so a press on it must still drag.
-  if (target.closest('[data-dnd-row-control]')) return false
-  return PointerSensor.defaults.preventActivation?.(event, source) ?? false
-}
-
-function activationConstraints(event: PointerEvent) {
-  if (event.pointerType === 'touch') {
-    return [new PointerActivationConstraints.Delay({ value: 250, tolerance: 5 })]
-  }
-  // The library default also activates after a 200ms hold, which would swallow a slow click on a row.
-  return [new PointerActivationConstraints.Distance({ value: 8 })]
-}
-
-const SENSORS = [PointerSensor.configure({ activationConstraints, preventActivation }), KeyboardSensor]
 
 const RESTRICT_TO_SCROLLABLE_ANCESTOR = RestrictToElement.configure({
   element: ({ source }) => (source?.element ? getFirstScrollableAncestor(source.element) : null)
 })
 
-type Plugins = ComponentProps<typeof DragDropProvider>['plugins']
-
-/**
- * Pointer capture hides the gesture from the row, so a long-press timer it holds (Radix ContextMenu)
- * would fire after the finger moved or lifted and open a modal menu. The timer clears on `pointermove`.
- */
-function releaseRowLongPress(activatorEvent: Event | null) {
-  if (!(activatorEvent instanceof PointerEvent) || activatorEvent.pointerType === 'mouse') return
-
-  const { target, pointerType, clientX, clientY } = activatorEvent
-  target?.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType, clientX, clientY }))
-}
+type Plugins = ComponentProps<typeof DragDropRoot>['plugins']
 
 function createPlugins({ screenReaderInstructions, announcements }: SortableAccessibility): Plugins {
   const options: NonNullable<ConstructorParameters<typeof Accessibility>[1]> = {
@@ -73,29 +41,6 @@ function createPlugins({ screenReaderInstructions, announcements }: SortableAcce
   const configured = Accessibility.configure(options)
 
   return (defaults) => defaults.map((plugin) => (plugin === Accessibility ? configured : plugin))
-}
-
-/**
- * An overlay that steals focus without hiding the page (Windows `Win+Shift+S`) swallows the
- * `pointerup`, so the dragged item would stay glued to the cursor, swallowing every later click.
- */
-function CancelDragOnWindowBlur() {
-  const manager = useDragDropManager()
-
-  useEffect(() => {
-    if (!manager) return
-
-    const cancelDrag = () => {
-      manager.actions.stop({ canceled: true })
-      // Sensors stay attached after an outside stop, and only they know about a press that has not activated.
-      manager.sensors.forEach((sensor) => sensor.destroy())
-    }
-
-    window.addEventListener('blur', cancelDrag)
-    return () => window.removeEventListener('blur', cancelDrag)
-  }, [manager])
-
-  return null
 }
 
 interface SortableProps<T> {
@@ -190,7 +135,6 @@ function Sortable<T>({
   const [previewIds, setPreviewIds] = useState<SortableItemId[] | null>(null)
   // The library wraps these handlers in transitions, so a drop can land before the last preview commits.
   const latestPreviewIds = useRef<SortableItemId[] | null>(null)
-  const longPressReleased = useRef(false)
 
   const orderedItems = useMemo(
     () =>
@@ -207,18 +151,9 @@ function Sortable<T>({
   }
 
   const handleDragStart = ({ operation: { source } }: DragStartEvent) => {
-    longPressReleased.current = false
     if (source) {
       customOnDragStart?.({ activeId: source.id })
     }
-  }
-
-  const handleDragMove = ({ operation: { activatorEvent } }: DragMoveEvent) => {
-    if (longPressReleased.current) return
-
-    longPressReleased.current = true
-    // Holding still keeps the long-press menu: only real movement gets here.
-    releaseRowLongPress(activatorEvent)
   }
 
   const handleDragOver = (event: DragOverEvent, manager: DragDropManager) => {
@@ -244,10 +179,9 @@ function Sortable<T>({
       .then(() => manager.collisionObserver.enable())
   }
 
-  const handleDragEnd = ({ canceled, operation: { source, activatorEvent } }: DragEndEvent) => {
+  const handleDragEnd = ({ canceled, operation: { source } }: DragEndEvent) => {
     const order = latestPreviewIds.current
     updatePreview(null)
-    releaseRowLongPress(activatorEvent)
 
     if (canceled) {
       customOnDragCancel?.()
@@ -279,15 +213,12 @@ function Sortable<T>({
   const plugins = useMemo(() => (accessibility ? createPlugins(accessibility) : undefined), [accessibility])
 
   return (
-    <DragDropProvider
-      sensors={SENSORS}
+    <DragDropRoot
       modifiers={modifiers}
       plugins={plugins}
       onDragStart={handleDragStart}
-      onDragMove={handleDragMove}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}>
-      <CancelDragOnWindowBlur />
       <div
         className={cn(
           layout === 'grid'
@@ -331,7 +262,7 @@ function Sortable<T>({
           </DragOverlay>,
           document.body
         )}
-    </DragDropProvider>
+    </DragDropRoot>
   )
 }
 

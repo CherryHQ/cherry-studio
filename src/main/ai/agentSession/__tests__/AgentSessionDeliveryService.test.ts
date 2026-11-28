@@ -1,3 +1,4 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { agentService } from '@data/services/AgentService'
@@ -42,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   whenTerminalDispatchSettled: vi.fn(),
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
+  prepareBranch: vi.fn(),
   getPath: vi.fn(),
   purgeSystemWorkspace: vi.fn(),
   withDispatchLock: vi.fn(),
@@ -78,6 +80,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     finalizeSessionDelivery: mocks.finalize,
     findDeliveringSessionDeliveryByTurnRef: mocks.findByTurnRef,
     getSessionMessage: mocks.getMessage,
+    inputTarget: () => undefined,
     markAssistantMessageTerminalError: mocks.markTerminalError,
     publishDispatchChanges: mocks.publishDispatchChanges,
     listAcceptedSessionDeliveries: mocks.listAccepted,
@@ -143,6 +146,8 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
 }))
 
 const runtime = {
+  whenStartupRecoverySettles: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  getExecutionHead: () => undefined,
   cancelSessionForks: vi.fn().mockResolvedValue(undefined),
   recoverSessionForks: vi.fn().mockResolvedValue(undefined),
   listActiveWork: () => [],
@@ -150,6 +155,7 @@ const runtime = {
   isSessionBusy: mocks.runtimeBusy,
   isSessionBusyForArchive: mocks.runtimeBusy,
   closeSession: mocks.closeSession,
+  prepareBranch: mocks.prepareBranch,
   onTurnTerminal: (listener: (event: any) => void) => {
     mocks.terminalListeners.add(listener)
     return { dispose: () => mocks.terminalListeners.delete(listener) }
@@ -181,6 +187,8 @@ vi.mock('@application', () => ({
       if (name === 'AgentSessionRuntimeService') return runtime
       if (name === 'AiStreamManager') return manager
       if (name === 'DbService') return dbService
+      if (name === 'AgentDelegationService') return { cancelOwnedBy: async () => {} }
+      if (name === 'AgentImportService') return defaultServiceInstances.AgentImportService
       if (name === 'AgentSessionDeliveryService') return deliveryOwner
       if (name === 'ChannelManager')
         return {
@@ -249,6 +257,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
+    mocks.prepareBranch.mockReset().mockResolvedValue(undefined)
     mocks.getPath.mockReturnValue('/mock/feature.agents.system_workspaces')
     mocks.purgeSystemWorkspace.mockResolvedValue(undefined)
     mocks.listSystemWorkspaceSessions.mockReturnValue([])
@@ -259,6 +268,7 @@ describe('AgentSessionDeliveryService', () => {
       agentId: 'agent-1',
       agentUpdatedAt: now,
       agentType: 'claude-code',
+      agentDefaultModel: 'provider::model',
       uniqueModelId: 'provider::model'
     })
     mocks.persistDispatchTx.mockReturnValue({
@@ -304,6 +314,30 @@ describe('AgentSessionDeliveryService', () => {
 
   afterEach(() => BaseService.resetInstances())
 
+  it('lets Durable recover pending native input before delivering the next accepted message', async () => {
+    const recovery = Promise.withResolvers<void>()
+    runtime.whenStartupRecoverySettles.mockReturnValueOnce(recovery.promise)
+    mocks.listRecoverable.mockReturnValue([accepted])
+    mocks.listAccepted.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [accepted] : []))
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+    const ready = service._doAllReady()
+
+    await flush()
+    expect(mocks.claim).not.toHaveBeenCalled()
+
+    mocks.runtimeBusy.mockReturnValue(true)
+    recovery.resolve()
+    await ready
+    await service.drainSessionQueues(['target'])
+    expect(mocks.claim).not.toHaveBeenCalled()
+
+    mocks.runtimeBusy.mockReturnValue(false)
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainSessionQueues(['target'])
+    expect(mocks.claim).toHaveBeenCalledTimes(1)
+  })
+
   it('waits for the previous terminal dispatch to settle before checking liveness', async () => {
     const service = new AgentSessionDeliveryService()
     await service._doInit()
@@ -324,6 +358,22 @@ describe('AgentSessionDeliveryService', () => {
     await service.drainInFlight({ timeoutMs: 100 })
     expect(mocks.hasLiveStream).toHaveBeenCalled()
     expect(mocks.send).toHaveBeenCalled()
+  })
+
+  it('rechecks admission after switching the captured delivery branch', async () => {
+    const switching = Promise.withResolvers<void>()
+    mocks.prepareBranch.mockReturnValue(switching.promise)
+    const service = new AgentSessionDeliveryService()
+    mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
+    service.kick('target')
+    await vi.waitFor(() => expect(mocks.prepareBranch).toHaveBeenCalledWith('target', 'delivery-1'))
+    const hold = service.pause('test')
+    switching.resolve()
+    await service.drainSessionQueues(['target'])
+    expect(mocks.claim).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
+    hold.dispose()
+    await service.drainSessionQueues(['target'])
   })
 
   it('keeps an accepted row durable while the target is busy, then starts it on idle', async () => {
@@ -353,6 +403,28 @@ describe('AgentSessionDeliveryService', () => {
     expect(mocks.claim).toHaveBeenCalledWith({}, 'target', 'delivery-1', 'assistant-1')
     expect(mocks.publishDispatchChanges).toHaveBeenCalledWith('target', [accepted, assistant])
     expect(mocks.send).toHaveBeenCalledOnce()
+  })
+
+  it('starts a native CLI delivery without treating its runtime identity as a configured model', async () => {
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+    mocks.validateDispatch.mockResolvedValue({
+      sessionId: 'target',
+      agentId: 'agent-1',
+      agentUpdatedAt: now,
+      agentDefaultModel: null,
+      agentType: 'local',
+      uniqueModelId: 'runtime:agent-1'
+    })
+    mocks.persistDispatchTx.mockImplementation((_tx, _validated, expected) => {
+      if (expected.model !== null) throw DataApiErrorFactory.concurrentModification('Agent', 'agent-1')
+      return { assistantMessageId: assistant.id, savedMessages: [accepted, assistant] }
+    })
+    mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
+    service.kick('target')
+    await service.drainInFlight({ timeoutMs: 100 })
+    expect(mocks.send).toHaveBeenCalledOnce()
+    expect(mocks.fail).not.toHaveBeenCalled()
   })
 
   it('reruns a coalesced kick that arrives before the blocked kick releases single-flight ownership', async () => {
@@ -703,24 +775,6 @@ describe('AgentSessionDeliveryService', () => {
       await service.drainInFlight({ timeoutMs: 100 })
 
       expect(mocks.send).toHaveBeenCalledOnce()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('reinstalls its retry sweep when the service restarts', async () => {
-    vi.useFakeTimers()
-    try {
-      const service = new AgentSessionDeliveryService()
-      await service._doInit()
-      await service._doAllReady()
-      expect(vi.getTimerCount()).toBe(1)
-
-      await service._doStop()
-      expect(vi.getTimerCount()).toBe(0)
-
-      await service._doInit()
-      expect(vi.getTimerCount()).toBe(1)
     } finally {
       vi.useRealTimers()
     }

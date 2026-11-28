@@ -1,12 +1,10 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 
+import { MessagePartsScopeProvider } from '../MessagePartsContext'
 import ThinkingBlock from '../ThinkingBlock'
-
-// Exercise the real nested scrollbars; the renderer-wide mock only renders a div.
-vi.unmock('@cherrystudio/ui')
 
 // Mock dependencies
 const mockUseTranslation = vi.fn()
@@ -53,6 +51,7 @@ vi.mock('../ThinkingEffect', () => ({
 describe('ThinkingBlock', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
+    invalidateCachedMessageUiStates(['thinking-test-message'])
 
     mockRenderConfig.messageFont = 'sans-serif'
     mockRenderConfig.fontSize = 14
@@ -89,17 +88,22 @@ describe('ThinkingBlock', () => {
         content={block.content}
         isStreaming={block.status === 'streaming'}
         showTitlePreview={props.showTitlePreview}
-      />
+      />,
+      {
+        wrapper: ({ children }) => (
+          <MessagePartsScopeProvider messageId="thinking-test-message" parts={[]}>
+            {children}
+          </MessagePartsScopeProvider>
+        )
+      }
     )
   }
-
-  const getThinkingContent = () => screen.queryByText(/markdown:/i)
   const getThinkingTimeText = () => screen.getByTestId('thinking-time-text')
   const getToggleButton = () => document.querySelector<HTMLElement>('[aria-controls][aria-expanded][role="button"]')!
   const getContentContainer = () => {
     const contentId = getToggleButton().getAttribute('aria-controls')
     if (!contentId) throw new Error('Missing thinking content id')
-    return document.getElementById(contentId)
+    return document.getElementById(contentId)?.closest<HTMLElement>('[data-slot=scroll-area]')
   }
 
   describe('basic rendering', () => {
@@ -109,10 +113,6 @@ describe('ThinkingBlock', () => {
 
       // User should see the thinking content
       expect(screen.getByText('Markdown: Deep thoughts about AI')).toBeInTheDocument()
-      expect(screen.getByTestId('mock-marquee-component')).toBeInTheDocument()
-      expect(
-        screen.getByText('Markdown: Deep thoughts about AI').closest('[data-ui~="part:message-reasoning"]')
-      ).not.toBeNull()
     })
 
     it('should not render when content is empty', () => {
@@ -124,15 +124,6 @@ describe('ThinkingBlock', () => {
         expect(container.firstChild).toBeNull()
         unmount()
       })
-    })
-
-    it('should not show a reasoning preview in the title by default', () => {
-      const block = createThinkingBlock({ content: 'First thought\n\nsecond thought\tthird thought' })
-      renderThinkingBlock(block)
-
-      expect(screen.queryByText('First thought second thought third thought')).toBeNull()
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-      expect(getContentContainer()).toHaveAttribute('hidden')
     })
 
     it('should show a single-line reasoning preview in the title when enabled', () => {
@@ -151,6 +142,8 @@ describe('ThinkingBlock', () => {
       })
       const { rerender } = renderThinkingBlock(block)
 
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
       expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
       expect(within(getToggleButton()).queryByText('second thought in progress')).toBeNull()
 
@@ -179,6 +172,7 @@ describe('ThinkingBlock', () => {
       await act(() => vi.advanceTimersByTime(1))
       expect(within(getToggleButton()).getByText('third thought complete.')).toBeInTheDocument()
       expect(within(getToggleButton()).queryByText('fourth thought in progress')).toBeNull()
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('should keep unfinished streaming text out of the title until a segment is completed', () => {
@@ -222,37 +216,7 @@ describe('ThinkingBlock', () => {
     })
   })
 
-  describe('thinking status display', () => {
-    it('should display status messages without elapsed seconds', () => {
-      // Completed thinking
-      const completedBlock = createThinkingBlock({ status: 'success' })
-      const { unmount } = renderThinkingBlock(completedBlock)
-
-      const timeText = getThinkingTimeText()
-      expect(timeText).toHaveTextContent('Deep reasoning')
-      expect(timeText).not.toHaveTextContent('3.5s')
-      unmount()
-
-      // Active thinking
-      const thinkingBlock = createThinkingBlock({ status: 'streaming' })
-      renderThinkingBlock(thinkingBlock)
-
-      const activeTimeText = getThinkingTimeText()
-      expect(activeTimeText).toHaveTextContent('Thinking')
-      expect(activeTimeText).not.toHaveTextContent('1.0s')
-    })
-  })
-
   describe('collapse behavior', () => {
-    it('should render collapsed by default', () => {
-      const block = createThinkingBlock()
-      renderThinkingBlock(block)
-
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-      expect(getContentContainer()).toHaveAttribute('hidden')
-      expect(getThinkingContent()).toBeInTheDocument()
-    })
-
     it('should toggle expanded state when clicked', () => {
       const block = createThinkingBlock()
       renderThinkingBlock(block)
@@ -261,6 +225,43 @@ describe('ThinkingBlock', () => {
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
+
+    it('should restore the user-selected disclosure state after remounting', () => {
+      const block = createThinkingBlock()
+      const firstRender = renderThinkingBlock(block)
+
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+
+      firstRender.unmount()
+      renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it.each([true, false])('reconciles a preference changed while unmounted: %s', (initial) => {
+      mockRenderConfig.thoughtAutoCollapse = initial
+      const block = createThinkingBlock()
+      const first = renderThinkingBlock(block)
+      mockRenderConfig.thoughtAutoCollapse = !initial
+      first.rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
+      first.unmount()
+      mockRenderConfig.thoughtAutoCollapse = initial
+      renderThinkingBlock(block)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(!initial))
+    })
+
+    it.each([true, false])('preserves a manual choice with unchanged preference: %s', (initial) => {
+      mockRenderConfig.thoughtAutoCollapse = initial
+      const block = createThinkingBlock()
+      const first = renderThinkingBlock(block)
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
+      first.unmount()
+      renderThinkingBlock(block)
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', String(initial))
     })
 
     it('should render expanded by default when auto-collapse is disabled', () => {
@@ -299,62 +300,63 @@ describe('ThinkingBlock', () => {
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
+
+    it('should start collapsed and stay collapsed when thinking ends', () => {
+      mockRenderConfig.thoughtAutoCollapse = true
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
+
+    it('should keep streaming thinking expanded when auto-collapse is disabled', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
+
+    it('should keep manually expanded thinking open when it finishes', () => {
+      mockRenderConfig.thoughtAutoCollapse = true
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
   })
 
   describe('layout and readability', () => {
-    it('keeps its own scrollbar visible when the message scrollbar returns to idle', async () => {
+    it('bounds streaming thinking to the viewport while completed thinking reads at full height', () => {
       mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock()
-      render(
-        <Scrollbar data-testid="message-scrollbar">
-          <ThinkingBlock id={block.id} content={block.content} isStreaming={false} />
-        </Scrollbar>
-      )
+      const streaming = renderThinkingBlock(createThinkingBlock({ status: 'streaming' }))
 
-      const messageScrollbar = screen.getByTestId('message-scrollbar')
-      const panel = getContentContainer()!
-      // The inner scrollbar must retain its theme color even when its ancestor becomes transparent.
-      expect(messageScrollbar).toHaveStyle({ scrollbarColor: 'transparent transparent' })
-      expect(panel).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
-
-      fireEvent.scroll(messageScrollbar)
-      fireEvent.scroll(panel)
-      expect(messageScrollbar).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
-
-      await act(() => vi.advanceTimersByTime(2000))
-
-      expect(messageScrollbar).toHaveStyle({ scrollbarColor: 'transparent transparent' })
-      expect(panel).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
-    })
-
-    it('uses viewport-aware max height on the content panel', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock()
-      renderThinkingBlock(block)
-
-      // Bound long reasoning to the viewport so the message list remains reachable.
+      // Bound streaming reasoning so the message list remains reachable.
       expect(getContentContainer()).toHaveClass('max-h-[min(32rem,60dvh)]')
-    })
+      streaming.unmount()
 
-    it('uses theme-aware muted foreground for panel and markdown content', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock({ content: 'Readable reasoning text' })
-      renderThinkingBlock(block)
+      renderThinkingBlock(createThinkingBlock())
 
-      const panel = getContentContainer()!
-      expect(panel).toHaveClass('text-muted-foreground')
-
-      const markdownWrapper = screen.getByText('Markdown: Readable reasoning text').parentElement
-      expect(markdownWrapper).toHaveClass('text-muted-foreground')
-      expect(markdownWrapper).toHaveStyle({ '--markdown-foreground': 'var(--muted-foreground)' })
-    })
-
-    it('keeps short thinking content compact without a minimum panel height', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock({ content: 'Short thought.' })
-      renderThinkingBlock(block)
-
-      expect(getContentContainer()?.className).not.toMatch(/min-h-/)
+      // Completed reasoning renders at natural height for readability.
+      expect(getContentContainer()).not.toHaveClass('max-h-[min(32rem,60dvh)]')
     })
   })
 
@@ -373,7 +375,7 @@ describe('ThinkingBlock', () => {
     )
     try {
       renderThinkingBlock(createThinkingBlock({ status: 'streaming' }))
-      const panel = getContentContainer()!
+      const panel = getContentContainer()!.querySelector<HTMLElement>('[data-slot=scroll-area-viewport]')!
       let height = 200
       Object.defineProperties(panel, {
         clientHeight: { configurable: true, get: () => 100 },

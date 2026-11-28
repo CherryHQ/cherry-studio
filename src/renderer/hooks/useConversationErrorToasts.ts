@@ -5,8 +5,8 @@ import { dataApiService } from '@data/DataApiService'
 import { useCommandRuntime } from '@renderer/hooks/command'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import { toast, type ErrorToastContext } from '@renderer/services/toast'
+import type { ExecutionFinishEvent } from '@renderer/types/message'
 import { getProviderDisplayName } from '@renderer/utils/naming'
 import type { ActiveExecution, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -209,13 +209,13 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
   )
 
   const onFinish = useCallback(
-    (executionId: string, event: ExecutionFinishEvent, userMessageId?: string) => {
+    (executionId: string, event: ExecutionFinishEvent) => {
       if (!state.active) return
       const key = `${executionId}:${event.attemptId}`
       const attempt = state.attempts.get(key) ?? state.unmatched.get(key) ?? {}
       if (attempt.handled) return
       attempt.executionId = executionId
-      attempt.userMessageId ??= userMessageId
+      attempt.userMessageId ??= event.userMessageId
       const error = event.message.parts.findLast((part) => part.type === 'data-error')?.data
       attempt.result = {
         success: !event.isAbort,
@@ -238,20 +238,17 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
     const onTerminal = (event: StreamDonePayload | StreamErrorPayload) => {
       if (event.topicId !== state.scopeKey || !event.executionId || event.attemptId === undefined) return
       const error = 'error' in event ? event.error : undefined
-      onFinish(
-        event.executionId,
-        {
-          attemptId: event.attemptId,
-          message: {
-            id: event.anchorMessageId ?? '',
-            role: 'assistant',
-            parts: error ? [{ type: 'data-error', data: error }] : []
-          },
-          isError: error !== undefined,
-          isAbort: 'status' in event && event.status === 'paused'
+      onFinish(event.executionId, {
+        attemptId: event.attemptId,
+        userMessageId: event.userMessageId,
+        message: {
+          id: event.anchorMessageId ?? '',
+          role: 'assistant',
+          parts: error ? [{ type: 'data-error', data: error }] : []
         },
-        event.userMessageId
-      )
+        isError: error !== undefined,
+        isAbort: 'status' in event && event.status === 'paused'
+      })
     }
     const offDone = ipcApi.on('ai.stream.done', onTerminal)
     const offError = ipcApi.on('ai.stream.error', onTerminal)

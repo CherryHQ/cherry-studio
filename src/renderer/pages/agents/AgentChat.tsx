@@ -2,10 +2,12 @@ import type { ReactNode } from 'react'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -27,21 +29,30 @@ import {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
+import PermissionRequestComposer, {
+  type PermissionRequestComposerProps
+} from '@renderer/components/composer/variants/PermissionRequestComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
+import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
+import { useLocalAgentSessionInfo } from '@renderer/hooks/agent/useLocalAgentSessionInfo'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import { cn } from '@renderer/utils/style'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { getLocalAgentProtocol } from '@shared/ai/localAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -50,16 +61,38 @@ import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
-import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
-import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
+import {
+  type AgentFileNavigationRequest,
+  AgentRightPane,
+  AgentTaskProgressCapsule,
+  useAgentRightPaneActions
+} from './components/AgentRightPane'
+import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 import type { AgentConversationBootstrap } from './useAgentConversationBootstrap'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
+const logger = loggerService.withContext('AgentChat')
+
+function AgentPermissionRequestComposer(props: PermissionRequestComposerProps) {
+  const { openAgentToolFlow, canOpenAgentToolFlow } = useAgentRightPaneActions()
+  return (
+    <PermissionRequestComposer
+      {...props}
+      requiresAgentConfigPreview
+      onOpenSource={
+        canOpenAgentToolFlow
+          ? (source) => openAgentToolFlow({ toolCallId: source.toolCallId, title: source.title })
+          : undefined
+      }
+    />
+  )
+}
 
 interface ModelSwitchTarget {
+  sessionId: string
   agentId: string
   model: Model
 }
@@ -82,11 +115,22 @@ type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' 
 
 function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
+  const profilePane = useProfilePaneToggle()
 
-  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <AgentConversationControls
+      {...props}
+      side="bottom"
+      iconOnly={iconOnly}
+      onAvatarClick={profilePane?.toggle}
+      avatarActive={profilePane?.active}
+    />
+  )
 }
 
 interface AgentChatProps {
+  /** Page-owned toolbar that replaces the standard Agent navbar. */
+  conversationToolbar?: ReactNode
   centerSurface?: ConversationCenterSlot | null
   pane?: ReactNode
   paneOpen?: boolean
@@ -96,6 +140,7 @@ interface AgentChatProps {
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
   locateMessageId?: string
+  locateToEnd?: boolean
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -104,6 +149,7 @@ interface AgentChatProps {
   paneManualToggle?: PaneManualToggleSignal
   missingAgentSelection?: boolean
   onCreateEmptySession?: (defaults?: CreateAgentSessionDefaults) => void | Promise<unknown>
+  onStartNewTaskConversation?: (agentId: string) => void
   onMissingAgentSelectionAgentChange?: (agentId: string | null) => void | Promise<void>
   onSessionWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
@@ -121,8 +167,11 @@ interface AgentChatProps {
 
 interface AgentChatLayoutProps {
   activeAgent?: GetAgentResponse
+  subscriptionUsageRevision?: string
   /** Active model — the right pane needs it for the context-usage denominator. */
   model?: Model
+  /** The same confirmed model switch as the top bar, for the profile pane. */
+  onModelChange?: (model: Model) => void
   center?: ReactNode
   centerClassName?: string
   centerSurface?: ConversationCenterSlot | null
@@ -138,7 +187,7 @@ interface AgentChatLayoutProps {
   paneManualToggle?: PaneManualToggleSignal
   paneOpen?: boolean
   panePosition?: ChatPanePosition
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   resourcePane?: ResourcePaneConfig | null
   resourcePaneRevealRequest?: ResourceListRevealRequest
   rightPanelDefaultOpen?: boolean
@@ -151,6 +200,7 @@ interface AgentChatLayoutProps {
 }
 
 const AgentChat = ({
+  conversationToolbar,
   centerSurface,
   pane,
   paneOpen,
@@ -160,6 +210,7 @@ const AgentChat = ({
   sidebarOpen,
   onSidebarToggle,
   locateMessageId,
+  locateToEnd,
   onLocateMessageHandled,
   onPaneCollapse,
   onPaneAutoCollapseChange,
@@ -168,6 +219,7 @@ const AgentChat = ({
   paneManualToggle,
   missingAgentSelection = false,
   onCreateEmptySession,
+  onStartNewTaskConversation,
   onMissingAgentSelectionAgentChange,
   onSessionWorkspaceChange,
   onVisibleAgentChange,
@@ -201,6 +253,21 @@ const AgentChat = ({
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
   const activeAgent = conversationBootstrap.resources.agent
+  const localRuntime = activeAgent?.localRuntime
+  const localView = useLocalAgentSessionInfo(
+    sessionSnapshot?.id ?? '',
+    activeAgent?.type === 'local' && activeAgent.id === visibleAgentId && !!sessionSnapshot,
+    activeAgent && JSON.stringify([activeAgent.id, activeAgent.updatedAt])
+  )
+  const localPresetId = localView?.providerId ? localView.presetId : localRuntime?.presetId
+  const subscriptionUsageRevision =
+    activeAgent?.type === 'local' &&
+    activeAgent.id === visibleAgentId &&
+    localRuntime?.enabled &&
+    localView?.subscriptionUsage &&
+    (localPresetId !== 'minimax' || !!localView.info?.activeModel?.id)
+      ? JSON.stringify([localView.providerId, activeAgent.updatedAt, localView.info?.activeModel?.id])
+      : undefined
   const isSupportAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
   const isAssistantAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
   // Assistant now exposes prepare_diagnostic_report, so it needs the same review dialog as Support.
@@ -208,7 +275,6 @@ const AgentChat = ({
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
-  const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
@@ -252,6 +318,8 @@ const AgentChat = ({
     sessionId: sessionSnapshot?.id ?? '',
     modelId: activeModel?.id,
     agentType: activeAgent?.type,
+    agentName: activeAgent?.name,
+    permissionRequestComponent: AgentPermissionRequestComposer,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES
@@ -303,16 +371,24 @@ const AgentChat = ({
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
-      if (!activeAgent || !nextModel || nextModel.id === activeModel?.id) return
+      if (!sessionSnapshot || !nextModel || nextModel.id === activeModel?.id) return
       if (!isEmptyConversation && !skipModelSwitchConfirmationsForAppRun) {
-        setModelSwitchTarget({ agentId: activeAgent.id, model: nextModel })
+        if (!activeAgent) return
+        setModelSwitchTarget({ sessionId: sessionSnapshot.id, agentId: activeAgent.id, model: nextModel })
         setSkipModelSwitchConfirmation(false)
         setModelSwitchConfirmOpen(true)
         return
       }
-      await updateModel({ agentId: activeAgent.id, modelId: nextModel.id }, { showSuccessToast: false })
+      await updateSession({ id: sessionSnapshot.id, model: nextModel.id }, { showSuccessToast: false })
     },
-    [activeAgent, activeModel?.id, isEmptyConversation, skipModelSwitchConfirmationsForAppRun, updateModel]
+    [
+      activeAgent,
+      activeModel?.id,
+      isEmptyConversation,
+      sessionSnapshot,
+      skipModelSwitchConfirmationsForAppRun,
+      updateSession
+    ]
   )
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
@@ -346,21 +422,15 @@ const AgentChat = ({
   const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
 
   useEffect(() => {
-    if (!runtimeSessionId || !locateMessageId) {
+    if (centerSurface || !runtimeSessionId || (!locateMessageId && !locateToEnd)) {
       locateLoadRequestRef.current = undefined
       return
     }
 
-    if (runtimeUiMessages.some((message) => message.id === locateMessageId)) {
-      locateLoadRequestRef.current = undefined
-      window.requestAnimationFrame(() => {
-        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
-      })
-      onLocateMessageHandled?.()
-      return
-    }
+    const targetLoaded = runtimeUiMessages.some((message) => message.id === locateMessageId)
+    if (runtimeIsLoading) return
 
-    if (runtimeHasOlder && !runtimeIsLoading) {
+    if (!targetLoaded && !locateToEnd && runtimeHasOlder) {
       const requestKey = `${runtimeSessionId}:${locateMessageId}:${runtimeUiMessages.length}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
@@ -369,12 +439,15 @@ const AgentChat = ({
       return
     }
 
-    if (!runtimeHasOlder && !runtimeIsLoading) {
-      locateLoadRequestRef.current = undefined
-      onLocateMessageHandled?.()
-    }
+    locateLoadRequestRef.current = undefined
+    // Claim scroll ownership before the list's pending initial-restore frame.
+    if (locateToEnd || !targetLoaded) scrollAgentMessageListToEnd(sessionTopicId)
+    else if (locateMessageId) locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+    onLocateMessageHandled?.()
   }, [
+    centerSurface,
     locateMessageId,
+    locateToEnd,
     onLocateMessageHandled,
     runtimeHasOlder,
     runtimeIsLoading,
@@ -448,6 +521,8 @@ const AgentChat = ({
           activeAgent ? (
             <AgentTopBarControls
               agent={activeAgent}
+              localSessionId={sessionSnapshot.id}
+              localView={localView}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
               workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
@@ -491,6 +566,7 @@ const AgentChat = ({
         agentId={composerAgentId}
         composerPending={isActiveAgentLoading || isActiveModelLoading}
         activeAgent={activeAgent}
+        localPresetId={localPresetId}
         activeModel={activeModel}
         workspaceWarning={workspaceWarning}
         isEmptyConversation={isEmptyConversation}
@@ -500,6 +576,7 @@ const AgentChat = ({
         agentChanging={sessionAgentChanging}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
+        onStartNewTaskConversation={onStartNewTaskConversation}
         composerLaunchOptions={composerLaunchOptions}
         openDiagnosticReport={canReviewDiagnosticReport ? openDiagnosticReport : undefined}
       />
@@ -508,7 +585,9 @@ const AgentChat = ({
 
   const layoutProps: AgentChatLayoutProps = {
     activeAgent,
+    subscriptionUsageRevision,
     model: activeModel,
+    onModelChange: handleAgentModelChange,
     center,
     centerClassName,
     centerSurface,
@@ -534,13 +613,14 @@ const AgentChat = ({
     paneManualToggle,
     sessionSnapshot,
     sidePanel,
-    topBar,
+    topBar: conversationToolbar ?? topBar,
     topRightTool: rightPaneTools
   }
 
   return (
     <>
       <AgentChatLayout {...layoutProps} />
+      <ResourceEditDialogEventHost />
       <ConfirmDialog
         open={modelSwitchConfirmOpen}
         onOpenChange={setModelSwitchConfirmOpen}
@@ -565,18 +645,19 @@ const AgentChat = ({
         cancelText={t('common.cancel')}
         onConfirm={async () => {
           if (
-            !activeAgent ||
+            !sessionSnapshot ||
             !modelSwitchTarget ||
-            modelSwitchTarget.agentId !== activeAgent.id ||
+            modelSwitchTarget.sessionId !== sessionSnapshot.id ||
+            modelSwitchTarget.agentId !== sessionSnapshot.agentId ||
             modelSwitchTarget.model.id === activeModel?.id
           ) {
             return
           }
-          const updatedAgent = await updateModel(
-            { agentId: activeAgent.id, modelId: modelSwitchTarget.model.id },
+          const updatedSession = await updateSession(
+            { id: sessionSnapshot.id, model: modelSwitchTarget.model.id },
             { showSuccessToast: false }
           )
-          if (updatedAgent && skipModelSwitchConfirmation) {
+          if (updatedSession && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
           }
         }}
@@ -592,6 +673,7 @@ interface AgentChatSessionCenterProps {
   agentId?: string
   composerPending: boolean
   activeAgent: GetAgentResponse | undefined
+  localPresetId?: string
   activeModel?: Model
   workspaceWarning?: string
   isEmptyConversation: boolean
@@ -601,6 +683,7 @@ interface AgentChatSessionCenterProps {
   agentChanging?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
+  onStartNewTaskConversation?: (agentId: string) => void
   composerLaunchOptions?: AgentComposerLaunchOptions
   openDiagnosticReport?: (description?: string) => void
 }
@@ -612,6 +695,7 @@ const AgentChatSessionCenter = ({
   agentId,
   composerPending,
   activeAgent,
+  localPresetId,
   activeModel,
   workspaceWarning,
   isEmptyConversation,
@@ -621,34 +705,90 @@ const AgentChatSessionCenter = ({
   agentChanging,
   onOpenCitationsPanel,
   onCreateEmptySession,
+  onStartNewTaskConversation,
   composerLaunchOptions,
   openDiagnosticReport
 }: AgentChatSessionCenterProps) => {
+  const { t } = useTranslation()
+  const [localRestoreUnavailable, setLocalRestoreUnavailable] = useState<boolean>()
+  const localRuntime = activeAgent?.type === 'local' ? activeAgent.localRuntime : undefined
+  const protocol = localRuntime && getLocalAgentProtocol(localPresetId)
+  const checkLocalRestore = !!onStartNewTaskConversation && (protocol === 'acp' || protocol === 'cursor')
+  const historyOnly = checkLocalRestore && localRestoreUnavailable === true
+  const checkingRestore = checkLocalRestore && localRestoreUnavailable === undefined
+  const tabId = useCurrentTabId()
+  const isActiveTab = useIsActiveTab()
+  const sessionId = session.id
+  const workspacePath = session.workspace?.path
+  const canActivateRuntime =
+    (!tabId || isActiveTab) &&
+    !onStartNewTaskConversation &&
+    !session.deletedAt &&
+    !!workspacePath &&
+    activeAgent?.id === session.agentId &&
+    localRuntime?.enabled === true &&
+    protocol === 'acp'
+
+  useEffect(() => {
+    if (!canActivateRuntime || !agentId || !workspacePath) return
+    let active = true
+    void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: true }).catch((error) => {
+      if (active) logger.warn('Failed to prepare active ACP session', { sessionId, error })
+    })
+    return () => {
+      active = false
+      void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: false }).catch((error) => {
+        logger.warn('Failed to leave active ACP session', { sessionId, error })
+      })
+    }
+  }, [agentId, canActivateRuntime, sessionId, workspacePath])
+
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
-      <AgentComposerSlot
-        editBusy={runtime.editBusy}
-        agentId={agentId}
-        activeAgent={activeAgent}
-        activeModel={activeModel}
-        workspaceWarning={workspaceWarning}
-        isMultiSelectMode={isMultiSelectMode}
-        session={session}
-        sessionId={runtime.sessionId}
-        sendMessage={runtime.sendMessage}
-        stop={runtime.stop}
-        isStreaming={runtime.isPending}
-        sendDisabled={composerPending}
-        onAgentChange={onAgentChange}
-        agentChanging={agentChanging}
-        onCreateEmptySession={onCreateEmptySession}
-        composerContext={runtime.composerContext}
-        composerLaunchOptions={composerLaunchOptions}
-        editing={runtime.editing}
-        cancelEditing={runtime.cancelEditing}
-        resendEditedMessage={runtime.resendEditedMessage}
-      />
+      {checkingRestore ? (
+        <p className="px-4 py-3 text-center text-sm text-muted-foreground" role="status">
+          {t('common.loading')}
+        </p>
+      ) : historyOnly ? (
+        <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+          <p>{t('local_agents.no_resume')}</p>
+          {agentId && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="pointer-events-auto"
+              onClick={() => onStartNewTaskConversation?.(agentId)}>
+              {t('chat.add.topic.title')}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <AgentComposerSlot
+          editBusy={runtime.editBusy}
+          agentId={agentId}
+          activeAgent={activeAgent}
+          activeModel={activeModel}
+          workspaceWarning={workspaceWarning}
+          isMultiSelectMode={isMultiSelectMode}
+          session={session}
+          sessionId={runtime.sessionId}
+          sendMessage={runtime.sendMessage}
+          stop={runtime.stop}
+          isStreaming={runtime.isPending}
+          messages={runtime.uiMessages}
+          sendDisabled={composerPending}
+          onAgentChange={onAgentChange}
+          agentChanging={agentChanging}
+          onCreateEmptySession={onCreateEmptySession}
+          composerContext={runtime.composerContext}
+          composerLaunchOptions={composerLaunchOptions}
+          editing={runtime.editing}
+          cancelEditing={runtime.cancelEditing}
+          resendEditedMessage={runtime.resendEditedMessage}
+          providerQuotaExhausted={runtime.providerQuotaExhausted}
+        />
+      )}
     </div>
   )
   const messageList = (
@@ -659,6 +799,7 @@ const AgentChatSessionCenter = ({
       sessionId={runtime.sessionId}
       workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
+      historyActions={runtime.historyActions}
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
       streamingLayers={runtime.streamingLayers}
@@ -669,10 +810,14 @@ const AgentChatSessionCenter = ({
       selectAllPagination={runtime.selectAllPagination}
       onOpenCitationsPanel={onOpenCitationsPanel}
       openDiagnosticReport={openDiagnosticReport}
+      getMessageSiblings={runtime.getMessageSiblings}
+      setActiveBranch={runtime.setActiveBranch}
       deleteMessage={runtime.deleteMessage}
       startEditing={runtime.startEditing}
       editBusy={runtime.editBusy}
       respondToolApproval={runtime.respondToolApproval}
+      readOnly={checkingRestore || historyOnly}
+      onLocalRestoreChecked={checkLocalRestore ? setLocalRestoreUnavailable : undefined}
     />
   )
   const main = (
@@ -680,7 +825,16 @@ const AgentChatSessionCenter = ({
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
-            avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+            avatarIcon={
+              activeAgent?.localRuntime ? (
+                <LocalAgentIcon presetId={activeAgent.localRuntime.presetId} size={48} />
+              ) : undefined
+            }
+            avatar={
+              activeAgent
+                ? getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
+                : undefined
+            }
             title={homeWelcomeText ?? ''}
           />
         </div>
@@ -694,7 +848,9 @@ const AgentChatSessionCenter = ({
 
 function AgentChatLayout({
   activeAgent,
+  subscriptionUsageRevision,
   model,
+  onModelChange,
   center,
   centerClassName,
   centerSurface,
@@ -724,11 +880,13 @@ function AgentChatLayout({
   return (
     <AgentRightPane.Scope
       model={model}
+      onModelChange={onModelChange}
       conversationState={conversationState}
       streamingLayers={streamingLayers}
       isMessageHistoryLoading={isMessageHistoryLoading}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
+      workspaceName={sessionSnapshot?.workspace?.name}
       workspaceType={sessionSnapshot?.workspace?.type}
       messages={messages}
       partsByMessageId={partsByMessageId}
@@ -742,7 +900,11 @@ function AgentChatLayout({
       traceId={sessionSnapshot?.traceId ?? undefined}
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
-      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      runtimeType={activeAgent?.type}
+      subscriptionUsageRevision={subscriptionUsageRevision}
+      agentAvatar={
+        activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc) : undefined
+      }
       present={!centerSurface}
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
@@ -759,7 +921,9 @@ function AgentChatLayout({
         center={
           // The layout-mode provider links the message column and the composer so
           // both yield the same anchor-rail gutter and stay aligned.
-          <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+          <AgentRightPane.DetailsLayout>
+            <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+          </AgentRightPane.DetailsLayout>
         }
         sidePanel={sidePanel}
         rightPane={<AgentRightPane.Viewport />}

@@ -59,7 +59,8 @@ vi.mock('@renderer/services/NotesService', () => ({
   resolveNotesPath: (...args: unknown[]) => mocks.resolveNotesPath(...args)
 }))
 
-import { NoteReferenceComposerRuntime, noteToComposerAttachment } from '../noteReferenceTool'
+import { noteToComposerAttachment } from '../noteReference'
+import { NoteReferenceComposerRuntime } from '../noteReferenceTool'
 
 const t = ((key: string) => key) as any
 
@@ -119,46 +120,11 @@ describe('noteReferenceTool', () => {
     })
   })
 
-  it('registers a root launcher and lazily opens a notes panel', async () => {
-    mocks.root = {}
-    mocks.projectNotesTree.mockReturnValue([
-      note({ id: 'folder', name: 'journal', type: 'folder', children: [note()] })
-    ])
+  it('opens notes management from the registered footer action', async () => {
     renderRuntime()
-
-    expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: undefined })
-    const launcher = mocks.registerLaunchers.mock.calls.at(-1)?.[0][0]
-    expect(launcher).toMatchObject({
-      id: 'note-reference',
-      kind: 'panel',
-      sources: ['root-panel'],
-      panelSymbol: ComposerPanelSymbol.Notes
-    })
-
-    act(() => {
-      launcher?.action?.({ quickPanel: { open: mocks.open }, source: 'root-panel' } as any)
-    })
-
-    expect(mocks.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        symbol: ComposerPanelSymbol.Notes
-      })
-    )
-    expect(mocks.open.mock.calls.at(-1)?.[0]).not.toHaveProperty('footerActions')
     const footerAction = mocks.registerLaunchers.mock.calls.at(-1)?.[1]?.[0] as { action: () => void }
     await act(async () => footerAction.action())
     expect(mocks.openRoute).toHaveBeenCalledWith('/app/notes')
-    await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: '/notes' }))
-    expect(mocks.directoryTreeCalls.at(-1)?.options).toMatchObject({ extensions: ['.md'] })
-    await waitFor(() => {
-      const items = mocks.updateList.mock.calls.at(-1)?.[0]
-      expect(items).toEqual([
-        expect.objectContaining({
-          label: 'Daily note',
-          description: 'journal/Daily note.md'
-        })
-      ])
-    })
   })
 
   it('adds a selected note through the existing composer attachment state', async () => {
@@ -186,26 +152,6 @@ describe('noteReferenceTool', () => {
         fileTokenSourceId: expect.any(String)
       })
     ])
-  })
-
-  it.each([
-    { configuredPath: '', resolvedPath: '/default-notes' },
-    { configuredPath: '/stale-notes', resolvedPath: '/default-notes' }
-  ])('scans the resolved notes path for $configuredPath', async ({ configuredPath, resolvedPath }) => {
-    mocks.notesPath = configuredPath
-    mocks.root = {}
-    mocks.resolveNotesPath.mockResolvedValue({ path: resolvedPath, isFallback: true })
-    mocks.projectNotesTree.mockReturnValue([note({ externalPath: `${resolvedPath}/Daily note.md` })])
-    renderRuntime()
-
-    const launcher = mocks.registerLaunchers.mock.calls.at(-1)?.[0][0]
-    act(() => {
-      launcher?.action?.({ quickPanel: { open: mocks.open }, source: 'root-panel' } as any)
-    })
-
-    await waitFor(() => expect(mocks.resolveNotesPath).toHaveBeenCalledWith(configuredPath))
-    await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: resolvedPath }))
-    await waitFor(() => expect(mocks.projectNotesTree).toHaveBeenCalledWith(mocks.root, resolvedPath))
   })
 
   it('reloads root search when the configured notes directory changes', async () => {

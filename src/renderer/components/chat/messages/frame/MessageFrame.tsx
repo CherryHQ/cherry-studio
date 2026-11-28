@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -12,9 +12,11 @@ import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
+import CompactionAnchorBlock from '../blocks/CompactionAnchorBlock'
 import MessageImageBlock from '../blocks/MessageImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
+import MessageTimelineMarker from '../blocks/MessageTimelineMarker'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -35,7 +37,7 @@ import MessageMenuBar from './MessageMenuBar'
 import { MessageUserLayout } from './MessageUserLayout'
 
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
-  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
+  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 has-[[data-slot=dropdown-menu-trigger][data-state=open]]:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
 interface Props {
   message: MessageListItem
@@ -92,6 +94,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
   const isAssistantMessage = message.role === 'assistant'
+  const isUserMessage = message.role === 'user'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
   const canStartEditing =
     actions.canEditMessage?.(message) ??
@@ -116,13 +119,13 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isStreamTarget = activityState.isStreamTarget
   const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
-  const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
-  const showAssistantFooterActions = showMenuBar && isAssistantMessage
+  const isUserBubbleMessage = messageStyle === 'bubble' && isUserMessage && !isMultiSelectMode
+  const showAssistantFooterActions = showMenuBar && isAssistantMessage && message.isRunBoundary !== false
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
   const assistantFooterVisibilityClass = keepAssistantFooterVisible
     ? 'opacity-100'
-    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
+    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 has-[[data-slot=dropdown-menu-trigger][data-state=open]]:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -207,22 +210,46 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     )
   }
 
+  const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full'
+  const messageContentStyle = {
+    fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+    fontSize
+  }
+  const messageBody = (
+    <MessageErrorBoundary>
+      <MessageContent message={message} />
+    </MessageErrorBoundary>
+  )
+  if (message.presentation === 'marker' || message.presentation === 'interrupted')
+    return (
+      <div data-message-id={message.id} className="message-timeline-marker w-full" style={messageContentStyle}>
+        {message.presentation === 'interrupted' ? (
+          <MessageTimelineMarker>{t('message.chat.completion.interrupted')}</MessageTimelineMarker>
+        ) : messageParts[0]?.type === 'data-compaction-anchor' ? (
+          <CompactionAnchorBlock partId={message.partIds?.[0]} data={messageParts[0].data} />
+        ) : null}
+      </div>
+    )
+
   const plainMessageContent = (
     <>
-      <Scrollbar
-        data-ui="part:message-content"
-        className="message-content-container mt-0 min-h-0 max-w-full overflow-y-auto pl-0"
-        tabIndex={isHorizontalMultiModelLayout ? 0 : undefined}
-        style={{
-          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-          fontSize,
-          overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
-        }}>
-        <MessageErrorBoundary>
-          <MessageContent message={message} />
-        </MessageErrorBoundary>
-      </Scrollbar>
-      {isAssistantMessage ? messageTail : undefined}
+      {isHorizontalMultiModelLayout ? (
+        <ScrollArea
+          data-ui="part:message-content"
+          className={messageContentClassName}
+          style={messageContentStyle}
+          viewportProps={{ tabIndex: 0, style: { overflowY: 'auto' } }}>
+          {messageBody}
+        </ScrollArea>
+      ) : (
+        <div
+          data-ui="part:message-content"
+          className={messageContentClassName}
+          style={{ ...messageContentStyle, overflowY: 'visible' }}>
+          {messageBody}
+        </div>
+      )}
+      {isAssistantMessage ? messageTail : <UnsentMessageNotice message={message} />}
     </>
   )
 
@@ -279,7 +306,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
         classNames({
           'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200 [&_.menubar:focus-within]:opacity-100 no-hover:[&_.menubar]:opacity-100': true,
           'message-assistant': isAssistantMessage,
-          'message-user': !isAssistantMessage,
+          'message-user': isUserMessage,
+          'message-system': message.role === 'system',
           'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
           'cursor-pointer': isMultiSelectMode
         })
@@ -307,6 +335,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           key={model ? createUniqueModelId(model.provider, model.id) : ''}
           isGroupContextMessage={isGroupContextMessage}
           showModelIdentity={showModelIdentity}
+          showHeader={message.showHeader}
           contentSlot={plainMessageContent}
           footerSlot={userFooter ?? assistantFooter}
         />
@@ -327,6 +356,24 @@ const MessageItem: FC<Props> = ({ message, messageParts, ...props }) => {
 }
 
 export default memo(MessageItem)
+
+/** A user message the runtime withdrew before the agent received it, with ways to send it again. */
+const UnsentMessageNotice: FC<{ message: MessageListItem }> = ({ message }) => {
+  const { t } = useTranslation()
+  const { resendUnsentMessage, editUnsentMessage } = useMessageListActions()
+  if (message.role !== 'user' || message.status !== 'paused' || !resendUnsentMessage || !editUnsentMessage) return null
+  return (
+    <div className="mt-1 flex max-w-full flex-wrap items-center gap-1 text-foreground-tertiary text-xs">
+      <span>{t('agent.unsent_message.label')}</span>
+      <Button variant="ghost" size="sm" onClick={() => resendUnsentMessage(message)}>
+        {t('agent.unsent_message.resend')}
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => editUnsentMessage(message)}>
+        {t('agent.unsent_message.edit')}
+      </Button>
+    </div>
+  )
+}
 
 const UserBubbleMessage = ({
   message,
@@ -381,9 +428,10 @@ const UserBubbleMessage = ({
             ))}
           </div>
         )}
-        <Scrollbar
+        <div
           data-ui="part:message-content"
-          className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+
+          className="message-content-container mt-0 max-w-full rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
           style={{
             fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
             fontSize,
@@ -392,7 +440,8 @@ const UserBubbleMessage = ({
           <MessageErrorBoundary>
             <MessageContent message={message} hoistAttachments />
           </MessageErrorBoundary>
-        </Scrollbar>
+        </div>
+        <UnsentMessageNotice message={message} />
       </MessageUserLayout>
       {!isEditing && (
         <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">

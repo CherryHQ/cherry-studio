@@ -75,14 +75,12 @@ export function buildCherryCloudProviderConfig(
       } catch (error) {
         throw new ModelUnavailableError('Cherry Cloud model availability could not be refreshed', { cause: error })
       }
-      if (
-        !availability.entitledModelIds.includes(uniqueModelId) ||
-        availability.quotaExhaustedModelIds.includes(uniqueModelId)
-      ) {
+      // Quota is left to the server: its refusal carries the plan's wording and recovery time.
+      if (!availability.entitledModelIds.includes(uniqueModelId)) {
         throw new ModelUnavailableError('Cherry Cloud model is unavailable')
       }
 
-      return service.authenticatedFetch(`${url.pathname}${url.search}`, {
+      return service.modelFetch(`${url.pathname}${url.search}`, {
         method: request.method,
         headers: forwardedHeaders(request.headers),
         body: request.body ? await request.text() : undefined,

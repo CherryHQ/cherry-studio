@@ -10,6 +10,7 @@ import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
+import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
 
 import ActionWindow from './ActionWindow'
 
@@ -19,6 +20,7 @@ import ActionWindow from './ActionWindow'
 function SelectionActionRuntime(): null {
   useLanguageSync()
   useCustomCss()
+  useWebSearchFallbackNotice()
   return null
 }
 

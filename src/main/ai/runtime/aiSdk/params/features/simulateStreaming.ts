@@ -2,6 +2,8 @@ import { simulateStreamingMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 
+import type { RequestFeature } from '../feature'
+
 /**
  * Simulate Streaming Plugin
  * Converts non-streaming responses to streaming format
@@ -17,8 +19,6 @@ const createSimulateStreamingPlugin = () =>
       context.middlewares.push(simulateStreamingMiddleware())
     }
   })
-
-import type { RequestFeature } from '../feature'
 
 /** Wrap non-streaming `generate()` as a single-chunk stream. */
 export const simulateStreamingFeature: RequestFeature = {

@@ -1,12 +1,13 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { OAuthAuthenticationRequiredError } from '@main/services/oauth/errors'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isGatewayRoutableModel, isPublicGatewayRoutableModel } from '@shared/utils/model'
-import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
+import { isGatewayRoutableModel, isPublicGatewayRoutableModel, stripClaudeContextMarker } from '@shared/utils/model'
+import { isAgentOnlyProvider, isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ApiGatewayModels')
 
@@ -91,12 +92,7 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   }
 }
 
-/** Drop trailing whitespace and a trailing Claude Code `[1m]` context marker (case-insensitive). */
-function stripClaudeContextMarker(apiModelId: string): string {
-  return apiModelId.replace(/\s*\[1m\]\s*$/i, '').trimEnd()
-}
-
-/** Resolve a `providerId:apiModelId`; Cherry Cloud models are served only to internal requests. */
+/** Resolve an enabled gateway model by its `providerId:apiModelId` address. */
 export async function resolveGatewayModelAddress(
   modelAddress: string,
   internal = false
@@ -118,7 +114,16 @@ export async function resolveGatewayModelAddress(
   } catch {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
-  if (!provider.isEnabled || isExternalCliProvider(provider)) {
+  if (isExternalCliProvider(provider)) {
+    throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
+  }
+  if (isLoginBasedProvider(provider) && provider.authMethods?.includes('oauth')) {
+    const authConfig = providerService.getAuthConfig(providerId)
+    if (authConfig?.type !== 'oauth' || !authConfig.accessToken) {
+      throw new OAuthAuthenticationRequiredError(providerId)
+    }
+  }
+  if (!provider.isEnabled) {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 

@@ -3,8 +3,9 @@ import removeMarkdown from 'remove-markdown'
 
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
-import { isSystemProvider, isSystemProviderId, type Provider } from '@renderer/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import { sanitizeFilename } from '@shared/utils/file'
+import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 /**
  * 从模型 ID 中提取默认组名。
@@ -100,15 +101,6 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
     baseModelName = baseModelName.replace(':cloud', '')
   }
   return baseModelName
-}
-
-/**
- * 获取模型服务商名称，根据是否内置服务商来决定要不要翻译
- * @param provider 服务商
- * @returns 描述性的名字
- */
-export const getFancyProviderName = (provider: Provider) => {
-  return isSystemProvider(provider) ? i18n.t(getProviderLabelKey(provider.id)) : provider.name
 }
 
 /**

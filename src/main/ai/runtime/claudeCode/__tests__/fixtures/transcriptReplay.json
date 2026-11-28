@@ -1,0 +1,3714 @@
+[
+  {
+    "name": "recorded-01",
+    "source": {
+      "sha256": "efcd24804882278c5b745977e571800efd8f93b86a6ab4432395e87c9f873e68",
+      "lines": [77, 78, 80, 84, 85, 87, 90, 91],
+      "child": true,
+      "versions": ["2.1.281"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:text",
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "result:text",
+      "result:tool_reference",
+      "thinking-signature",
+      "tool:Bash",
+      "tool:SendMessage",
+      "tool:ToolSearch"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000001",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 1: 中文\n```text\nvalue-1\n```\n",
+              "signature": "signature-replay-value-2"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000002",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000003",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000004",
+              "name": "ToolSearch",
+              "input": {
+                "query": "replay-value-3",
+                "field_1": 1
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000002",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000005",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "00000000-0000-4000-8000-000000000004",
+              "content": [
+                {
+                  "type": "tool_reference",
+                  "tool_name": "SendMessage"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000006",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 5: 中文\n```text\nvalue-5\n```\n",
+              "signature": "signature-replay-value-6"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000007",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000008",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000009",
+              "name": "SendMessage",
+              "input": {
+                "field_3": "replay-value-7",
+                "message": "replay-value-8",
+                "summary": "replay-value-9",
+                "type": "replay-value-10",
+                "recipient": "replay-value-7",
+                "content": "replay-value-11"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000007",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000010",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000009",
+              "type": "tool_result",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "replay-value-12"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000011",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "replay-value-13"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000012",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000013",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000014",
+              "name": "Bash",
+              "input": {
+                "command": "replay-value-14"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000012",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-02",
+    "source": {
+      "sha256": "df4c9e7aaa1ec50c9273278c6f4a7c7a1f6a25cffe3fac198d4f3a7613066063",
+      "lines": [12, 13, 14, 16, 17, 18, 19, 20, 26, 27, 28],
+      "child": false,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:text",
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "tool-error",
+      "tool:AskUserQuestion",
+      "tool:Read",
+      "user-string"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000015",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 15: 中文\n```text\nvalue-15\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000016",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000017",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000018",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-17"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000016",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000019",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000020",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-18"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000016",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000021",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000020",
+              "type": "tool_result",
+              "content": "replay-value-19"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000022",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-20",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000023",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000024",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000025",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-21"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000023",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000026",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "replay-value-22",
+              "is_error": true,
+              "tool_use_id": "00000000-0000-4000-8000-000000000025"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000027",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Replay content 23: 中文\n```text\nvalue-23\n```\n"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000028",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "end_turn",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000029",
+        "message": {
+          "role": "user",
+          "content": "replay-value-24"
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000030",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-25",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000031",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000032",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000033",
+              "name": "AskUserQuestion",
+              "input": {
+                "questions": [
+                  {
+                    "header": "replay-value-26",
+                    "multiSelect": false,
+                    "options": [
+                      {
+                        "description": "replay-value-27",
+                        "label": "replay-value-28"
+                      },
+                      {
+                        "description": "replay-value-29",
+                        "label": "replay-value-30"
+                      },
+                      {
+                        "description": "replay-value-31",
+                        "label": "replay-value-32"
+                      },
+                      {
+                        "description": "replay-value-33",
+                        "label": "replay-value-34"
+                      }
+                    ],
+                    "question": "replay-value-35"
+                  },
+                  {
+                    "header": "replay-value-36",
+                    "multiSelect": false,
+                    "options": [
+                      {
+                        "description": "replay-value-37",
+                        "label": "replay-value-38"
+                      },
+                      {
+                        "description": "replay-value-39",
+                        "label": "replay-value-40"
+                      },
+                      {
+                        "description": "replay-value-41",
+                        "label": "replay-value-42"
+                      },
+                      {
+                        "description": "replay-value-43",
+                        "label": "replay-value-44"
+                      }
+                    ],
+                    "question": "replay-value-45"
+                  }
+                ]
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000031",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-03",
+    "source": {
+      "sha256": "d0d951a2e3c28291624bc8914ee33b7d374668bb7f5dc1cb741fcb95f223c3d7",
+      "lines": [20, 22, 23, 24, 25, 26, 27],
+      "child": false,
+      "versions": ["2.1.284"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": ["block:text", "block:thinking", "block:tool_result", "block:tool_use", "json-tool-output", "tool:mcp"],
+    "messages": [
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000034",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Replay content 46: 中文\n```text\nvalue-46\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000035",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "replay-value-47",
+              "citations": null
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000036",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000037",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000038",
+              "name": "mcp__replay__tool_1",
+              "input": {
+                "title": "replay-value-48",
+                "code": "replay-value-49"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000036",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000039",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000038",
+              "type": "tool_result",
+              "content": "{\"field_4\": {\"field_5\": \"replay-value-50\", \"field_6\": \"replay-value-51\", \"field_7\": \"replay-value-52\", \"field_8\": 1, \"field_9\": [{\"name\": \"replay_tool_2\", \"field_10\": \"replay-value-53\", \"field_11\": true, \"field_12\": true, \"field_13\": true, \"field_14\": true, \"type\": \"replay-value-54\"}], \"field_15\": false, \"field_16\": \"replay-value-55\"}, \"field_7\": {\"field_17\": [{\"field_18\": \"replay-value-56\", \"field_19\": \"replay-value-57\", \"field_20\": \"replay-value-58\", \"status\": \"replay-value-52\"}], \"field_21\": 1}}"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000040",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 59: 中文\n```text\nvalue-59\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000041",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000042",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "replay-value-60",
+              "citations": null
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000041",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000043",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000044",
+              "name": "mcp__replay__tool_1",
+              "input": {
+                "title": "replay-value-61",
+                "code": "replay-value-62"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000041",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-04",
+    "source": {
+      "sha256": "41f64b0265915b0697ad3ffff2f7b9bb579c61e7ac007ec0f72b3706af966230",
+      "lines": [269, 270, 271, 272, 273, 274, 277, 279, 280],
+      "child": false,
+      "versions": ["2.1.220", "2.1.237", "2.1.257"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:text",
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "thinking-signature",
+      "tool:Bash",
+      "tool:ExitPlanMode",
+      "tool:Write"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000045",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-63",
+              "signature": "signature-replay-value-64"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000046",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000047",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000048",
+              "name": "Write",
+              "input": {
+                "file_path": "replay-value-65",
+                "content": "Replay content 66: 中文\n```text\nvalue-66\n```\n"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000046",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000049",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000048",
+              "type": "tool_result",
+              "content": "replay-value-67"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000050",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-16",
+              "signature": "signature-replay-value-68"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000051",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000052",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Replay content 69: 中文\n```text\nvalue-69\n```\n"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000051",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000053",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000054",
+              "name": "ExitPlanMode",
+              "input": {
+                "field_22": "Replay content 66: 中文\n```text\nvalue-66\n```\n",
+                "field_23": "replay-value-65"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000051",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000055",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "Replay content 70: 中文\n```text\nvalue-70\n```\n",
+              "tool_use_id": "00000000-0000-4000-8000-000000000054"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000056",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-71",
+              "signature": "signature-replay-value-72"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000057",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000058",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000059",
+              "name": "Bash",
+              "input": {
+                "command": "replay-value-73"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000057",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-05",
+    "source": {
+      "sha256": "41f64b0265915b0697ad3ffff2f7b9bb579c61e7ac007ec0f72b3706af966230",
+      "lines": [3677, 3678, 3679, 3681, 3682, 3684, 3685, 3690, 3691],
+      "child": false,
+      "versions": ["2.1.220", "2.1.237", "2.1.257"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "result:tool_reference",
+      "thinking-signature",
+      "tool-error",
+      "tool:ToolSearch",
+      "tool:WebFetch",
+      "tool:WebSearch"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000060",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 74: 中文\n```text\nvalue-74\n```\n",
+              "signature": "signature-replay-value-75"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000061",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000062",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000063",
+              "name": "ToolSearch",
+              "input": {
+                "query": "replay-value-76",
+                "field_1": 1
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000061",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000064",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "00000000-0000-4000-8000-000000000063",
+              "content": [
+                {
+                  "type": "tool_reference",
+                  "tool_name": "WebSearch"
+                },
+                {
+                  "type": "tool_reference",
+                  "tool_name": "WebFetch"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000065",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000066",
+              "name": "WebFetch",
+              "input": {
+                "url": "https://example.invalid/76",
+                "prompt": "replay-value-77"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000067",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000068",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "replay-value-78",
+              "is_error": true,
+              "tool_use_id": "00000000-0000-4000-8000-000000000066"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000069",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000070",
+              "name": "WebSearch",
+              "input": {
+                "query": "replay-value-79"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000071",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000072",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000070",
+              "type": "tool_result",
+              "content": "Replay content 80: 中文\n```text\nvalue-80\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000073",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-81",
+              "signature": "signature-replay-value-82"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000074",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000075",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000076",
+              "name": "WebFetch",
+              "input": {
+                "url": "https://example.invalid/82",
+                "prompt": "replay-value-83"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000074",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-06",
+    "source": {
+      "sha256": "df4c9e7aaa1ec50c9273278c6f4a7c7a1f6a25cffe3fac198d4f3a7613066063",
+      "lines": [18, 19],
+      "child": false,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": ["error:native:text"],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000024",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000025",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-21"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000023",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000026",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "replay-value-22",
+              "is_error": true,
+              "tool_use_id": "00000000-0000-4000-8000-000000000025"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-07",
+    "source": {
+      "sha256": "38fa31bc2fe61238c720a92aa09ba25433f53bc9d4fc798bc774c04954a435e4",
+      "lines": [25, 26],
+      "child": false,
+      "versions": ["2.1.284"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": ["error:mcp:text"],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000077",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000078",
+              "name": "mcp__replay__tool_3",
+              "input": {
+                "field_24": "replay-value-84"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000079",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000080",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "replay-value-85",
+              "is_error": true,
+              "tool_use_id": "00000000-0000-4000-8000-000000000078"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-08",
+    "source": {
+      "sha256": "7695c92b4b109c336405a32d3615b3680ca66472408515c01bfbcb7ce69a5ac6",
+      "lines": [14, 15],
+      "child": false,
+      "versions": ["2.1.284"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": ["rich:native:document"],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000081",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000082",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-86"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000083",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000084",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000082",
+              "type": "tool_result",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "replay-value-87"
+                },
+                {
+                  "type": "document",
+                  "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": "cmVkYWN0ZWQgcmVwbGF5IGZpeHR1cmU="
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-09",
+    "source": {
+      "sha256": "548fcc61df3f21bed66966fd24281719c6f983935d7d799dea032d88fe8e59f3",
+      "lines": [76, 77],
+      "child": false,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": ["rich:native:image"],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000085",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000086",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-88"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000087",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000088",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000086",
+              "type": "tool_result",
+              "content": [
+                {
+                  "type": "image",
+                  "source": {
+                    "type": "base64",
+                    "data": "cmVkYWN0ZWQgcmVwbGF5IGZpeHR1cmU=",
+                    "media_type": "image/png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-10",
+    "source": {
+      "sha256": "c7b55b396b4a105a12c8aed9901ef1aa4d99c18bd77a6b7b531b1ccabf4a37dc",
+      "lines": [338, 340],
+      "child": false,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": ["rich:mcp:image"],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000089",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000090",
+              "name": "mcp__replay__tool_4",
+              "input": {
+                "field_25": true,
+                "field_26": "replay-value-89",
+                "field_27": 1
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000091",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000092",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000090",
+              "type": "tool_result",
+              "content": [
+                {
+                  "type": "image",
+                  "source": {
+                    "type": "base64",
+                    "media_type": "image/jpeg",
+                    "data": "cmVkYWN0ZWQgcmVwbGF5IGZpeHR1cmU="
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-11",
+    "source": {
+      "sha256": "6228f757dd207923edf8393501e4c505bd5b922b8569058a228c7e918005389e",
+      "lines": [5, 31, 32, 34],
+      "child": false,
+      "versions": ["2.1.304"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:text",
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "system-reminder",
+      "thinking-signature",
+      "tool:Bash"
+    ],
+    "messages": [
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000093",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "<system-reminder>Replay content 90: 中文\n```text\nvalue-90\n```\n</system-reminder>Replay content 91: 中文\n```text\nvalue-91\n```\n"
+            },
+            {
+              "type": "text",
+              "text": "Replay content 92: 中文\n```text\nvalue-92\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000094",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-16",
+              "signature": "signature-replay-value-93"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000095",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000096",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000097",
+              "name": "Bash",
+              "input": {
+                "command": "replay-value-94",
+                "description": "replay-value-95"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000095",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000098",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000097",
+              "type": "tool_result",
+              "content": "Replay content 96: 中文\n```text\nvalue-96\n```\n",
+              "is_error": false
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-12",
+    "source": {
+      "sha256": "7695c92b4b109c336405a32d3615b3680ca66472408515c01bfbcb7ce69a5ac6",
+      "lines": [3, 13, 14, 15, 18, 19],
+      "child": false,
+      "versions": ["2.1.284"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:text",
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "result:document",
+      "result:text",
+      "tool:Read",
+      "user-string"
+    ],
+    "messages": [
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000099",
+        "message": {
+          "role": "user",
+          "content": "Replay content 97: 中文\n```text\nvalue-97\n```\n"
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000100",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-98",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000083",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000081",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000082",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-86"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000083",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000084",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000082",
+              "type": "tool_result",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "replay-value-87"
+                },
+                {
+                  "type": "document",
+                  "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": "cmVkYWN0ZWQgcmVwbGF5IGZpeHR1cmU="
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000101",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-99",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000102",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000103",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Replay content 100: 中文\n```text\nvalue-100\n```\n"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000102",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "end_turn",
+          "stop_sequence": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-13",
+    "source": {
+      "sha256": "548fcc61df3f21bed66966fd24281719c6f983935d7d799dea032d88fe8e59f3",
+      "lines": [74, 75, 76, 77, 78, 79, 82],
+      "child": false,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:text",
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "result:image",
+      "tool:Read",
+      "user-string"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000104",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 101: 中文\n```text\nvalue-101\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000087",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000105",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "replay-value-102",
+              "citations": null
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000087",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000085",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000086",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-88"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000087",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000088",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000086",
+              "type": "tool_result",
+              "content": [
+                {
+                  "type": "image",
+                  "source": {
+                    "type": "base64",
+                    "data": "cmVkYWN0ZWQgcmVwbGF5IGZpeHR1cmU=",
+                    "media_type": "image/png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000106",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 103: 中文\n```text\nvalue-103\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000107",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "end_turn",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000108",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Replay content 104: 中文\n```text\nvalue-104\n```\n",
+              "citations": null
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000107",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "end_turn",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000109",
+        "message": {
+          "role": "user",
+          "content": "replay-value-105"
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-14",
+    "source": {
+      "sha256": "e309f6cf177a755f4036bff9eb4ec425917305e5867e81cc9c5fda78ab8e6d03",
+      "lines": [2, 3, 4, 5, 6, 7, 8],
+      "child": true,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "thinking-signature",
+      "tool-error",
+      "tool:Bash",
+      "tool:Glob"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000110",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-106",
+              "signature": "signature-replay-value-107"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000111",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000112",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000113",
+              "name": "Bash",
+              "input": {
+                "command": "replay-value-108",
+                "description": "replay-value-109"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000111",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000114",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "replay-value-110",
+              "is_error": true,
+              "tool_use_id": "00000000-0000-4000-8000-000000000113"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000115",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000116",
+              "name": "Glob",
+              "input": {
+                "pattern": "replay-value-111"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000117",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000118",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000116",
+              "type": "tool_result",
+              "content": "Replay content 112: 中文\n```text\nvalue-112\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000119",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000120",
+              "name": "Glob",
+              "input": {
+                "pattern": "replay-value-113"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000117",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000121",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000120",
+              "type": "tool_result",
+              "content": "replay-value-114"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-15",
+    "source": {
+      "sha256": "e309f6cf177a755f4036bff9eb4ec425917305e5867e81cc9c5fda78ab8e6d03",
+      "lines": [82, 83, 84, 85, 86, 87, 88],
+      "child": true,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "thinking-signature",
+      "tool:Grep",
+      "tool:Read"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000122",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000123",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-115"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000124",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000125",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000123",
+              "type": "tool_result",
+              "content": "Replay content 116: 中文\n```text\nvalue-116\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000126",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 117: 中文\n```text\nvalue-117\n```\n",
+              "signature": "signature-replay-value-118"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000127",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000128",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000129",
+              "name": "Grep",
+              "input": {
+                "pattern": "replay-value-119",
+                "path": "replay-value-120",
+                "output_mode": "replay-value-121"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000127",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000130",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000131",
+              "name": "Grep",
+              "input": {
+                "pattern": "replay-value-122",
+                "path": "replay-value-120",
+                "output_mode": "replay-value-121"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000127",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000132",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000129",
+              "type": "tool_result",
+              "content": "Replay content 123: 中文\n```text\nvalue-123\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000133",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000131",
+              "type": "tool_result",
+              "content": "Replay content 124: 中文\n```text\nvalue-124\n```\n"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-16",
+    "source": {
+      "sha256": "4334785e361dfccaaa50a332de4f442d904007951382725642b2e45d53ea2259",
+      "lines": [766, 767, 769, 773, 775, 778, 780],
+      "child": true,
+      "versions": ["2.1.281"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "json-tool-output",
+      "result:tool_reference",
+      "thinking-signature",
+      "tool:Bash",
+      "tool:TaskStop",
+      "tool:ToolSearch"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000134",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 125: 中文\n```text\nvalue-125\n```\n",
+              "signature": "signature-replay-value-126"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000135",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000136",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000137",
+              "name": "ToolSearch",
+              "input": {
+                "query": "replay-value-127",
+                "field_1": 1
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000135",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000138",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "00000000-0000-4000-8000-000000000137",
+              "content": [
+                {
+                  "type": "tool_reference",
+                  "tool_name": "TaskStop"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000139",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000140",
+              "name": "TaskStop",
+              "input": {
+                "task_id": "replay-value-128"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000141",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000142",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000140",
+              "type": "tool_result",
+              "content": "{\"message\": \"Replay content 129: 中文\\n```text\\nvalue-129\\n```\\n\", \"task_id\": \"replay-value-128\", \"field_28\": \"replay-value-130\", \"command\": \"Replay content 131: 中文\\n```text\\nvalue-131\\n```\\n\"}"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000143",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000144",
+              "name": "Bash",
+              "input": {
+                "command": "replay-value-132",
+                "description": "replay-value-133"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000145",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000146",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000144",
+              "type": "tool_result",
+              "content": "Replay content 134: 中文\n```text\nvalue-134\n```\n",
+              "is_error": false
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-17",
+    "source": {
+      "sha256": "e90347297d3f665ee3347a389d132db84a7350daee7fed56163ce5acf1d0efc7",
+      "lines": [14, 15, 16, 17, 18, 19, 20, 21],
+      "child": true,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": ["block:thinking", "block:tool_result", "block:tool_use", "tool:Edit", "tool:Read"],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000147",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 91: 中文\n```text\nvalue-91\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000148",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000149",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000150",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-135",
+                "offset": 1,
+                "limit": 1
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000148",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000151",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000150",
+              "type": "tool_result",
+              "content": "Replay content 136: 中文\n```text\nvalue-136\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000152",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 137: 中文\n```text\nvalue-137\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000153",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000154",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000155",
+              "name": "Edit",
+              "input": {
+                "replace_all": false,
+                "file_path": "replay-value-135",
+                "old_string": "replay-value-138",
+                "new_string": "replay-value-139"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000153",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000156",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000155",
+              "type": "tool_result",
+              "content": "replay-value-140"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000157",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 141: 中文\n```text\nvalue-141\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000158",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000159",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000160",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-135",
+                "offset": 1,
+                "limit": 1
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000158",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-18",
+    "source": {
+      "sha256": "9efaec8ee7b1b5d08f1f132c3d5f0bfb470ed92fdd36ea5198b06443a19705e7",
+      "lines": [5, 6, 11, 12, 13, 14, 15, 17, 18],
+      "child": false,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:text",
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "thinking-signature",
+      "tool:Skill",
+      "tool:mcp",
+      "user-string"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000161",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-16",
+              "signature": "signature-replay-value-142"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000162",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "end_turn",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000163",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Replay content 143: 中文\n```text\nvalue-143\n```\n"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000162",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "end_turn",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000164",
+        "message": {
+          "role": "user",
+          "content": "replay-value-144"
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000165",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 145: 中文\n```text\nvalue-145\n```\n",
+              "signature": "signature-replay-value-146"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000166",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000167",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000168",
+              "name": "Skill",
+              "input": {
+                "field_29": "replay-value-147"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000166",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000169",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "00000000-0000-4000-8000-000000000168",
+              "content": "replay-value-148"
+            }
+          ]
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000170",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Replay content 149: 中文\n```text\nvalue-149\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000171",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 150: 中文\n```text\nvalue-150\n```\n",
+              "signature": "signature-replay-value-151"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000172",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000173",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000174",
+              "name": "mcp__replay__tool_5",
+              "input": {
+                "source": "replay-value-152"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000172",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-19",
+    "source": {
+      "sha256": "875d87e3589e11245690a7d28330c3ce18da464bad3063821dfcb2ac12680396",
+      "lines": [33, 37, 41, 45, 47, 50, 52, 55, 56, 58],
+      "child": true,
+      "versions": ["2.1.281"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "large-tool-output",
+      "thinking-signature",
+      "tool:Bash",
+      "tool:Read"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000175",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000176",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-153"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000177",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000178",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000179",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-154"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000177",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000180",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000181",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-155"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000177",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000182",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000183",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-156"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000177",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000184",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000183",
+              "type": "tool_result",
+              "content": "Replay content 157: 中文\n```text\nvalue-157\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000185",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000186",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-158"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000187",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000188",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000186",
+              "type": "tool_result",
+              "content": "Replay content 159: 中文\n```text\nvalue-159\n```\n"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000189",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 160: 中文\n```text\nvalue-160\n```\n",
+              "signature": "signature-replay-value-161"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000190",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000191",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000192",
+              "name": "Bash",
+              "input": {
+                "command": "replay-value-162",
+                "description": "replay-value-163"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000190",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000193",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000192",
+              "type": "tool_result",
+              "content": "Replay content 164: 中文\n```text\nvalue-164\n```\n",
+              "is_error": false
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-20",
+    "source": {
+      "sha256": "548fcc61df3f21bed66966fd24281719c6f983935d7d799dea032d88fe8e59f3",
+      "lines": [88, 89, 90, 92, 94, 95, 96, 97, 98, 99, 100],
+      "child": false,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:text",
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "tool-error",
+      "tool:Bash",
+      "tool:Read",
+      "tool:other"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000194",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 165: 中文\n```text\nvalue-165\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000195",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000196",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "replay-value-166",
+              "citations": null
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000195",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000197",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000198",
+              "name": "Bash",
+              "input": {
+                "command": "replay-value-167",
+                "description": "replay-value-168"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000195",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000199",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000198",
+              "type": "tool_result",
+              "content": "Replay content 169: 中文\n```text\nvalue-169\n```\n",
+              "is_error": false
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000200",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 170: 中文\n```text\nvalue-170\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000201",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000202",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "replay-value-171",
+              "citations": null
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000201",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000203",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000204",
+              "name": "replay_tool_6",
+              "input": {
+                "path": "replay-value-172"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000201",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": null,
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000205",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "replay-value-173",
+              "is_error": true,
+              "tool_use_id": "00000000-0000-4000-8000-000000000204"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000206",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "replay-value-174"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000207",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "stop_sequence",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000208",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "replay-value-175",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000209",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000210",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000211",
+              "name": "Read",
+              "input": {
+                "file_path": "replay-value-172"
+              },
+              "field_2": {
+                "type": "replay-value-4"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000209",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "recorded-21",
+    "source": {
+      "sha256": "cfaa76cafe26db8303cf2083bcb3a3724634696bcf7821f127235a5d16611ba8",
+      "lines": [87, 88, 92, 96, 97, 103, 105, 106, 107, 109, 111, 113, 115, 119],
+      "child": false,
+      "versions": ["2.1.220"],
+      "sanitization": "All free text, arguments, identifiers and binary payloads replaced; protocol structure retained. Large source payloads shortened."
+    },
+    "features": [
+      "block:text",
+      "block:thinking",
+      "block:tool_result",
+      "block:tool_use",
+      "result:text",
+      "tool:Agent",
+      "tool:Bash"
+    ],
+    "messages": [
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000212",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 176: 中文\n```text\nvalue-176\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000213",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000214",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000215",
+              "name": "Bash",
+              "input": {
+                "command": "Replay content 177: 中文\n```text\nvalue-177\n```\n",
+                "description": "replay-value-178"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000213",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000216",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000217",
+              "name": "Bash",
+              "input": {
+                "command": "Replay content 179: 中文\n```text\nvalue-179\n```\n",
+                "description": "replay-value-180"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000213",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000218",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000219",
+              "name": "Bash",
+              "input": {
+                "command": "replay-value-181",
+                "description": "replay-value-182"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000213",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000220",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000221",
+              "name": "Bash",
+              "input": {
+                "command": "replay-value-183",
+                "description": "replay-value-184"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000213",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000222",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000221",
+              "type": "tool_result",
+              "content": "Replay content 185: 中文\n```text\nvalue-185\n```\n",
+              "is_error": false
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000223",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Replay content 186: 中文\n```text\nvalue-186\n```\n",
+              "signature": "signature-replay-value-16"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000224",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000225",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "replay-value-187"
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000224",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000226",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000227",
+              "name": "Agent",
+              "input": {
+                "description": "replay-value-188",
+                "prompt": "Replay content 189: 中文\n```text\nvalue-189\n```\n",
+                "subagent_type": "replay-value-190",
+                "name": "replay_tool_7"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000224",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000228",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000227",
+              "type": "tool_result",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Replay content 191: 中文\n```text\nvalue-191\n```\n"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000229",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000230",
+              "name": "Agent",
+              "input": {
+                "description": "replay-value-192",
+                "prompt": "Replay content 193: 中文\n```text\nvalue-193\n```\n",
+                "subagent_type": "replay-value-190",
+                "name": "replay_tool_8"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000224",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-000000000231",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "tool_use_id": "00000000-0000-4000-8000-000000000230",
+              "type": "tool_result",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Replay content 194: 中文\n```text\nvalue-194\n```\n"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000232",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000233",
+              "name": "Agent",
+              "input": {
+                "description": "replay-value-195",
+                "prompt": "Replay content 196: 中文\n```text\nvalue-196\n```\n",
+                "subagent_type": "replay-value-190",
+                "name": "replay_tool_9"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000224",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      },
+      {
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-000000000234",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "00000000-0000-4000-8000-000000000235",
+              "name": "Agent",
+              "input": {
+                "description": "replay-value-197",
+                "prompt": "Replay content 198: 中文\n```text\nvalue-198\n```\n",
+                "subagent_type": "replay-value-190",
+                "name": "replay_tool_10"
+              }
+            }
+          ],
+          "id": "msg_00000000-0000-4000-8000-000000000224",
+          "type": "message",
+          "model": "replay-model",
+          "usage": {
+            "input_tokens": 1,
+            "output_tokens": 1
+          },
+          "stop_reason": "tool_use",
+          "stop_sequence": null
+        }
+      }
+    ]
+  }
+]

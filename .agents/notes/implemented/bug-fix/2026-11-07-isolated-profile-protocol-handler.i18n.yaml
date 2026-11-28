@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-isolated-profile-protocol-handler.md
+2026-11-07-isolated-profile-protocol-handler.md: 91d97305da5a3df9f6096bf293cd601becda4b80
+2026-11-07-isolated-profile-protocol-handler.zh.md: 75fa5210dc69ab352b66b019f61b32e47c0ec0df

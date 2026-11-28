@@ -2,8 +2,8 @@
  * Filter that gates the model picker shown to an agent.
  *
  * Each runtime contributes its compatibility predicate through the shared
- * capability matrix. Claude Code uses the API Gateway's routability predicate;
- * Pi additionally validates that its provider wire protocol is supported.
+ * capability matrix. Claude Code, Pi and Pi Durable use gateway routability;
+ * Pi also excludes providers whose authentication requires an external CLI.
  *
  * Default `null`-typed agents fall through to the shared "agent-friendly"
  * filter (drops embedding / rerank / image-generation models — none of
@@ -12,13 +12,10 @@
 
 import { useMemo } from 'react'
 
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { isAgentModelSelectable } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isNonChatModel } from '@shared/utils/model'
-
-const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
 
@@ -27,11 +24,8 @@ type ModelPredicate = (model: Model, provider?: Provider) => boolean
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
 export function useAgentModelFilter(agentType: AgentType | undefined): ModelPredicate {
-  return useMemo<ModelPredicate>(() => {
-    const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
-    return (model, provider) => {
-      if (!baseAgentFilter(model)) return false
-      return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
-    }
-  }, [agentType])
+  return useMemo<ModelPredicate>(
+    () => (model, provider) => isAgentModelSelectable(agentType, model, provider),
+    [agentType]
+  )
 }

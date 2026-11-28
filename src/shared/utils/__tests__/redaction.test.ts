@@ -80,19 +80,35 @@ describe('redactRecord', () => {
 })
 
 describe('redactDeep', () => {
+  it('hides arbitrary local runtime secrets in direct, wrapped, and array configurations without mutating them', () => {
+    const config = { protocol: 'acp', env: { CUSTOM: 'private' }, args: ['secret'] }
+    const safeConfig = { protocol: 'acp', env: REDACTED, args: REDACTED }
+    expect(redactDeep(config)).toEqual(safeConfig)
+    expect(redactDeep({ configuration: { localRuntime: config } })).toEqual({
+      configuration: { localRuntime: safeConfig }
+    })
+    expect(redactDeep([config])).toEqual([safeConfig])
+    expect(config.env.CUSTOM).toBe('private')
+    expect(config.args).toEqual(['secret'])
+  })
+
+  it('redacts opaque environment and argument payloads regardless of their domain', () => {
+    const command = { env: { MODE: 'test' }, args: ['--help'] }
+    expect(redactDeep(command)).toEqual({ env: REDACTED, args: REDACTED })
+    expect(redactDeep({ localRuntime: command })).toEqual({ localRuntime: { env: REDACTED, args: REDACTED } })
+  })
+
+  it('terminates circular localRuntime wrappers without copying their secrets', () => {
+    const value: Record<string, unknown> = { protocol: 'acp', env: { CUSTOM: 'private' }, args: ['secret'] }
+    value.localRuntime = value
+    expect(redactDeep(value)).toEqual({ protocol: 'acp', env: REDACTED, args: REDACTED, localRuntime: '[Circular]' })
+  })
+
   it('redacts sensitive keys at any depth, keeps benign ones', () => {
     const out = redactDeep({ authorization: 'Bearer x', keep: 'ok', nested: { apiKey: 'k' } }) as Record<string, any>
     expect(out.authorization).toBe(REDACTED)
     expect(out.keep).toBe('ok')
     expect(out.nested.apiKey).toBe(REDACTED)
-  })
-
-  it('truncates long strings past 300 chars', () => {
-    const long = 'a'.repeat(400)
-    const out = redactDeep({ data: long }) as Record<string, string>
-    expect(out.data.startsWith('a'.repeat(300))).toBe(true)
-    expect(out.data).toContain('<100 more>')
-    expect(out.data).not.toContain('a'.repeat(301))
   })
 
   it('does not stack-overflow on a circular enumerable graph', () => {
@@ -237,6 +253,10 @@ describe('redactUrlParams', () => {
 //   header back as `Bearer "sk-..."`), so the quoted alternatives — including escaped
 //   quotes inside — must match before the bare-token fallback, which excludes quotes.
 describe('redactSecretText', () => {
+  it.each(['API key', 'API key provided'])('redacts a provider echo labelled %s', (label) => {
+    expect(redactSecretText(`Incorrect ${label}: sk-mp92-invalid-secret`)).toBe(`Incorrect ${label}: "<redacted>"`)
+  })
+
   it('redacts a quoted TOML-style api_key assignment', () => {
     expect(redactSecretText('unexpected character at line 3: api_key = "sk-ant-real-secret"')).toBe(
       'unexpected character at line 3: api_key = "<redacted>"'

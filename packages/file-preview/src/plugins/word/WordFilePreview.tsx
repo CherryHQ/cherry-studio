@@ -115,7 +115,8 @@ export default function WordFilePreview({
     const fit = () => {
       const width = body.offsetWidth
       if (container.clientWidth > 0 && width > 0) {
-        setFitZoom(Math.min(DOCX_PREVIEW_DEFAULT_ZOOM, container.clientWidth / width))
+        // Fit both ways: a pane wider than the paper should scale the page up instead of leaving gutters.
+        setFitZoom(Math.min(DOCX_PREVIEW_MAX_ZOOM, container.clientWidth / width))
       }
     }
     fit()
@@ -219,7 +220,14 @@ export default function WordFilePreview({
         })
         if (!isCurrent()) return
 
-        stagingBody.querySelector(`.${docxClassName}-wrapper`)?.classList.add('docx-preview-wrapper')
+        const wrapper = stagingBody.querySelector<HTMLElement>(`.${docxClassName}-wrapper`)
+        if (wrapper) {
+          wrapper.classList.add('docx-preview-wrapper')
+          // docx-preview's own sheet paints a grey mat with 30px of padding around the page. The pane
+          // owns that space, and the padding would keep a grey frame around the paper once it is fitted.
+          wrapper.style.background = 'transparent'
+          wrapper.style.padding = '0'
+        }
         const pages = getRenderedPages(stagingBody)
         pages.forEach((page, index) => {
           page.id = `docx-preview-page-${index + 1}`

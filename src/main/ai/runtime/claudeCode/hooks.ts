@@ -3,19 +3,18 @@
  *
  * Policy lives in the declarative guard table (guardRules.ts) and is enforced by ONE hook that
  * evaluates it — new policy is a table row, never a new hook. The remaining hooks are mechanical
- * (context injection, command rewrite, steer delivery, timing), kept separate so the SDK's
+ * (context injection, command rewrite, timing), kept separate so the SDK's
  * parallel fold still runs them when the guard denies.
  *
- * All hooks resolve live session state (policy snapshot, steer holder, interaction state) by
+ * All hooks resolve live session state (policy snapshot, interaction state) by
  * session id at fire-time through ClaudeCodeSessionStateService — never by closure capture — so a
  * warm-pooled query's prewarm-baked hooks observe mid-session updates.
  */
 
-import type { HookCallback, HookInput, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { wrapSteerReminder } from '@main/ai/steerReminder'
 import {
   CHERRY_MCP_SERVER,
   findBuiltinToolPolicy,
@@ -25,9 +24,9 @@ import {
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
+import { t } from '@main/i18n'
 import { rtkRewrite } from '@main/utils/rtk'
 
-import type { AgentRuntimeUserInput } from '../types'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { createClaudeCodeIdentityHooks } from './identityHooks'
@@ -59,15 +58,6 @@ export function surfaceExitPlanModeInput(
   sessionState().peekToolApprovalEmitter(sessionId)?.emitInput?.({ toolCallId, toolName, input })
 }
 
-function extractSteerText(input: AgentRuntimeUserInput): string {
-  return (
-    input.message.data?.parts
-      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)
-      .map((part) => part.text)
-      .join('\n') ?? ''
-  )
-}
-
 export interface ClaudeCodeHookContext {
   sessionId: string
   cwd: string
@@ -89,9 +79,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // SDK skips canUseTool on auto-approved paths.
   const toolGuardHook: HookCallback = async (input, toolUseId, options): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    const toolName = input.tool_name
     if (!toolName) return {}
-    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const toolInput = input.tool_input as Record<string, unknown> | undefined
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
@@ -123,17 +113,19 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
       // first call past the soft threshold is allowed with a one-shot warning so the model can
       // self-correct; exactly-at-threshold fires it once, before the run grows past it.
-      if (toolName === 'Bash' && typeof toolInput?.command === 'string') {
+      if ((toolName === 'Bash' || toolName === 'PowerShell') && typeof toolInput?.command === 'string') {
         const run = sessionState().getBashNoProgressRun(sessionId, toolInput.command, input.agent_id)
         if (run === BASH_NO_PROGRESS_THRESHOLD) {
           return {
             hookSpecificOutput: {
               hookEventName: 'PreToolUse',
-              additionalContext: `Loop warning: this exact Bash command has already run ${run} times in a row with byte-identical output, and is denied outright once the run reaches ${BASH_NO_PROGRESS_HARD_THRESHOLD}. If you are waiting for a change, make the edit first; if you are stuck, diagnose the cause or report the blocker instead of retrying.`
+              additionalContext: `Loop warning: this exact ${toolName} command has already run ${run} times in a row with byte-identical output, and is denied outright once the run reaches ${BASH_NO_PROGRESS_HARD_THRESHOLD}. If you are waiting for a change, make the edit first; if you are stuck, diagnose the cause or report the blocker instead of retrying.`
             }
           }
         }
       }
+      if (toolName === 'Bash' && snapshot?.getPermissionMode() === 'auto')
+        return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow' } }
       return {}
     }
     if (decision.effect === 'deny') {
@@ -153,9 +145,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // instead of substituting unrelated output.
   const skillDependencyAdvisoryHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const event = input as Record<string, unknown>
-    if (String(event.tool_name ?? '') !== SKILL_TOOL_NAME) return {}
-    const skillName = (event.tool_input as Record<string, unknown> | undefined)?.skill
+    if (input.tool_name !== SKILL_TOOL_NAME) return {}
+    const skillName = (input.tool_input as Record<string, unknown> | undefined)?.skill
     if (typeof skillName !== 'string' || !skillName) return {}
 
     const { warning } = await checkSkillRuntimeDependencies(skillName, cwd, ctx.pluginDirectories)
@@ -166,64 +157,35 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    const toolName = input.tool_name
     if (toolName !== 'Bash') return {}
-    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const toolInput = input.tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
 
     // Register before yielding so an in-flight rewrite cannot recreate state after teardown.
-    sessionState().recordBashRewriteOrigin(sessionId, input.tool_use_id, command)
-    const rewritten = await rtkRewrite(command)
-    if (!rewritten) {
+    const origin = sessionState().recordBashRewriteOrigin(sessionId, input.tool_use_id, command)
+    const rewrite = await rtkRewrite(command)
+    if (!rewrite) {
       sessionState().takeBashRewriteOrigin(sessionId, input.tool_use_id)
       return {}
     }
-    logger.info('rtk rewrote Bash command', { original: command, rewritten })
-    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
-  }
-
-  // Real mid-turn steer (the agent SDK has no native steer API): inject steers stashed via
-  // `redirect()` as `additionalContext` at the next tool boundary — PostToolBatch (guaranteed
-  // before the next model request) or PreToolUse; otherwise the turn-end `steer-undelivered`
-  // fallback queues them. The synchronous splice makes the take once-only across both points.
-  const takePendingSteer = (
-    hookEventName: 'PreToolUse' | 'PostToolBatch',
-    input: HookInput | undefined
-  ): HookJSONOutput => {
-    // A subagent boundary (`agent_id` present) must not consume the queue: the steer addresses the
-    // top-level turn, and the driver only rolls `steer-boundary` at a top-level assistant message.
-    if (!input || input.hook_event_name !== hookEventName || input.agent_id) return {}
-    // Resolve the steer holder by id at fire-time — the prewarm-baked hook must read the live
-    // holder the connection wired, not a holder instance captured before this connection existed.
-    const holder = sessionState().getSteerHolder(sessionId)
-    if (holder.pending.length === 0) return {}
-
-    const taken = holder.pending.splice(0)
-    const text = taken
-      .map(extractSteerText)
-      .filter((t) => t.trim())
-      .join('\n\n')
-    if (!text) {
-      holder.pending.unshift(...taken)
-      return {}
+    const updatedInput = { ...toolInput, command: rewrite.command }
+    if (rewrite.approvalRequired) {
+      origin.rtkApprovalRequired = true
+      // Return updatedInput here so native Claude Code deny rules evaluate the final command too.
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'ask',
+          permissionDecisionReason: t('command_approval.permission_required'),
+          updatedInput
+        }
+      }
     }
-    logger.info('Injecting steer into the running turn', {
-      sessionId,
-      count: taken.length,
-      hook: hookEventName
-    })
-    // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
-    holder.onInjected?.(taken)
-    return {
-      continue: true,
-      hookSpecificOutput: { hookEventName, additionalContext: wrapSteerReminder(text) }
-    }
+    logger.info('rtk rewrote Bash command', { original: command, rewritten: rewrite.command })
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput } }
   }
-
-  const steerHook: HookCallback = async (input) => takePendingSteer('PreToolUse', input)
-  const postToolBatchSteerHook: HookCallback = async (input) => takePendingSteer('PostToolBatch', input)
-
   const bashRewriteCleanupHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PostToolBatch') return {}
     // Denied calls have no PostToolUse event; consume only this batch's leftovers.
@@ -252,7 +214,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     }
     const agentId = input.agent_id
 
-    if (input.tool_name !== 'Bash') {
+    if (input.tool_name !== 'Bash' && input.tool_name !== 'PowerShell') {
       // A completed mutating tool changed the workspace: break the run so a verifier still printing
       // the same remaining errors is not misread as a stuck loop. Read-only tools do not break it —
       // an agent alternating Bash with Read is still looping.
@@ -292,10 +254,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
     }
-    const event = input as unknown as Record<string, unknown>
-    const toolCallId = event.tool_use_id
-    const toolName = event.tool_name
-    const durationMs = event.duration_ms
+    const toolCallId = input.tool_use_id
+    const toolName = input.tool_name
+    const durationMs = input.duration_ms
     if (
       typeof toolCallId !== 'string' ||
       typeof toolName !== 'string' ||
@@ -315,10 +276,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   return {
     ...createClaudeCodeIdentityHooks(agentDataPath),
-    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, steerHook] }],
+    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
+    PostToolBatch: [{ hooks: [bashRewriteCleanupHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }

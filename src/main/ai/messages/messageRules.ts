@@ -11,6 +11,7 @@ import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, 
 
 import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 
+import { isSignedGeminiWhitespace } from './geminiTextSignature'
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
@@ -68,7 +69,7 @@ export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMess
   const out: ModelMessage[] = []
   for (const message of messages) {
     const prev = out.at(-1)
-    if (!prev || prev.role !== message.role) {
+    if (!prev || prev.role !== message.role || prev.providerOptions || message.providerOptions) {
       out.push(message)
       continue
     }
@@ -120,10 +121,10 @@ function toWireToolName(name: string): string {
 }
 
 /**
- * Make an illegal `dynamic-tool` name wire-legal. The v1 migrator joins `"{server}: {tool}"` into
- * `toolName` for display (`ChatMappings`), and unlike v1 — which never replayed tool blocks —
- * v2 sends that field as `function_call.name`, which providers reject (#18199). Call and result
- * share one part, so the pair stays consistent.
+ * Make an illegal `dynamic-tool` name wire-legal and drop nameless parts. The v1 migrator joins
+ * `"{server}: {tool}"` into `toolName` for display (`ChatMappings`), and unlike v1 — which never
+ * replayed tool blocks — v2 sends that field as `function_call.name`, which providers reject
+ * (#18199). Call and result share one part, so the pair stays consistent.
  *
  * A name this request declares is never rewritten: the API Gateway shares this path and keys its
  * `ToolSet` by the client's own function name (which Gemini allows to hold `.` / `:`), so
@@ -134,9 +135,20 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
   messages.forEach((message, messageIndex) => {
     let parts: T['parts'] | undefined
     message.parts.forEach((part, partIndex) => {
-      if (part.type !== 'dynamic-tool' || WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) return
-      parts ??= [...message.parts]
-      parts[partIndex] = { ...part, toolName: toWireToolName(part.toolName) }
+      if (part.type !== 'dynamic-tool') {
+        parts?.push(part)
+        return
+      }
+      if (part.toolName.length === 0) {
+        parts ??= message.parts.slice(0, partIndex)
+        return
+      }
+      if (WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) {
+        parts?.push(part)
+        return
+      }
+      parts ??= message.parts.slice(0, partIndex)
+      parts.push({ ...part, toolName: toWireToolName(part.toolName) })
     })
     if (parts) {
       out ??= [...messages]
@@ -280,6 +292,35 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
 }
 
 /**
+ * Reasoning edited in the renderer keeps a `cherry.editedReasoningReplay`
+ * marker instead of its provider signature. Signed reasoning cannot be replayed
+ * natively after the text changed (the signature covers the original text), so
+ * the marker is rendered into a plain `<think>` text part; the model still sees
+ * the corrected thought without an invalid signature. Unsigned reasoning has no
+ * marker and keeps its native replay.
+ */
+export function renderEditedReasoningAsThinkText<T extends UIMessage>(messages: T[]): T[] {
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    let parts: T['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (part.type !== 'reasoning') return
+      const marker = (part as { providerMetadata?: { cherry?: { editedReasoningReplay?: unknown } } }).providerMetadata
+        ?.cherry?.editedReasoningReplay
+      if (marker !== 'think') return
+      parts ??= [...message.parts]
+      parts[partIndex] = { type: 'text', text: `<think>\n${part.text}\n</think>` }
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
@@ -288,6 +329,7 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
  * strip media the model can't accept → drop tool
  * calls parked on an unanswered approval → drop tool parts with non-object replay inputs →
  * restore inferable legacy step boundaries →
+ * rewrite renderer-edited signed reasoning as `<think>` text →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
@@ -297,7 +339,8 @@ export async function toModelMessages(
   messages: UIMessage[],
   caps?: MediaCapabilities,
   tools?: ToolSet,
-  toolResultCaps?: MediaCapabilities
+  toolResultCaps?: MediaCapabilities,
+  options: { preserveEmptyAnthropicThinking?: boolean; preserveSignedGeminiWhitespace?: boolean } = {}
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
@@ -305,7 +348,29 @@ export async function toModelMessages(
       dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
     )
   )
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
+  // Anthropic Messages needs signed blocks even without display text. Keep the existing
+  // blank-reasoning filter for other adapters, which can reject those blocks.
+  const replayable = shaped.map((message) => {
+    const parts = message.parts.filter((part) => {
+      if (message.role === 'assistant' && part.type === 'text') {
+        return (
+          part.text.trim().length > 0 ||
+          (options.preserveSignedGeminiWhitespace && isSignedGeminiWhitespace(part.text, part.providerMetadata))
+        )
+      }
+      if (part.type !== 'reasoning' || part.text.trim().length > 0) return true
+      return (
+        options.preserveEmptyAnthropicThinking ||
+        typeof part.providerMetadata?.cherry?.replayRouteId === 'string' ||
+        typeof part.providerMetadata?.anthropic?.signature !== 'string'
+      )
+    })
+    return parts.length === message.parts.length ? message : { ...message, parts }
+  })
+  const model = await convertToModelMessages(renderEditedReasoningAsThinkText(replayable), {
+    ignoreIncompleteToolCalls: true,
+    tools
+  })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

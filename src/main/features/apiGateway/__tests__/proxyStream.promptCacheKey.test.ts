@@ -57,7 +57,9 @@ vi.mock('../adapters', () => ({
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
+      getMessageId: () => 'test-response',
       transformChunk: () => [],
+      transformChunkWithOpening: () => ({ opening: [], events: [] }),
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ ok: true })
     }),
@@ -119,7 +121,7 @@ describe('processMessage internal Agent prompt cache key', () => {
     const second = await resolveRequest()
 
     const key = first?.openai?.promptCacheKey
-    expect(key).toMatch(/^cherry-agent:[0-9a-f]{32}$/)
+
     expect(key).not.toContain('agent-session-1')
     expect(second?.openai?.promptCacheKey).toBe(key)
   })

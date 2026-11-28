@@ -35,6 +35,7 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
+import { useCherryCloudSubscriptionReminder } from './hooks/useCherryCloudSubscriptionReminder'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
@@ -93,6 +94,7 @@ function MainWindowRuntime(): null {
   useAutoBackupEvents()
   useStorageMonitorNotification()
   useTopicNamingErrorNotification()
+  useCherryCloudSubscriptionReminder()
 
   return null
 }

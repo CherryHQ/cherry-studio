@@ -79,11 +79,13 @@ function TextPreviewError() {
 }
 
 interface TextPreviewContentProps {
+  location?: FilePreviewPluginProps['location']
   filePath: string
   loadState: TextFileLoadState
+  onLineComment?: FilePreviewPluginProps['onLineComment']
 }
 
-function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): ReactNode {
+function TextPreviewContent({ filePath, loadState, onLineComment, location }: TextPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <TextPreviewLoading />
   if (loadState.status === 'empty') return <TextPreviewEmpty />
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
@@ -93,11 +95,13 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
     <div className="flex min-h-full w-full">
       <Suspense fallback={<TextPreviewLoading />}>
         <FileEditor
+          location={location}
           value={loadState.content}
           fileName={filePath}
           readOnly
           expanded
           wrapLines
+          onLineComment={onLineComment}
           className="min-w-0 flex-1"
         />
       </Suspense>
@@ -105,7 +109,14 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
   )
 }
 
-export default function TextFilePreview({ filePath, metadata, metadataRequest, refreshKey }: FilePreviewPluginProps) {
+export default function TextFilePreview({
+  filePath,
+  metadata,
+  metadataRequest,
+  refreshKey,
+  onLineComment,
+  location
+}: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
   const sourceMetadata = metadataRequest ?? metadata.size
 
@@ -150,7 +161,12 @@ export default function TextFilePreview({ filePath, metadata, metadataRequest, r
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content composerInset={loadState.status !== 'ready'}>
-        <TextPreviewContent filePath={filePath} loadState={loadState} />
+        <TextPreviewContent
+          location={location}
+          filePath={filePath}
+          loadState={loadState}
+          onLineComment={onLineComment}
+        />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

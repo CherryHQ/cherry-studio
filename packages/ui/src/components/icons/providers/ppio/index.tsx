@@ -9,7 +9,7 @@ const Ppio = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const PpioIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Ppio, {
   Avatar: PpioAvatar,
-  colorPrimary: '#0062E2'
+  colorPrimary: '#e8f1fc'
 })
 
 export default PpioIcon

@@ -18,9 +18,23 @@ function isSecureOrLoopbackUrl(value: string): boolean {
   )
 }
 
+// A development backend configured through MAIN_VITE_CHERRY_CLOUD_API_ORIGIN may serve plain HTTP on a LAN
+// address; production builds never set it, so only the exact configured origin is exempt.
+function isConfiguredDevelopmentOrigin(value: string): boolean {
+  const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+  if (!configuredOrigin) return false
+  const url = new URL(value)
+  return !url.username && !url.password && url.origin === new URL(configuredOrigin).origin
+}
+
 export const createDesktopAuthorizationResponseSchema = z.looseObject({
   authorization_id: z.uuid(),
-  authorization_url: z.url().refine(isSecureOrLoopbackUrl, 'Authorization URL must use HTTPS or loopback HTTP'),
+  authorization_url: z
+    .url()
+    .refine(
+      (value) => isSecureOrLoopbackUrl(value) || isConfiguredDevelopmentOrigin(value),
+      'Authorization URL must use HTTPS, loopback HTTP, or the configured development origin'
+    ),
   expires_at: utcDateTimeSchema
 })
 
@@ -43,7 +57,9 @@ const entitlementSchema = z.looseObject({
 
 const quotaPoolSchema = z.looseObject({
   model_ids: z.array(z.string().min(1)),
-  windows: z.array(z.looseObject({ remaining_units: z.number().int().nonnegative() })).min(1)
+  windows: z
+    .array(z.looseObject({ limit_units: z.number().int().nonnegative(), used_units: z.number().int().nonnegative() }))
+    .min(1)
 })
 
 export const accountSnapshotSchema = z.looseObject({
@@ -71,6 +87,11 @@ export const exchangeDesktopAuthorizationResponseSchema = z.looseObject({
 
 export const refreshProductSessionResponseSchema = z.looseObject({
   token_set: tokenSetSchema
+})
+
+export const amdDesktopEntryResponseSchema = z.looseObject({
+  entry_url: z.url(),
+  expires_in: z.number()
 })
 
 const cloudModelIdSchema = z
@@ -106,7 +127,42 @@ export const cloudModelListSchema = z.looseObject({
       context_window: z.number().int().positive(),
       max_output_tokens: z.number().int().positive(),
       capabilities: cloudModelCapabilitiesSchema,
-      available_features: z.array(cherryCloudModelFeatureSchema).min(1)
+      available_features: z.array(cherryCloudModelFeatureSchema).min(1),
+      /** `amd` marks AMD free models, served with the account's own AMD key instead of a plan entitlement. */
+      provider: z.string().nullish(),
+      activation_required: z.boolean().nullish(),
+      /** Same-origin API path that issues the browser activation link; never a page to open directly. */
+      activation_endpoint: z.string().nullish(),
+      /** Served by a server-side key outside any plan; `requires_login: false` also admits signed-out callers. */
+      standalone: z.boolean().nullish(),
+      requires_login: z.boolean().nullish()
     })
   )
 })
+
+// The fields of the CN client notification protocol (cloud-api `api/control-cn/notifications.yaml`) the client relies on.
+export const notificationReadySchema = z.looseObject({ cursor: z.string().min(1) })
+
+export const cloudNotificationSchema = z.looseObject({
+  id: z.string().min(1),
+  cursor: z.string().min(1),
+  refresh: z.array(z.string()).optional(),
+  type: z.string().optional(),
+  subscription_id: z.string().optional(),
+  title: z.string().optional(),
+  body: z.string().optional(),
+  occurred_at: z.string().optional(),
+  // Deadline for prominent presentation, not deletion or entitlement expiry.
+  expires_at: z.string().optional()
+})
+
+export const cloudNotificationPageSchema = z.looseObject({
+  items: z.array(cloudNotificationSchema),
+  next_cursor: z.string().min(1),
+  has_more: z.boolean()
+})
+
+// Stream error frames carry the code at the top level, unlike the JSON error bodies of HTTP responses.
+export const notificationErrorFrameSchema = z.looseObject({ code: z.string() })
+
+export type CloudNotification = z.infer<typeof cloudNotificationSchema>

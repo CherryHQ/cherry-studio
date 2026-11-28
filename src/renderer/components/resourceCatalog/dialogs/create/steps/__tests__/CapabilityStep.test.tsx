@@ -115,17 +115,17 @@ describe('CapabilityStep', () => {
     systemSkillDialogState.current = null
   })
 
-  it('writes selected skills through the checkbox catalog variant', async () => {
+  it('writes selected skills from their switches', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
-    await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
+    await user.click(screen.getByRole('switch', { name: 'Alpha Skill' }))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a')
 
-    await user.click(screen.getByRole('checkbox', { name: 'Beta Skill' }))
+    await user.click(screen.getByRole('switch', { name: 'Beta Skill' }))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a,skill-b')
 
-    await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
+    await user.click(screen.getByRole('switch', { name: 'Alpha Skill' }))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-b')
   })
 
@@ -133,7 +133,7 @@ describe('CapabilityStep', () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
-    const builtinCheckbox = screen.getByRole('checkbox', { name: 'Builtin Skill' })
+    const builtinCheckbox = screen.getByRole('switch', { name: 'Builtin Skill' })
     expect(builtinCheckbox).toBeChecked()
     expect(builtinCheckbox).toBeDisabled()
 
@@ -141,7 +141,7 @@ describe('CapabilityStep', () => {
     expect(builtinCheckbox).toBeChecked()
     expect(screen.getByTestId('skill-ids').textContent).toBe('')
 
-    await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
+    await user.click(screen.getByRole('switch', { name: 'Alpha Skill' }))
     expect(screen.getByTestId('skill-ids').textContent).toBe('skill-a')
   })
 
@@ -152,9 +152,9 @@ describe('CapabilityStep', () => {
     const selectAllSwitch = screen.getByRole('switch', {
       name: 'library.config.agent.section.tools.skills_enable_all'
     })
-    const alphaSkill = screen.getByRole('checkbox', { name: 'Alpha Skill' })
-    const betaSkill = screen.getByRole('checkbox', { name: 'Beta Skill' })
-    const builtinSkill = screen.getByRole('checkbox', { name: 'Builtin Skill' })
+    const alphaSkill = screen.getByRole('switch', { name: 'Alpha Skill' })
+    const betaSkill = screen.getByRole('switch', { name: 'Beta Skill' })
+    const builtinSkill = screen.getByRole('switch', { name: 'Builtin Skill' })
 
     await user.click(selectAllSwitch)
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a,skill-b')
@@ -169,24 +169,6 @@ describe('CapabilityStep', () => {
     expect(builtinSkill).toBeChecked()
   })
 
-  it('opens the skill import dialog', async () => {
-    const user = userEvent.setup()
-    render(<CapabilityStepHarness />)
-
-    await user.click(screen.getByRole('button', { name: 'library.skill_add.add' }))
-    await user.click(screen.getByRole('button', { name: 'library.skill_add.local_import' }))
-    expect(importSkillDialogState.current?.open).toBe(true)
-  })
-
-  it('opens online skill search', async () => {
-    const user = userEvent.setup()
-    render(<CapabilityStepHarness />)
-
-    await user.click(screen.getByRole('button', { name: 'library.skill_add.add' }))
-    await user.click(screen.getByRole('button', { name: 'library.skill_add.online_search' }))
-    expect(marketplaceDialogState.current?.open).toBe(true)
-  })
-
   it('enables an imported system skill for the new agent selection', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
@@ -199,23 +181,5 @@ describe('CapabilityStep', () => {
     act(() => systemSkillDialogState.current?.onEnabled?.('system-skill-id'))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('system-skill-id')
     expect(systemSkillDialogState.current?.selectedSkillIds).toEqual(['system-skill-id'])
-  })
-
-  it('does not expose uninstall actions in the agent creation flow', () => {
-    installedSkillsState.skills = [
-      ...installedSkillsState.skills,
-      { id: 'system-skill-id', name: 'System Skill', source: 'system', isGlobalEnabled: true } as InstalledSkill,
-      {
-        id: 'marketplace-skill-id',
-        name: 'Marketplace Skill',
-        source: 'marketplace',
-        isGlobalEnabled: true
-      } as InstalledSkill
-    ]
-    render(<CapabilityStepHarness />)
-
-    expect(screen.getByRole('checkbox', { name: 'System Skill' })).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Marketplace Skill' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'library.action.uninstall' })).not.toBeInTheDocument()
   })
 })

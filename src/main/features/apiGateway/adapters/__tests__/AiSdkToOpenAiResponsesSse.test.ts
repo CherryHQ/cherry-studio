@@ -159,6 +159,45 @@ describe('AiSdkToOpenAiResponsesSse', () => {
   describe('Reasoning Processing', () => {
     const createReasoningDelta = (text: string): UIMessageChunk => ({ type: 'reasoning-delta', id: 'r_0', delta: text })
 
+    // Catches duplicating one native reasoning item when the SDK streams multiple summary parts.
+    it.each(['openai', 'azure', 'xai'])('keeps %s ciphertext across summary parts', async (namespace) => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-5' })
+      const providerMetadata = { [namespace]: { itemId: 'rs_native' } }
+      const events = await collectEvents(
+        adapter.transform(
+          createMockStream([
+            { type: 'reasoning-start', id: 'rs_native:0', providerMetadata },
+            { type: 'reasoning-delta', id: 'rs_native:0', delta: 'first ' },
+            { type: 'reasoning-end', id: 'rs_native:0', providerMetadata },
+            { type: 'reasoning-start', id: 'rs_native:1', providerMetadata },
+            { type: 'reasoning-delta', id: 'rs_native:1', delta: 'second' },
+            {
+              type: 'reasoning-end',
+              id: 'rs_native:1',
+              providerMetadata: {
+                [namespace]: { itemId: 'rs_native', reasoningEncryptedContent: 'final-ciphertext' }
+              }
+            },
+            createTextDelta('answer'),
+            createFinish()
+          ])
+        )
+      )
+      const completed = events.find((event) => event.type === 'response.completed')!
+      expect(completed.response.output.filter((item) => item.type === 'reasoning')).toEqual([
+        {
+          type: 'reasoning',
+          id: 'rs_native',
+          status: 'completed',
+          summary: [{ type: 'summary_text', text: 'first second' }],
+          encrypted_content: 'final-ciphertext'
+        }
+      ])
+      expect(
+        events.filter((event) => event.type === 'response.output_item.added' && event.item.type === 'reasoning')
+      ).toHaveLength(1)
+    })
+
     it('emits a reasoning output item ahead of the message and carries it in response.completed', async () => {
       const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:deepseek-v4-pro' })
       const stream = createMockStream([
@@ -411,5 +450,89 @@ describe('AiSdkToOpenAiResponsesSse', () => {
       expect(frame).toContain('data: ')
       expect(frame.endsWith('\n\n')).toBe(true)
     })
+  })
+})
+
+it.each([null, undefined, [], true, 42, 'invalid json'])(
+  'rejects non-object tool input without fabricating arguments: %j',
+  (input) => {
+    const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test-model' })
+    expect(() =>
+      adapter.transformChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-input',
+        toolName: 'read_file',
+        input,
+        errorText: 'Invalid tool arguments'
+      })
+    ).toThrow('Invalid tool arguments')
+  }
+)
+
+it('completes an other finish reason successfully', async () => {
+  const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test:model' })
+  const events = await collectEvents(adapter.transform(createMockStream([{ type: 'finish', finishReason: 'other' }])))
+  expect(events).toContainEqual(
+    expect.objectContaining({ type: 'response.completed', response: expect.objectContaining({ status: 'completed' }) })
+  )
+  expect(events.some((event) => event.type === 'error')).toBe(false)
+})
+
+describe('terminal failure reasons', () => {
+  it.each(['error'] as const)('rejects %s while reading after a tool call', async (reason) => {
+    const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test:model' })
+    const stream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        controller.enqueue({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+        controller.enqueue({ type: 'finish', finishReason: reason })
+        controller.close()
+      }
+    })
+    const read = async () => {
+      const events: unknown[] = []
+      for await (const event of adapter.transform(stream)) events.push(event)
+      return events
+    }
+    await expect(read()).rejects.toMatchObject({ statusCode: 502 })
+  })
+
+  it.each(['error'] as const)('rejects %s with 502, including after a tool call', (reason) => {
+    for (const withTool of [false, true]) {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test:model' })
+      if (withTool)
+        adapter.transformChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+      expect(() => adapter.transformChunk({ type: 'finish', finishReason: reason })).toThrow(
+        expect.objectContaining({ statusCode: 502 })
+      )
+    }
+  })
+})
+
+it('restores name and namespace for flattened namespace tool calls in SSE and non-streaming output', async () => {
+  const adapter = new AiSdkToOpenAiResponsesSse({
+    model: 'cherryin:anthropic/claude-haiku-4.5',
+    resolveClientToolCall: (toolName) =>
+      toolName === 'mcp__automation__js' ? { name: 'js', namespace: 'mcp__automation' } : { name: toolName }
+  })
+  const stream = createMockStream([
+    { type: 'tool-input-available', toolCallId: 'call_ns_1', toolName: 'mcp__automation__js', input: { code: '1+1' } },
+    createFinish('tool-calls')
+  ])
+  const events = await collectEvents(adapter.transform(stream))
+
+  const itemDone = events.find((e) => e.type === 'response.output_item.done' && e.item.type === 'function_call')
+  expect(itemDone && 'item' in itemDone ? itemDone.item : undefined).toMatchObject({
+    type: 'function_call',
+    call_id: 'call_ns_1',
+    name: 'js',
+    namespace: 'mcp__automation',
+    arguments: '{"code":"1+1"}'
+  })
+  const nonStreaming = adapter.buildNonStreamingResponse()
+  expect(nonStreaming.output[0]).toMatchObject({
+    type: 'function_call',
+    call_id: 'call_ns_1',
+    name: 'js',
+    namespace: 'mcp__automation'
   })
 })

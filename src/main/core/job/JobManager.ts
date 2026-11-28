@@ -33,6 +33,12 @@ import {
   type JobScheduleRegistrationInput
 } from './types'
 
+function isSpentOnce(schedule: JobScheduleSnapshot): boolean {
+  return (
+    schedule.trigger.kind === 'once' && schedule.lastRun !== null && Date.parse(schedule.lastRun) >= schedule.trigger.at
+  )
+}
+
 const logger = loggerService.withContext('JobManager')
 
 /** Default retry policy used when handler does not declare one. */
@@ -124,7 +130,7 @@ interface RecoveryResumePoint {
  * 6-state state machine, schedule registry, retry backoff, startup recovery,
  * catch-up detection, GC.
  *
- * See `docs/references/job-and-scheduler/` for the full architecture, the
+ * See `docs/dev/references/job-and-scheduler/` for the full architecture, the
  * four-layer lock model, and the handler authoring contract.
  *
  * Current shape:
@@ -1274,7 +1280,7 @@ export class JobManager extends BaseService {
    * MUST call `syncJobScheduleTimerById(id)` on its own deterministic code
    * path. A rollback therefore has zero timer side effects. See
    * "Transactional schedule mutation" in
-   * `docs/references/job-and-scheduler/overview.md`.
+   * `docs/dev/references/job-and-scheduler/overview.md`.
    *
    * Handler, name, and trigger-semantics validation run up front (outside the
    * write) as the primitive's own precondition — an invalid cron expression /
@@ -1431,7 +1437,7 @@ export class JobManager extends BaseService {
    */
   async triggerJobScheduleNowById(id: string): Promise<boolean> {
     const schedule = jobScheduleService.getById(id)
-    if (!schedule) return false
+    if (!schedule || isSpentOnce(schedule)) return false
     // While paused, force the fallback: croner's .trigger() bypasses its own
     // pause AND the armed callback's gate suppresses the enqueue — the cron
     // path would return true having persisted nothing, silently dropping an
@@ -1442,6 +1448,10 @@ export class JobManager extends BaseService {
       ? false
       : await application.get('SchedulerService').triggerNow(`schedule:${id}`)
     if (triggered) return true
+    if (schedule.trigger.kind === 'once') {
+      const current = jobScheduleService.getById(id)
+      if (!current || isSpentOnce(current)) return false
+    }
     // Fallback path (non-cron OR cron not currently armed in this process).
     this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
       scheduleId: schedule.id
@@ -2126,11 +2136,7 @@ export class JobManager extends BaseService {
     // every restart, since scheduleOnce fires a past `at` immediately. Compare
     // against trigger.at rather than mere lastRun presence: a manual trigger
     // also writes lastRun but must not swallow a still-pending natural fire.
-    if (
-      schedule.trigger.kind === 'once' &&
-      schedule.lastRun !== null &&
-      Date.parse(schedule.lastRun) >= schedule.trigger.at
-    ) {
+    if (isSpentOnce(schedule)) {
       if (schedule.nextRun !== null) {
         try {
           jobScheduleService.setNextRun(schedule.id, null)
@@ -2164,7 +2170,7 @@ export class JobManager extends BaseService {
       // DB-backed so prompt/workspace/timeout edits take effect on the next
       // fire without re-arming (which would reset an interval's cadence).
       const currentSchedule = jobScheduleService.getById(schedule.id)
-      if (!currentSchedule?.enabled) return
+      if (!currentSchedule?.enabled || isSpentOnce(currentSchedule)) return
 
       const firedAt = Date.now()
       try {
@@ -2229,7 +2235,7 @@ export class JobManager extends BaseService {
    * fast-path is skipped — the normal dispatch loop handles them.
    *
    * Uses the reserved `job:${jobId}` SchedulerService id prefix (see the
-   * reserved-prefix table in `docs/references/job-and-scheduler/scheduler-usage.md`).
+   * reserved-prefix table in `docs/dev/references/job-and-scheduler/scheduler-usage.md`).
    * The disposable returned by `registerSchedule` is intentionally discarded —
    * cancel() drives termination via the dispatch path rather than disposing
    * the timer, and `scheduleOnce` self-cleans from its map before firing.
@@ -2368,7 +2374,10 @@ export class JobManager extends BaseService {
       logger.error('GC: pruneTerminalOlderThan failed', { err: (err as Error).message })
     }
     try {
-      byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE)
+      const retainedTypes = [...this.handlers]
+        .filter(([, handler]) => handler.retainTerminalHistoryForTtl)
+        .map(([type]) => type)
+      byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE, retainedTypes)
     } catch (err) {
       logger.error('GC: pruneTerminalKeepLatestPerSchedule failed', { err: (err as Error).message })
     }

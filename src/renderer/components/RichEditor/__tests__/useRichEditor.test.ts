@@ -3,6 +3,8 @@ import type { Editor } from '@tiptap/core'
 import { Selection, TextSelection } from '@tiptap/pm/state'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeCodeTheme: 'one-light' })
 }))
@@ -115,23 +117,6 @@ beforeEach(() => {
 })
 
 describe('useRichEditor autoFocus', () => {
-  it('focuses the end of the document on mount by default', async () => {
-    const { result } = renderHook(() => useRichEditor({ initialContent: CONTENT }))
-    await flushFocusTimeout()
-
-    expect(getEditor(result).getText()).toBe(CONTENT)
-    expect(isSelectionAtEnd(getEditor(result))).toBe(true)
-  })
-
-  it('leaves the selection at the start on mount when autoFocus is false', async () => {
-    const { result } = renderHook(() => useRichEditor({ initialContent: CONTENT, autoFocus: false }))
-    await flushFocusTimeout()
-
-    expect(getEditor(result).getText()).toBe(CONTENT)
-    expect(isSelectionAtEnd(getEditor(result))).toBe(false)
-    expect(getEditor(result).state.selection.from).toBe(Selection.atStart(getEditor(result).state.doc).from)
-  })
-
   it('refocuses the end when the editor becomes editable and autoFocus is enabled', async () => {
     const { result, rerender } = renderHook(({ editable }) => useRichEditor({ initialContent: CONTENT, editable }), {
       initialProps: { editable: false }
@@ -149,11 +134,15 @@ describe('useRichEditor autoFocus', () => {
     expect(isSelectionAtEnd(getEditor(result))).toBe(true)
   })
 
-  it('keeps the selection when the editor becomes editable and autoFocus is false', async () => {
+  it('keeps the selection at the start on mount and when enabling editing with autofocus off', async () => {
     const { result, rerender } = renderHook(
       ({ editable }) => useRichEditor({ initialContent: CONTENT, editable, autoFocus: false }),
       { initialProps: { editable: false } }
     )
+
+    await flushFocusTimeout()
+    expect(getEditor(result).getText()).toBe(CONTENT)
+    expect(getEditor(result).state.selection.from).toBe(Selection.atStart(getEditor(result).state.doc).from)
 
     rerender({ editable: true })
     await flushFocusTimeout()
@@ -179,25 +168,34 @@ describe('useRichEditor markdown paste', () => {
     expect(nodeTypes).toContain('codeBlock')
   })
 
-  // Notes rely on this: they hide the image command but keep paste, and the pinned `manual` cleanup
-  // policy is what makes writing into the user's notes folder safe.
-  it('persists a pasted image as a pinned entry when image insertion is enabled', async () => {
+  it.each([
+    ['/tmp/notes with spaces/paste #1.png', 'file:///tmp/notes%20with%20spaces/paste%20%231.png'],
+    ['/tmp/notes )private/paste.png', 'file:///tmp/notes%20%29private/paste.png'],
+    ['C:\\Notes Folder\\paste #1.png', 'file:///C:/Notes%20Folder/paste%20%231.png']
+  ])('reopens a pasted managed image stored at %s', async (path, url) => {
     vi.mocked(window.api.file.createInternalEntry).mockResolvedValue({
       id: 'entry-1',
       name: 'Pasted Image',
       ext: 'png'
     } as never)
-    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue('/tmp/pasted.png' as never)
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue(AbsoluteFilePathSchema.parse(path))
 
-    const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false }))
+    const onChange = vi.fn<(markdown: string) => void>()
+    const { result, unmount } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false, onChange }))
 
     await act(async () => {
-      pasteImage(getEditor(result))
+      const editor = getEditor(result)
+      editor.view.dom.dispatchEvent(new FocusEvent('focus'))
+      pasteImage(editor)
     })
-    // The paste is only observable once the whole async persist chain settles; letting it straddle
-    // the end of the test would land the call on the next test's spy.
-    await waitFor(() => expect(countImageNodes(getEditor(result))).toBe(1))
+    await waitFor(() => expect(onChange.mock.lastCall?.[0]).toContain(url))
+    const savedMarkdown = onChange.mock.lastCall![0]
+    unmount()
 
+    const reopened = renderHook(() => useRichEditor({ initialContent: savedMarkdown, autoFocus: false }))
+    expect(getEditor(reopened.result).getJSON().content).toContainEqual(
+      expect.objectContaining({ type: 'image', attrs: expect.objectContaining({ src: url }) })
+    )
     expect(window.api.file.createInternalEntry).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'bytes', cleanupPolicy: 'manual' })
     )
@@ -234,29 +232,16 @@ describe('useRichEditor markdown paste', () => {
     expect(getEditor(result).getText()).toBe('clipboard text')
   })
 
-  it('keeps the text of an HTML-only clipboard whose only text sits beside an image', async () => {
+  it('preserves text from HTML image pastes with or without an image item', async () => {
     const { result } = renderHook(() =>
       useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
     )
 
     await act(async () => {
-      pasteHtml(getEditor(result), '<p>caption <img src="https://example.com/image.png" alt="alt"></p>')
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    expect(countImageNodes(getEditor(result))).toBe(0)
-    expect(getEditor(result).getText()).toContain('caption')
-  })
-
-  it('keeps HTML text when the clipboard also carries an image item and no plain text', async () => {
-    const { result } = renderHook(() =>
-      useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
-    )
-
-    await act(async () => {
+      pasteHtml(getEditor(result), '<p>plain caption <img src="https://example.com/image.png" alt="alt"></p>')
       // Copying a region with an image yields both an `image/*` item and rich HTML; keying the
       // swallow off the item alone throws the caption away with it.
-      pasteHtml(getEditor(result), '<p>caption <img src="https://example.com/image.png"></p>', {
+      pasteHtml(getEditor(result), '<p>item caption <img src="https://example.com/image.png"></p>', {
         withImageItem: true
       })
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -264,7 +249,8 @@ describe('useRichEditor markdown paste', () => {
 
     expect(window.api.file.createInternalEntry).not.toHaveBeenCalled()
     expect(countImageNodes(getEditor(result))).toBe(0)
-    expect(getEditor(result).getText()).toContain('caption')
+    expect(getEditor(result).getText()).toContain('plain caption')
+    expect(getEditor(result).getText()).toContain('item caption')
   })
 
   it('leaves a selection intact when an image item arrives with image-only HTML', async () => {
@@ -329,20 +315,6 @@ describe('useRichEditor markdown paste', () => {
     expect(getEditor(result).getText()).toBe('hello world')
   })
 
-  it('inserts nothing for an HTML-only clipboard holding just an image', async () => {
-    const { result } = renderHook(() =>
-      useRichEditor({ initialContent: 'before', autoFocus: false, enableImageInsertion: false })
-    )
-
-    await act(async () => {
-      pasteHtml(getEditor(result), '<img src="https://example.com/image.png" alt="alt">')
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-
-    expect(countImageNodes(getEditor(result))).toBe(0)
-    expect(getEditor(result).getText()).toBe('before')
-  })
-
   it('leaves a selection intact when an image-only HTML clipboard is pasted over it', async () => {
     const { result } = renderHook(() =>
       useRichEditor({ initialContent: 'hello world', autoFocus: false, enableImageInsertion: false })
@@ -359,6 +331,7 @@ describe('useRichEditor markdown paste', () => {
 
     // A paste that inserts nothing must also destroy nothing: falling through here would have
     // ProseMirror replace the selection with the emptied slice.
+    expect(countImageNodes(getEditor(result))).toBe(0)
     expect(getEditor(result).getText()).toBe('hello world')
   })
 
@@ -403,12 +376,6 @@ describe('useRichEditor accessibility', () => {
     const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false, ariaLabel: 'Content' }))
 
     expect(getEditor(result).view.dom.getAttribute('aria-label')).toBe('Content')
-  })
-
-  it('leaves the editing surface unnamed when no label is supplied', async () => {
-    const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false }))
-
-    expect(getEditor(result).view.dom.hasAttribute('aria-label')).toBe(false)
   })
 })
 

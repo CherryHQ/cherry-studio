@@ -13,9 +13,9 @@ import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/compon
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { useConversationHistoryQuery } from '@renderer/hooks/useConversationHistoryQuery'
 import { type Topic, TopicType } from '@renderer/types/topic'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 
@@ -434,7 +434,8 @@ export function GlobalSearchMessagePreviewPanel({
             rangeExtractor={extractPreviewRange}
             scrollElementRef={scrollContainerRef}
             onScroll={handleScroll}
-            className="min-h-0 flex-1 overflow-y-auto px-6 pt-5 pb-20"
+            className="min-h-0 flex-1 overflow-y-auto"
+            contentProps={{ className: 'px-6 pt-5 pb-20' }}
             header={
               <>
                 {error && (

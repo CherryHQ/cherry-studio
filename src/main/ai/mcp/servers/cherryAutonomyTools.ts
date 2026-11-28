@@ -18,7 +18,19 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import {
+  CREATE_AGENT_TOOL_DESCRIPTION,
+  CREATE_ASSISTANT_TOOL_DESCRIPTION,
+  createAgentFromTool,
+  createAssistantFromTool,
+  toolOutput,
+  updateAgentFromTool
+} from '@main/ai/agents/agentConfigTool'
+import {
+  CreateAgentToolInputSchema,
+  CreateAssistantToolInputSchema,
+  SelfUpdateToolInputSchema
+} from '@main/ai/agents/agentConfigToolSchemas'
 import {
   createAgentChannel,
   createAgentChannelAndWaitForQr,
@@ -36,8 +48,11 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { AgentConfigToolOutputSchema, AssistantCreateToolOutputSchema } from '@shared/ai/agentConfigToolOutput'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
+  AGENT_DELEGATE_TOOL_NAME,
+  DELEGATION_CANCEL_TOOL_NAME,
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
@@ -47,8 +62,16 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
-import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
-import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import {
+  AGENT_CREATE_TOOL_NAME,
+  ASSISTANT_CREATE_TOOL_NAME,
+  CONFIG_TOOL_NAME,
+  CONFIG_UPDATE_TOOL_NAME,
+  CRON_TOOL_NAME,
+  NOTIFY_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -68,30 +91,32 @@ export interface AutonomyToolsContext {
   trustedNotifyChannels: readonly NotifyChannel[]
   /** Source-channel turns may explicitly select another live channel owned by this Agent. */
   allowAnyOwnedNotifyChannel: boolean
+  /** Offer `agent_create` and `assistant_create`; see the `createResources` Agent capability. */
+  resourceCreateEnabled?: boolean
+  /** Offer `config_update`; built-in Agents cannot change these settings. */
+  selfConfigEnabled?: boolean
 }
 
-/**
- * Parse a human-friendly duration string (e.g. '30m', '2h', '1h30m') into minutes.
- */
-function parseDurationToMinutes(duration: string): number {
-  let totalMinutes = 0
-  const hourMatch = duration.match(/(\d+)\s*h/i)
-  const minMatch = duration.match(/(\d+)\s*m/i)
+const DURATION_UNIT_MS = { s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const
+const MIN_INTERVAL_MS = 60_000
 
-  if (hourMatch) totalMinutes += parseInt(hourMatch[1], 10) * 60
-  if (minMatch) totalMinutes += parseInt(minMatch[1], 10)
-
-  if (totalMinutes === 0) {
-    const raw = parseInt(duration, 10)
-    if (!isNaN(raw) && raw > 0) return raw
-    throw new Error(`Invalid duration: "${duration}". Use formats like '30m', '2h', '1h30m'.`)
+function parseDurationToMs(duration: string): number {
+  if (!/^\s*(?:\d+(?:\.\d+)?\s*[smhd]\s*)+$/i.test(duration)) {
+    throw new Error(`Invalid duration: "${duration}". Use formats like '30m', '2h', '1d', '1h30m'.`)
   }
 
-  return totalMinutes
+  let totalMs = 0
+  for (const [, amount, unit] of duration.matchAll(/(\d+(?:\.\d+)?)\s*([smhd])/gi)) {
+    totalMs += Number(amount) * DURATION_UNIT_MS[unit.toLowerCase() as keyof typeof DURATION_UNIT_MS]
+  }
+  totalMs = Math.round(totalMs)
+
+  if (totalMs < MIN_INTERVAL_MS) throw new Error(`Invalid duration: "${duration}". The minimum interval is 1 minute.`)
+  return totalMs
 }
 
 const CRON_DESCRIPTION =
-  "Manage scheduled jobs: add, update, list, remove. Prefer update over recreating; one-time jobs use an RFC3339 'at'."
+  "Manage your scheduled jobs: add, update, list, remove. Use it whenever the user asks for a scheduled, recurring or timed task (定时任务); it runs as you, so it needs no new Agent. Prefer update over recreating; one-time jobs use an RFC3339 'at'."
 
 const CronInputSchema = z.object({
   action: z.enum(['add', 'update', 'list', 'remove']).describe('The action to perform'),
@@ -106,7 +131,11 @@ const CronInputSchema = z.object({
     .min(1)
     .optional()
     .describe("Cron expression, e.g. '0 9 * * 1-5' for weekdays at 9am (use cron OR every, not both)"),
-  every: z.string().min(1).optional().describe("Duration, e.g. '30m', '2h', '24h' (use every OR cron, not both)"),
+  every: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Duration of at least 1 minute, e.g. '30m', '2h', '1d', '1h30m' (use every OR cron, not both)"),
   at: z
     .string()
     .min(1)
@@ -120,8 +149,20 @@ const CronInputSchema = z.object({
     .describe(
       'Channel IDs to send task results to. On add, omit to use this turn’s configured notification recipients; on update, omit to keep existing recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
     ),
-  timeout_minutes: TimeoutMinutesAtomSchema.describe(
-    'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use null for no timeout.'
+  // Gemini's function-declaration schema rejects a nullable union (`anyOf: [number, null]`)
+  // with "didn't specify the schema type field". Agent runtimes consume this schema straight
+  // from MCP tools/list, without the provider middleware that rewrites such unions, so
+  // advertise a plain number. 0 already means "no timeout" in AgentJobsService; preprocess
+  // keeps older callers that send null working.
+  timeout_minutes: z.preprocess(
+    (value) => (value === null ? 0 : value),
+    z
+      .number()
+      .min(0)
+      .optional()
+      .describe(
+        'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use 0 for no timeout.'
+      )
   ),
   reuse_session: z
     .boolean()
@@ -306,6 +347,20 @@ const SessionCreateInputSchema = z.object({
   target_agent_id: z.string().optional().describe('Optional target Agent id.')
 })
 
+const AgentDelegateInputSchema = z.strictObject({
+  target_agent_id: z.string().trim().min(1).describe('Enabled local Agent id from agent_list.'),
+  message: z.string().trim().min(1).describe('Task to delegate to the local Agent.'),
+  title: z.string().trim().max(255).optional().describe('Optional task title.'),
+  workspace_id: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Existing user workspace id. Omit to use the current project; without a user project, create a fresh managed workspace.'
+    )
+})
+
 const SessionSendInputSchema = z.object({
   target_session_id: z.string().describe('Target sessionId returned by session_list or delivery sender.'),
   message: z.string().describe('Message for the target Agent.'),
@@ -370,16 +425,22 @@ function listSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionLi
 }
 
 function listAgents(): CallToolResult {
-  const agents = agentService.listAgents().agents.map((agent) => ({
-    id: agent.id,
-    name: agent.name,
-    description: agent.description ?? '',
-    runtime: {
-      type: agent.type,
-      available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
-    },
-    modelConfigured: agent.model !== null
-  }))
+  const agents = agentService
+    .listAgents()
+    .agents.filter((agent) => agent.type !== 'local' || agent.localRuntime?.enabled)
+    .map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      emoji: agent.configuration?.avatar ?? '',
+      description: agent.description ?? '',
+      model: agent.model,
+      readOnly: isProtectedBuiltinAgentRole(agent.configuration?.builtin_role),
+      runtime: {
+        type: agent.type,
+        available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
+      },
+      ...(agent.type === 'local' ? { readiness: 'unchecked' } : { modelConfigured: agent.model !== null })
+    }))
   return { content: [{ type: 'text', text: JSON.stringify({ agents }) }] }
 }
 
@@ -513,6 +574,42 @@ function resolveWorkspaceForNewSession(
     : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
 }
 
+function delegateAgent(ctx: AutonomyToolsContext, args: z.output<typeof AgentDelegateInputSchema>): CallToolResult {
+  const target = agentService.getAgent(args.target_agent_id)
+  if (!target || target.type !== 'local' || !target.localRuntime?.enabled) {
+    throw new Error('Delegation requires an enabled local Agent from Agent Services')
+  }
+  if (!runtimeDriverRegistry.getAgentSessionDriver(target.type)) {
+    throw new Error('The target Agent runtime is unavailable')
+  }
+  const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
+    delegation: true,
+    senderAgentId: ctx.agentId,
+    senderSessionId: ctx.sessionId,
+    targetAgentId: target.id,
+    sessionName: args.title ?? '',
+    workspace: args.workspace_id
+      ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: args.workspace_id }
+      : ctx.workspaceSource,
+    content: args.message
+  })
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          ok: true,
+          agentId: created.session.agentId,
+          sessionId: created.session.id,
+          requestId: created.message.id,
+          workspace: created.session.workspace,
+          delivery: created.message.delivery
+        })
+      }
+    ]
+  }
+}
+
 function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionCreateInputSchema>): CallToolResult {
   const content = args.message.trim()
   const title = args.title?.trim() ?? ''
@@ -622,8 +719,7 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
   if (cronExpr) {
     trigger = { kind: 'cron', expr: cronExpr }
   } else if (every) {
-    const minutes = parseDurationToMinutes(every)
-    trigger = { kind: 'interval', ms: minutes * 60_000 }
+    trigger = { kind: 'interval', ms: parseDurationToMs(every) }
   } else if (at) {
     const date = new Date(at)
     if (isNaN(date.getTime())) throw new Error(`Invalid timestamp: "${at}"`)
@@ -1160,9 +1256,58 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       (args) => sendNotification(ctx, args)
     )
   }
-  server.registerTool(CONFIG_TOOL_NAME, { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema }, (args) =>
-    runConfig(ctx, args)
+  server.registerTool(
+    CONFIG_TOOL_NAME,
+    {
+      description: ctx.selfConfigEnabled
+        ? `${CONFIG_DESCRIPTION} Use ${CONFIG_UPDATE_TOOL_NAME} for other settings.`
+        : CONFIG_DESCRIPTION,
+      inputSchema: ConfigInputSchema
+    },
+    (args) => runConfig(ctx, args)
   )
+  if (ctx.selfConfigEnabled) {
+    server.registerTool(
+      CONFIG_UPDATE_TOOL_NAME,
+      {
+        description:
+          'Change your own settings: avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language, heartbeat. Pass only the fields to change; the user approves every call.',
+        inputSchema: SelfUpdateToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
+      },
+      (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(updateAgentFromTool(ctx.agentId, args, { self: true }))
+      }
+    )
+  }
+  if (ctx.resourceCreateEnabled) {
+    const fallbackModel = () => agentService.getAgent(ctx.agentId)?.model ?? undefined
+    server.registerTool(
+      AGENT_CREATE_TOOL_NAME,
+      {
+        description: CREATE_AGENT_TOOL_DESCRIPTION,
+        inputSchema: CreateAgentToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
+      },
+      async (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(await createAgentFromTool(args, { fallbackModel: fallbackModel() }))
+      }
+    )
+    server.registerTool(
+      ASSISTANT_CREATE_TOOL_NAME,
+      {
+        description: CREATE_ASSISTANT_TOOL_DESCRIPTION,
+        inputSchema: CreateAssistantToolInputSchema,
+        outputSchema: AssistantCreateToolOutputSchema
+      },
+      (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(createAssistantFromTool(args, { fallbackModel: fallbackModel() }))
+      }
+    )
+  }
   server.registerTool(
     SESSION_LIST_TOOL_NAME,
     {
@@ -1214,6 +1359,28 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       inputSchema: SessionCreateInputSchema
     },
     (args) => runSessionTool(ctx, () => createSession(ctx, args))
+  )
+  server.registerTool(
+    DELEGATION_CANCEL_TOOL_NAME,
+    {
+      description:
+        'Cancel one delegated task owned by this Session, using its requestId. Stopping a parent reply does not cancel its tasks.',
+      inputSchema: z.strictObject({ request_id: z.string().trim().min(1) })
+    },
+    (args) =>
+      runSessionTool(ctx, async () => {
+        await application.get('AgentDelegationService').cancel(ctx.sessionId, args.request_id)
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: true, requestId: args.request_id }) }] }
+      })
+  )
+  server.registerTool(
+    AGENT_DELEGATE_TOOL_NAME,
+    {
+      description:
+        'Delegate a project task to an enabled local Agent in a new dedicated Session. Uses the current project unless workspace_id is provided. Returns a durable request immediately; one terminal result arrives asynchronously. Runtime availability does not prove CLI authentication or model access.',
+      inputSchema: AgentDelegateInputSchema
+    },
+    (args) => runSessionTool(ctx, () => delegateAgent(ctx, args))
   )
   server.registerTool(
     SESSION_DELIVERIES_TOOL_NAME,

@@ -9,7 +9,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { application } from '@application'
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase, Emitter } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase, Emitter } from '@main/core/lifecycle'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -50,7 +50,12 @@ export class FileIntakeService extends BaseService {
     this.registerDisposable(this.changes)
     await this.load()
     for (const upload of this.uploads.values()) if (upload.state === 'verifying') this.verify(upload)
-    this.registerInterval(() => this.sweep(), 1000)
+    this.registerDisposable(() => {
+      this.sweepTimer = undefined
+    })
+  }
+  protected onReady(): void {
+    this.ensureSweep()
   }
   protected async onStop(): Promise<void> {
     await this.drain()
@@ -72,6 +77,7 @@ export class FileIntakeService extends BaseService {
   private loading?: Promise<void>
   private stopped = false
   private sweeping = false
+  private sweepTimer?: Disposable
 
   private root(): string {
     return this.store.root()
@@ -98,7 +104,12 @@ export class FileIntakeService extends BaseService {
   }
   private async save(upload: Upload): Promise<void> {
     await this.store.save(upload)
+    this.ensureSweep()
     this.changes.fire({ ownerId: upload.ownerId, uploadId: upload.uploadId })
+  }
+  private ensureSweep(): void {
+    if (this.sweepTimer || !this.isReady || this.uploads.size === 0) return
+    this.sweepTimer = this.registerInterval(() => this.sweep(), 1000)
   }
   async owners(): Promise<FileIntakeOwner[]> {
     await this.load()
@@ -445,6 +456,9 @@ export class FileIntakeService extends BaseService {
       .catch((error) => logger.warn('Upload cleanup failed', error))
       .finally(() => {
         this.sweeping = false
+        if (this.uploads.size > 0) return
+        this.sweepTimer?.dispose()
+        this.sweepTimer = undefined
       })
   }
   async drain(): Promise<void> {

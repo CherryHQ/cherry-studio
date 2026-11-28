@@ -25,11 +25,6 @@ describe('_columnHelpers order key helpers', () => {
       expect(col!.notNull).toBe(true)
       expect(col!.dataType).toBe('string')
     })
-
-    it('exposes the column under the TS property name `orderKey`', () => {
-      // Spread locks the TS-level field name; `fixtureTable.orderKey` must be defined.
-      expect(fixtureTable.orderKey).toBeDefined()
-    })
   })
 
   describe('orderKeyIndex', () => {
@@ -51,21 +46,6 @@ describe('_columnHelpers order key helpers', () => {
       const colNames = idx!.config.columns.map((c) => (c as { name: string }).name)
       // Column order matters: scope first, then order_key (for (scope, order_key) B-tree scans).
       expect(colNames).toEqual(['provider_id', 'order_key'])
-    })
-
-    it('produces a stable name for a different table/scope pair', () => {
-      // Build an ad-hoc second table to confirm the naming pattern generalises.
-      const otherTable = sqliteTable(
-        'user_model',
-        {
-          id: text().primaryKey(),
-          providerId: text('provider_id'),
-          ...orderKeyColumns
-        },
-        (t) => [scopedOrderKeyIndex('user_model', 'providerId')(t)]
-      )
-      const { indexes } = getTableConfig(otherTable)
-      expect(indexes[0].config.name).toBe('user_model_provider_id_order_key_idx')
     })
   })
 })

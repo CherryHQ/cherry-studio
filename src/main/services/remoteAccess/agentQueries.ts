@@ -4,7 +4,7 @@ import { open } from 'node:fs/promises'
 import { getToolName, isToolUIPart } from 'ai'
 
 import { application } from '@application'
-import { modelSummarySchema } from '@cherrystudio/remote-protocol/agent'
+import { modelOptionSchema, modelSummarySchema } from '@cherrystudio/remote-protocol/agent'
 import type {
   AgentInteraction,
   AgentParams,
@@ -19,16 +19,21 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import { isAgentModelSelectable } from '@shared/ai/agentRuntimeCapabilities'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
+import { type UniqueModelId, UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
+import { createCherryCloudModelAccess } from '@shared/utils/cherryCloudModelAvailability'
 
 import { DEFAULT_PAGE, pageOf, queryPage } from './agentPagination'
 import { toMessageUsage } from './agentUsage'
@@ -107,83 +112,98 @@ function dataPart(partId: string, revision: string, name: string, value: unknown
 
 /** Persisted parts get index-based IDs; live parts use stream IDs and are tombstoned once history commits. */
 export function projectPersistedParts(message: AgentSessionMessageEntity): ProjectedPart[] {
-  const revision = revisionOf(message.updatedAt)
+  return projectMessageParts(
+    { id: message.id, parts: message.data.parts ?? [], modelId: message.modelId },
+    revisionOf(message.updatedAt)
+  )
+}
+
+export function projectMessageParts(
+  message: { id: string; parts: CherryMessagePart[]; modelId?: string | null },
+  revision: string
+): ProjectedPart[] {
+  return message.parts.flatMap((part, index) =>
+    projectMessagePart(part, `${message.id}:${index}`, revision, message.modelId)
+  )
+}
+
+export function projectMessagePart(
+  part: CherryMessagePart,
+  partId: string,
+  revision: string,
+  modelId?: string | null
+): ProjectedPart[] {
   const projected: ProjectedPart[] = []
-  ;(message.data.parts ?? []).forEach((part: CherryMessagePart, index) => {
-    const partId = `${message.id}:${index}`
-    if (part.type === 'text' || part.type === 'reasoning') {
+  if (part.type === 'text' || part.type === 'reasoning') {
+    projected.push({
+      part: {
+        partId,
+        revision,
+        kind: part.type,
+        content: contentOf(partId, revision, part.text),
+        state: 'completed'
+      },
+      text: part.text
+    })
+  } else if (isToolUIPart(part)) {
+    const input = JSON.stringify(part.input ?? null)
+    projected.push({
+      part: {
+        partId: `${partId}:in`,
+        revision,
+        kind: 'tool-input',
+        toolName: getToolName(part),
+        toolCallId: part.toolCallId,
+        content: contentOf(`${partId}:in`, revision, input),
+        state: 'completed'
+      },
+      text: input
+    })
+    if (part.state === 'output-available' || part.state === 'output-error') {
+      const output = JSON.stringify(part.state === 'output-error' ? part.errorText : (part.output ?? null))
       projected.push({
+        part: {
+          partId: `${partId}:out`,
+          revision,
+          kind: 'tool-output',
+          toolName: getToolName(part),
+          toolCallId: part.toolCallId,
+          content: contentOf(`${partId}:out`, revision, output),
+          state: part.state === 'output-error' ? 'failed' : 'completed'
+        },
+        text: output
+      })
+    }
+  } else if (part.type === 'data-error') {
+    const failure = toExecutionFailure(part.data as SerializedError, modelId ?? undefined)
+    projected.push(
+      dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
+    )
+  } else if (part.type === 'file') {
+    const metadata = readCherryMeta(part)?.remoteAttachment
+    if (metadata && readCherryMeta(part)?.fileEntryId) {
+      projected.push({
+        text: '',
         part: {
           partId,
           revision,
-          kind: part.type,
-          content: contentOf(partId, revision, part.text),
-          state: 'completed'
-        },
-        text: part.text
-      })
-    } else if (isToolUIPart(part)) {
-      const input = JSON.stringify(part.input ?? null)
-      projected.push({
-        part: {
-          partId: `${partId}:in`,
-          revision,
-          kind: 'tool-input',
-          toolName: getToolName(part),
-          toolCallId: part.toolCallId,
-          content: contentOf(`${partId}:in`, revision, input),
-          state: 'completed'
-        },
-        text: input
-      })
-      if (part.state === 'output-available' || part.state === 'output-error') {
-        const output = JSON.stringify(part.state === 'output-error' ? part.errorText : (part.output ?? null))
-        projected.push({
-          part: {
-            partId: `${partId}:out`,
+          kind: 'file',
+          name: part.filename || 'file',
+          ref: {
+            contentId: partId,
             revision,
-            kind: 'tool-output',
-            toolName: getToolName(part),
-            toolCallId: part.toolCallId,
-            content: contentOf(`${partId}:out`, revision, output),
-            state: part.state === 'output-error' ? 'failed' : 'completed'
-          },
-          text: output
-        })
-      }
-    } else if (part.type === 'data-error') {
-      const failure = toExecutionFailure(part.data as SerializedError, message.modelId ?? undefined)
-      projected.push(
-        dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
-      )
-    } else if (part.type === 'file') {
-      const metadata = readCherryMeta(part)?.remoteAttachment
-      if (metadata && readCherryMeta(part)?.fileEntryId) {
-        projected.push({
-          text: '',
-          part: {
-            partId,
-            revision,
-            kind: 'file',
-            name: part.filename || 'file',
-            ref: {
-              contentId: partId,
-              revision,
-              byteLength: String(metadata.byteLength),
-              mediaType: part.mediaType,
-              sha256: metadata.sha256
-            }
+            byteLength: String(metadata.byteLength),
+            mediaType: part.mediaType,
+            sha256: metadata.sha256
           }
-        })
-      } else
-        projected.push(
-          dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null })
-        )
-    } else if (part.type !== 'step-start') {
-      const { type, ...rest } = part as { type: string }
-      projected.push(dataPart(partId, revision, type, rest))
-    }
-  })
+        }
+      })
+    } else
+      projected.push(dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null }))
+  } else if (part.type !== 'step-start') {
+    const { type, ...rest } = part as { type: string }
+    projected.push(dataPart(partId, revision, type, rest))
+  }
   return projected
 }
 
@@ -343,6 +363,56 @@ export function listAgents(cursor?: string, limit?: number) {
   )
 }
 
+function wireLabel(raw: string, fallback: string, maxLength: number): string {
+  const sanitize = (value: string) =>
+    value
+      .slice(0, maxLength)
+      .replace(/[\uD800-\uDBFF]$/, '')
+      .toWellFormed()
+      .trim()
+  return sanitize(raw.trim()) || sanitize(fallback)
+}
+
+function selectableModels(
+  agentId: string,
+  selected?: { providerId: string; modelId: string }
+): Array<{
+  id: UniqueModelId
+  identity: ReturnType<typeof parseUniqueModelId>
+  name: string
+  providerName: string
+}> {
+  const agent = agentService.getAgent(agentId)
+  if (!agent) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
+  const providers = new Map(providerService.list({ enabled: true }).map((provider) => [provider.id, provider]))
+  const cloud = createCherryCloudModelAccess(application.get('CherryCloudService').getAccountReceipt().models)
+  return modelService.list({ enabled: true, providerId: selected?.providerId }).flatMap((model) => {
+    const provider = providers.get(model.providerId)
+    if (!provider || !isAgentModelSelectable(agent.type, model, provider) || !cloud.isSelectable(model, true)) return []
+    const identity = parseUniqueModelId(model.id)
+    if (selected && identity.modelId !== selected.modelId) return []
+    return [{ id: model.id, identity, name: model.name, providerName: provider.name }]
+  })
+}
+
+export function listModels({ agentId, cursor, limit, search }: AgentParams<'agent.models.list'>) {
+  const keywords = search?.toLowerCase().trim().split(/\s+/) ?? []
+  const items = selectableModels(agentId)
+    .flatMap(({ identity, name, providerName }) => {
+      const summary = modelOptionSchema.safeParse({
+        ...identity,
+        name: wireLabel(name, identity.modelId, 2048),
+        providerName: wireLabel(providerName, identity.providerId, 4096)
+      })
+      return summary.success ? [summary.data] : []
+    })
+    .filter((item) => {
+      const text = [item.providerId, item.providerName, item.modelId, item.name].join(' ').toLowerCase()
+      return keywords.every((keyword) => text.includes(keyword))
+    })
+  return pageOf(items, cursor, limit)
+}
+
 export function listWorkspaces(agentId: string, cursor?: string, limit?: number) {
   if (!agentService.agentExists(agentId)) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
   return {
@@ -355,17 +425,20 @@ export function listWorkspaces(agentId: string, cursor?: string, limit?: number)
   }
 }
 
-export function listSessions(query: { agentId?: string; workspaceId?: string; cursor?: string; limit?: number }): {
+export function listSessions(query: AgentParams<'agent.sessions.list'>): {
   items: AgentSessionEntity[]
   nextCursor: string | null
 } {
+  const options = {
+    agentId: query.agentId,
+    workspaceId: query.workspaceId,
+    cursor: query.cursor,
+    limit: query.limit ?? DEFAULT_PAGE
+  }
   const page = notFound(() =>
-    agentSessionService.listByCursor({
-      agentId: query.agentId,
-      workspaceId: query.workspaceId,
-      cursor: query.cursor,
-      limit: query.limit ?? DEFAULT_PAGE
-    })
+    query.taskId
+      ? agentTaskService.listTaskSessions(query.taskId, options)
+      : agentSessionService.listByCursor({ ...options, scope: 'all-conversations' })
   )
   return {
     items: page.items,
@@ -373,11 +446,26 @@ export function listSessions(query: { agentId?: string; workspaceId?: string; cu
   }
 }
 
-export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParams<'agent.sessions.create'>): void {
+export function createSessionTx(
+  tx: DbOrTx,
+  sessionId: string,
+  input: AgentParams<'agent.sessions.create'>,
+  options?: { cloudRefreshFailed?: boolean }
+): void {
+  let model: UniqueModelId | undefined
+  if (input.model) {
+    if (options?.cloudRefreshFailed) {
+      notFound(() => agentService.assertActiveTx(tx, input.agentId))
+      throw new RemoteRpcError('MODEL_UNAVAILABLE', 'Cherry Cloud model availability could not be refreshed')
+    }
+    model = selectableModels(input.agentId, input.model)[0]?.id
+    if (!model) throw new RemoteRpcError('MODEL_UNAVAILABLE', 'Selected session model is no longer available')
+  }
   notFound(() =>
     agentSessionService.createTx(tx, sessionId, {
       agentId: input.agentId,
       name: input.title ?? '',
+      model,
       workspace:
         'workspace' in input
           ? input.workspace.kind === 'system'

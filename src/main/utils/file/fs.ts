@@ -1,5 +1,3 @@
-/* oxlint-disable no-unused-vars -- TODO(phase-2): compressImage is the last remaining stub; its parameters shape the public signature but are unused until the KnowledgeService consumer migrates. */
-
 /**
  * Core filesystem operations — the ONLY module that imports `node:fs`.
  *
@@ -22,7 +20,7 @@
  * unaffected — the rule is specifically "do not point writes at the internal
  * storage tree".
  *
- * See `docs/references/file/architecture.md §5.2` for the full rationale.
+ * See `docs/dev/references/file/architecture.md §5.2` for the full rationale.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -55,10 +53,6 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import { createContentHasher } from './contentHash'
 
 const logger = loggerService.withContext('utils/file/fs')
-
-const notImplemented = (op: string): never => {
-  throw new Error(`@main/utils/file/fs.${op}: not implemented (deferred to Phase 2)`)
-}
 
 /** Read file content as text with optional encoding detection. */
 export async function read(
@@ -282,7 +276,7 @@ async function bestEffortUnlinkTmp(tmp: string): Promise<void> {
  * Atomic write: tmp + fsync + rename + fsync(dir).
  *
  * Follows the POSIX atomic flow documented in
- * `docs/references/file/file-manager-architecture.md §5.1`:
+ * `docs/dev/references/file/file-manager-architecture.md §5.1`:
  * 1. open `{target}.tmp-{uuid}` in the same directory
  * 2. write data, fsync the tmp fd
  * 3. rename(tmp, target) — atomic replacement on POSIX
@@ -856,11 +850,6 @@ export async function ensureDir(target: AbsoluteFilePath): Promise<void> {
     return
   }
   await fsMkdirPromise(target, { recursive: true })
-}
-
-/** Compress an image (sharp). Returns the output path. */
-export async function compressImage(_input: AbsoluteFilePath | Uint8Array, _output: AbsoluteFilePath): Promise<void> {
-  return notImplemented('compressImage')
 }
 
 /**

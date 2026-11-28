@@ -7,14 +7,7 @@ import {
   LOCAL_MODEL_CAPABILITIES
 } from '@shared/data/presets/localModel'
 
-import {
-  ALL_MODEL_BUNDLE_IDS,
-  bundleDtype,
-  bundleFile,
-  defaultBundleForCapability,
-  LOCAL_MODEL_BUNDLES,
-  SHARED_ARTIFACTS
-} from '../catalog'
+import { bundleDtype, bundleFile, defaultBundleForCapability, LOCAL_MODEL_BUNDLES, SHARED_ARTIFACTS } from '../catalog'
 
 const bundles = Object.values(LOCAL_MODEL_BUNDLES)
 const artifacts = Object.values(SHARED_ARTIFACTS)
@@ -54,10 +47,6 @@ describe('local model catalog', () => {
     const matching = bundles.filter((bundle) => bundle.capability === capability)
 
     expect(matching.map((bundle) => bundle.id)).toContain(defaultBundleForCapability(capability).id)
-  })
-
-  it('exposes every bundle id', () => {
-    expect([...ALL_MODEL_BUNDLE_IDS].sort()).toEqual(bundles.map((bundle) => bundle.id).sort())
   })
 
   it('agrees with the vocabulary the renderer addresses it by', () => {
@@ -102,7 +91,7 @@ describe('local model catalog', () => {
         revision: '272c57b82523ada6fd87095e955f8e29100979ab'
       },
       conversion: {
-        revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+        revision: 'ce0975f2a7a8ad6441223db59ce6e1362295ddfe',
         license: { spdx: 'Apache-2.0' }
       }
     })

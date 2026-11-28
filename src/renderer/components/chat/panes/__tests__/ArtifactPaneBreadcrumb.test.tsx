@@ -9,7 +9,7 @@ import type { FileTreeNode } from '@renderer/components/FileTree'
 import { ArtifactPaneBreadcrumb } from '../ArtifactPaneBreadcrumb'
 
 vi.unmock('@cherrystudio/ui')
-vi.mock('@iconify/react', () => ({ Icon: () => null }))
+vi.mock('@iconify/react', () => ({ addCollection: vi.fn(), Icon: () => null }))
 
 const openedMenus = vi.hoisted(() => [] as string[][])
 // Records the items a right-click on the wrapped element would show.
@@ -62,6 +62,7 @@ function Harness({ onOpenFile }: { onOpenFile: (id: string) => void }) {
       onOpenFile={onOpenFile}
       onLoadFolder={(id) => id === 'src/lib' && setLibLoaded(true)}
       fileMenuItems={[menuItem('file')]}
+      getFileMenuItems={() => [menuItem('file')]}
       getFolderMenuItems={(id) => [menuItem(`folder:${id}`)]}
     />
   )

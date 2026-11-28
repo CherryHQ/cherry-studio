@@ -1,6 +1,7 @@
 import '@vitest/web-worker'
 import { waitFor } from '@testing-library/react'
 import { Editor } from '@tiptap/core'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 
 import { codeHighlightService } from '@renderer/services/CodeHighlightService'
@@ -27,6 +28,20 @@ const keywords = (editor: Editor) =>
   [...editor.view.dom.querySelectorAll('code .code-syntax-keyword')].map((node) => node.textContent)
 
 describe('shared code highlighting in RichEditor', () => {
+  it('keeps pending highlighting and later edits through plugin registration and removal', async () => {
+    const editor = create('```javascript\nconst answer = 42\n```')
+    await waitFor(() => expect(keywords(editor)).toEqual(['const']))
+    editor.commands.setContent('```javascript\nlet answer = 42\n```', { contentType: 'markdown' })
+    const key = new PluginKey('late-mounted-toolbar')
+    editor.registerPlugin(new Plugin({ key }))
+    await waitFor(() => expect(keywords(editor)).toEqual(['let']))
+    editor.commands.insertContentAt(1, 'let other = 1;\n')
+    await waitFor(() => expect(keywords(editor)).toEqual(['let', 'let']))
+    editor.commands.setContent('```javascript\nconst restored = 42\n```', { contentType: 'markdown' })
+    editor.unregisterPlugin(key)
+    await waitFor(() => expect(keywords(editor)).toEqual(['const']))
+  })
+
   it('classifies edited and moved blocks without changing untouched source', async () => {
     const editor = create('```typescript\nconst alpha = 1\n```\n\nparagraph\n\n```typescript\nconst beta = 2\n```')
     await waitFor(() => expect(keywords(editor)).toEqual(['const', 'const']))

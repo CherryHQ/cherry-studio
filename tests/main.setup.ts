@@ -9,6 +9,20 @@ vi.mock('@main/services/readableContent/readableContentWorker?nodeWorker', () =>
   })
 }))
 
+vi.mock('@main/ai/messages/attachmentWorker?nodeWorker', () => ({
+  default: vi.fn(() => {
+    throw new Error('Attachment worker factory must be mocked by tests that invoke it')
+  })
+}))
+
+vi.mock('@main/services/file/watcherWorker?nodeWorker', async () => {
+  const { Worker } = await import('node:worker_threads')
+  return {
+    default: (options: ConstructorParameters<typeof Worker>[1]) =>
+      new Worker("require('tsx/cjs'); require('./src/main/services/file/watcherWorker.ts')", { ...options, eval: true })
+  }
+})
+
 // Mock LoggerService globally for main process tests
 vi.mock('@logger', async () => {
   const { MockMainLoggerService, mockMainLoggerService } = await import('./__mocks__/MainLoggerService')
@@ -80,7 +94,10 @@ vi.mock('electron', async () => {
             return '/mock/unknown'
         }
       }),
+      getAppPath: vi.fn(() => '/mock/app'),
       getVersion: vi.fn(() => '1.0.0'),
+      whenReady: vi.fn().mockResolvedValue(undefined),
+      runningUnderARM64Translation: false,
       getLocale: vi.fn(() => 'en-US'),
       getPreferredSystemLanguages: vi.fn(() => ['en-US']),
       // Explicit false (matching the previous `undefined` semantics) so the
@@ -105,6 +122,11 @@ vi.mock('electron', async () => {
       on: vi.fn(),
       removeListener: vi.fn()
     },
+    autoUpdater: Object.assign(new EventEmitter(), {
+      checkForUpdates: vi.fn(),
+      quitAndInstall: vi.fn(),
+      setFeedURL: vi.fn()
+    }),
     BrowserWindow: vi.fn(),
     dialog: {
       showErrorBox: vi.fn(),
@@ -173,7 +195,8 @@ vi.mock('electron', async () => {
     },
     Notification: vi.fn(),
     net: {
-      fetch: vi.fn()
+      fetch: vi.fn(),
+      request: vi.fn()
     }
   }
 
@@ -215,22 +238,6 @@ vi.mock('winston-daily-rotate-file', () => {
   })
 })
 
-// Mock electron-store to avoid file system operations
-vi.mock('electron-store', () => {
-  return {
-    default: vi.fn().mockImplementation(function ElectronStoreMock() {
-      return {
-        get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
-        set: vi.fn(),
-        delete: vi.fn(),
-        clear: vi.fn(),
-        has: vi.fn(() => false),
-        store: {}
-      }
-    })
-  }
-})
-
 // Mock Node.js modules
 //
 // The fs/os/path modules are passed through to their real implementations
@@ -247,12 +254,13 @@ vi.mock('electron-store', () => {
 // tests assume this deterministic value when building expected paths.
 vi.mock('node:os', async () => {
   const actual = await vi.importActual<typeof import('node:os')>('node:os')
+  const { resolve } = await vi.importActual<typeof import('node:path')>('node:path')
   return {
     ...actual,
-    homedir: vi.fn(() => '/mock/home'),
+    homedir: vi.fn(() => resolve('/mock/home')),
     default: {
       ...actual,
-      homedir: () => '/mock/home'
+      homedir: () => resolve('/mock/home')
     }
   }
 })

@@ -1,4 +1,4 @@
-/** Enforces the docs tree shape: a closed set of domain directories under docs/references, each owning a README.md home. */
+/** Enforces the docs tree shape: a closed set of domain directories under docs/dev/references, each owning a README.md home. */
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -60,7 +60,7 @@ export const checkStructure = (referencesDir: string, domains: readonly string[]
 }
 
 const main = () => {
-  const failures = checkStructure(path.join(ROOT, 'docs/references'))
+  const failures = checkStructure(path.join(ROOT, 'docs/dev/references'))
   if (failures.length > 0) {
     console.error(`Found ${failures.length} docs structure violation(s):\n`)
     for (const failure of failures) console.error(`  ${failure}`)

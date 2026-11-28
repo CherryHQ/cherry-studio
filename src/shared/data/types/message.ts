@@ -13,11 +13,15 @@ import type {
 import * as z from 'zod'
 
 import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
+import { AgentSessionCostSnapshotSchema, type AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import { LocalAgentTurnUsageSchema, type LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
+import type { MessageProvenance } from './conversationImport'
+import { FileEntryIdSchema } from './file'
 import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
@@ -82,10 +86,7 @@ export const MessageStatsSchema = z.strictObject({
   inputTokens: z.number().optional(),
   outputTokens: z.number().optional(),
   totalTokens: z.number().optional(),
-  /**
-   * Real end-of-turn context size: the last step's total tokens, rather than
-   * the cumulative per-invocation sum. Message-owned durable-compaction anchor.
-   */
+  /** @deprecated Legacy context count retained for reading stored messages. */
   contextTokens: z.number().optional(),
 
   /** Input token breakdown (cache accounting). Mirrors v6 `inputTokenDetails`. */
@@ -155,11 +156,21 @@ export interface AssistantTurnOptions {
  * they need Cherry-specific data part type safety.
  */
 export interface MessageData {
+  importedHistory?: {
+    insertedAt?: string
+    source: 'deepseek'
+    messageId: string
+    status: string
+    missingFiles?: Array<{ id: string; name: string; size: number; isImage: boolean }>
+  }
   parts?: CherryMessagePart[]
   /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
   modelSelection?: 'default' | 'explicit'
   /** Main-authoritative request controls for resuming this assistant turn. */
   turnOptions?: AssistantTurnOptions
+  localTurnUsage?: LocalAgentTurnUsage
+  /** Main-authored cumulative native-session cost, independent of per-message usage statistics. */
+  localSessionCost?: AgentSessionCostSnapshot
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -180,6 +191,7 @@ export interface MessageData {
  * omitted buckets from earlier steps, producing a mixed and invalid total.
  */
 export interface CherryUIMessageMetadata {
+  importedHistory?: MessageData['importedHistory']
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means
@@ -195,10 +207,13 @@ export interface CherryUIMessageMetadata {
   modelSelection?: MessageData['modelSelection']
   /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
   messageSnapshot?: MessageSnapshot
+  /** Source identity for imported history; retained by display and capture projections. */
+  provenance?: MessageProvenance
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
   /** Main-authoritative request controls frozen with the persisted assistant row. */
   turnOptions?: AssistantTurnOptions
+  localTurnUsage?: LocalAgentTurnUsage
   /**
    * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
    * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
@@ -226,7 +241,12 @@ export interface CherryUIMessageMetadata {
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
-export type CherryUIMessage = UIMessage<CherryUIMessageMetadata, CherryDataPartTypes>
+export type CherryUIMessage = UIMessage<CherryUIMessageMetadata, CherryDataPartTypes> & {
+  /** Stable IDs parallel to parts, for live Agent projection packets. */
+  partIds?: readonly string[]
+  partPositions?: readonly (number | null)[]
+  timeline?: { pos?: number | null; replyId?: string | null }
+}
 
 /** Cherry Studio's UIMessageChunk — inferred from CherryUIMessage. */
 export type CherryUIMessageChunk = InferUIMessageChunk<CherryUIMessage>
@@ -300,7 +320,6 @@ export interface WebCitationReference extends BaseCitationReference {
 
 /**
  * Knowledge base citation reference
- * Data structure compatible with KnowledgeReference[] from renderer
  */
 export interface KnowledgeCitationReference extends BaseCitationReference {
   citationType: CitationType.KNOWLEDGE
@@ -318,7 +337,6 @@ export interface KnowledgeCitationReference extends BaseCitationReference {
 
 /**
  * Memory citation reference
- * Data structure compatible with MemoryItem[] from renderer
  */
 export interface MemoryCitationReference extends BaseCitationReference {
   citationType: CitationType.MEMORY
@@ -412,6 +430,9 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.localSessionCost !== undefined && !AgentSessionCostSnapshotSchema.safeParse(v.localSessionCost).success)
+    return false
+  if (v.localTurnUsage !== undefined && !LocalAgentTurnUsageSchema.safeParse(v.localTurnUsage).success) return false
   if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
   if (v.turnOptions !== undefined) {
     if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
@@ -456,10 +477,12 @@ export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
  * here (and the two are converging), keeping this a single flat author shape.
  */
 export const MessageSnapshotSchema = z.strictObject({
+  avatarFileId: z.lazy(() => FileEntryIdSchema).optional(),
   id: z.string(),
   name: z.string(),
   emoji: z.string().optional(),
-  model: ModelSnapshotSchema
+  model: ModelSnapshotSchema.optional(),
+  nativeModel: z.object({ runtime: z.string(), id: z.string().optional(), name: z.string().optional() }).optional()
 })
 export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
 
@@ -474,7 +497,7 @@ export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
  * - `root` — the per-topic content-less virtual root sentinel (one per topic,
  *   `parentId IS NULL`). Self-identifying so role-filtered content queries
  *   (`WHERE role = 'system'`) exclude it for free; never rendered or sent to a
- *   model. See `docs/references/chat/message-tree.md`.
+ *   model. See `docs/dev/references/chat/message-tree.md`.
  */
 export const MessageRoleSchema = z.enum(['user', 'assistant', 'system', 'root'])
 export type MessageRole = z.infer<typeof MessageRoleSchema>

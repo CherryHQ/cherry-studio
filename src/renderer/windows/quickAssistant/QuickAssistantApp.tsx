@@ -9,6 +9,7 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
+import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
 
 import HomeWindow from './home/HomeWindow'
 
@@ -20,6 +21,7 @@ import HomeWindow from './home/HomeWindow'
 // previously lacked (the toast black hole), so translate/copy toasts are visible.
 function QuickAssistantRuntime(): null {
   useLanguageSync()
+  useWebSearchFallbackNotice()
   useAutoReadPreferenceSync()
   useCustomCss()
 

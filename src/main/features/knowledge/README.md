@@ -83,6 +83,6 @@ under it, and reindex activates its roots under the lock before re-copying them 
 
 ## Related docs
 
-- Data-layer selection and patterns: [docs/references/data/README.md](../../../../docs/references/data/README.md)
+- Data-layer selection and patterns: [docs/dev/references/data/README.md](../../../../docs/dev/references/data/README.md)
 - Concept ID = material relative path (OKF §2): the addressing primitive for `kb_read`/`kb_manage`;
   resolved against the index store and re-validated against the visible `knowledge_item`.

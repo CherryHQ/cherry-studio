@@ -25,13 +25,16 @@ export interface RightPanelComponentProps<TScope> {
 
 export interface RightPanelInstance {
   id: string
-  /** Stable semantic identity. A change intentionally starts a fresh component instance. */
+  /** Stable semantic identity for both the component and its presentation intent. */
   instanceKey: string
   title: ReactNode
   readiness: RightPanelReadiness
   /** Shell renders the default header unless the panel composes its own header. */
   headerMode?: 'shell' | 'content'
-  /** Whether this panel may enter maximized presentation. */
+  /**
+   * Whether this panel may enter maximized presentation. Omitted keeps an inherited maximized
+   * layout without offering the control; `false` restores the normal layout when the panel opens.
+   */
   canMaximize?: boolean
 }
 
@@ -205,7 +208,11 @@ export function RightPanelProvider<TScope>({
   const entries = useMemo(() => resolveRightPanelEntries(capabilities, scope), [capabilities, scope])
   const [open, setOpen] = useState(defaultOpen)
   const [maximized, setMaximized] = useState(false)
-  const [requestedPanelId, setRequestedPanelId] = useState(defaultPanelId)
+  const [requestedPanel, setRequestedPanel] = useState<{ id?: string; instanceKey?: string }>(() => {
+    const preferred = findEntry(entries, defaultPanelId)
+    const entry = preferred && preferred.readiness !== 'unavailable' ? preferred : getDefaultEntry(entries)
+    return { id: entry?.id, instanceKey: entry?.instanceKey }
+  })
   const [layoutAnimationPending, setLayoutAnimationPending] = useState(false)
   const [fullWidthActive, setFullWidthActive] = useState(false)
   const [paneResizing, setPaneResizing] = useState(false)
@@ -214,6 +221,8 @@ export function RightPanelProvider<TScope>({
   const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
   const [mountedInstances, setMountedInstances] = useState<ReadonlyMap<string, string>>(() => new Map())
   const openRef = useRef(open)
+  const entriesRef = useRef(entries)
+  const maximizedRef = useRef(maximized)
   const previousDefaultOpenRef = useRef(defaultOpen)
   const onOpenChangeRef = useRef(onOpenChange)
   const consumedUserOpenIntentRef = useRef(userOpenIntentSeq)
@@ -226,6 +235,11 @@ export function RightPanelProvider<TScope>({
     openRef.current = open
   }, [open])
 
+  useLayoutEffect(() => {
+    entriesRef.current = entries
+    maximizedRef.current = maximized
+  }, [entries, maximized])
+
   useEffect(() => {
     if (previousDefaultOpenRef.current === defaultOpen) return
     previousDefaultOpenRef.current = defaultOpen
@@ -237,41 +251,27 @@ export function RightPanelProvider<TScope>({
     setOpen(defaultOpen)
     if (defaultOpen) {
       if (userIntent) setUserOpenSeq((seq) => seq + 1)
-      setRequestedPanelId(defaultPanelId)
+      setRequestedPanel({ id: defaultPanelId ?? getDefaultEntry(entries)?.id })
       setPdfLayoutPending(true)
     } else {
       setMaximized(false)
       setLayoutAnimationPending(false)
       setPdfLayoutPending(false)
     }
-  }, [defaultOpen, defaultPanelId, userOpenIntentSeq])
+  }, [defaultOpen, defaultPanelId, entries, userOpenIntentSeq])
 
-  const requestedEntry = findEntry(entries, requestedPanelId)
+  const requestedEntry = findEntry(entries, requestedPanel.id)
   const defaultEntry = getDefaultEntry(entries)
-  const fallbackEntry = entries.find((entry) => entry.readiness === 'ready')
-  const activeEntry =
-    requestedEntry?.readiness === 'ready'
-      ? requestedEntry
-      : requestedEntry?.readiness === 'pending'
-        ? undefined
-        : fallbackEntry
-  const pendingEntry =
-    requestedEntry?.readiness === 'pending'
-      ? requestedEntry
-      : !activeEntry && defaultEntry?.readiness === 'pending'
-        ? defaultEntry
-        : undefined
-  const reconciledEntry = activeEntry ?? pendingEntry
+  const selectionAvailable =
+    requestedEntry &&
+    requestedEntry.readiness !== 'unavailable' &&
+    (requestedPanel.instanceKey === undefined || requestedPanel.instanceKey === requestedEntry.instanceKey)
+  const activeEntry = selectionAvailable && requestedEntry.readiness === 'ready' ? requestedEntry : undefined
   const presentationOpen = present && open && Boolean(activeEntry)
   const presentationMaximized = presentationOpen && maximized
   // The pane keeps covering the centre until its phase ends, so the composer has to stay lifted
   // past the click that started the restore. `fullWidthActive` lands a commit late, hence the union.
   const composerElevated = presentationMaximized || fullWidthActive
-
-  useLayoutEffect(() => {
-    if (!reconciledEntry || reconciledEntry.id === requestedPanelId) return
-    setRequestedPanelId(reconciledEntry.id)
-  }, [reconciledEntry, requestedPanelId])
 
   useLayoutEffect(() => {
     setMountedInstances((current) => updateMountedInstances(current, entries, activeEntry, presentationOpen))
@@ -285,8 +285,13 @@ export function RightPanelProvider<TScope>({
   const requestOpen = useCallback((panelId: string, options?: RightPanelOpenOptions) => {
     const wasOpen = openRef.current
     openRef.current = true
-    setRequestedPanelId(panelId)
+    setRequestedPanel({ id: panelId })
     setOpen(true)
+    if (maximizedRef.current && findEntry(entriesRef.current, panelId)?.canMaximize === false) {
+      setLayoutAnimationPending(true)
+      setPdfLayoutPending(false)
+      setMaximized(false)
+    }
     if (!wasOpen) {
       setPdfLayoutPending(true)
       if (options?.userInitiated) setUserOpenSeq((seq) => seq + 1)
@@ -309,6 +314,14 @@ export function RightPanelProvider<TScope>({
     setPdfLayoutPending(false)
     onOpenChangeRef.current?.(false)
   }, [])
+  useLayoutEffect(() => {
+    if (!selectionAvailable) {
+      close()
+    } else if (requestedPanel.instanceKey === undefined) {
+      // Dynamic panels can be created in the same batch as requestOpen.
+      setRequestedPanel({ id: requestedEntry.id, instanceKey: requestedEntry.instanceKey })
+    }
+  }, [close, requestedEntry, requestedPanel.instanceKey, selectionAvailable])
   const minimize = useCallback(() => {
     setLayoutAnimationPending(true)
     setPdfLayoutPending(false)
@@ -509,7 +522,8 @@ function RightPanelEntry({
   const showFallbackHeader = renderFailed && entry.headerMode === 'content'
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    // Hiding through Activity sets display:none, so the fade replays every time the panel is shown.
+    <div className="flex h-full min-h-0 flex-col overflow-hidden animate-in fade-in-0 duration-150 motion-reduce:animate-none">
       {showFallbackHeader ? <RightPanelHeader canMaximize={entry.canMaximize} title={entry.title} /> : null}
       <div className="min-h-0 flex-1 overflow-hidden">
         <ErrorBoundary onError={() => setRenderFailed(true)}>
@@ -654,7 +668,7 @@ export function RightPanelShortcut({
   if (tooltipContent === false) return button
 
   return (
-    <Tooltip content={tooltipContent} delay={800}>
+    <Tooltip content={tooltipContent} placement="bottom" delay={800}>
       {button}
     </Tooltip>
   )

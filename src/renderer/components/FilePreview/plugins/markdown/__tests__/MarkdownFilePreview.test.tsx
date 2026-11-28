@@ -1,7 +1,7 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -26,7 +26,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
       <span>{description}</span>
     </div>
   ),
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>,
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   SegmentedControl: ({
     disabled,
     onValueChange,
@@ -80,6 +80,22 @@ function renderPreview(
 }
 
 describe('MarkdownFilePreview', () => {
+  it('opens a located artifact as source instead of rendering it', async () => {
+    mocks.readText.mockResolvedValue('# Source')
+    render(
+      <MarkdownFilePreview
+        filePath={filePath}
+        fileName="source.markdown"
+        metadata={{ size: 128, modifiedAt: 1 }}
+        refreshKey={0}
+        type="artifact"
+        location={{ line: 1 }}
+      />
+    )
+    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('# Source')
+    expect(screen.queryByRole('heading', { name: 'Source' })).not.toBeInTheDocument()
+  })
+
   it('ignores an obsolete read failure while replacement metadata is pending', async () => {
     const obsoleteRead = Promise.withResolvers<string>()
     const metadata = {
@@ -316,8 +332,6 @@ describe('MarkdownFilePreview', () => {
     expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
     expect(screen.getByRole('heading')).not.toHaveTextContent('name: Writer')
     expect(screen.getByRole('heading')).not.toHaveTextContent('description: Draft clear prose')
-    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })
 
   it('reloads content when the path or refresh key changes', async () => {

@@ -1133,7 +1133,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         data-testid="quick-panel-body"
         style={constrainBody ? { height: panelMaxHeight } : undefined}
         className={classNames(
-          'relative isolate transform-gpu overflow-hidden rounded-xl bg-[color-mix(in_srgb,var(--card)_76%,transparent)] py-1.25 text-card-foreground backdrop-blur-2xl transition-[translate,opacity] will-change-[translate,opacity] [border:0.5px_solid_var(--border)] motion-reduce:translate-y-0 motion-reduce:transition-none dark:bg-[color:color-mix(in_srgb,color-mix(in_srgb,var(--card)_95%,var(--foreground)_5%)_90%,transparent)] [&::-webkit-scrollbar]:w-0.75',
+          'relative isolate transform-gpu overflow-hidden rounded-xl bg-[color-mix(in_srgb,var(--card)_76%,transparent)] py-1.25 text-card-foreground backdrop-blur-2xl transition-[translate,opacity] will-change-[translate,opacity] [border:0.5px_solid_var(--border)] motion-reduce:translate-y-0 motion-reduce:transition-none dark:bg-[color:color-mix(in_srgb,color-mix(in_srgb,var(--card)_95%,var(--foreground)_5%)_90%,transparent)]',
           constrainBody && 'flex flex-col justify-end',
           ctx.isVisible
             ? 'translate-y-0 opacity-100 shadow-none duration-[140ms,200ms] ease-[cubic-bezier(0.16,1,0.3,1),ease-out]'

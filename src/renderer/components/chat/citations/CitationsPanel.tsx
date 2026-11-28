@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PageSidePanel, Scrollbar } from '@cherrystudio/ui'
+import { PageSidePanel, ScrollArea } from '@cherrystudio/ui'
 import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
 import { ipcApi } from '@renderer/ipc'
 import type { Citation } from '@renderer/types/message'
@@ -27,7 +27,7 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ ci
   const previewSession = useCitationPreviewSession()
 
   return (
-    <Scrollbar className="min-h-0 flex-1">
+    <ScrollArea className="min-h-0 flex-1">
       {citations.map((citation) => (
         <div
           key={`${citation.number}-${citation.url || citation.title}`}
@@ -44,7 +44,7 @@ export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ ci
           )}
         </div>
       ))}
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 

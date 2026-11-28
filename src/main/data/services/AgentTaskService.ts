@@ -6,11 +6,12 @@
  * transaction primitives used by workspace deletion.
  */
 
-import { and, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentProviderBindingTable } from '@data/db/schemas/agentProvider'
 import { jobTable } from '@data/db/schemas/job'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -21,11 +22,13 @@ import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
+  ListTasksQuery,
   ScheduledTaskEntity,
   ScheduledTaskListItem,
   TaskRunLogEntity,
   TaskRunSummary
 } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity, ListAgentSessionsQuery } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -33,7 +36,7 @@ import {
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '../../ai/agents/agentTaskDefaults'
 
@@ -58,6 +61,22 @@ type AgentTaskJobInputTemplate = {
 type TaskOwnerStateChange = {
   scheduleIds: string[]
   deletedSchedules: JobScheduleSnapshot[]
+}
+
+export type TaskRunRecord = Pick<
+  JobSnapshot,
+  'id' | 'status' | 'createdAt' | 'scheduledAt' | 'startedAt' | 'finishedAt' | 'cancelRequested' | 'error'
+> & {
+  taskId: string
+  summary: string | null
+  outcome: 'executed' | 'skipped' | 'unknown'
+  resultLocation: { kind: 'none' } | { kind: 'session'; sessionId: string } | { kind: 'unavailable' }
+}
+
+function taskRunSessionId(job: JobSnapshot): string | null {
+  const saved = job.metadata.sessionId
+  const legacy = isPlainRecord(job.output) ? job.output.sessionId : undefined
+  return typeof saved === 'string' ? saved : typeof legacy === 'string' ? legacy : null
 }
 
 function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate | null {
@@ -205,7 +224,8 @@ export class AgentTaskService {
     }
   }
 
-  completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number): boolean {
+  completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number, output: unknown): boolean {
+    if (isPlainRecord(output) && output.kind === 'skipped') return false
     const schedule = jobScheduleService.getByIdTx(tx, taskId)
     if (
       !schedule ||
@@ -218,6 +238,11 @@ export class AgentTaskService {
     jobScheduleService.updateTx(tx, taskId, { metadata: clearMissedTask(schedule.metadata) })
     jobScheduleService.markFiredTx(tx, taskId, finishedAt, null)
     return true
+  }
+
+  deleteScheduleTx(tx: DbOrTx, taskId: string): boolean {
+    agentSessionService.clearTaskScheduleTx(tx, taskId)
+    return jobScheduleService.deleteTx(tx, taskId)
   }
 
   setOwnerStateTx(
@@ -246,7 +271,12 @@ export class AgentTaskService {
       missedJobs.length === 0
         ? []
         : tx
-            .select({ id: jobTable.id, status: jobTable.status, finishedAt: jobTable.finishedAt })
+            .select({
+              id: jobTable.id,
+              status: jobTable.status,
+              finishedAt: jobTable.finishedAt,
+              output: jobTable.output
+            })
             .from(jobTable)
             .where(inArray(jobTable.id, missedJobs))
             .all()
@@ -263,8 +293,14 @@ export class AgentTaskService {
     if (ids.length === 0) return { scheduleIds: [], deletedSchedules: [] }
     const owners = new Map(
       tx
-        .select({ id: agentTable.id, deletedAt: agentTable.deletedAt })
+        .select({
+          id: agentTable.id,
+          deletedAt: agentTable.deletedAt,
+          type: agentTable.type,
+          localEnabled: agentProviderBindingTable.enabled
+        })
         .from(agentTable)
+        .leftJoin(agentProviderBindingTable, eq(agentTable.id, agentProviderBindingTable.agentId))
         .where(inArray(agentTable.id, ids))
         .all()
         .map((row) => [row.id, row])
@@ -275,7 +311,8 @@ export class AgentTaskService {
       const template = schedule.jobInputTemplate
       if (!isPlainRecord(template) || typeof template.agentId !== 'string') continue
       const owner = owners.get(template.agentId)
-      const state = !owner ? 'missing' : owner.deletedAt == null ? 'active' : 'trashed'
+      const localDisabled = owner?.type === 'local' && owner.localEnabled !== true
+      const state = !owner ? 'missing' : owner.deletedAt !== null || localDisabled ? 'trashed' : 'active'
       if (this.transitionOwnerTx(tx, schedule, state, now)) changedIds.push(schedule.id)
       if (state === 'missing') orphanedSchedules.push(schedule)
       const missed = schedule.metadata.missed
@@ -283,7 +320,7 @@ export class AgentTaskService {
       if (
         job?.status === 'completed' &&
         job.finishedAt !== null &&
-        this.completeMissedRunTx(tx, schedule.id, job.id, job.finishedAt)
+        this.completeMissedRunTx(tx, schedule.id, job.id, job.finishedAt, job.output)
       ) {
         changedIds.push(schedule.id)
       }
@@ -297,7 +334,7 @@ export class AgentTaskService {
     state: 'active' | 'trashed' | 'missing',
     now: number
   ): boolean {
-    if (state === 'missing') return jobScheduleService.deleteTx(tx, schedule.id)
+    if (state === 'missing') return this.deleteScheduleTx(tx, schedule.id)
     if (state === 'trashed') {
       if (!schedule.enabled) return false
       jobScheduleService.updateTx(tx, schedule.id, {
@@ -402,12 +439,12 @@ export class AgentTaskService {
   listTasks(
     agentId: string,
     options: ListOptions & { includeHeartbeat?: boolean } = {}
-  ): { tasks: ScheduledTaskEntity[]; total: number } {
+  ): { tasks: ScheduledTaskEntity[]; total: number; activeTotal: number } {
     return this.queryTasks({ ...options, agentId })
   }
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
-  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean; status?: ListTasksQuery['status'] } = {}): {
     tasks: ScheduledTaskListItem[]
     total: number
   } {
@@ -419,9 +456,12 @@ export class AgentTaskService {
     }
   }
 
-  private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
+  queryTasks(
+    options: ListOptions & { includeHeartbeat?: boolean; agentId?: string; status?: ListTasksQuery['status'] }
+  ): {
     tasks: ScheduledTaskEntity[]
     total: number
+    activeTotal: number
   } {
     const { agentId, includeHeartbeat = false, limit, offset } = options
     const all = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
@@ -439,12 +479,19 @@ export class AgentTaskService {
         return template ? [template.agentId] : []
       })
     )
+    const statuses = options.status && (Array.isArray(options.status) ? options.status : [options.status])
     const filtered = candidates.filter((schedule) => {
       const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
-      return template !== null && activeAgentIds.has(template.agentId)
+      return (
+        template !== null &&
+        activeAgentIds.has(template.agentId) &&
+        (!statuses || statuses.includes(deriveStatus(schedule)))
+      )
     })
 
-    const sorted = [...filtered].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    const sorted = [...filtered].sort(
+      (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
+    )
     const sliced =
       limit !== undefined
         ? offset !== undefined
@@ -455,7 +502,8 @@ export class AgentTaskService {
     const sessionIds = agentSessionService.getTaskSessionIdsByScheduleIds(sliced.map((task) => task.id))
     return {
       tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
-      total: filtered.length
+      total: filtered.length,
+      activeTotal: filtered.filter((schedule) => deriveStatus(schedule) === 'active').length
     }
   }
 
@@ -478,26 +526,82 @@ export class AgentTaskService {
         ([scheduleId, runState]): [string, TaskRunSummary] => {
           if (runState.kind === 'running') return [scheduleId, { status: 'running' }]
           if (runState.kind === 'unfinished') return [scheduleId, { status: 'queued' }]
-          return [scheduleId, { status: runState.status, finishedAt: timestampToISO(runState.finishedAt) }]
+          const status =
+            runState.status === 'completed' && runState.outputKind === 'skipped' ? 'skipped' : runState.status
+          return [scheduleId, { status, finishedAt: timestampToISO(runState.finishedAt) }]
         }
       )
     )
   }
 
   getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {
-    const jobs = jobService.list({ scheduleId: taskId })
-    const total = jobs.length
-    const sliced =
-      options.limit !== undefined
-        ? options.offset !== undefined
-          ? jobs.slice(options.offset, options.offset + options.limit)
-          : jobs.slice(0, options.limit)
-        : jobs
+    const sliced = jobService.list({ scheduleId: taskId, limit: options.limit, offset: options.offset })
+    const total = jobService.count({ scheduleId: taskId })
 
     return {
       logs: sliced.map((j) => this.toTaskRunLogEntity(j)),
       total
     }
+  }
+
+  listTaskSessions(
+    taskId: string,
+    query: Pick<ListAgentSessionsQuery, 'agentId' | 'workspaceId' | 'cursor' | 'limit'>
+  ): CursorPaginationResponse<AgentSessionEntity> {
+    const task = this.getTaskById(taskId)
+    if (!task || (query.agentId !== undefined && query.agentId !== task.agentId)) return { items: [] }
+    return agentSessionService.listByCursor({ ...query, scope: 'all-conversations', agentId: task.agentId, taskId })
+  }
+
+  listTaskRuns(taskId: string, options: { limit: number; offset?: number }): { runs: TaskRunRecord[]; total: number } {
+    const task = this.getTaskById(taskId)
+    if (!task) throw DataApiErrorFactory.notFound('Task', taskId)
+    const filter = { type: AGENT_TASK_TYPE, scheduleId: taskId }
+    const jobs = jobService.list({ ...filter, limit: Math.min(options.limit, 100), offset: options.offset })
+    return { runs: this.toTaskRunRecords(task, jobs), total: jobService.count(filter) }
+  }
+
+  getTaskRun(taskId: string, runId: string): TaskRunRecord {
+    const task = this.getTaskById(taskId)
+    if (!task) throw DataApiErrorFactory.notFound('Task', taskId)
+    const job = jobService.getById(runId)
+    if (!job || job.type !== AGENT_TASK_TYPE || job.scheduleId !== taskId)
+      throw DataApiErrorFactory.notFound('Task run', runId)
+    return this.toTaskRunRecords(task, [job])[0]
+  }
+
+  private toTaskRunRecords(task: ScheduledTaskEntity, jobs: JobSnapshot[]): TaskRunRecord[] {
+    const ids = [...new Set(jobs.flatMap((job) => taskRunSessionId(job) ?? []))]
+    const readable = new Set(
+      ids.length === 0
+        ? []
+        : agentSessionService
+            .listByCursor({ scope: 'all-conversations', agentId: task.agentId, ids, limit: 100 })
+            .items.map((session) => session.id)
+    )
+    return jobs.map((job) => {
+      const sessionId = taskRunSessionId(job)
+      const output = isPlainRecord(job.output) ? job.output : null
+      const kind = output?.kind
+      return {
+        id: job.id,
+        taskId: task.id,
+        status: job.status,
+        createdAt: job.createdAt,
+        scheduledAt: job.scheduledAt,
+        startedAt: job.startedAt,
+        finishedAt: job.finishedAt,
+        cancelRequested: job.cancelRequested,
+        error: job.error,
+        summary: typeof output?.result === 'string' ? output.result : null,
+        outcome: kind === 'executed' || kind === 'skipped' ? kind : 'unknown',
+        resultLocation: !sessionId
+          ? { kind: 'none' }
+          : readable.has(sessionId)
+            ? { kind: 'session', sessionId }
+            : { kind: 'unavailable' }
+      }
+    })
   }
 
   // ------------------------------------------------------------------
@@ -535,22 +639,21 @@ export class AgentTaskService {
   }
 
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
-    const output = job.output as { result?: string; sessionId?: string } | null
-    // New runs persist the link before execution; older v2 job rows only have it in output.
-    const sessionId = job.metadata.sessionId ?? output?.sessionId
+    const output = job.output
+    const sessionId = taskRunSessionId(job)
     const startedAt = job.startedAt ?? job.scheduledAt
     // A cancel-requested row's fate is sealed (live cancel and startup recovery
     // both end it as cancelled) — show the outcome before the row settles.
     const provisionalCancel = job.cancelRequested && !job.finishedAt
 
-    // jobTable has 6 states; the renderer's run log model only shows running
-    // + 3 terminal states. Collapse pending/delayed to 'running' so queued
-    // jobs are visible (matches the user's mental model of "task is in flight").
+    // Queued jobs are already in flight. Completed jobs can also record a skipped outcome.
     const status: TaskRunLogEntity['status'] = provisionalCancel
       ? 'cancelled'
       : job.status === 'pending' || job.status === 'delayed'
         ? 'running'
-        : job.status
+        : job.status === 'completed' && isPlainRecord(output) && output.kind === 'skipped'
+          ? 'skipped'
+          : job.status
 
     // Cancelled runs end at the cancel-request time — recovery stamps finishedAt
     // at sweep time, up to a process lifetime after the run actually stopped.
@@ -564,11 +667,16 @@ export class AgentTaskService {
     return {
       id: job.id,
       scheduleId: job.scheduleId ?? '',
-      sessionId: typeof sessionId === 'string' ? sessionId : null,
+      sessionId,
       startedAt,
       durationMs,
       status,
-      result: typeof output?.result === 'string' ? output.result : output != null ? JSON.stringify(output) : null,
+      result:
+        isPlainRecord(output) && typeof output.result === 'string'
+          ? output.result
+          : output != null
+            ? JSON.stringify(output)
+            : null,
       error: job.error?.message ?? null
     }
   }

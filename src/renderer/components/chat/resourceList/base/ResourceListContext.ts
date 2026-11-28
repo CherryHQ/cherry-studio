@@ -27,6 +27,8 @@ export type ResourceListGroup = {
   id: string
   label: string
   count?: number
+  /** List-synthesized bucket (ungrouped / all). Never a permanent-delete owner. */
+  synthetic?: boolean
 }
 
 export type ResourceListSection = {
@@ -71,6 +73,8 @@ export type ResourceListDragCapabilities = {
   items?: boolean
   itemSameGroup?: boolean
   itemCrossGroup?: boolean
+  /** A same-group header release is a no-op (see GroupedSortableVirtualListDragCapabilities). */
+  itemOwnGroupHeaderNoop?: boolean
 }
 
 export type ResourceListItemReorderPayload = {
@@ -146,9 +150,12 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   isGroupHeaderIconVisible?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => boolean
+  getGroupHeaderLabelSuffix?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
   getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
+  onGroupHeaderDeletePermanently?: (group: ResourceListGroup) => void | Promise<void>
+  isGroupHeaderPermanentDeleteEligible?: (group: ResourceListGroup) => boolean
   onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]

@@ -18,7 +18,7 @@ Renderer 在 attach 等待期间按顺序暂存实时块和终止事件。Attach
 
 终态 attach 响应和失败的 attach 请求都先排空暂存输出，再结束分支。暂存的原生终态优先于 attach 的兜底结果，确保完成只报告一次。在任何读取器 attach 之前就已完成的轮次，直接通过暂存事件收尾；释放订阅时清空队列。
 
-这些元数据属于 Cherry 的临时流传输层，不改变 harness 接口、原生会话或消息持久化。当前契约见 [Stream Manager](../../../../docs/references/ai/stream-manager.md) 和 [Execution Overlay](../../../../docs/references/ai/execution-overlay.md)。
+这些元数据属于 Cherry 的临时流传输层，不改变 harness 接口、原生会话或消息持久化。当前契约见 [Stream Manager](../../../../docs/dev/references/ai/stream-manager.md) 和 [Execution Overlay](../../../../docs/dev/references/ai/execution-overlay.md)。
 
 ## 考虑过的替代方案
 
@@ -31,6 +31,8 @@ Renderer 在 attach 等待期间按顺序暂存实时块和终止事件。Attach
 覆盖层的初次消费等待 attach 返回。暂存事件临时占用 Renderer 内存，后续流式传输仍保留原来的合并行为。序号在每个 attempt 内重新开始，截止位置按 `attemptId` 索引，因此并行执行和后续轮次保持独立。现有有界重放缓冲区溢出时仍可能丢失较早历史；本次修复不会把重放变成持久化日志。
 
 ## 验证
+
+本文记录下层栈中的 chunk 重放修复。桌面视图现在使用[执行投影](../../../../docs/dev/references/ai/execution-overlay.md)中的共享消息投影；上层已移除旧 Renderer chunk 订阅器及其测试。以下检查保留为该修复的历史证据。
 
 - Regression — `TopicStreamSubscription.test.ts`：注册前、attach 期间及重放之后的实时与重放重叠；中途订阅；内容相同的新增量；attach 期间的终止事件。
 - Regression — `AiStreamManager.test.ts`：重复 attach 时的重放截止位置及待发送增量刷新，保留现有消费者的输出。

@@ -21,7 +21,7 @@ import {
   SettingGroup,
   SettingRowTitle,
   SettingsContentColumn,
-  SettingTitle
+  SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -110,16 +110,15 @@ const ApiGatewaySettings: FC = () => {
 
   return (
     <Container theme={theme}>
-      <HeaderRow>
-        <div className="min-w-0">
-          <SettingTitle className="justify-start gap-2">
+      <SettingsPageHeader
+        title={
+          <>
             <GatewayIcon width={16} height={16} />
             {t('apiGateway.title')}
-          </SettingTitle>
-          <PageDescription>{t('apiGateway.description')}</PageDescription>
-        </div>
-      </HeaderRow>
-
+          </>
+        }
+        help={t('apiGateway.description')}
+      />
       <StatusCard $running={apiGatewayRunning}>
         <StatusSection>
           <StatusIcon $running={apiGatewayRunning}>
@@ -140,7 +139,6 @@ const ApiGatewaySettings: FC = () => {
             <StatusSubtext>{apiGatewayRunning ? serverUrl : t('apiGateway.messages.notEnabled')}</StatusSubtext>
           </StatusContent>
         </StatusSection>
-
         <StatusActions>
           {apiGatewayRunning && (
             <Button variant="outline" onClick={openApiDocs}>
@@ -169,7 +167,6 @@ const ApiGatewaySettings: FC = () => {
           )}
         </StatusActions>
       </StatusCard>
-
       <Sections>
         {!apiGatewayRunning && (
           <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
@@ -263,7 +260,6 @@ const ApiGatewaySettings: FC = () => {
                 </InputGroupAddon>
               </InputGroup>
             </Field>
-
             <Field>
               <SettingRowTitle>{t('apiGateway.authHeader.title')}</SettingRowTitle>
               <InputGroup className="mt-2 min-w-0">
@@ -302,14 +298,6 @@ const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeo
   />
 )
 
-const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-between gap-4', className)} {...props} />
-)
-
-const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-140 text-foreground-tertiary text-xs leading-5', className)} {...props} />
-)
-
 const StatusCard = ({
   $running,
   className,
@@ -317,7 +305,7 @@ const StatusCard = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $running: boolean }) => (
   <div
     className={cn(
-      'mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4',
+      'flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4',
       $running
         ? 'border-success-border bg-success-subtle text-success-subtle-foreground'
         : 'border-border bg-card text-card-foreground',

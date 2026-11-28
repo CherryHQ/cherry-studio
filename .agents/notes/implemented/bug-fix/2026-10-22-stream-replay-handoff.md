@@ -18,7 +18,7 @@ The renderer queues live chunks and terminal events while attach is pending. Att
 
 Terminal attach responses and rejected attach requests drain queued output before settling branches. A queued native terminal takes precedence over the attach fallback, so completion is reported once. A turn completed before any reader attaches settles directly from its queued events; disposal clears the queue.
 
-This metadata belongs to Cherry's ephemeral stream transport. It does not change harness interfaces, native sessions, or message persistence. See [Stream Manager](../../../../docs/references/ai/stream-manager.md) and [Execution Overlay](../../../../docs/references/ai/execution-overlay.md) for the current contract.
+This metadata belongs to Cherry's ephemeral stream transport. It does not change harness interfaces, native sessions, or message persistence. See [Stream Manager](../../../../docs/dev/references/ai/stream-manager.md) and [Execution Overlay](../../../../docs/dev/references/ai/execution-overlay.md) for the current contract.
 
 ## Alternatives considered
 
@@ -31,6 +31,8 @@ This metadata belongs to Cherry's ephemeral stream transport. It does not change
 Initial overlay consumption waits for attach to resolve. Pending events temporarily occupy renderer memory; subsequent streaming retains the existing coalescing behavior. Sequence values restart per attempt, and the cutoff map uses `attemptId` so parallel executions and later turns remain independent. The existing bounded replay buffer can still lose older history on overflow; this repair does not make replay a durable log.
 
 ## Verification
+
+This note records the chunk-replay repair on the lower stack layer. Desktop views now use the shared message projection described in [Execution Overlay](../../../../docs/dev/references/ai/execution-overlay.md); the obsolete renderer chunk subscriber and its tests have been removed from the upper layer. The checks below are historical evidence for that repair.
 
 - Regression — `TopicStreamSubscription.test.ts`: live/replay overlap before registration, during attach, and after replay; late attachment; identical new deltas; terminal events during attach.
 - Regression — `AiStreamManager.test.ts`: replay cutoffs and pending-delta flush across repeated attachment preserve existing consumers' output.

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-native-notification-callback-lifetime.md
+2026-11-07-native-notification-callback-lifetime.md: 4402a298aa25957ca8191b8fe2174de1da9308cb
+2026-11-07-native-notification-callback-lifetime.zh.md: ffaa724b548a0c5734713e03daa8cdb513515481

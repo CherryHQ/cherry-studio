@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
-import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import { ArrowUpRight, MousePointerClick, Sparkle, Target, Terminal } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
@@ -11,7 +11,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
-import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 
 import {
   useMessageListActions,
@@ -30,23 +29,19 @@ interface Props {
   model?: Model
   isGroupContextMessage?: boolean
   showModelIdentity?: boolean
+  showHeader?: boolean
   actionsSlot?: ReactNode
   contentSlot?: ReactNode
   footerSlot?: ReactNode
 }
 
-/** Why a runtime opened an assistant turn with no user message; the transcript's only explanation. */
-export const AutonomousTurnOriginBadge: FC<{ origin: AutonomousTurnOrigin }> = ({ origin }) => {
+const GoalRoundBadge: FC<{ round: number }> = ({ round }) => {
   const { t } = useTranslation()
-  const label =
-    origin.kind === 'goal-round'
-      ? t('agent.session_turn_origin.goal_round', { round: origin.round })
-      : t('agent.session_turn_origin.background_work')
-  const Icon = origin.kind === 'goal-round' ? Target : Bot
+  const label = t('agent.session_turn_origin.goal_round', { round })
   return (
     <Tooltip content={label}>
-      <span className="flex h-5 min-w-0 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
-        <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      <span className="text-foreground-tertiary flex h-5 max-w-[min(18rem,45vw)] min-w-0 items-center gap-1 text-xs">
+        <Target aria-hidden="true" className="size-3.5 shrink-0" />
         <span className="min-w-0 truncate">{label}</span>
       </span>
     </Tooltip>
@@ -83,12 +78,12 @@ export const AgentSessionDeliveryBadge: FC<{
         <button
           type="button"
           aria-label={senderLabel}
-          className="flex h-5 max-w-[min(18rem,45vw)] cursor-pointer items-center gap-1 text-foreground-tertiary text-xs hover:text-link hover:underline focus-visible:text-link focus-visible:underline focus-visible:outline-none"
+          className="text-foreground-tertiary hover:text-link focus-visible:text-link flex h-5 max-w-[min(18rem,45vw)] cursor-pointer items-center gap-1 text-xs hover:underline focus-visible:underline focus-visible:outline-none"
           onClick={openSenderSession}>
           {content}
         </button>
       ) : (
-        <span className="flex h-5 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
+        <span className="text-foreground-tertiary flex h-5 max-w-[min(18rem,45vw)] items-center gap-1 text-xs">
           {content}
         </span>
       )}
@@ -97,7 +92,16 @@ export const AgentSessionDeliveryBadge: FC<{
 }
 
 const MessageHeader: FC<Props> = memo(
-  ({ model, message, isGroupContextMessage, showModelIdentity = false, actionsSlot, contentSlot, footerSlot }) => {
+  ({
+    model,
+    message,
+    isGroupContextMessage,
+    showModelIdentity = false,
+    showHeader = true,
+    actionsSlot,
+    contentSlot,
+    footerSlot
+  }) => {
     const { theme } = useTheme()
     const actions = useMessageListActions()
     const meta = useMessageListMeta()
@@ -120,13 +124,22 @@ const MessageHeader: FC<Props> = memo(
     const displayModelName = displayModel?.name || displayModel?.id
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
-    // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
-    // Once a snapshot exists the header is frozen: consult the live profile only when it's entirely absent,
-    // so editing/deleting the live entity never changes a past message's name or avatar.
+    // Names remain historical; adapters may supply current avatars for authors that still exist.
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
-    const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
+    const authorIcon =
+      !authorSnapshot || authorSnapshot.id === assistantProfile?.id ? assistantProfile?.avatarIcon : undefined
+    const snapshotAvatarSrc = authorSnapshot?.avatarFileId
+      ? meta.assistantAvatarSources?.get(authorSnapshot.avatarFileId)
+      : undefined
+    const avatarSource = authorSnapshot
+      ? (meta.authorAvatars?.get(authorSnapshot.id) ?? snapshotAvatarSrc ?? authorSnapshot.emoji)
+      : assistantProfile?.avatar
+    const [failedAvatarKey, setFailedAvatarKey] = useState<string>()
+    const avatarKey = `${message.id}:${avatarSource}`
+    const authorAvatar = failedAvatarKey === avatarKey ? authorSnapshot?.emoji : avatarSource
     const getUserName = useCallback(() => {
+      if (message.role === 'system') return t('chat.message.system')
       if (message.role === 'assistant') {
         return authorName || displayModel?.name || displayModel?.id || ''
       }
@@ -152,78 +165,113 @@ const MessageHeader: FC<Props> = memo(
 
     const canOpenUserProfile = !!actions.openUserProfile
     const hasBodySlot = !!contentSlot || !!footerSlot
+    const toggleAuthorProfile = isAssistantMessage ? actions.toggleAuthorProfile : undefined
+
+    const assistantAvatar = authorIcon ? (
+      <MessageAvatarFrame>{authorIcon}</MessageAvatarFrame>
+    ) : authorAvatar ? (
+      <MessageAvatar
+        avatar={authorAvatar}
+        fallback={authorSnapshot?.emoji || avatarName}
+        onErrorCapture={() => setFailedAvatarKey(avatarKey)}
+      />
+    ) : ModelIcon ? (
+      <MessageAvatarFrame className="bg-background">
+        <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
+      </MessageAvatarFrame>
+    ) : (
+      <MessageAvatar
+        fallback={avatarName}
+        fallbackAvatarStyle={{
+          border: 'none',
+          filter: theme === 'dark' ? 'invert(0.05)' : undefined
+        }}
+      />
+    )
 
     return (
       <div
-        className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
-        {isAssistantMessage ? (
-          authorAvatar ? (
-            <MessageAvatar avatar={authorAvatar} fallback={avatarName} />
-          ) : ModelIcon ? (
-            <MessageAvatarFrame className="bg-background">
-              <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
-            </MessageAvatarFrame>
-          ) : (
-            <MessageAvatar
-              fallback={avatarName}
-              fallbackAvatarStyle={{
-                border: 'none',
-                filter: theme === 'dark' ? 'invert(0.05)' : undefined
-              }}
-            />
-          )
+        className={`${showHeader ? 'message-header' : 'message-continuation'} group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
+        {!showHeader ? (
+          <span aria-hidden className="w-8 shrink-0" />
+        ) : message.role === 'system' ? (
+          <MessageAvatarFrame className="bg-muted text-muted-foreground">
+            <Terminal className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
+          </MessageAvatarFrame>
+        ) : toggleAuthorProfile ? (
+          <button
+            type="button"
+            aria-label={t('chat.profile_pane.open', { name: authorName || username })}
+            onClick={toggleAuthorProfile}
+            className="shrink-0 cursor-pointer rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring">
+            {assistantAvatar}
+          </button>
+        ) : isAssistantMessage ? (
+          assistantAvatar
         ) : (
           <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
         )}
         <div
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
-          <div className="flex w-full min-w-0 items-center gap-1.5">
-            <span
-              className="truncate font-semibold text-sm leading-5"
-              style={{
-                color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)'
-              }}>
-              {username}
-            </span>
-            {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
-            {isAssistantMessage && message.turnOrigin && <AutonomousTurnOriginBadge origin={message.turnOrigin} />}
-            {isAssistantMessage && showModelIdentity && displayModelName && (
-              <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
-                <span aria-hidden="true" className="shrink-0">
-                  <ModelAvatar className="rounded-full" model={displayModel} size={16} />
-                </span>
-                <span className="truncate">{displayModelName}</span>
+          {showHeader && (
+            <div key="identity" className="flex w-full min-w-0 items-center gap-1.5">
+              <span
+                className="truncate text-sm leading-5 font-semibold"
+                style={{
+                  color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)'
+                }}>
+                {username}
               </span>
-            )}
-            {isGroupContextMessage && (
-              <Tooltip content={t('chat.message.useful.tip')}>
-                <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />
-              </Tooltip>
-            )}
-            <div
-              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-tertiary leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 no-hover:opacity-100 ${hiddenContentHoverClass}`}>
-              <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
-              {renderConfig.showEstimatedTokens &&
-                isBubbleStyle &&
-                !isAssistantMessage &&
-                message.stats !== undefined && (
-                  <>
-                    |
-                    <MessageTokens message={message} />
-                  </>
-                )}
-            </div>
-            {actionsSlot && (
+              {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
+              {isAssistantMessage && message.turnOrigin?.kind === 'goal-round' && (
+                <GoalRoundBadge round={message.turnOrigin.round} />
+              )}
+              {isAssistantMessage && showModelIdentity && displayModelName && (
+                <span className="text-foreground-tertiary flex min-w-0 shrink items-center gap-1 text-xs leading-5">
+                  <span aria-hidden="true" className="shrink-0">
+                    <ModelAvatar className="rounded-full" model={displayModel} size={16} />
+                  </span>
+                  <span className="truncate">{displayModelName}</span>
+                </span>
+              )}
+              {isGroupContextMessage && (
+                <Tooltip content={t('chat.message.useful.tip')}>
+                  <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />
+                </Tooltip>
+              )}
               <div
-                className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100 ${hiddenActionsHoverClass}`}>
-                {actionsSlot}
+                className={`message-header-info-wrap text-foreground-tertiary flex shrink-0 items-center gap-1 text-[10px] leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 no-hover:opacity-100 ${hiddenContentHoverClass}`}>
+                <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
+                {renderConfig.showEstimatedTokens &&
+                  isBubbleStyle &&
+                  !isAssistantMessage &&
+                  message.stats !== undefined && (
+                    <>
+                      |
+                      <MessageTokens message={message} />
+                    </>
+                  )}
               </div>
-            )}
-          </div>
-          {contentSlot && (
-            <div className="message-body-content mt-2 min-h-0 min-w-0 max-w-full flex-1">{contentSlot}</div>
+              {actionsSlot && (
+                <div
+                  className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100 ${hiddenActionsHoverClass}`}>
+                  {actionsSlot}
+                </div>
+              )}
+            </div>
           )}
-          {footerSlot && <div className="message-footer-slot mt-auto min-w-0 shrink-0">{footerSlot}</div>}
+          {contentSlot && (
+            <div
+              key="body"
+              className={`message-body-content min-h-0 max-w-full min-w-0 flex-1 ${showHeader ? 'mt-2' : ''}`}>
+              {contentSlot}
+            </div>
+          )}
+          {footerSlot && (
+            <div key="footer" className="message-footer-slot mt-auto min-w-0 shrink-0">
+              {footerSlot}
+            </div>
+          )}
         </div>
         {isMultiSelectMode && (
           <Checkbox

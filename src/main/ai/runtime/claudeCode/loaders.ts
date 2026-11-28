@@ -5,6 +5,10 @@ export async function createClaudeCodeRuntimeDriver(): Promise<AgentSessionRunti
   return new ClaudeCodeRuntimeDriver()
 }
 
-export function loadClaudeCodeSettingsBuilder() {
-  return import('./settingsBuilder')
+export function loadLocalClaudeRuntime() {
+  return import('./LocalClaudeConnection')
+}
+
+export function loadLocalClaudeDriver() {
+  return import('./localClaudeDriver')
 }

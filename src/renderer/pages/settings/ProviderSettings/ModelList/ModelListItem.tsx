@@ -7,6 +7,7 @@ import { useIcon } from '@cherrystudio/ui/icons'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
+import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
@@ -81,7 +82,11 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
         })()}
         <div className={modelListClasses.rowBody}>
           <div className="flex h-7 min-w-0 items-center gap-1.5">
-            <span className="inline-flex h-7 min-w-0 shrink select-text items-center overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-foreground text-sm leading-none">
+            <span
+              className={cn(
+                modelListClasses.rowLabel,
+                'inline-flex h-7 min-w-0 shrink select-text items-center overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-foreground'
+              )}>
               {model.name}
             </span>
           </div>

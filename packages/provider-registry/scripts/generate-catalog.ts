@@ -11,7 +11,6 @@
  *     tsx scripts/generate-catalog.ts --report   # also dump /tmp/gen-*.txt review files
  *     tsx scripts/generate-catalog.ts --write --model gemini-4-argon # refresh one canonical model
  */
-import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,7 +34,8 @@ import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
-import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
+import { canonOf, deriveOverrideModelId, isModelsDevRoutingAlias, prefixHit } from './canonicalize'
+import { sortKeys, stampAndSerialize } from './catalogSerialization.mjs'
 import { scopeModelRefresh } from './scopeModelRefresh'
 import {
   type CherryMeta,
@@ -75,9 +75,6 @@ const REPORT = args.report
 // content without changing version — and the seed would silently never run. Upstream (models.dev/
 // OpenRouter) is read live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE /
 // OPENROUTER_IMAGE_CACHE to cache it during dev.
-const contentVersion = (body: unknown): string =>
-  createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16)
-
 /**
  * Collect + validate every creator-declared reasoning family rule, in
  * CREATORS × declaration order (order IS the match priority — never sort).
@@ -266,12 +263,6 @@ function buildServerToolConstraintsGen(models: Map<string, any>): string {
   ].join('\n')
 }
 
-/** Key-sort `body`, stamp `version: contentVersion(body)`, and serialize — the single write shape. */
-const stampAndSerialize = (body: Record<string, unknown>): string => {
-  const sorted = sortKeys(body)
-  return JSON.stringify(sortKeys({ ...sorted, version: contentVersion(sorted) }), null, 2) + '\n'
-}
-
 // Canonicalization (`canonOf`) + prefix matching (`prefixHit`) live in `./canonicalize` so they can be
 // unit-tested / reused without running this script's generation IIFE.
 
@@ -287,17 +278,6 @@ const crossVendorHost = (id: string, ownerCreatorId: string | undefined) => {
   const creator = vendor && vendor !== ownerCreatorId ? creatorById.get(vendor) : undefined
   return !!creator && !(creator.idPrefixes ?? []).some((p) => prefixHit(canonOf(id), p))
 }
-
-const sortKeys = (v: any): any =>
-  Array.isArray(v)
-    ? v.map(sortKeys)
-    : v && typeof v === 'object'
-      ? Object.fromEntries(
-          Object.keys(v)
-            .sort()
-            .map((k) => [k, sortKeys(v[k])])
-        )
-      : v
 
 /** Load an upstream source (cache file or live URL) and validate its top-level shape with zod. */
 async function load<T>(env: string, url: string, schema: ZodType<T>): Promise<T> {
@@ -348,8 +328,7 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
   const openRouterStandalones = new Set(
     [
       ...(openRouter?.standaloneModelIds ?? []),
-      ...(openRouter?.overrides?.flatMap((override) => (override.name && override.modelId ? [override.modelId] : [])) ??
-        [])
+      ...(openRouter?.modelTemplates?.flatMap((template) => (template.name ? [template.modelId] : [])) ?? [])
     ].map(canonOf)
   )
   for (const m of or.data ?? []) {
@@ -524,12 +503,12 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
 
 /**
  * Build providers.json from PROVIDERS: the connection config only (generation-only `modelsDevProvider` /
- * `fetchModels` / `overrides` are dropped), with `description` templated as `"{name} - AI model provider"`.
+ * `fetchModels` / `overrides` / `modelTemplates` are dropped), with `description` templated as `"{name} - AI model provider"`.
  * Array order follows PROVIDERS; `sortKeys` orders each provider's keys.
  */
 function buildProviders(): ProviderEntry[] {
   // oxlint-disable-next-line no-unused-vars
-  return PROVIDERS.map(({ modelsDevProvider, fetchModels, standaloneModelIds, overrides, ...conn }) => {
+  return PROVIDERS.map(({ modelsDevProvider, fetchModels, standaloneModelIds, overrides, modelTemplates, ...conn }) => {
     const serverTools = conn.serverTools?.map((tool) => {
       const config = { ...tool }
       delete config.modelIdPrefixes
@@ -568,7 +547,7 @@ function buildProviderModels(
   // apiModelIds (e.g. tokenhub's dated 原厂直供 variants alongside the undated id) — `listProviderRegistryModels`
   // turns each surviving row into a distinct selectable model (its unique id derives from apiModelId).
   const addOverride = (raw: any): void => {
-    const o = splitOverrideWireId(raw)
+    const o = raw.apiModelId ? deriveOverrideModelId(raw) : raw
     const k = `${o.providerId} ${o.modelId} ${o.apiModelId ?? ''} ${variantsKey(o)}`
     if (seen.has(k)) return
     seen.add(k)
@@ -582,22 +561,9 @@ function buildProviderModels(
     rows.push(o)
   }
   for (const p of PROVIDERS) {
-    const modelTemplates = (p.overrides ?? []).filter(
-      (override) =>
-        p.modelsDevProvider &&
-        !override.apiModelId &&
-        (override.endpointTypes ||
-          override.reasoningContracts ||
-          override.requestControls ||
-          override.parameterSupport ||
-          override.name ||
-          override.ownedBy ||
-          Object.hasOwn(override, 'pricing'))
-    )
+    const modelTemplates = p.modelTemplates ?? []
     const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
-    for (const override of p.overrides ?? []) {
-      if (!modelTemplates.includes(override)) addOverride({ providerId: p.id, ...override })
-    }
+    for (const override of p.overrides ?? []) addOverride({ providerId: p.id, ...override })
     const src = p.modelsDevProvider ? (md[p.modelsDevProvider]?.models ?? {}) : {}
     for (const [apiModelId, m] of Object.entries(src)) {
       if (p.modelsDevProvider && isModelsDevRoutingAlias(p.modelsDevProvider, apiModelId)) continue

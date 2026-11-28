@@ -53,6 +53,7 @@ function resolveLiveMainWindowId(): string | undefined {
  * reports ready via `navigation.protocol_dispatch_ready`.
  */
 const pendingTabAttachQueue: Tab[] = []
+let pendingNotificationId: string | undefined
 let isMainRendererReadyForTabAttach = false
 
 /**
@@ -66,6 +67,22 @@ export function markMainRendererReadyForTabAttach(senderId: string): void {
   if (application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
   isMainRendererReadyForTabAttach = true
   flushPendingTabAttaches()
+  if (pendingNotificationId) {
+    const id = pendingNotificationId
+    pendingNotificationId = undefined
+    application.get('IpcApiService').send(senderId, 'notification.open', { id })
+  }
+}
+
+/** Release details must wait for the bell listener when the main renderer is cold or reloading. */
+export function openNotificationInMainWindow(id: string): void {
+  const windowId = resolveLiveMainWindowId()
+  if (windowId && isTabDeliveryReady(windowId)) {
+    application.get('IpcApiService').send(windowId, 'notification.open', { id })
+  } else {
+    pendingNotificationId = id
+  }
+  application.get('MainWindowService').showMainWindow()
 }
 
 /**

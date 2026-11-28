@@ -1,11 +1,18 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SELECTION_ACTION_RUNNER, type SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { SelectionAction } from '@shared/types/selection'
 
 import { ACTIONS_DIVIDER, type ActionRow, actionItemsFromRows, useActionItems } from '../useSettingsActionsList'
 
-const action = (id: string, enabled: boolean): SelectionActionItem => ({ id, name: id, enabled, isBuiltIn: true })
+const action = (id: string, enabled: boolean): SelectionAction => ({
+  id,
+  name: id,
+  enabled,
+  isBuiltIn: false,
+  runner: SELECTION_ACTION_RUNNER.DEFAULT
+})
 
 const rowsOf = (enabled: string[], disabled: string[]): ActionRow[] => [
   ...enabled.map((id) => action(id, true)),
@@ -56,7 +63,7 @@ describe('actionItemsFromRows', () => {
 })
 
 describe('useActionItems handleReorderRows', () => {
-  const dropFirstBelowDivider = (items: SelectionActionItem[]) => {
+  const dropFirstBelowDivider = (items: SelectionAction[]) => {
     const setActionItems = vi.fn<(items: SelectionActionItem[]) => void>()
     const { result } = renderHook(() => useActionItems(items, setActionItems))
     const rows = result.current.actionRows

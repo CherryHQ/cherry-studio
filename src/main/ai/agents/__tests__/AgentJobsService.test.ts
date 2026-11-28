@@ -18,7 +18,10 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentProviderService } from '@data/services/AgentProviderService'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -73,6 +76,7 @@ vi.mock('../runAgentTask', () => ({ runAgentTask: vi.fn(async () => ({})) }))
 
 import { AgentJobsService } from '../AgentJobsService'
 import { AgentLifecycleService } from '../AgentLifecycleService'
+import { runAgentTask } from '../runAgentTask'
 
 const AGENT_ID = 'agent-1'
 const OTHER_AGENT_ID = 'agent-2'
@@ -93,6 +97,14 @@ describe('AgentJobsService', () => {
   let jobManager: JobManager
   let service: AgentJobsService
   let lifecycle: AgentLifecycleService
+  const runtime = {
+    isSessionBusy: () => false,
+    isSessionBusyForArchive: vi.fn(() => false),
+    closeSession: async () => {},
+    closeSessionForArchive: vi.fn(async () => {}),
+    cancelSessionForks: async () => {},
+    recoverSessionForks: async () => {}
+  }
 
   function seedAgent(id: string): void {
     dbh.db
@@ -161,6 +173,10 @@ describe('AgentJobsService', () => {
           return jobManager
         case 'AgentJobsService':
           return service
+        case 'AgentLifecycleService':
+          return lifecycle
+        case 'AgentDelegationService':
+          return { cancelOwnedBy: async () => {} }
         case 'AiStreamManager':
           return {
             isWriteQuiesced: false,
@@ -170,14 +186,7 @@ describe('AgentJobsService', () => {
             abortAndDrain: async () => {}
           }
         case 'AgentSessionRuntimeService':
-          return {
-            isSessionBusy: () => false,
-            isSessionBusyForArchive: () => false,
-            closeSession: async () => {},
-            closeSessionForArchive: async () => {},
-            cancelSessionForks: async () => {},
-            recoverSessionForks: async () => {}
-          }
+          return runtime
         case 'AgentSessionDeliveryService':
           return { kick: () => {}, drainSessionQueues: async () => {}, pause: () => ({ dispose() {} }) }
         case 'ChannelManager':
@@ -201,6 +210,8 @@ describe('AgentJobsService', () => {
 
   beforeEach(() => {
     notifyDataApiDataChangeMock.mockClear()
+    runtime.isSessionBusyForArchive.mockReturnValue(false)
+    runtime.closeSessionForArchive.mockResolvedValue(undefined)
   })
 
   afterAll(async () => {
@@ -219,6 +230,79 @@ describe('AgentJobsService', () => {
   })
 
   // ---------------------------------------------------------------- create
+
+  it('suspends existing local tasks on disable and re-arms only previously active schedules', async () => {
+    const id = OTHER_AGENT_ID
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id,
+        type: 'local',
+        name: 'Local ACP',
+        instructions: '',
+        orderKey: id
+      })
+      .run()
+    application.get('DbService').withWriteTx((tx) =>
+      agentProviderService.setBindingTx(tx, id, {
+        executableOverride: '/custom/acp',
+        enabled: true
+      })
+    )
+    const active = service.createTask(id, form)
+    const paused = service.createTask(id, { ...form, name: 'paused task' })
+    await service.pauseTask(id, paused.id)
+
+    agentService.updateAgent(id, { localRuntime: { enabled: false } })
+    expect(agentTaskService.getTaskById(active.id)).toMatchObject({ status: 'paused', enabled: false })
+    expect(scheduler.has(`schedule:${active.id}`)).toBe(false)
+    await expect(service.runTask(id, active.id)).rejects.toThrow('Scheduled tasks require an enabled local agent')
+    expect(() => service.resumeTask(id, active.id)).toThrow('Scheduled tasks require an enabled local agent')
+    expect(jobService.list({ scheduleId: active.id })).toEqual([])
+
+    agentService.updateAgent(id, { localRuntime: { enabled: true } })
+    expect(scheduler.has(`schedule:${active.id}`)).toBe(true)
+    expect(scheduler.has(`schedule:${paused.id}`)).toBe(false)
+  })
+
+  it('restores a custom ACP with repaired launch settings and its original schedule', async () => {
+    const id = OTHER_AGENT_ID
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id,
+        type: 'local',
+        name: 'Custom ACP',
+        instructions: '',
+        orderKey: id
+      })
+      .run()
+    application.get('DbService').withWriteTx((tx) =>
+      agentProviderService.setBindingTx(tx, id, {
+        enabled: true,
+        executableOverride: '/old/acp',
+        args: ['old'],
+        env: {},
+        nativeModel: 'saved-model'
+      })
+    )
+    const task = service.createTask(id, form)
+    const session = agentSessionService.create({ agentId: id, name: 'Owned', workspace: { type: 'system' } })
+    await lifecycle.archiveAgent(id, { archiveSessions: true })
+
+    const settings = { executableOverride: '/new/acp', args: ['new'], env: {} }
+    const restored = await lifecycle.restoreAgent(id, settings)
+
+    expect(restored.id).toBe(id)
+    expect(restored.localRuntime).toMatchObject({
+      ...settings,
+      nativeModel: 'saved-model',
+      enabled: true
+    })
+    expect(agentSessionService.getById(session.id).deletedAt).toBeUndefined()
+    expect(agentTaskService.getTaskById(task.id)).toMatchObject({ id: task.id, status: 'active' })
+    expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+  })
 
   it('refreshes workspace visibility after task creation, workspace changes and deletion', async () => {
     const workspace = agentWorkspaceService.findOrCreateByPath('/tmp/heartbeat-task-visibility')
@@ -296,7 +380,7 @@ describe('AgentJobsService', () => {
     }
   })
 
-  it('keeps an overdue once missed until a deduplicated explicit run completes', async () => {
+  it('keeps an overdue one-shot eligible for a deduplicated retry after its first catch-up is skipped', async () => {
     vi.useFakeTimers()
     try {
       const task = service.createTask(AGENT_ID, { ...form, trigger: { kind: 'once', at: Date.now() + 60_000 } })
@@ -309,12 +393,23 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
 
       const hold = jobManager.pause('test manual admission')
+      vi.mocked(runAgentTask).mockResolvedValueOnce({ kind: 'skipped', result: 'Skipped (session busy)' })
       await Promise.all([service.runTask(AGENT_ID, task.id), service.runTask(AGENT_ID, task.id)])
       expect(jobService.list({ scheduleId: task.id })).toHaveLength(1)
       expect(agentTaskService.getTask(AGENT_ID, task.id)?.status).toBe('missed')
       hold.dispose()
+      await vi.waitFor(() =>
+        expect(agentTaskService.getTaskDetail(task.id)).toMatchObject({
+          status: 'missed',
+          runSummary: { status: 'skipped' }
+        })
+      )
+
+      expect(await service.runTask(AGENT_ID, task.id)).toBe(true)
       await vi.waitFor(() => expect(agentTaskService.getTask(AGENT_ID, task.id)?.status).toBe('completed'))
       expect(jobScheduleService.getById(task.id)?.metadata).not.toHaveProperty('missed')
+      expect(await service.runTask(AGENT_ID, task.id)).toBe(false)
+      expect(jobService.list({ scheduleId: task.id })).toHaveLength(2)
     } finally {
       clearScheduleDisposables()
       vi.useRealTimers()
@@ -336,6 +431,41 @@ describe('AgentJobsService', () => {
   })
 
   describe('createTask', () => {
+    it.each([
+      ['codex', true, true],
+      ['codex', false, false],
+      ['opencode', true, true],
+      ['claude', true, true],
+      [undefined, false, false]
+    ] as const)('allows scheduling the %s preset only when supported and enabled', (presetId, enabled, supported) => {
+      dbh.db
+        .insert(agentTable)
+        .values({
+          id: OTHER_AGENT_ID,
+          type: 'local',
+          name: presetId ?? 'Custom ACP',
+          instructions: '',
+          orderKey: OTHER_AGENT_ID
+        })
+        .run()
+      application.get('DbService').withWriteTx((tx) =>
+        agentProviderService.setBindingTx(tx, OTHER_AGENT_ID, {
+          presetId,
+          ...(presetId === undefined ? { executableOverride: '/custom/acp' } : {}),
+          enabled
+        })
+      )
+
+      if (supported) {
+        const task = service.createTask(OTHER_AGENT_ID, form)
+        expect(task.agentId).toBe(OTHER_AGENT_ID)
+        expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+      } else {
+        expect(() => service.createTask(OTHER_AGENT_ID, form)).toThrow('Scheduled tasks require an enabled local agent')
+        expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+      }
+    })
+
     it('stores an explicitly empty timeout as unlimited', () => {
       const task = service.createTask(AGENT_ID, { ...form, timeoutMinutes: null })
 
@@ -494,6 +624,8 @@ describe('AgentJobsService', () => {
     it('broadcasts the projection after a pure rename — IM/MCP edits have no renderer invalidation to fall back on', () => {
       const task = service.createTask(AGENT_ID, form)
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
 
       const updated = service.updateTask(AGENT_ID, task.id, { name: 'renamed' })
 
@@ -642,15 +774,6 @@ describe('AgentJobsService', () => {
       return jobScheduleService.getById(taskId)?.metadata?.reuse
     }
 
-    it('defaults to reuse off with nothing bound', () => {
-      const task = service.createTask(AGENT_ID, form)
-
-      expect(task.reuseSession).toBe(false)
-      expect(task.reuseSessionId).toBeNull()
-      expect(readReuse(task.id)).toEqual({ enabled: false, revision: 0 })
-      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 0 })
-    })
-
     it('enables reuse without binding a session up front', () => {
       const task = service.createTask(AGENT_ID, form)
 
@@ -752,6 +875,8 @@ describe('AgentJobsService', () => {
         workspace: { type: 'system' }
       })
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
 
       expect(
         service.bindTaskSessionReuse({
@@ -786,6 +911,14 @@ describe('AgentJobsService', () => {
         unrelated: 'keep-me'
       })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+
+      const binding = { scheduleId: task.id, reuseRevision: 0 }
+      service.releaseTaskSessionReuse({ ...binding, reuseRevision: 1 }, session.id)
+      service.releaseTaskSessionReuse(binding, 'stale-session')
+      expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+      service.releaseTaskSessionReuse(binding, session.id)
+      expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+      expect(agentSessionService.listTaskSessionIds(task.id)).toContain(session.id)
     })
   })
 
@@ -808,12 +941,16 @@ describe('AgentJobsService', () => {
     it('broadcasts the projection on a real pause and resume', async () => {
       const task = service.createTask(AGENT_ID, form)
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
 
       await service.pauseTask(AGENT_ID, task.id)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(taskProjectionEffects(task.id))
 
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
       service.resumeTask(AGENT_ID, task.id)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(taskProjectionEffects(task.id))
@@ -822,12 +959,16 @@ describe('AgentJobsService', () => {
     it('the state-aware no-ops stay silent — nothing changed, nothing to refetch', async () => {
       const task = service.createTask(AGENT_ID, form)
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
 
       service.resumeTask(AGENT_ID, task.id) // already enabled
       expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
 
       await service.pauseTask(AGENT_ID, task.id) // the first pause is real
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
       await service.pauseTask(AGENT_ID, task.id) // already paused
       expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     })
@@ -836,6 +977,8 @@ describe('AgentJobsService', () => {
       const task = service.createTask(AGENT_ID, form)
       await service.pauseTask(AGENT_ID, task.id) // reach the disabled state resume operates on
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
 
       // Inject at the real scheduling entry: resumeJobScheduleById commits the
       // enable, then armSchedule → registerSchedule throws — the committed
@@ -858,6 +1001,8 @@ describe('AgentJobsService', () => {
 
       await service.pauseTask(AGENT_ID, task.id) // back to disabled for the write-failure branch
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
 
       const writeSpy = vi.spyOn(jobScheduleService, 'setEnabled').mockImplementation(() => {
         throw new Error('db write failed')
@@ -871,6 +1016,8 @@ describe('AgentJobsService', () => {
       const task = service.createTask(AGENT_ID, form)
       await service.pauseTask(AGENT_ID, task.id)
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
 
       const originalRegisterError = new Error('register failed')
       const registerSpy = vi.spyOn(scheduler, 'registerSchedule').mockImplementation(() => {
@@ -955,6 +1102,199 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.getById(task.id)).toBeNull()
       expect(subscriptionRows(task.id)).toHaveLength(0)
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+    })
+
+    it('archives every linked task conversation, cancels queued runs, and preserves ordinary and other task sessions', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      const other = service.createTask(AGENT_ID, { ...form, name: 'other' })
+      const create = (name: string, scheduleId: string | null = null) =>
+        agentSessionService.create(
+          { agentId: AGENT_ID, name, workspace: { type: 'system' } },
+          'conversation',
+          scheduleId
+        )
+      const sticky = create('sticky')
+      const fresh = create('fresh', task.id)
+      const legacy = create('legacy', task.id)
+      const ordinary = create('ordinary')
+      const foreign = create('foreign task', other.id)
+      dbh.db
+        .update(agentSessionTable)
+        .set({ isTaskReuseTarget: true, taskId: task.id })
+        .where(eq(agentSessionTable.id, sticky.id))
+        .run()
+      for (const [id, scheduleId, metadata, output, status] of [
+        ['fresh', task.id, { sessionId: fresh.id }, null, 'completed'],
+        ['legacy', task.id, {}, { sessionId: legacy.id }, 'completed'],
+        ['foreign', other.id, { sessionId: foreign.id }, null, 'completed'],
+        ['queued', task.id, {}, null, 'pending']
+      ] as const) {
+        dbh.db
+          .insert(jobTable)
+          .values({
+            id,
+            scheduleId,
+            metadata,
+            output,
+            status,
+            type: 'agent.task',
+            queue: 'agent',
+            input: {},
+            scheduledAt: Date.now()
+          })
+          .run()
+      }
+      expect(await service.deleteTask(AGENT_ID, task.id)).toBe(true)
+      expect(jobScheduleService.getById(task.id)).toBeNull()
+      expect(jobService.getById('queued')?.status).toBe('cancelled')
+      for (const session of [sticky, fresh, legacy]) {
+        expect(
+          dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.deletedAt
+        ).toEqual(expect.any(Number))
+      }
+      for (const session of [ordinary, foreign]) {
+        expect(agentSessionService.getById(session.id).id).toBe(session.id)
+      }
+      expect(jobScheduleService.getById(other.id)).not.toBeNull()
+      for (const session of [sticky, fresh, legacy]) {
+        agentSessionService.restore(session.id)
+      }
+      const restoredIds = agentSessionService
+        .listByCursor({ scope: 'ordinary', agentId: AGENT_ID })
+        .items.map((session) => session.id)
+      expect(restoredIds.sort()).toEqual([ordinary.id, sticky.id, fresh.id, legacy.id].sort())
+      expect(jobScheduleService.getById(task.id)).toBeNull()
+      expect(jobService.getById('fresh')?.metadata.sessionId).toBe(fresh.id)
+      expect(jobService.getById('legacy')?.output).toEqual({ sessionId: legacy.id })
+    })
+
+    it('refuses manual runs arriving while deletion is cancelling queued jobs', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id: 'queued-run',
+          scheduleId: task.id,
+          status: 'pending',
+          type: 'agent.task',
+          queue: 'agent',
+          input: {},
+          scheduledAt: Date.now()
+        })
+        .run()
+      const queued = jobService.list({ scheduleId: task.id })
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let entered!: () => void
+      const cancelling = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const cancel = jobManager.cancel.bind(jobManager)
+      const spy = vi.spyOn(jobManager, 'cancel').mockImplementationOnce(async (...args) => {
+        entered()
+        await gate
+        return cancel(...args)
+      })
+      const deletion = service.deleteTask(AGENT_ID, task.id)
+      await cancelling
+      const run = service.runTask(AGENT_ID, task.id)
+      release()
+      expect(await deletion).toBe(true)
+      expect(await run).toBe(false)
+      expect(jobService.list({ type: 'agent.task' }).map((job) => job.id)).toEqual(queued.map((job) => job.id))
+      expect(jobService.getById(queued[0].id)?.status).toBe('cancelled')
+      spy.mockRestore()
+    })
+
+    it('finishes an admitted run before deletion takes its cancellation snapshot', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let entered!: () => void
+      const triggering = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const trigger = vi.spyOn(scheduler, 'triggerNow').mockImplementationOnce(async () => {
+        entered()
+        await gate
+        return false
+      })
+      const run = service.runTask(AGENT_ID, task.id)
+      await triggering
+      const deletion = service.deleteTask(AGENT_ID, task.id)
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      const retainedDuringAdmission = jobScheduleService.getById(task.id) !== null
+      release()
+      const results = await Promise.allSettled([run, deletion])
+      trigger.mockRestore()
+      expect(retainedDuringAdmission).toBe(true)
+      expect(results).toEqual([
+        { status: 'fulfilled', value: true },
+        { status: 'fulfilled', value: true }
+      ])
+      expect(jobScheduleService.getById(task.id)).toBeNull()
+      expect(jobService.list({ status: ['pending', 'delayed', 'running'] })).toHaveLength(0)
+    })
+
+    it('waits for runtime closure before archiving task sessions', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      const session = agentSessionService.create(
+        { agentId: AGENT_ID, name: 'closing task', workspace: { type: 'system' } },
+        'conversation',
+        task.id
+      )
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let entered!: () => void
+      const closing = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      runtime.isSessionBusyForArchive.mockReturnValue(true)
+      runtime.closeSessionForArchive.mockImplementationOnce(async () => {
+        entered()
+        await gate
+        runtime.isSessionBusyForArchive.mockReturnValue(false)
+      })
+      const deletion = service.deleteTask(AGENT_ID, task.id)
+      const result = deletion.then(
+        (value) => ({ value }),
+        (error) => ({ error })
+      )
+      await Promise.race([closing, result])
+      expect(jobScheduleService.getById(task.id)?.enabled).toBe(false)
+      expect(agentSessionService.getById(session.id).id).toBe(session.id)
+      release()
+      expect(await result).toEqual({ value: true })
+      expect(jobScheduleService.getById(task.id)).toBeNull()
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.deletedAt
+      ).toEqual(expect.any(Number))
+    })
+
+    it('rolls back conversation archival if deleting the task fails', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      const session = agentSessionService.create({ agentId: AGENT_ID, name: 'task', workspace: { type: 'system' } })
+      dbh.db
+        .update(agentSessionTable)
+        .set({ isTaskReuseTarget: true, taskId: task.id })
+        .where(eq(agentSessionTable.id, session.id))
+        .run()
+      const remove = vi.spyOn(jobScheduleService, 'deleteTx').mockImplementationOnce(() => {
+        throw new Error('delete failed')
+      })
+      await expect(service.deleteTask(AGENT_ID, task.id)).rejects.toThrow('delete failed')
+      remove.mockRestore()
+      expect(jobScheduleService.getById(task.id)?.enabled).toBe(true)
+      expect(agentSessionService.getById(session.id).id).toBe(session.id)
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id)).get()?.deletedAt
+      ).toBeNull()
     })
 
     it('deletes every Agent task through JobManager while preserving other agents tasks', async () => {
@@ -1345,6 +1685,21 @@ describe('AgentJobsService', () => {
       const trashed = service.createTask(AGENT_ID, form)
       const missing = service.createTask(OTHER_AGENT_ID, { ...form, name: 'missing-agent-task' })
       const restored = service.createTask('agent-active', { ...form, name: 'restored-agent-task' })
+      const retained = agentSessionService.create(
+        {
+          agentId: OTHER_AGENT_ID,
+          name: 'Orphaned reuse target',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        missing.id
+      )
+      dbh.db
+        .update(agentSessionTable)
+        .set({ isTaskReuseTarget: true })
+        .where(eq(agentSessionTable.id, retained.id))
+        .run()
+
       dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
       dbh.db.delete(agentTable).where(eq(agentTable.id, OTHER_AGENT_ID)).run()
       jobScheduleService.update(restored.id, {
@@ -1353,6 +1708,8 @@ describe('AgentJobsService', () => {
       })
       jobManager.syncJobScheduleTimerById(restored.id)
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
 
       expect(await lifecycle.reconcile()).toBe(3)
 
@@ -1361,6 +1718,11 @@ describe('AgentJobsService', () => {
         metadata: { agentTrash: { resumeOnRestore: true } }
       })
       expect(jobScheduleService.getById(missing.id)).toBeNull()
+      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, retained.id)).get()).toMatchObject({
+        taskId: null,
+        isTaskReuseTarget: false
+      })
+
       expect(jobScheduleService.getById(restored.id)).toMatchObject({ enabled: true })
       expect(jobScheduleService.getById(restored.id)?.metadata).not.toHaveProperty('agentTrash')
       expect(scheduler.has(`schedule:${trashed.id}`)).toBe(false)
@@ -1385,6 +1747,8 @@ describe('AgentJobsService', () => {
       const pausedBeforeTrash = jobScheduleService.getById(pausedTask.id)
 
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
       expect((await lifecycle.archiveAgent(AGENT_ID, { archiveSessions: true })).deleted).toBe(true)
 
       expect(jobScheduleService.getById(enabledTask.id)).toMatchObject({
@@ -1420,6 +1784,8 @@ describe('AgentJobsService', () => {
       ])
 
       notifyDataApiDataChangeMock.mockClear()
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
       await lifecycle.restoreAgent(AGENT_ID)
 
       expect(jobScheduleService.getById(enabledTask.id)).toMatchObject({
@@ -1468,11 +1834,11 @@ describe('AgentJobsService', () => {
       expect(agentTaskService.getTask(AGENT_ID, task.id)?.reuseSessionId).toBeNull()
       expect(
         dbh.db
-          .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+          .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
           .from(agentSessionTable)
           .where(eq(agentSessionTable.id, session.id))
           .get()
-      ).toEqual({ taskScheduleId: null })
+      ).toEqual({ isTaskReuseTarget: false })
     })
 
     it('trashing and restoring also preserves a legacy task whose template has no workspace', async () => {
@@ -1565,11 +1931,11 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.getById(pausedTask.id)).toMatchObject({ enabled: false, name: 'paused-task' })
       expect(
         dbh.db
-          .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+          .select({ isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
           .from(agentSessionTable)
           .where(eq(agentSessionTable.id, session.id))
           .get()
-      ).toEqual({ taskScheduleId: null })
+      ).toEqual({ isTaskReuseTarget: false })
     })
 
     it('repairs archived owner schedules without enabling them', async () => {

@@ -3,12 +3,14 @@ import { createHash } from 'node:crypto'
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
+import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
+import { claudeBranchQueryIdentity, prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
-import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
 import type { AgentSessionUsageCapture } from '../types'
 import {
@@ -17,6 +19,7 @@ import {
   spawnClaudeCodeProcess
 } from './ClaudeCodeProcessManager'
 import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
+import { resolveClaudeConfigDirectory } from './queryOptions'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -67,10 +70,8 @@ export function stripWarmQueryOptions(options: Options): Options {
   const {
     // oxlint-disable-next-line no-unused-vars
     abortController: _abortController,
-    // oxlint-disable-next-line no-unused-vars
-    steerHolder: _steerHolder,
     ...rest
-  } = options as Options & { steerHolder?: unknown }
+  } = options
   return rest
 }
 
@@ -171,9 +172,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly closingQueries = new Map<string, Set<Promise<void>>>()
   private readonly failedClosures = new Map<string, Set<WarmQueryEntry>>()
 
-  // `ai.agent.session.prewarm` / `ai.agent.session.close_warm` (IpcApi, validated by the router)
-  // delegate to the public methods below; this service registers no IPC of its own.
-
   async prewarmAgentSession(sessionId: string): Promise<void> {
     const preparing = this.prepareAgentSession(sessionId)
     const preparations = this.preparingSessions.get(sessionId) ?? new Set<Promise<void>>()
@@ -192,6 +190,18 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
+      const storedResume = messages.getLastRuntimeResumeToken(sessionId) ?? undefined
+      const context = prepareClaudeBranch(
+        sessionId,
+        resolveClaudeConfigDirectory(warmRequest.options.env),
+        storedResume,
+        undefined,
+        true
+      )
+      warmRequest.options = {
+        ...warmRequest.options,
+        ...claudeBranchQueryIdentity(context, storedResume)
+      }
       await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
@@ -222,12 +232,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (!traceEnv) return request
 
     return { ...request, options: { ...request.options, env: { ...request.options.env, ...traceEnv } } }
-  }
-
-  closeAgentSessionWarm(sessionId: string): void {
-    void this.close(sessionId).catch((error) => {
-      logger.debug('Failed to close agent session warm query', { sessionId, error })
-    })
   }
 
   async prewarm(request: WarmQueryRequest): Promise<void> {

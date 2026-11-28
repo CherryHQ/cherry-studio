@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react'
 
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { AGENT_SESSION_STREAM_TOPIC_CACHE_KEY } from '@shared/ai/agentSessionStreamTopic'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 
 export type AgentSessionStreamState = {
@@ -9,8 +10,6 @@ export type AgentSessionStreamState = {
   status: TopicStatusSnapshotEntry['status']
 }
 
-const getAgentSessionStreamStatusCacheKey = (sessionId: string) =>
-  `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
 const SESSION_ID_SEPARATOR = '\u0000'
 const EMPTY_AGENT_SESSION_STREAM_STATUSES = new Map<string, AgentSessionStreamState>()
 
@@ -65,9 +64,11 @@ export function useAgentSessionStreamStatuses(
     [uniqueSessionIds]
   )
 
-  // Keys and the zip source both derive from `uniqueSessionIds` (zip-source coherence).
+  const topics = useSharedCacheSelector(uniqueSessionIds.map(AGENT_SESSION_STREAM_TOPIC_CACHE_KEY), (values) => values)
   return useSharedCacheSelector(
-    uniqueSessionIds.map(getAgentSessionStreamStatusCacheKey),
+    uniqueSessionIds.map(
+      (id, index) => `topic.stream.statuses.${topics[index] ?? buildAgentSessionTopicId(id)}` as const
+    ),
     selector,
     areAgentSessionStreamStatusesEqual
   )

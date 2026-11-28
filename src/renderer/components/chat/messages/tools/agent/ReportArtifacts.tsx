@@ -1,17 +1,19 @@
-import { Icon } from '@iconify/react'
+import { getToolName, isToolUIPart } from 'ai'
 import type { TFunction } from 'i18next'
 import { ChevronDown } from 'lucide-react'
-import { type MouseEvent, useCallback, useMemo, useState } from 'react'
+import { type MouseEvent, useCallback, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@renderer/components/OpenTarget'
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import { extractLocalAcpRawInputPaths, LocalAcpToolSchema } from '@shared/ai/localAgent'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { archiveExts, getFileTypeByExt } from '@shared/utils/file'
@@ -31,8 +33,101 @@ interface ReportArtifactsViewModel {
 }
 
 export function isReportArtifactsToolResponse(toolResponse: ReportArtifactsToolResponse): boolean {
+  if (
+    toolResponse.tool.type === 'mcp' &&
+    (!('serverName' in toolResponse.tool) || toolResponse.tool.serverName !== 'cherry-tools')
+  )
+    return false
   const toolName = toolResponse.tool.name
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
+}
+
+const LOCAL_ACP_WRITE_KINDS = new Set(['edit', 'create', 'write'])
+const LOCAL_CLAUDE_WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isLocalClaudeToolPart(part: CherryMessagePart): boolean {
+  const record = part as unknown as Record<string, unknown>
+  for (const field of ['callProviderMetadata', 'providerMetadata', 'resultProviderMetadata']) {
+    const metadata = record[field]
+    if (!isRecord(metadata)) continue
+    const cherry = metadata.cherry
+    if (isRecord(cherry) && cherry.localAgentProtocol === 'claude') return true
+  }
+  return false
+}
+
+function getCodexFileChangeKind(kind: unknown): string | undefined {
+  if (typeof kind === 'string') return kind.trim().toLowerCase()
+  if (isRecord(kind) && typeof kind.type === 'string') return kind.type.trim().toLowerCase()
+  return undefined
+}
+
+export function getLocalWrittenFilePaths(parts: readonly CherryMessagePart[]): string[] {
+  const seen = new Set<string>()
+  const paths: string[] = []
+  const addPath = (raw: unknown) => {
+    if (typeof raw !== 'string') return
+    const trimmed = raw.trim()
+    if (!trimmed || seen.has(trimmed)) return
+    seen.add(trimmed)
+    paths.push(trimmed)
+  }
+
+  for (const part of parts) {
+    if (!isToolUIPart(part) || part.state !== 'output-available') continue
+    const toolName = getToolName(part)
+    const input = (part as { input?: unknown }).input
+    const output = (part as { output?: unknown }).output
+
+    if (isRecord(input) && 'localAcpTool' in input) {
+      const acp = LocalAcpToolSchema.safeParse(input.localAcpTool)
+      if (acp.success && acp.data.status !== 'failed') {
+        for (const path of acp.data.diffPaths ?? []) addPath(path)
+        for (const item of acp.data.content ?? []) {
+          if (isRecord(item) && item.type === 'diff') addPath(item.path)
+        }
+        const kind = acp.data.kind?.trim().toLowerCase()
+        if (kind && LOCAL_ACP_WRITE_KINDS.has(kind)) {
+          for (const location of acp.data.locations ?? []) addPath(location.path)
+          for (const rawPath of extractLocalAcpRawInputPaths(acp.data.rawInput)) addPath(rawPath)
+        }
+      }
+      continue
+    }
+
+    if (toolName === 'ACP: Write' && isRecord(input)) {
+      addPath(input.path)
+      continue
+    }
+
+    if (LOCAL_CLAUDE_WRITE_TOOLS.has(toolName) && isLocalClaudeToolPart(part) && isRecord(input)) {
+      if (isRecord(output) && output.isError === true) continue
+      addPath(toolName === 'NotebookEdit' ? input.notebook_path : input.file_path)
+      continue
+    }
+
+    if (toolName === 'fileChange') {
+      if (isRecord(output) && (output.status === 'failed' || output.status === 'declined')) continue
+      const changes =
+        isRecord(output) && Array.isArray(output.changes)
+          ? output.changes
+          : isRecord(input) && Array.isArray(input.changes)
+            ? input.changes
+            : undefined
+      if (!changes) continue
+      for (const change of changes) {
+        if (!isRecord(change)) continue
+        if (getCodexFileChangeKind(change.kind) === 'delete') continue
+        addPath(change.path)
+      }
+    }
+  }
+
+  return paths
 }
 
 export function getReportArtifactsViewModel(
@@ -42,7 +137,7 @@ export function getReportArtifactsViewModel(
   let summary: string | undefined
 
   for (const toolResponse of toolResponses) {
-    if (!isReportArtifactsToolResponse(toolResponse)) continue
+    if (!isReportArtifactsToolResponse(toolResponse) || toolResponse.status !== 'done') continue
 
     const parsed = reportArtifactsInputSchema.safeParse(toolResponse.arguments)
     if (!parsed.success) continue
@@ -74,8 +169,10 @@ const artifactDocumentFormats: Record<string, [string, string]> = {
   pdf: ['chat.input.tools.file_type.document', 'PDF'],
   md: ['chat.input.tools.file_type.document', 'Markdown'],
   markdown: ['chat.input.tools.file_type.document', 'Markdown'],
+  mdx: ['chat.input.tools.file_type.document', 'Markdown'],
   rtf: ['chat.input.tools.file_type.document', 'RTF'],
   odt: ['chat.input.tools.file_type.document', 'OpenDocument'],
+  epub: ['chat.input.tools.file_type.document', 'EPUB'],
   ppt: ['chat.input.tools.file_type.presentation', 'PowerPoint'],
   pptx: ['chat.input.tools.file_type.presentation', 'PowerPoint'],
   odp: ['chat.input.tools.file_type.presentation', 'OpenDocument'],
@@ -118,7 +215,6 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     [resolvePath, unresolvedTargetPath]
   )
   const fileName = useMemo(() => getArtifactFileName(displayPath), [displayPath])
-  const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const [popupMenuOpen, setPopupMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
@@ -212,7 +308,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         aria-label={`${t('common.preview')} ${fileName}`}
         className="group/preview flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left aria-disabled:cursor-default">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
-          <Icon icon={`material-icon-theme:${iconName}`} className="text-[20px]" />
+          <FileIcon path={displayPath} className="text-[20px]" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
@@ -269,27 +365,63 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   )
 }
 
+const COLLAPSED_ARTIFACT_LIMIT = 3
+
 /**
  * Message-level footer for `report_artifacts` declarations. The tool call itself is hidden from the
  * inline tool stream; this card is appended after the complete message content so deliverables stay
  * visually anchored to the final answer instead of the tool-call position.
  */
-export const MessageReportArtifacts = ({
-  toolResponses
+export function MessageReportArtifacts({
+  toolResponses,
+  changedPaths = []
 }: {
   toolResponses: readonly ReportArtifactsToolResponse[]
-}) => {
-  // Memoised: `getReportArtifactsViewModel` zod-parses each response, and this
-  // card re-renders on every streaming tick. `toolResponses` is already a stable
-  // memoised ref from `MessagePartsRenderer`, so this skips re-parsing per tick.
-  const viewModel = useMemo(() => getReportArtifactsViewModel(toolResponses), [toolResponses])
-  if (!viewModel) return null
+  changedPaths?: readonly string[]
+}) {
+  const { t } = useTranslation()
+  const outputs = useMemo(() => getReportArtifactsViewModel(toolResponses), [toolResponses])
+  const reportedPaths = new Set(outputs?.artifacts.map((file) => file.path))
+  const changedFiles = changedPaths.filter((path) => !reportedPaths.has(path)).map((path) => ({ path }))
+  return (
+    <>
+      {outputs && <MessageFileCards files={outputs.artifacts} label={t('chat.profile_pane.tabs.outputs')} />}
+      {changedFiles.length > 0 && <MessageFileCards files={changedFiles} label={t('chat.artifacts.file_changes')} />}
+    </>
+  )
+}
+
+function MessageFileCards({ files, label }: { files: readonly ReportArtifactView[]; label: string }) {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const listId = useId()
+  const labelId = useId()
+  const hiddenCount = files.length - COLLAPSED_ARTIFACT_LIMIT
+  const visibleFiles = expanded ? files : files.slice(0, COLLAPSED_ARTIFACT_LIMIT)
 
   return (
-    <div className="my-1 flex w-full flex-col gap-1.5">
-      {viewModel.artifacts.map((artifact) => (
-        <ReportArtifactFileCard key={artifact.path} artifact={artifact} />
-      ))}
-    </div>
+    <section aria-labelledby={labelId} className="my-1 flex w-full flex-col gap-1.5">
+      <p id={labelId} className="font-medium text-muted-foreground">
+        {label}
+      </p>
+      <div id={listId} className="flex min-w-0 flex-col gap-1.5">
+        {visibleFiles.map((artifact) => (
+          <ReportArtifactFileCard key={artifact.path} artifact={artifact} />
+        ))}
+      </div>
+      {hiddenCount > 0 && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          className="self-start text-muted-foreground"
+          onClick={() => setExpanded((value) => !value)}>
+          <ChevronDown aria-hidden className={expanded ? 'rotate-180' : undefined} />
+          {expanded ? t('common.collapse') : t('chat.artifacts.show_remaining', { count: hiddenCount })}
+        </Button>
+      )}
+    </section>
   )
 }

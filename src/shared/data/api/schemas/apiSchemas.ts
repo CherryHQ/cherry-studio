@@ -27,6 +27,7 @@ import type { AgentWorkspaceSchemas } from './agentWorkspaces'
 import type { AiUsageRecordSchemas } from './aiUsageRecords'
 import type { ApiGatewayPairedDeviceSchemas } from './apiGatewayPairedDevices'
 import type { ArchiveSchemas } from './archives'
+import type { ArtifactSchemas } from './artifacts'
 import type { AssistantSchemas } from './assistants'
 import type { BrowserVisitSchemas } from './browserVisits'
 import type { DiagnosticReportSchemas } from './diagnosticReports'
@@ -39,6 +40,7 @@ import type { MessageSchemas } from './messages'
 import type { MiniAppSchemas } from './miniApps'
 import type { ModelSchemas } from './models'
 import type { NoteSchemas } from './notes'
+import type { NotificationSchemas } from './notifications'
 import type { PaintingsSchemas } from './paintings'
 import type { PinSchemas } from './pins'
 import type { PromptSchemas } from './prompts'
@@ -46,7 +48,6 @@ import type { ProviderSchemas } from './providers'
 import type { SearchSchemas } from './search'
 import type { SkillSchemas } from './skills'
 import type { TagSchemas } from './tags'
-import type { TemporaryChatSchemas } from './temporaryChats'
 import type { TopicSchemas } from './topics'
 import type { TranslateSchemas } from './translate'
 
@@ -67,7 +68,6 @@ export type ApiSchemas = AssertValidSchemas<
     ApiGatewayPairedDeviceSchemas &
     TopicSchemas &
     MessageSchemas &
-    TemporaryChatSchemas &
     ModelSchemas &
     ProviderSchemas &
     PaintingsSchemas &
@@ -77,6 +77,7 @@ export type ApiSchemas = AssertValidSchemas<
     KnowledgeSchemas &
     MiniAppSchemas &
     NoteSchemas &
+    NotificationSchemas &
     ArchiveSchemas &
     AssistantSchemas &
     TagSchemas &
@@ -84,6 +85,7 @@ export type ApiSchemas = AssertValidSchemas<
     GroupSchemas &
     PinSchemas &
     AgentSchemas &
+    ArtifactSchemas &
     SkillSchemas &
     AgentSessionMessageSchemas &
     AgentSessionSchemas &

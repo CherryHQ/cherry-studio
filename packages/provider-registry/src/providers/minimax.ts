@@ -15,11 +15,11 @@ export const minimaxOverrides = [
     }
   },
   {
-    modelId: 'minimax-m3',
+    apiModelId: 'minimax-m3',
     endpointTypes: ['openai-chat-completions', 'anthropic-messages']
   },
   {
-    modelId: 'image-01',
+    apiModelId: 'image-01',
     imageGeneration: {
       modes: {
         edit: {
@@ -60,7 +60,7 @@ export const minimaxOverrides = [
     }
   },
   {
-    modelId: 'image-01-live',
+    apiModelId: 'image-01-live',
     imageGeneration: {
       modes: {
         edit: {

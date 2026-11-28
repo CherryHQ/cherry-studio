@@ -1,13 +1,19 @@
+import { MockMainPreferenceService } from '@test-mocks/main/PreferenceService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as FileFailureModule from '@main/services/file/failureFacts'
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
 import type * as FileUtilsModule from '@main/utils/file'
-import { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { InputFor } from '@shared/ipc/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 const {
   appGetMock,
+  clipboardCopyMock,
+  clipboardStatusMock,
   assertOutsideManagedStorageMutationMock,
   copyNewMock,
   getMetadataByPathMock,
@@ -15,9 +21,12 @@ const {
   readChunkByPathMock,
   safeOpenMock,
   showPathInFolderMock,
+  validateNotesDirectoryMock,
   writeIfUnchangedByPathMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
+  clipboardCopyMock: vi.fn(),
+  clipboardStatusMock: vi.fn(),
   assertOutsideManagedStorageMutationMock: vi.fn(),
   copyNewMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
@@ -25,9 +34,11 @@ const {
   readChunkByPathMock: vi.fn(),
   safeOpenMock: vi.fn(),
   showPathInFolderMock: vi.fn(),
+  validateNotesDirectoryMock: vi.fn(),
   writeIfUnchangedByPathMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@main/services/notesDirectory', () => ({ validateNotesDirectory: validateNotesDirectoryMock }))
 vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof FileUtilsModule>()),
   copyNew: copyNewMock
@@ -35,7 +46,9 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
 vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
   const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
+  const { classifyFileFailure } = await vi.importActual<typeof FileFailureModule>('@main/services/file/failureFacts')
   return {
+    classifyFileFailure,
     ContentCommittedMetadataPendingError: class ContentCommittedMetadataPendingError extends Error {
       constructor(
         readonly entryId: string,
@@ -57,8 +70,11 @@ vi.mock('@main/services/file', async () => {
         super('DirectoryTreeManager stopped during in-flight builder creation')
       }
     },
+    isInsideManagedStorage: vi.fn().mockResolvedValue(false),
     assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
+    copyFileToClipboard: clipboardCopyMock,
+    getClipboardCopyStatus: clipboardStatusMock,
     getMetadataByPath: getMetadataByPathMock,
     readByPath: readByPathMock,
     readChunkByPath: readChunkByPathMock,
@@ -70,6 +86,7 @@ vi.mock('@main/services/file', async () => {
 
 import { ContentCommittedMetadataPendingError, DirectoryTreeStoppedError } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -102,6 +119,7 @@ const fileManager = {
   readChunk: vi.fn(),
   open: vi.fn(),
   showInFolder: vi.fn(),
+  copyToClipboard: vi.fn(),
   writeIfUnchanged: vi.fn(),
   batchCreateInternalEntries: vi.fn()
 }
@@ -118,6 +136,7 @@ const windowManager = { getWindow: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  fileManager.getPhysicalPath.mockReset()
   windowManager.getWindow.mockImplementation((id: string) =>
     id === 'win-1' ? { webContents: senderWebContents } : undefined
   )
@@ -125,6 +144,7 @@ beforeEach(() => {
     if (name === 'FileManager') return fileManager
     if (name === 'DirectoryTreeManager') return directoryTreeManager
     if (name === 'WindowManager') return windowManager
+    if (name === 'PreferenceService') return MockMainPreferenceService.getInstance()
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -133,9 +153,51 @@ const ctx = { senderId: null }
 const windowCtx = { senderId: 'win-1' }
 
 describe('fileHandlers', () => {
-  it('does not expose the pure-SQL content-hash lookup through IpcApi', () => {
-    expect('file.find_internal_by_content_hash' in fileRequestSchemas).toBe(false)
-    expect('file.find_internal_by_content_hash' in fileHandlers).toBe(false)
+  it('returns the folder picked in the native dialog and null on cancellation', async () => {
+    const defaultPath = '/projects/current' as AbsoluteFilePath
+    vi.mocked(dialog.showOpenDialog)
+      .mockResolvedValueOnce({ canceled: false, filePaths: ['/projects/new folder'] })
+      .mockResolvedValueOnce({ canceled: true, filePaths: [] })
+
+    await expect(fileHandlers['file.select_folder']({ defaultPath }, windowCtx)).resolves.toBe('/projects/new folder')
+    expect(dialog.showOpenDialog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultPath, properties: ['openDirectory'] })
+    )
+    await expect(fileHandlers['file.select_folder']({}, windowCtx)).resolves.toBeNull()
+  })
+
+  it('dispatches clipboard copies to the path or entry owner, and refuses unmanaged callers first', async () => {
+    const path = '/tmp/physical' as AbsoluteFilePath
+    const pathHandle = { kind: 'path' as const, path }
+    const entryHandle = { kind: 'entry' as const, entryId: ids[0] } as Parameters<
+      (typeof fileHandlers)['file.copy_to_clipboard']
+    >[0]
+    await fileHandlers['file.copy_to_clipboard'](pathHandle, windowCtx)
+    await fileHandlers['file.copy_to_clipboard'](entryHandle, windowCtx)
+    expect(clipboardCopyMock.mock.calls.map(([target]) => target)).toEqual([path])
+    expect(fileManager.copyToClipboard.mock.calls.map(([id]) => id)).toEqual([ids[0]])
+    vi.clearAllMocks()
+    await expect(fileHandlers['file.copy_to_clipboard'](entryHandle, ctx)).rejects.toThrow('managed window sender')
+    expect(appGetMock).not.toHaveBeenCalled()
+    expect(clipboardCopyMock).not.toHaveBeenCalled()
+    expect(fileManager.copyToClipboard).not.toHaveBeenCalled()
+  })
+
+  it('maps only removed entry errors to missing', async () => {
+    const handle = { kind: 'entry', entryId: ids[0] } as Parameters<
+      (typeof fileHandlers)['file.get_clipboard_status']
+    >[0]
+    fileManager.getPhysicalPath.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('FileEntry', ids[0])
+    })
+    await expect(fileHandlers['file.get_clipboard_status'](handle, ctx)).resolves.toEqual({
+      ok: false,
+      reason: 'missing'
+    })
+    fileManager.getPhysicalPath.mockImplementationOnce(() => {
+      throw new Error('database failure')
+    })
+    await expect(fileHandlers['file.get_clipboard_status'](handle, ctx)).rejects.toThrow('database failure')
   })
 
   it('reads binary content by path through the generic FileHandle route', async () => {
@@ -386,11 +448,21 @@ describe('fileHandlers', () => {
   })
 
   it('get_metadata resolves null for a missing path instead of throwing', async () => {
-    getMetadataByPathMock.mockRejectedValueOnce(new Error('ENOENT'))
+    getMetadataByPathMock.mockRejectedValueOnce(Object.assign(new Error('missing'), { code: 'ENOENT' }))
 
     await expect(
       fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/missing.txt' as AbsoluteFilePath }, ctx)
     ).resolves.toBeNull()
+    expect(getSentryLogContext(mockMainLoggerService.warn.mock.calls.at(-1)![1])).toBeUndefined()
+  })
+
+  it('reports a metadata implementation fault even though the route falls back to null', async () => {
+    getMetadataByPathMock.mockRejectedValueOnce(new TypeError('broken metadata reader'))
+    await expect(
+      fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/a.txt' as AbsoluteFilePath }, ctx)
+    ).resolves.toBeNull()
+    const entry = mockMainLoggerService.warn.mock.calls.at(-1)![1]
+    expect(getSentryLogContext(entry)?.tags['failure.kind']).toBe('defect')
   })
 
   it('batch_get_physical_paths returns null for per-entry path failures', async () => {
@@ -437,7 +509,7 @@ describe('fileHandlers', () => {
     await fileHandlers['file.show_in_folder']({ kind: 'entry', entryId: ids[0] }, ctx)
 
     expect(fileManager.rename).toHaveBeenCalledWith(ids[0], 'renamed')
-    expect(fileManager.open).toHaveBeenCalledWith(ids[0])
+    expect(fileManager.open).toHaveBeenCalledExactlyOnceWith(ids[0], { channel: 'file.open' })
     expect(fileManager.showInFolder).toHaveBeenCalledWith(ids[0])
   })
 
@@ -445,10 +517,19 @@ describe('fileHandlers', () => {
     await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, ctx)
     await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, ctx)
 
-    expect(safeOpenMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(safeOpenMock).toHaveBeenCalledExactlyOnceWith('/tmp/report.md', { channel: 'file.open' })
     expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(fileManager.open).not.toHaveBeenCalled()
     expect(fileManager.showInFolder).not.toHaveBeenCalled()
+  })
+
+  it('validates Notes directories through the typed file route', async () => {
+    validateNotesDirectoryMock.mockReturnValueOnce(true)
+
+    await expect(fileHandlers['file.validate_notes_directory']('/tmp/notes' as AbsoluteFilePath, ctx)).resolves.toBe(
+      true
+    )
+    expect(validateNotesDirectoryMock).toHaveBeenCalledWith('/tmp/notes')
   })
 
   it('dispatches range reads for entry and path handles through file.read', async () => {
@@ -489,18 +570,22 @@ describe('fileHandlers', () => {
     expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
   })
 
-  it('creates a directory tree owned by the caller window', async () => {
+  it.each([undefined, true])('creates a directory tree owned by the caller window with refresh=%s', async (refresh) => {
     const created = { treeId: 't-1', revision: 0, snapshot: { kind: 'directory', path: '/tmp/ws', basename: 'ws' } }
     directoryTreeManager.create.mockResolvedValueOnce(created)
 
     await expect(
-      fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 } }, windowCtx)
+      fileHandlers['file.tree.create'](
+        { rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 }, refresh },
+        windowCtx
+      )
     ).resolves.toBe(created)
 
     expect(directoryTreeManager.create).toHaveBeenCalledWith(
       { windowId: 'win-1', webContents: senderWebContents },
       '/tmp/ws',
-      { maxDepth: 1 }
+      { maxDepth: 1 },
+      refresh
     )
   })
 

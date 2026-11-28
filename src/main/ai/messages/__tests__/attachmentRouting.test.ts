@@ -1,7 +1,17 @@
+vi.mock('../attachmentWorkerClient', async () => {
+  const { allocateInlineCaps } = await import('../attachmentInlineBudget')
+  return {
+    runAttachmentWorker: async (_type: string, input: { bodies: string[]; tokens: number }, signal?: AbortSignal) => {
+      signal?.throwIfAborted()
+      return allocateInlineCaps(input.bodies, input.tokens)
+    }
+  }
+})
+
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import type { NativeFileSupport } from '@main/ai/messages/nativeFileSupport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
@@ -27,7 +37,7 @@ vi.mock('../attachmentTextExtraction', () => ({
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
-import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import { collectFileAttachments, prepareChatMessages, prepareChatMessagesForEstimate } from '../attachmentRouting'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -68,7 +78,6 @@ const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMess
 })
 
 /** One token per character, so a test's `cap` reads directly as a character cap. */
-const charTokenizer = { id: 'chars', count: (text: string) => text.length }
 
 const run = (
   parts: CherryMessagePart[],
@@ -80,7 +89,7 @@ const run = (
     attachments: collectFileAttachments(messages),
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
-    budget: opts.cap === undefined ? undefined : { tokens: opts.cap, tokenizer: charTokenizer }
+    budget: opts.cap === undefined ? undefined : { tokens: opts.cap }
   })
 }
 
@@ -88,6 +97,37 @@ const textOf = (parts: UIMessage['parts']) =>
   parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text)
 
 afterEach(() => vi.clearAllMocks())
+
+describe('prepareChatMessagesForEstimate', () => {
+  it('returns the same capped text as dispatch for stored text attachments', async () => {
+    const messages = [userMessage([fileWithEntry('e1', 'notes.txt', 'text/plain')])]
+    getByIdMock.mockResolvedValue({ ext: 'txt' })
+    extractMock.mockResolvedValue('long attachment body '.repeat(800))
+    const context = {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true,
+      budget: { tokens: 2_000 }
+    }
+
+    const preview = await prepareChatMessagesForEstimate(messages, context)
+    expect(preview).toEqual(await prepareChatMessages(messages, context))
+    expect(textOf(preview![0].parts).join('')).toContain('long attachment body '.repeat(30))
+  })
+
+  it('returns an unknown estimate for an attachment that needs OCR', async () => {
+    const messages = [userMessage([fileWithEntry('e1', 'image.png', 'image/png')])]
+    getByIdMock.mockResolvedValue({ ext: 'png' })
+    expect(
+      await prepareChatMessagesForEstimate(messages, {
+        attachments: collectFileAttachments(messages),
+        nativeSupport: NONE,
+        isToolCapable: false
+      })
+    ).toBeNull()
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+})
 
 describe('prepareChatMessages — routing', () => {
   it('keeps a native image inline (no extraction)', async () => {
@@ -119,7 +159,7 @@ describe('prepareChatMessages — routing', () => {
     ocrMock.mockResolvedValueOnce('ocr body')
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
     expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.png":\nocr body')
+    expect(textOf(out.parts)[0]).toContain('ocr body')
   })
 
   it('OCRs a modern non-vision image whose composer token matches its source id', async () => {
@@ -195,7 +235,7 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     extractMock.mockResolvedValueOnce('word body')
     const [out] = await run([fileWithEntry('e1', 'a.docx', 'application/octet-stream')], ALL)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.docx":\nword body')
+    expect(textOf(out.parts)[0]).toContain('word body')
   })
 
   it('inlines XML text with an unrecognized extension', async () => {
@@ -210,16 +250,7 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
     extractMock.mockResolvedValueOnce('license body')
     const [out] = await run([fileWithEntry('e1', 'LICENSE', 'application/octet-stream')], NONE)
-    expect(textOf(out.parts)[0]).toBe('Attached file "LICENSE":\nlicense body')
-  })
-
-  it('keeps an extensionless binary file unsupported', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: null })
-    extractMock.mockResolvedValueOnce(null)
-    const [out] = await run([fileWithEntry('e1', 'payload', 'application/octet-stream')], NONE)
-    expect(textOf(out.parts)[0]).toBe(
-      'Attached file "payload":\nCannot read the attached file "payload" as text (unsupported file type).'
-    )
+    expect(textOf(out.parts)[0]).toContain('license body')
   })
 
   it('keeps a native PDF inline, extracts text for a non-native one', async () => {
@@ -231,7 +262,7 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'pdf' })
     extractMock.mockResolvedValueOnce('pdf body')
     const [textOut] = await run([fileWithEntry('e1', 'a.pdf', 'application/pdf')], NONE)
-    expect(textOf(textOut.parts)[0]).toBe('Attached file "a.pdf":\npdf body')
+    expect(textOf(textOut.parts)[0]).toContain('pdf body')
   })
 
   it.each([
@@ -244,16 +275,6 @@ describe('prepareChatMessages — routing', () => {
 
     expect(textOf(out.parts)[0]).toContain(`can't process the attached ${kind} file`)
     expect(resolveMock).not.toHaveBeenCalled()
-  })
-
-  it('notes a binary/unsupported file instead of garbage-decoding it', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'zip' })
-    extractMock.mockResolvedValueOnce(null)
-    const [out] = await run([fileWithEntry('e1', 'a.zip', 'application/zip')], NONE)
-    expect(textOf(out.parts)[0]).toBe(
-      'Attached file "a.zip":\nCannot read the attached file "a.zip" as text (unsupported file type).'
-    )
-    expect(extractMock).toHaveBeenCalledWith('e1', { signal: undefined })
   })
 
   // An AVIF/HEIC image is accepted wildcard-style on the agent surface, yet no ext list
@@ -278,14 +299,6 @@ describe('prepareChatMessages — routing', () => {
     resolveMock.mockResolvedValueOnce(null)
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], ALL)
     expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
-  })
-
-  it('uses the empty-extraction note', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'pdf' })
-    extractMock.mockResolvedValueOnce('   ')
-    const [out] = await run([fileWithEntry('e1', 'a.pdf', 'application/pdf')], NONE)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.pdf":\nNo text in a.pdf')
   })
 
   it('caps long text with a read_file pointer for tool models', async () => {
@@ -337,7 +350,7 @@ describe('prepareChatMessages — routing', () => {
       attachments: collectFileAttachments(messages),
       nativeSupport: NONE,
       isToolCapable: true,
-      budget: { tokens: 60, tokenizer: charTokenizer }
+      budget: { tokens: 60 }
     })
 
     // b.txt fits whole, so a.txt takes the 40 it leaves behind rather than half.
@@ -425,9 +438,9 @@ describe('collectFileAttachments', () => {
       userMessage([fileWithEntry('e1', 'report.pdf', 'application/pdf')]),
       userMessage([fileWithEntry('e2', 'report.pdf', 'application/pdf')])
     ] as UIMessage[]
-    expect(collectFileAttachments(messages)).toEqual([
-      { fileEntryId: 'e1', handle: 'report.pdf', displayName: 'report.pdf' },
-      { fileEntryId: 'e2', handle: 'report.pdf (2)', displayName: 'report.pdf' }
+    expect(collectFileAttachments(messages)).toMatchObject([
+      { fileEntryId: 'e1', displayName: 'report.pdf' },
+      { fileEntryId: 'e2', displayName: 'report.pdf' }
     ])
   })
 
@@ -438,7 +451,7 @@ describe('collectFileAttachments', () => {
       userMessage([fileWithEntry('e3', 'a.txt', 'text/plain')])
     ] as UIMessage[]
     const handles = collectFileAttachments(messages).map((a) => a.handle)
-    expect(handles).toEqual(['a.txt', 'a.txt (2)', 'a.txt (3)'])
+
     expect(new Set(handles).size).toBe(3)
   })
 

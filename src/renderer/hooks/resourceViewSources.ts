@@ -1,6 +1,7 @@
 import { createContext, use, useCallback } from 'react'
 
 import { dataApiService } from '@data/DataApiService'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -15,14 +16,17 @@ import { mapApiTopicToRendererTopic, useTopics } from './useTopic'
  * The raw hooks are mounted once by ResourceViewSourceProvider. Route pages read
  * the provider's progressive cold-start data, then its last complete snapshot
  * during background refreshes. This keeps first-page content responsive without
- * letting multiple kept-alive tabs start competing load-all chains.
+ * letting multiple kept-alive tabs start competing load-all chains. Event handlers
+ * that need the list when they fire use `readSessionListItems`, which reads the
+ * SWR cache directly and can be ahead of that snapshot during a refresh.
  */
 
 /** Full agent-session page size — kept in one place so the rail and right panel never drift. */
 const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
 
 export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
-  const listSource = useTopics({ loadAll: true, enabled })
+  const [sort] = usePreference('chat.topics.sort')
+  const listSource = useTopics({ loadAll: true, enabled, sort })
   const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
     const result =
       assistantId === undefined
@@ -40,7 +44,9 @@ export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } =
 }
 
 export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
+  const [sort] = usePreference('agent.session.sort')
   const listSource = useSessions(undefined, {
+    sort,
     loadAll: true,
     pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE,
     enabled
@@ -125,6 +131,7 @@ export type AgentSessionsSource = Pick<
   | 'deleteSession'
   | 'deleteSessionWithOutcome'
   | 'deleteSessions'
+  | 'readSessionListItems'
   | 'restoreSession'
   | 'reorderSession'
   | 'togglePin'

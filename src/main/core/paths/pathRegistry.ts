@@ -10,6 +10,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -84,12 +85,16 @@ export function buildPathRegistry() {
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
     'app.utility_process': path.join(app.getAppPath(), 'out', 'utility-process'), // utility-process entry bundles
     'app.exe_file': app.getPath('exe'),
+    'app.portable_executable': process.env.PORTABLE_EXECUTABLE_FILE || '',
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
     'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),
     'app.session': appSession,
     'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
     'app.session.webview': path.join(appSession, 'Partitions', 'webview'), // persist:webview Chromium partition
+    'app.pi_acp.file': app.isPackaged
+      ? path.join(appExtraResources, 'pi-acp', 'index.mjs')
+      : path.join(app.getAppPath(), 'out', 'pi-acp', 'index.mjs'),
     'app.extra_resources': appExtraResources, // electron-builder extraResources output root
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
@@ -119,13 +124,21 @@ export function buildPathRegistry() {
     // Plaintext fallback (0600) used only when no OS key store is available
     'feature.remote_access.plain_identity_file': path.join(appUserDataRuntime, 'remote-identity.key'),
 
-    'feature.computer_use.runtime': app.isPackaged
-      ? path.join(
-          appExtraResources,
-          'computer-use',
-          isMac ? 'Cherry Computer Use.app' : isWin ? 'open-computer-use.exe' : 'open-computer-use'
-        )
-      : path.join(app.getAppPath(), '.context', isWin ? 'computer-use-runtime.exe' : 'computer-use-runtime'),
+    get 'feature.computer_use.runtime'() {
+      const name =
+        process.platform === 'darwin'
+          ? 'Cherry Computer Use.app'
+          : process.platform === 'win32'
+            ? 'open-computer-use.exe'
+            : 'open-computer-use'
+      if (app.isPackaged) return path.join(appExtraResources, 'computer-use', name)
+      // Resolve on demand so an absent optional native package cannot prevent application startup.
+      const sdkEntry = createRequire(path.join(app.getAppPath(), 'package.json')).resolve('@cherrystudio/computer-use')
+      const nativeManifest = createRequire(sdkEntry).resolve(
+        `@cherrystudio/computer-use-${process.platform}-${process.arch}/package.json`
+      )
+      return path.join(path.dirname(nativeManifest), 'runtime', name)
+    },
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
@@ -138,6 +151,7 @@ export function buildPathRegistry() {
 
     // Isolated preload for site `<webview>` guests. Local mini apps keep their capability bridge.
     'feature.webview.preload_file': path.join(app.getAppPath(), 'out/preload/webview.js'),
+    'feature.mcp.app_preload_file': path.join(app.getAppPath(), 'out/preload/mcpAppGuest.js'),
 
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
@@ -161,8 +175,12 @@ export function buildPathRegistry() {
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
     'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
 
-    'feature.pdfjs.cmaps': path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'cmaps'),
-    'feature.pdfjs.standard_fonts': path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'standard_fonts'),
+    'feature.pdfjs.cmaps': app.isPackaged
+      ? path.join(appExtraResources, 'pdfjs', 'cmaps')
+      : path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'cmaps'),
+    'feature.pdfjs.standard_fonts': app.isPackaged
+      ? path.join(appExtraResources, 'pdfjs', 'standard_fonts')
+      : path.join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'standard_fonts'),
 
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
@@ -170,6 +188,13 @@ export function buildPathRegistry() {
     // naming a Python runtime there is what makes mise fetch its own from
     // GitHub releases (see binaryManager/pythonRuntime.ts).
     'feature.binary.data.uv_python': path.join(appUserDataToolchainMise, 'uv-python'),
+    // Outside feature.binary.data: install XDG_CACHE_HOME inherits macOS userData's space, as do uv's sdist build dirs.
+    'feature.binary.data.uv_cache': path.join(
+      CHERRY_HOME,
+      'cache',
+      'uv',
+      createHash('sha256').update(path.resolve(appUserData)).digest('hex')
+    ),
     // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
     // home so mise's aqua signature verification resolves its cache/config dirs
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
@@ -222,6 +247,7 @@ export function buildPathRegistry() {
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
 
     // Agents
+    'feature.agents.command_parser_assets': path.join(app.getAppPath(), 'out', 'main', 'assets', 'command-parsers'),
     'feature.code_cli.skills.builtin': path.join(appRootResources, 'code-cli-skills'), // conditional Code Mate skill templates (read-only)
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
@@ -232,11 +258,13 @@ export function buildPathRegistry() {
     // (not a joined path) so the orphan sweep can never be pointed at the user's ~/.claude.
     'feature.agents.claude.projects': path.join(appUserDataData, 'Agents', '.claude', 'projects'),
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
+    'feature.agents.launch_overlays': path.join(appUserDataData, 'Agents', 'LaunchOverlays'), // per-launch CLI homes; reconciled and removed by LocalAgentOverlayService
     // NOTE(app-managed-dirs): pi dirs are new in this PR and freely relocatable —
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
     'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
-    'feature.agents.pi.vcc_file': path.join(app.getAppPath(), 'out', 'main', 'pi-vcc.mjs'),
+    'feature.agents.outputs': path.join(appUserDataData, 'Agents', '.outputs'),
+    'feature.agents.durable.stores': path.join(appUserDataData, 'Agents', '.durable'),
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
@@ -275,6 +303,7 @@ export function buildPathRegistry() {
     'feature.ocr.paddleocr': path.join(appUserDataRuntime, 'models', 'pp-ocrv6'),
 
     // Version log
+    'feature.legacy_upgrade.cache': path.join(CHERRY_HOME, 'cache', 'legacy-upgrade'),
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
     // Backup restore promotion — the journal sidecar is owned by
@@ -315,7 +344,7 @@ export function buildPathRegistry() {
         : path.join(appExtraResources, 'system-speech', voiceHelperFilename)
       : path.join(
           app.getAppPath(),
-          'packages',
+          'native',
           'system-speech',
           'dist',
           'native',
@@ -330,10 +359,63 @@ export function buildPathRegistry() {
     'v1.trace': path.join(CHERRY_HOME, 'trace'),
     'v1.cli.install': path.join(CHERRY_HOME, 'install'),
     'v1.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'v1.home_config_file': path.join(CHERRY_HOME, 'config', 'config.json'),
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    'external.uv.user_config_file': path.join(
+      isWin ? app.getPath('appData') : path.join(sysHome, '.config'),
+      'uv',
+      'uv.toml'
+    ),
+    'external.uv.system_config_file': path.join(
+      isWin ? process.env.PROGRAMDATA || 'C:\\ProgramData' : '/etc',
+      'uv',
+      'uv.toml'
+    ),
+    'feature.acp.agents': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'Programs', 'ACP', 'agents')
+      : path.join(sysHome, '.local', 'share', 'acp', 'agents'),
+    'external.acp.bin': path.join(sysHome, '.local', 'bin'),
+    'external.codebuddy.web_ui_ports.file': path.join(sysHome, '.codebuddy', 'web-ui-port.json'),
+    'external.cursor.sdk_auth.file': path.join(sysHome, '.cursor', 'sdk', 'auth.json'),
+    'external.kiro.state.file': path.join(
+      isMac ? path.join(sysHome, 'Library', 'Application Support') : path.join(sysHome, '.local', 'share'),
+      'kiro-cli',
+      'data.sqlite3'
+    ),
+    'external.antigravity.cli.file': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'agy', 'bin', 'agy.exe')
+      : path.join(sysHome, '.local', 'bin', 'agy'),
+    'external.xdg.config': path.join(sysHome, '.config'),
+    'external.windows.roaming': path.join(sysHome, 'AppData', 'Roaming'),
+    'external.omp.config': path.join(sysHome, '.omp'),
+    'external.omp.agent': path.join(sysHome, '.omp', 'agent'),
+    'external.zcode_acp.config': path.join(sysHome, '.config', 'zcode-acp'),
+    'external.glm_acp.config': path.join(sysHome, '.config', 'glm-acp-agent'),
+    'external.cline.data': path.join(sysHome, '.cline', 'data'),
+    'external.kilo.config': path.join(sysHome, '.config', 'kilo'),
+    'external.goose.config': isWin
+      ? path.join(sysHome, 'AppData', 'Roaming', 'Block', 'goose', 'config')
+      : path.join(sysHome, '.config', 'goose'),
+    'external.devin.config': isWin
+      ? path.join(sysHome, 'AppData', 'Roaming', 'devin')
+      : path.join(sysHome, '.config', 'devin'),
+    'external.trae.installation': path.join(
+      process.env.XDG_DATA_HOME || path.join(sysHome, '.local', 'share'),
+      'traecli'
+    ),
+    'external.trae.config': isWin
+      ? path.join(sysHome, 'AppData', 'Roaming', 'trae_cli')
+      : isMac
+        ? path.join(sysHome, 'Library', 'Application Support', 'trae_cli')
+        : path.join(sysHome, '.config', 'trae_cli'),
+    'external.agents.skills': path.join(sysHome, '.agents', 'skills'),
+    'external.opencode.data': path.join(process.env.XDG_DATA_HOME || path.join(sysHome, '.local', 'share'), 'opencode'),
+    'external.workbuddy.home': process.env.WORKBUDDY_CONFIG_DIR || path.join(sysHome, '.workbuddy'),
+    'external.codex.home': process.env.CODEX_HOME || path.join(sysHome, '.codex'),
     'external.claude.config': path.join(sysHome, '.claude'),
+    'external.claude.projects': path.join(process.env.CLAUDE_CONFIG_DIR || path.join(sysHome, '.claude'), 'projects'),
     'external.browser.chrome': isMac
       ? path.join(sysHome, 'Library/Application Support/Google/Chrome')
       : isWin
@@ -379,6 +461,7 @@ export function buildPathRegistry() {
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
     'external.pi.settings_file': path.join(sysHome, '.pi', 'agent', 'settings.json'),
+    'external.grok.version_file': path.join(sysHome, '.grok', 'version.json'),
     'external.hermes.default_home': isWin
       ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
       : path.join(sysHome, '.hermes'),
@@ -415,6 +498,10 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.acp.agents',
+  'feature.agents.command_parser_assets',
+  'feature.agents.pi.sessions',
+  'feature.agents.durable.stores',
   // Namespace prefixes
   'sys.',
   'external.',
@@ -439,12 +526,13 @@ const NO_ENSURE = [
   'feature.pdfjs.cmaps',
   'feature.pdfjs.standard_fonts',
   'feature.webview.preload_file',
+  'feature.mcp.app_preload_file',
   'feature.code_cli.skills.builtin',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
-  'feature.agents.pi.vcc_file',
   'feature.mini_app.builtin',
+  'feature.binary.data.uv_cache',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces',

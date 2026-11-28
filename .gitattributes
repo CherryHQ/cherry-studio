@@ -1,4 +1,7 @@
 * text=auto eol=lf
+# Shared website content retains the source bytes, including Markdown whitespace.
+docs/website/content/** -text -whitespace
+docs/website/*.json -text -whitespace
 /.yarn/**            linguist-vendored
 /.yarn/releases/*    binary
 /packages/provider-registry/compat/*-validator.mjs -diff linguist-generated=true

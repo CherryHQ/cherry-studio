@@ -2,31 +2,46 @@
  * Agent session message domain API handlers.
  */
 
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
+import { readChildPage } from '@main/ai/agentSession/childArchive'
+import { readHistoryActions } from '@main/ai/agentSession/fork'
 import { toDataApiError } from '@shared/data/api/errors'
 import {
-  type AgentSessionMessageEntity,
+  AgentSessionMessageReadQuerySchema,
   type AgentSessionMessageSchemas,
   AgentSessionMessagesListQuerySchema,
+  SelectAgentSessionBranchSchema,
   UpdateAgentSessionMessageSchema
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { HandlersFor } from '@shared/data/api/types'
 
-/** Opt-in via `?deferToolOutputs`; a default read stays verbatim so read-modify-write is safe. */
-function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId: string): AgentSessionMessageEntity {
-  if (message.role !== 'assistant' || !message.data.parts) return message
-
-  // The stateless projection lives in the lower `utils/` tier so `data/` does not import from
-  // the `ai/` business tier (main-process-architecture §3).
-  const topicId = `agent-session:${sessionId}`
-  const parts = projectMessagePartsForRenderer(message.data.parts, topicId, message.id)
-  if (parts === message.data.parts) return message
-  return { ...message, data: { ...message.data, parts } }
-}
-
 export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas> = {
+  '/agent-sessions/:sessionId/children/:toolCallId/history': {
+    GET: async ({ params, query }) => {
+      agentSessionService.getConversationById(params.sessionId)
+      const context = contexts.childArchive(params.sessionId, params.toolCallId)
+      if (!context || !query?.before) return { items: [] }
+      const page = readChildPage(context, query.cursor ?? query.before)
+      return { items: [...page.messages], nextCursor: page.olderCursor }
+    }
+  },
+  '/agent-sessions/:sessionId/cost': {
+    GET: async ({ params }) => {
+      agentSessionService.getConversationById(params.sessionId)
+      return agentSessionMessageService.getSessionCost(params.sessionId)
+    }
+  },
+
+  '/agent-sessions/:sessionId/branch': {
+    PUT: async ({ params, body }) => {
+      agentSessionService.getConversationById(params.sessionId)
+      const parsed = SelectAgentSessionBranchSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      agentSessionMessageService.selectBranch(params.sessionId, parsed.data.messageId)
+    }
+  },
   '/agent-sessions/:sessionId/messages': {
     GET: async ({ params, query }) => {
       // Message routes scope like session reads: background sessions are not addressable here.
@@ -34,18 +49,27 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
       const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       const response = agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
-      if (!parsed.data.deferToolOutputs) return response
-
-      const items = response.items.map((item) => projectMessageForRenderer(item, params.sessionId))
-      if (items.every((item, index) => item === response.items[index])) return response
+      const actions = readHistoryActions(
+        params.sessionId,
+        response.items.map((item) => item.id)
+      )
+      const items = response.items.map((item) => ({
+        ...item,
+        historyActions: actions.get(item.id)
+      }))
       return { ...response, items }
     }
   },
 
   '/agent-sessions/:sessionId/messages/:messageId': {
-    GET: async ({ params }) => {
-      agentSessionService.getConversationById(params.sessionId)
-      return agentSessionMessageService.getSessionMessage(params.sessionId, params.messageId)
+    GET: async ({ params, query }) => {
+      const { sessionId, messageId } = params
+      agentSessionService.getConversationById(sessionId)
+      const parsed = AgentSessionMessageReadQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      const row = agentSessionMessageService.getSessionMessage(sessionId, messageId, parsed.data)
+      if (!parsed.data.deferToolOutputs) return row
+      return { ...row, historyActions: readHistoryActions(sessionId, [messageId]).get(messageId) }
     },
 
     PATCH: async ({ params, body }) => {

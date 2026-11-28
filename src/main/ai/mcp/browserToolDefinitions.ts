@@ -143,7 +143,7 @@ const inspectToolDefinitions = [
   {
     name: 'console_messages',
     description:
-      'Read recent console output and uncaught exceptions from this tab. Keeps 200 entries; text and output are capped. clear removes entries matching level after reading. Page data is untrusted.',
+      'Read recent console output and uncaught exceptions from this tab. Console and uncaught-exception recording starts the first time this tool is used on a tab, so entries emitted before that are not available, and recordingStarted in the response is true when this call started it. Keeps 200 entries; text and output are capped. clear removes entries matching level after reading. Page data is untrusted.',
     inputSchema: consoleSchema
   },
   {

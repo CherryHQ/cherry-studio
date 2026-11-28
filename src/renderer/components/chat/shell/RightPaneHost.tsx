@@ -306,53 +306,6 @@ function useRightPaneResize({
   }
 }
 
-function RightPaneContents({
-  children,
-  paneWidth,
-  minWidth,
-  maxWidth,
-  resizeHandleVisible,
-  startResizing,
-  setPaneWidth
-}: {
-  children?: ReactNode
-  paneWidth: number
-  minWidth: number
-  maxWidth: number
-  resizeHandleVisible: boolean
-  startResizing: (event: ReactMouseEvent) => void
-  setPaneWidth: (nextWidth: number) => void
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <>
-      {/* Mouse events over an iframe (e.g. the HTML preview tab) never reach this
-          document's mousemove/mouseup listeners. Disable pointer events on pane
-          content while dragging so the document-level resize listeners keep working. */}
-      <div className="h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none">
-        <ErrorBoundary>{children}</ErrorBoundary>
-      </div>
-      {resizeHandleVisible && (
-        <div
-          data-right-pane-resize-handle
-          onMouseDown={startResizing}
-          {...getVerticalSplitterProps({
-            width: paneWidth,
-            min: minWidth,
-            max: maxWidth,
-            label: t('common.resize_panel'),
-            onResize: setPaneWidth,
-            invert: true
-          })}
-          className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize focus-visible:bg-primary/40 focus-visible:outline-none">
-          <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane:bg-primary/35 group-data-[resizing=true]/right-pane:opacity-100" />
-        </div>
-      )}
-    </>
-  )
-}
-
 export function RightPaneHost({ children, open, width = CHAT_SHELL_PANE_WIDTH, className, style }: RightPaneHostProps) {
   const hasVisiblePane = Boolean(open && children !== null && children !== undefined)
 
@@ -393,6 +346,7 @@ export function PersistentRightPaneHost({
   onResizingChange,
   onDragClose
 }: PersistentRightPaneHostProps) {
+  const { t } = useTranslation()
   const reduceMotion = useReducedMotion()
   const animationControls = useAnimationControls()
   const resolvedDefaultWidth = defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
@@ -440,6 +394,12 @@ export function PersistentRightPaneHost({
     width: targetMode === 'maximized' ? RIGHT_PANE_WIDTH_FULL : dockedWidthExpression
   }))
   const onLayoutAnimationCompleteRef = useRef(onLayoutAnimationComplete)
+  // Switching to a pane of another width preset travels to its width instead of snapping.
+  const [settledCacheKey, setSettledCacheKey] = useState(cacheKey)
+  const presetTravelActive = settledCacheKey !== cacheKey && phase === 'docked' && !reduceMotion
+  if (settledCacheKey !== cacheKey && !presetTravelActive) setSettledCacheKey(cacheKey)
+  const settledDockedWidthRef = useRef<number | null>(null)
+  const presetTravelStartedRef = useRef(false)
 
   const setVisualState = useCallback((nextState: PersistentRightPaneVisualState) => {
     visualStateRef.current = nextState
@@ -479,9 +439,6 @@ export function PersistentRightPaneHost({
     }
 
     return invalidateActiveTransition
-    // `reconcileAfterEffectsReconnect` is an Effect Event that reads the latest
-    // target and visual state without turning normal renders into reconnects.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invalidateActiveTransition])
 
   useLayoutEffect(() => {
@@ -551,8 +508,21 @@ export function PersistentRightPaneHost({
     const plan = planPersistentRightPaneReconnect(phase, targetMode, dockedWidthExpression)
     if (plan.completedMode) return
 
+    const from = settledDockedWidthRef.current
+    if (presetTravelActive && from !== null) {
+      // Motion cannot interpolate the docked width expression, so the box travels between the
+      // resolved pixel widths and takes the new preset's expression once it arrives.
+      if (!presetTravelStartedRef.current) animationControls.set({ width: from })
+      presetTravelStartedRef.current = true
+      void animationControls
+        .start({ width: effectiveWidth, transition: CHAT_SHELL_TRANSITION })
+        .then(() => setSettledCacheKey(cacheKey))
+      return
+    }
+    presetTravelStartedRef.current = false
+    settledDockedWidthRef.current = effectiveWidth
     animationControls.set(plan.motionState)
-  }, [animationControls, dockedWidthExpression, phase, targetMode])
+  }, [animationControls, cacheKey, dockedWidthExpression, effectiveWidth, phase, presetTravelActive, targetMode])
 
   const isDocked = phase === 'docked' && targetMode === 'docked'
   const fullWidthLayout = isFullWidthRightPanePhase(phase)
@@ -564,7 +534,7 @@ export function PersistentRightPaneHost({
   const spacerWidth = mainRegionWidth === null || typeof resolvedWidth !== 'number' ? resolvedWidth : effectiveWidth
   // Settled phases track the region through re-measurement, which must land instantly; only a
   // phase change travels, and then on the same transition as the box it reserves space for.
-  const spacerTravels = !isResizing && !reduceMotion && getSettledRightPaneMode(phase) === null
+  const spacerTravels = !isResizing && !reduceMotion && (getSettledRightPaneMode(phase) === null || presetTravelActive)
   const spacerTransition = spacerTravels ? getRightPanePhaseTransition(phase) : { duration: 0 }
 
   const onFullWidthPhaseChangeRef = useRef(onFullWidthPhaseChange)
@@ -583,13 +553,31 @@ export function PersistentRightPaneHost({
   return (
     <>
       <motion.div
-        aria-hidden="true"
         data-right-pane-spacer
         animate={{ width: reservesDockedSpace ? spacerWidth : 0 }}
         transition={spacerTransition}
-        className="h-full min-h-0 shrink-0"
-        style={{ maxWidth: dockedWidthExpression }}
-      />
+        className="relative h-full min-h-0 shrink-0"
+        // The new preset's cap would cut a shrinking spacer short of its travel.
+        style={{ maxWidth: presetTravelActive ? undefined : dockedWidthExpression }}>
+        {/* Keep the splitter on the conversation side so portaled browser guests leave it reachable. */}
+        {resizable && isDocked && (
+          <div
+            data-right-pane-resize-handle
+            data-resizing={isResizing || undefined}
+            onMouseDown={startResizing}
+            {...getVerticalSplitterProps({
+              width: effectiveWidth,
+              min: splitterMinWidth,
+              max: splitterMaxWidth,
+              label: t('common.resize_panel'),
+              onResize: setPaneWidth,
+              invert: true
+            })}
+            className="group/right-pane-resize-handle absolute inset-y-0 right-full z-30 w-2 cursor-col-resize focus-visible:bg-border-strong focus-visible:outline-none">
+            <div className="absolute top-0 right-0 h-full w-0.5 bg-border opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane-resize-handle:bg-border-strong group-data-[resizing=true]/right-pane-resize-handle:opacity-100" />
+          </div>
+        )}
+      </motion.div>
       <motion.div
         ref={paneRef}
         initial={initialAnimationState}
@@ -619,15 +607,10 @@ export function PersistentRightPaneHost({
             !interactionHidden && 'pointer-events-auto',
             resizable && !fullWidthLayout && '[border-left:0.5px_solid_var(--border)]'
           )}>
-          <RightPaneContents
-            paneWidth={effectiveWidth}
-            minWidth={splitterMinWidth}
-            maxWidth={splitterMaxWidth}
-            resizeHandleVisible={resizable && isDocked}
-            startResizing={startResizing}
-            setPaneWidth={setPaneWidth}>
-            {children}
-          </RightPaneContents>
+          {/* Let document-level drag listeners keep receiving events over iframes. */}
+          <div className="h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
         </div>
       </motion.div>
     </>

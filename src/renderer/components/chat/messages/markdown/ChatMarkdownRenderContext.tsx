@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, use, useMemo } from 'react'
 
+import type { FileLocation } from '@renderer/types/fileLocation'
 import type { Citation } from '@renderer/types/message'
 
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
@@ -10,7 +11,7 @@ interface ChatMarkdownRenderContextValue {
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   isStreaming: boolean
   /** When set, schemeless markdown links that resolve to workspace files route here. */
-  openFilePath?: (path: string) => void | Promise<void>
+  openFilePath?: (path: string, location?: FileLocation) => void | Promise<void>
 }
 
 interface ChatMarkdownRenderProviderProps extends ChatMarkdownRenderContextValue {

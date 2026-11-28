@@ -7,34 +7,18 @@ export interface IconDisplayConfig {
 
 export type IconDisplayContext = 'mini-app' | 'provider-list'
 
-export const miniAppContainedIcon: Readonly<IconDisplayConfig> = { scale: 5 / 7, borderRadius: 10 }
-const providerListContainedIcon: IconDisplayConfig = { scale: 5 / 7, borderRadius: 5 }
-const defaultIcon: IconDisplayConfig = { scale: 1.2 }
+export const SETTINGS_LIST_ICON_FRAME_CLASS = 'shrink-0 rounded-md border border-border-subtle'
+export const SETTINGS_LIST_TILE_RADIUS = 5
 
-const MINI_APP_ICON_DISPLAY_CONFIG: Readonly<Record<string, IconDisplayConfig>> = {
-  abacus: miniAppContainedIcon,
-  zeroone: miniAppContainedIcon,
-  minimax: miniAppContainedIcon,
-  'radeon-cloud': miniAppContainedIcon,
-  groq: miniAppContainedIcon,
-  anthropic: miniAppContainedIcon,
-  claude: miniAppContainedIcon,
-  felo: miniAppContainedIcon,
-  mintop3: miniAppContainedIcon,
-  '3mintop': miniAppContainedIcon,
-  coze: miniAppContainedIcon,
-  ling: miniAppContainedIcon
-}
+const defaultIcon: IconDisplayConfig = { scale: 1.2 }
 
 export function getIconDisplayConfig(
   context: IconDisplayContext,
   iconId: string | undefined
 ): IconDisplayConfig | undefined {
   if (!iconId) return undefined
-  if (context === 'provider-list') {
-    return getProviderIconAssetMetrics({ kind: 'provider', iconId }).kind === 'tile'
-      ? providerListContainedIcon
-      : defaultIcon
-  }
-  return MINI_APP_ICON_DISPLAY_CONFIG[iconId.toLowerCase()] ?? defaultIcon
+  const isTile =
+    getProviderIconAssetMetrics({ kind: 'provider', iconId }).kind === 'tile' ||
+    getProviderIconAssetMetrics({ kind: 'model', iconId }).kind === 'tile'
+  return isTile ? { scale: 1, borderRadius: context === 'mini-app' ? 10 : SETTINGS_LIST_TILE_RADIUS } : defaultIcon
 }

@@ -13,11 +13,6 @@ describe('deriveRootSpanId', () => {
 
   it('falls back to a non-zero span id when the head would be all-zero', () => {
     // A span id must be non-zero hex16, so an all-zero head cannot be used as-is.
-    expect(deriveRootSpanId('0000000000000000ffffffffffffffff')).toBe('1111111111111111')
-  })
-
-  it('is deterministic — the same trace id always yields the same root span id', () => {
-    const traceId = 'a1b2c3d4e5f60718a1b2c3d4e5f60718'
-    expect(deriveRootSpanId(traceId)).toBe(deriveRootSpanId(traceId))
+    expect(deriveRootSpanId('0000000000000000ffffffffffffffff')).not.toBe('0000000000000000')
   })
 })

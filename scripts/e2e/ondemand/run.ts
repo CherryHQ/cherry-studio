@@ -4,17 +4,19 @@ import { pathToFileURL } from 'node:url'
 
 import { chromium, expect, type Browser, type Page } from '@playwright/test'
 
-import { getSensitiveConfigValues } from '../regression/config'
+import { getSensitiveConfigValues, mockTestConfig } from '../regression/config'
 import { prepareWindowsCdpConnection } from '../regression/debugBridge'
+import { EMBEDDING_DATA_SOURCE, startEmbeddingMock } from '../regression/embeddingMock'
 import { prepareRelease } from '../regression/installation'
 import { launchApp, readAppRecord, stopOwnedApp } from '../regression/lifecycle'
+import { assertMockRequests, startMockProvider, stopMockProvider } from '../regression/mockProvider'
 import { ensureRunDirectories, getRunPaths } from '../regression/paths'
 import { createRedactor } from '../regression/redaction'
 import { resolveRepositoryRef } from '../regression/ref'
 import { captureMaskedScreenshot } from '../regression/screenshotEvidence'
 import { collectEnvironment, ensureChinese, verifyTimezone } from './environment'
 import { readRequest, type Request } from './plan'
-import { prepareAuthenticatedProfile, readProfileConfig, type ProfileConfig } from './profile'
+import { prepareAuthenticatedProfile, type ProfileConfig } from './profile'
 import { addFailure, completeResult, createResult, QaError, readResult, type Result, saveResult } from './report'
 import { createScenarioContext, executePlan, type ScenarioContext } from './steps'
 
@@ -29,6 +31,7 @@ let result: Result = createResult()
 let secrets = getSensitiveConfigValues()
 let interrupted = false
 let browser: Browser | undefined
+let embeddingMock: Awaited<ReturnType<typeof startEmbeddingMock>> | undefined
 
 const persist = () => saveResult(out, result, secrets)
 function failure(error: unknown): void {
@@ -58,6 +61,18 @@ async function cleanup(): Promise<void> {
   await stopOwnedApp(paths).catch((error) =>
     addFailure(result, new QaError('cleanup', 2, 'CLEANUP_FAILED', String(error)))
   )
+  await embeddingMock
+    ?.close()
+    .catch((error) => addFailure(result, new QaError('cleanup', 2, 'EMBEDDING_MOCK_CLEANUP_FAILED', String(error))))
+  embeddingMock = undefined
+  if (existsSync(join(paths.root, 'mock.json'))) {
+    await assertMockRequests(paths).catch((error) =>
+      addFailure(result, new QaError('report', 2, 'MOCK_REQUEST_FAILED', String(error)))
+    )
+    await stopMockProvider(paths).catch((error) =>
+      addFailure(result, new QaError('cleanup', 2, 'MODEL_MOCK_CLEANUP_FAILED', String(error)))
+    )
+  }
 }
 function copyLogs(): void {
   if (!existsSync(paths.logs)) return
@@ -71,7 +86,7 @@ function copyLogs(): void {
   }
 }
 
-async function run(request: Request, profileConfig?: ProfileConfig): Promise<void> {
+async function run(request: Request): Promise<void> {
   result.timings.preparationSeconds = (Date.now() - Date.parse(result.metadata.startedAt)) / 1000
   const readyStarted = Date.now()
   let attachedPage: Page | undefined
@@ -94,6 +109,14 @@ async function run(request: Request, profileConfig?: ProfileConfig): Promise<voi
   process.once('SIGINT', signal)
   phase('ready')
   try {
+    let profileConfig: ProfileConfig | undefined
+    if (request.profile === 'authenticated') {
+      const record = await startMockProvider(paths, request.platform)
+      const { customProvider } = mockTestConfig(record.port)
+      profileConfig = { ...customProvider, model: customProvider.chatModel }
+      result.metadata.modelDataSource = 'Local strict aiMock fixtures; no real model quality evidence'
+      embeddingMock = await startEmbeddingMock()
+    }
     const record = await launchApp(paths, {
       mode: request.mode,
       platform: request.platform,
@@ -129,7 +152,10 @@ async function run(request: Request, profileConfig?: ProfileConfig): Promise<voi
     result.timings.readinessSeconds = (Date.now() - readyStarted) / 1000
     phase('environment')
     try {
-      if (profileConfig) await prepareAuthenticatedProfile(page, profileConfig)
+      if (profileConfig && embeddingMock) {
+        result.metadata.embeddingDataSource = EMBEDDING_DATA_SOURCE
+        await prepareAuthenticatedProfile(page, profileConfig, embeddingMock)
+      }
       await ensureChinese(page, true)
     } finally {
       await collectEnvironment(page, readAppRecord(paths), result)
@@ -140,7 +166,9 @@ async function run(request: Request, profileConfig?: ProfileConfig): Promise<voi
       result.environment.timezone.renderer
     )
     mkdirSync(join(out, 'screenshots'), { recursive: true })
-    const context = createScenarioContext(page, result, out, secrets, persist, () => ensureChinese(page, true))
+    const context = createScenarioContext(page, result, out, secrets, persist, () =>
+      ensureChinese(page, true, { requireVisibleMarker: false })
+    )
     phase('steps')
     const started = Date.now()
     try {
@@ -160,7 +188,7 @@ async function run(request: Request, profileConfig?: ProfileConfig): Promise<voi
     } finally {
       result.timings.stepsSeconds = (Date.now() - started) / 1000
       if (!page.isClosed() && browser.isConnected()) {
-        await ensureChinese(page).catch(failure)
+        await ensureChinese(page, false, { requireVisibleMarker: false }).catch(failure)
         await collectEnvironment(page, record, result).catch(failure)
         try {
           verifyTimezone(
@@ -224,7 +252,6 @@ async function main(): Promise<void> {
   ]
   switch (command) {
     case 'resolve': {
-      if (request.profile === 'authenticated') readProfileConfig()
       const target = resolveRepositoryRef(request.ref, process.env.GITHUB_REPOSITORY ?? 'CherryHQ/cherry-studio')
       if (target.kind !== request.mode)
         throw new QaError(
@@ -263,8 +290,7 @@ async function main(): Promise<void> {
       return
     case 'run': {
       phase('prepare')
-      const profileConfig = request.profile === 'authenticated' ? readProfileConfig() : undefined
-      await run(request, profileConfig)
+      await run(request)
       break
     }
     case 'finalize':

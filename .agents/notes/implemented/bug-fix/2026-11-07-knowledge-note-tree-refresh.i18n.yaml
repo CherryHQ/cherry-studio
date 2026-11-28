@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-knowledge-note-tree-refresh.md
+2026-11-07-knowledge-note-tree-refresh.md: 433a0be01c7b3e92cd30997ed5a39c7a59f67e6f
+2026-11-07-knowledge-note-tree-refresh.zh.md: 34ad149dc6b0daa729106b489f398fc5dd4b7597

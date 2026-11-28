@@ -28,7 +28,9 @@ export function isSerializable(value: unknown): value is Serializable {
       seen.add(val)
 
       if (Array.isArray(val)) {
-        return val.every((item) => _isSerializable(item))
+        const result = val.every((item) => _isSerializable(item))
+        seen.delete(val)
+        return result
       }
 
       // Check if it's a plain object
@@ -51,7 +53,9 @@ export function isSerializable(value: unknown): value is Serializable {
       }
 
       // Recursively check all property values
-      return Object.values(val).every((v) => _isSerializable(v))
+      const result = Object.values(val).every((v) => _isSerializable(v))
+      seen.delete(val)
+      return result
     }
 
     // function, symbol are not serializable

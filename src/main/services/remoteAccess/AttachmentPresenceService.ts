@@ -10,18 +10,21 @@ type Selection = {
   input: AgentAttachmentSelection
   owner: FileIntakeOwner
   auth: UploadOwner
+  generation: number
   expiresAt: number
   commandId?: string
 }
 
 @Injectable('AttachmentPresenceService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['FileIntakeService', 'IpcApiService'])
+@DependsOn(['FileIntakeService'])
 export class AttachmentPresenceService extends BaseService {
   private readonly rows = new Map<string, Selection>()
   private readonly generations = new Map<string, number>()
   private readonly changed = new Set<string>()
   private generation = 0
+  private flushTimer?: ReturnType<typeof setTimeout>
+  private expiryTimer?: ReturnType<typeof setTimeout>
   connection(): number {
     return ++this.generation
   }
@@ -31,19 +34,39 @@ export class AttachmentPresenceService extends BaseService {
   protected onInit(): void {
     this.registerDisposable(
       application.get('FileIntakeService').onChanged(({ ownerId }) => {
-        for (const row of this.rows.values()) if (row.owner.ownerId === ownerId) this.changed.add(row.input.sessionId)
+        for (const row of this.rows.values()) if (row.owner.ownerId === ownerId) this.markChanged(row.input.sessionId)
       })
     )
-    this.registerInterval(() => {
-      for (const [key, row] of this.rows)
-        if (row.expiresAt <= Date.now()) {
-          this.rows.delete(key)
-          this.changed.add(row.input.sessionId)
-        }
-      for (const sessionId of this.changed)
-        application.get('IpcApiService').broadcast('ai.agent.attachment_selections.changed', { sessionId })
+    this.registerDisposable(() => {
+      clearTimeout(this.flushTimer)
+      clearTimeout(this.expiryTimer)
+      this.flushTimer = this.expiryTimer = undefined
+    })
+  }
+  private markChanged(sessionId: string): void {
+    this.changed.add(sessionId)
+    this.flushTimer ??= setTimeout(() => {
+      this.flushTimer = undefined
+      for (const id of this.changed)
+        application.get('IpcApiService').broadcast('ai.agent.attachment_selections.changed', { sessionId: id })
       this.changed.clear()
-    }, 100)
+    }, 100).unref()
+  }
+  private scheduleExpiry(): void {
+    if (this.expiryTimer || this.rows.size === 0) return
+    const next = Math.min(...[...this.rows.values()].map((row) => row.expiresAt))
+    this.expiryTimer = setTimeout(
+      () => {
+        this.expiryTimer = undefined
+        for (const [key, row] of this.rows)
+          if (row.expiresAt <= Date.now()) {
+            this.rows.delete(key)
+            this.markChanged(row.input.sessionId)
+          }
+        this.scheduleExpiry()
+      },
+      Math.max(0, next - Date.now())
+    ).unref()
   }
   present(owner: FileIntakeOwner, auth: UploadOwner, generation: number, input: AgentAttachmentSelection) {
     const active = this.generations.get(owner.ownerId) ?? 0
@@ -59,10 +82,12 @@ export class AttachmentPresenceService extends BaseService {
       input,
       owner,
       auth,
+      generation,
       expiresAt: Date.now() + 24 * 60 * 60 * 1000,
       commandId: previous?.commandId
     })
-    this.changed.add(input.sessionId)
+    this.markChanged(input.sessionId)
+    this.scheduleExpiry()
     return { accepted: true }
   }
   submitting(owner: FileIntakeOwner, selectionId: string | undefined, commandId: string): void {
@@ -70,18 +95,28 @@ export class AttachmentPresenceService extends BaseService {
     const row = this.rows.get(this.key(owner, selectionId))
     if (row) {
       row.commandId = commandId
-      this.changed.add(row.input.sessionId)
+      this.markChanged(row.input.sessionId)
     }
   }
   owners(): string[] {
     return [...new Set([...this.rows.values()].map((row) => row.owner.ownerId))]
   }
-  cancelOwner(owner: FileIntakeOwner): void {
+  private deleteMatching(predicate: (row: Selection) => boolean): void {
     for (const [key, row] of this.rows)
-      if (row.owner.ownerId === owner.ownerId) {
+      if (predicate(row)) {
         this.rows.delete(key)
-        this.changed.add(row.input.sessionId)
+        this.markChanged(row.input.sessionId)
       }
+    if (this.rows.size === 0 && this.expiryTimer) {
+      clearTimeout(this.expiryTimer)
+      this.expiryTimer = undefined
+    }
+  }
+  cancelOwner(owner: FileIntakeOwner): void {
+    this.deleteMatching((row) => row.owner.ownerId === owner.ownerId)
+  }
+  disconnect(generation: number): void {
+    this.deleteMatching((row) => row.generation === generation)
   }
   async list(sessionId: string): Promise<AgentAttachmentSelection[]> {
     return Promise.all(

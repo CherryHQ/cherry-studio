@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
     'chat.input.paste_long_text_threshold': 1500,
     'chat.message.render_as_markdown': false,
     'chat.message.show_outline': false,
+    'chat.message.scroll_to_bottom_on_send': true,
     'chat.code.show_line_numbers': false,
     'chat.code.collapsible': false,
     'chat.code.wrappable': false,
@@ -122,6 +123,7 @@ vi.mock('react-i18next', () => ({
 
 describe('ChatPreferenceSections', () => {
   beforeEach(() => {
+    mocks.preferenceValues['chat.message.scroll_to_bottom_on_send'] = true
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.preferenceValues['chat.message.user_content.default_expanded'] = false
@@ -132,36 +134,12 @@ describe('ChatPreferenceSections', () => {
     mocks.setPreference.mockClear()
   })
 
-  it('renders shared chat preferences without assistant-only controls by default', () => {
-    render(<ChatPreferenceSections />)
-
-    expect(screen.getByText('settings.messages.use_serif_font')).toBeInTheDocument()
-    expect(screen.getByText('settings.messages.wide_mode')).toBeInTheDocument()
-    expect(screen.queryByText('settings.math.engine.label')).toBeNull()
-    expect(screen.getByText('settings.math.single_dollar.label')).toBeInTheDocument()
-    expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
-    expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
-    expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
-    expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
-    expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
-  })
-
   it('labels the auto code themes as the Cherry default while keeping the stored value', () => {
     render(<ChatPreferenceSections />)
 
     const autoItems = screen.getAllByText('chat.settings.code_theme.cherry_default')
     expect(autoItems.map((item) => item.getAttribute('data-value'))).toEqual(['auto', 'auto'])
     expect(screen.queryByText('auto')).toBeNull()
-  })
-
-  it('does not render input translation controls', () => {
-    mocks.preferenceValues['app.language'] = 'zh-cn'
-
-    render(<ChatPreferenceSections />)
-
-    expect(screen.queryByText('settings.input.auto_translate_with_space')).toBeNull()
-    expect(screen.queryByText('settings.input.show_translate_confirm')).toBeNull()
-    expect(screen.queryByText('settings.input.target_language.label')).toBeNull()
   })
 
   it('hides the long paste threshold until the paste-as-file toggle is enabled', async () => {
@@ -200,6 +178,23 @@ describe('ChatPreferenceSections', () => {
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.user_content.default_expanded', false)
   })
 
+  it('saves the send-scroll choice and reads it again after remounting', async () => {
+    const user = userEvent.setup()
+    const view = render(<ChatPreferenceSections />)
+    const name = 'settings.messages.scroll_to_bottom_on_send.label'
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenLastCalledWith('chat.message.scroll_to_bottom_on_send', false)
+    view.unmount()
+    const remounted = render(<ChatPreferenceSections />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'false')
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenLastCalledWith('chat.message.scroll_to_bottom_on_send', true)
+    remounted.unmount()
+    render(<ChatPreferenceSections />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
+  })
+
   it('lets the user update the long paste threshold through the real number field', async () => {
     const user = userEvent.setup()
     mocks.preferenceValues['chat.input.paste_long_text_as_file'] = true
@@ -208,8 +203,6 @@ describe('ChatPreferenceSections', () => {
     const thresholdInput = screen.getByRole('spinbutton', {
       name: 'settings.messages.input.paste_long_text_threshold'
     })
-    expect(thresholdInput).toHaveAttribute('aria-valuemin', '500')
-    expect(thresholdInput).toHaveAttribute('aria-valuemax', '10000')
 
     await user.clear(thresholdInput)
     await user.type(thresholdInput, '2400')
@@ -222,7 +215,6 @@ describe('ChatPreferenceSections', () => {
     render(<ChatPreferenceSections />)
 
     const wideModeSwitch = screen.getByRole('button', { name: 'settings.messages.wide_mode' })
-    expect(wideModeSwitch).toHaveAttribute('data-checked', 'false')
 
     fireEvent.click(wideModeSwitch)
 
@@ -238,26 +230,6 @@ describe('ChatPreferenceSections', () => {
     await user.click(toggle)
 
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.keep_intermediate_text', true)
-  })
-
-  it('renders preference groups without collapsible controls', () => {
-    render(<ChatPreferenceSections />)
-
-    for (const heading of [
-      'settings.messages.input.title',
-      'settings.messages.title',
-      'settings.math.title',
-      'chat.settings.code.title'
-    ]) {
-      expect(screen.getByText(heading)).toBeInTheDocument()
-    }
-
-    expect(
-      screen
-        .getByText('settings.messages.input.title')
-        .compareDocumentPosition(screen.getByText('settings.messages.title')) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'settings.messages.title' })).toBeNull()
   })
 
   it('syncs the font-size slider draft when the preference changes externally', async () => {

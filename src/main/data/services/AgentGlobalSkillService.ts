@@ -94,9 +94,10 @@ export class AgentGlobalSkillService {
     if (!query.agentId) return skills
 
     const enabledMap = this.loadEnabledMap(query.agentId)
+    const isLocalAgent = agentService.getAgent(query.agentId)?.type === 'local'
     return skills.map((s) => ({
       ...s,
-      isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin'
+      isEnabled: enabledMap.get(s.id) ?? (isLocalAgent || s.source === 'builtin')
     }))
   }
 
@@ -141,6 +142,22 @@ export class AgentGlobalSkillService {
         dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
         entityIds: [id]
       },
+      { endpoint: '/skills/:skillId', entityIds: [id] }
+    ])
+    return this.rowToInstalledSkill(updated)
+  }
+
+  updateMirrorEnabled(id: string, mirrorEnabled: boolean): InstalledSkill | null {
+    const [updated] = this.db
+      .update(agentGlobalSkillTable)
+      .set({ mirrorEnabled })
+      .where(eq(agentGlobalSkillTable.id, id))
+      .returning()
+      .all()
+    if (!updated) return null
+
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'projection', entityIds: [id] },
       { endpoint: '/skills/:skillId', entityIds: [id] }
     ])
     return this.rowToInstalledSkill(updated)
@@ -323,6 +340,7 @@ export class AgentGlobalSkillService {
       sourceTags: row.tags,
       contentHash: row.contentHash,
       isGlobalEnabled: row.isEnabled,
+      mirrorEnabled: row.mirrorEnabled,
       isEnabled: false,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)

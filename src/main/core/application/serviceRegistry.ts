@@ -4,8 +4,11 @@ import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
+import { ArtifactBackfillService } from '@main/ai/agents/ArtifactBackfillService'
+import { AgentDelegationService } from '@main/ai/agentSession/AgentDelegationService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { AgentImportService } from '@main/ai/agentSession/import/AgentImportService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
 import { TtsInferenceService } from '@main/ai/localModel'
@@ -13,6 +16,8 @@ import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
+import { LocalAgentMcpBridgeService } from '@main/ai/mcp/LocalAgentMcpBridgeService'
+import { McpAppViewService } from '@main/ai/mcp/McpAppViewService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
@@ -23,6 +28,8 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { LocalAgentOverlayService } from '@main/ai/runtime/cli/LocalAgentOverlayService'
+import { SkillSubscriptionService } from '@main/ai/skills/SkillSubscriptionService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
@@ -45,16 +52,30 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
+import { CherryCloudNotificationService } from '@main/services/cherryCloud/CherryCloudNotificationService'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
+import { CherryInModelSyncService } from '@main/services/CherryInModelSyncService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
-import { CodeCliService } from '@main/services/codeCli'
+import { CodeBuddyWebUiService } from '@main/services/CodeBuddyWebUiService'
+import { CodeCliService, LocalAgentInstallService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ComputerUseService } from '@main/services/ComputerUseService'
+import { ConversationImportService } from '@main/services/conversationImport/ConversationImportService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
+import { ConversationNotificationService } from '@main/services/ConversationNotificationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
-import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
+import { ErrorReportingService } from '@main/services/errorReporting'
+import {
+  DirectoryTreeManager,
+  FileManager,
+  FileIntakeService,
+  FileEditService,
+  FileObservationService
+} from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
+import { LocalAgentAuthService } from '@main/services/LocalAgentAuthService'
+import { LocalAgentWebUiService } from '@main/services/LocalAgentWebUiService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -62,6 +83,7 @@ import { MediaProtocolService } from '@main/services/mediaProtocol'
 import { NetworkService } from '@main/services/network'
 import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
+import { OfficialAnnouncementService } from '@main/services/OfficialAnnouncementService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PdfTranslationService } from '@main/services/PdfTranslationService'
@@ -74,14 +96,15 @@ import { AttachmentPresenceService, RemoteAccessService } from '@main/services/r
 import { RuntimeQuitConfirmationService } from '@main/services/RuntimeQuitConfirmationService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
+import { SelectionAgentWindowService } from '@main/services/selection/SelectionAgentWindowService'
 import { SelectionService } from '@main/services/selection/SelectionService'
-import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrashService } from '@main/services/trash'
 import { TrayService } from '@main/services/TrayService'
+import { UsageBudgetNotificationService } from '@main/services/UsageBudgetNotificationService'
 import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/webview'
 
@@ -109,6 +132,7 @@ import { WebviewService } from '@main/services/webview'
  * Value = service class constructor
  */
 export const services = {
+  ConversationImportService,
   ComputerUseService,
   AutomationReplService,
   RemoteAccessService,
@@ -116,33 +140,44 @@ export const services = {
   WindowManager,
   UtilityProcessManager,
   DbService,
+  ArtifactBackfillService,
   CacheService,
   DataApiService,
   IpcApiService,
   SubWindowService,
   PreferenceService,
-  SentryLogService,
+  ErrorReportingService,
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
   AppService,
+  SkillSubscriptionService,
   CodeCliService,
   CommandService,
   ConversationNavigationService,
   CitationPreviewService,
   CherryCloudService,
+  CherryCloudNotificationService,
   DeepSeekHarnessService,
   HermesDashboardService,
+  CodeBuddyWebUiService,
+  LocalAgentWebUiService,
+  LocalAgentInstallService,
+  LocalAgentOverlayService,
+  LocalAgentAuthService,
+  LocalAgentMcpBridgeService,
   FileManager,
   FileEditService,
   AttachmentPresenceService,
   FileIntakeService,
   DirectoryTreeManager,
+  FileObservationService,
   FileProcessingService,
   PowerService,
   RuntimeActivityService,
   RuntimeQuitConfirmationService,
   SelectionService,
+  SelectionAgentWindowService,
   ShortcutService,
   ThemeService,
   TraceStorageService,
@@ -167,16 +202,22 @@ export const services = {
   OAuthRuntimeService,
   MainWindowService,
   NotificationService,
+  ConversationNotificationService,
+  UsageBudgetNotificationService,
+  OfficialAnnouncementService,
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,
   McpCatalogService,
+  McpAppViewService,
   BinaryManager,
   OpenClawService,
   PdfTranslationService,
   ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
+  AgentDelegationService,
+  AgentImportService,
   AgentSessionDeliveryService,
   AgentJobsService,
   AgentLifecycleService,
@@ -198,6 +239,7 @@ export const services = {
   AppUpdaterService,
   AutoBackupService,
   ProviderRegistryUpdaterService,
+  CherryInModelSyncService,
   SchedulerService,
   JobManager,
   TrashService

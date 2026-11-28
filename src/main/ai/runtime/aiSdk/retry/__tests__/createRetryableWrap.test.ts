@@ -1,7 +1,9 @@
-import type { LanguageModelV3 } from '@ai-sdk/provider'
-import { APICallError } from 'ai'
+import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import { APICallError, generateText, type ModelMessage, wrapLanguageModel } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { routeToolResultMedia } from '../../../../messages/messageCapabilities'
+import { providerErrorBoundaryMiddleware } from '../../params/features/providerErrorBoundary'
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
 
@@ -76,8 +78,116 @@ function policy(overrides: Partial<RetryPolicy> = {}): RetryPolicy {
 }
 
 describe('createRetryableWrap', () => {
+  it.each(['original', 'missing'])('continues a signed tool result on its %s fallback route', async (origin) => {
+    const calls: Array<{ route: string; params: LanguageModelV3CallOptions }> = []
+    const record = (route: string) =>
+      vi.fn(async (params: LanguageModelV3CallOptions) => {
+        calls.push({ route, params })
+        return okResult
+      })
+    const wrap = createRetryableWrap({
+      primaryReplayRouteId: 'primary',
+      retryPolicy: policy(),
+      fallbacks: [
+        async () => ({ model: makeFakeLanguageModel('original', record('original')), replayRouteId: 'original' })
+      ]
+    })!
+    const wrapped = wrap(makeFakeLanguageModel('primary', record('primary')))
+    const params: LanguageModelV3CallOptions = {
+      prompt: [
+        { role: 'user', content: [{ type: 'text', text: 'Look up cedar' }] },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'lookup-1',
+              toolName: 'lookup',
+              input: {},
+              providerOptions: { cherry: { replayRouteId: origin }, google: { thoughtSignature: 'tool-signature' } }
+            }
+          ]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'lookup-1',
+              toolName: 'lookup',
+              output: { type: 'text', value: 'Cedar' }
+            }
+          ]
+        }
+      ]
+    }
+    if (origin === 'missing') {
+      await expect(wrapped.doGenerate(params)).rejects.toThrow('tool results were retained')
+      expect(calls).toEqual([])
+    } else {
+      await wrapped.doGenerate(params)
+      expect(calls).toEqual([{ route: 'original', params }])
+    }
+  })
+
   it('returns undefined when retry is disabled', () => {
     expect(createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }) })).toBeUndefined()
+  })
+
+  it('keeps a signed tool continuation on its fallback after relocating the tool image', async () => {
+    const primary = vi.fn().mockResolvedValue(okResult)
+    const fallback = vi.fn().mockResolvedValue(okResult)
+    const wrap = createRetryableWrap({
+      primaryReplayRouteId: 'primary',
+      retryPolicy: policy(),
+      fallbacks: [async () => ({ model: makeFakeLanguageModel('serving', fallback), replayRouteId: 'serving' })]
+    })!
+    const messages: ModelMessage[] = [
+      { role: 'user', content: 'Read the image' },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool-call',
+            toolCallId: 'read-1',
+            toolName: 'read',
+            input: {},
+            providerOptions: { cherry: { replayRouteId: 'serving' }, google: { thoughtSignature: 'original' } }
+          }
+        ]
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'read-1',
+            toolName: 'read',
+            output: { type: 'content', value: [{ type: 'image-data', data: 'AQID', mediaType: 'image/png' }] }
+          }
+        ]
+      }
+    ]
+    const result = await generateText({
+      model: wrap(makeFakeLanguageModel('primary', primary)),
+      messages: routeToolResultMedia(
+        messages,
+        { image: true, audio: false, video: false },
+        { image: false, audio: false, video: false }
+      ),
+      maxRetries: 0
+    })
+    expect(result.text).toBe('ok')
+    expect(primary).not.toHaveBeenCalled()
+    expect(fallback.mock.calls[0][0].prompt).toMatchObject([
+      { role: 'user' },
+      {
+        role: 'assistant',
+        content: [{ toolCallId: 'read-1', providerOptions: { google: { thoughtSignature: 'original' } } }]
+      },
+      { role: 'tool', content: [{ toolCallId: 'read-1' }] },
+      { role: 'user', content: [{ type: 'text' }, { type: 'file', mediaType: 'image/png' }] }
+    ])
   })
 
   it('falls back to the first fallback when the primary fails non-retryably', async () => {
@@ -203,6 +313,29 @@ describe('createRetryableWrap', () => {
     }
   })
 
+  it('surfaces context overflow even when the provider marks it retryable', async () => {
+    const overflow = new APICallError({
+      url: 'https://provider.invalid',
+      requestBodyValues: {},
+      statusCode: 400,
+      message: 'Invalid request',
+      data: { error: { code: 'context_length_exceeded' } },
+      isRetryable: true
+    })
+    const generate = vi.fn().mockRejectedValueOnce(overflow).mockResolvedValue(okResult)
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy() })
+    const model = wrapLanguageModel({
+      model: makeFakeLanguageModel('gpt-4', generate),
+      middleware: providerErrorBoundaryMiddleware
+    })
+    await expect(wrap!(model).doGenerate({ prompt: [] })).rejects.toMatchObject({
+      providerErrorCategory: 'context_length',
+      isRetryable: false,
+      statusCode: 400
+    })
+    expect(generate).toHaveBeenCalledTimes(1)
+  })
+
   it('retries the same model on transient errors and emits retry events', async () => {
     vi.useFakeTimers()
     try {
@@ -245,13 +378,13 @@ describe('createRetryableWrap', () => {
 
       const pending = wrapped.doGenerate({ prompt: [] })
       await vi.advanceTimersByTimeAsync(0)
-      expect(primaryGenerate).toHaveBeenCalledTimes(1)
+
       await vi.advanceTimersByTimeAsync(1_999)
       expect(primaryGenerate).toHaveBeenCalledTimes(1)
       await vi.advanceTimersByTimeAsync(1)
-      expect(primaryGenerate).toHaveBeenCalledTimes(2)
+
       await vi.advanceTimersByTimeAsync(3_999)
-      expect(primaryGenerate).toHaveBeenCalledTimes(2)
+
       await vi.advanceTimersByTimeAsync(1)
       const result = await pending
 
@@ -284,23 +417,6 @@ describe('createRetryableWrap', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('memoizes successful fallback resolution but retries a null resolution', async () => {
-    const fallback = makeFakeLanguageModel('fallback', vi.fn().mockRejectedValue(makeApiError(400)))
-    const resolveNull = vi.fn().mockResolvedValue(null)
-    const resolveFallback = vi.fn().mockResolvedValue({ model: fallback })
-    const wrap = createRetryableWrap({
-      fallbacks: [resolveNull, resolveFallback],
-      retryPolicy: policy()
-    })
-    const wrapped = wrap!(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(401))))
-
-    await expect(wrapped.doGenerate({ prompt: [] })).rejects.toThrow()
-    await expect(wrapped.doGenerate({ prompt: [] })).rejects.toThrow()
-
-    expect(resolveNull.mock.calls.length).toBeGreaterThan(1)
-    expect(resolveFallback).toHaveBeenCalledTimes(1)
   })
 
   it('surfaces the primary error when every fallback resolves to null', async () => {

@@ -4,8 +4,13 @@
 
 import * as z from 'zod'
 
+import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
+import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_FORK_FAILURE_REASONS } from '@shared/ai/agentSessionFork'
+import { MessageProvenanceSchema } from '@shared/data/types/conversationImport'
 import {
+  type CherryUIMessage,
   ContentMessageRoleSchema,
   MessageDataSchema,
   MessageSnapshotSchema,
@@ -19,6 +24,7 @@ import type { CursorPaginationResponse } from '../types'
  *  newest-first; an absent `cursor` returns the most recent page unless
  *  `messageId` anchors the first page at a known message, then each
  *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
+ *  expands a seam through a referenced Run, so a returned page may exceed that window. The renderer
  *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
  *  pages in on demand, so per-page size never has to cover a whole session.
  *  If `messageId` cannot be resolved inside the session, the endpoint falls
@@ -33,6 +39,8 @@ export const AgentSessionMessagesListQuerySchema = z.strictObject({
   deferToolOutputs: z.boolean().optional()
 })
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
+export const AgentSessionMessageReadQuerySchema = AgentSessionMessagesListQuerySchema.pick({ deferToolOutputs: true })
+export type AgentSessionMessageReadQuery = z.infer<typeof AgentSessionMessageReadQuerySchema>
 
 // ============================================================================
 // Entity & DTOs (Rule C: derive DTOs via .pick())
@@ -49,11 +57,25 @@ const AgentSessionMessageBaseSchema = z.strictObject({
   delivery: AgentSessionDeliverySchema.nullable().optional()
 })
 
+const AgentSessionHistoryActionsSchema = z.strictObject({
+  /** Main permits the action with null; otherwise the value explains why it is unavailable. */
+  fork: z.enum(AGENT_SESSION_FORK_FAILURE_REASONS).nullable(),
+  edit: z.enum(agentSessionEditFailureReasons).nullable()
+})
+export type AgentSessionHistoryActions = z.infer<typeof AgentSessionHistoryActionsSchema>
+
 export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.extend({
   /** Message ID (UUIDv7) */
   id: z.string(),
   /** Session ID this message belongs to */
   sessionId: z.string(),
+  partIds: z.array(z.string()).optional(),
+  partPositions: z.array(z.number().int().nullable()).optional(),
+  pos: z.number().int().nullable().optional(),
+  replyId: z.string().nullable().optional(),
+  siblings: z.array(z.string()).optional(),
+  historyActions: AgentSessionHistoryActionsSchema.optional(),
+  provenance: MessageProvenanceSchema.nullable().optional(),
   searchableText: z.string(),
   runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),
@@ -88,7 +110,30 @@ export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMess
 // API Schema definitions
 // ============================================================================
 
+export const SelectAgentSessionBranchSchema = z.strictObject({ messageId: z.string().min(1) })
+
 export type AgentSessionMessageSchemas = {
+  '/agent-sessions/:sessionId/children/:toolCallId/history': {
+    GET: {
+      params: { sessionId: string; toolCallId: string }
+      query: { before: string; cursor?: string; limit?: number }
+      response: CursorPaginationResponse<CherryUIMessage>
+    }
+  }
+  '/agent-sessions/:sessionId/cost': {
+    GET: {
+      params: { sessionId: string }
+      response: AgentSessionCostSnapshot | null
+    }
+  }
+
+  '/agent-sessions/:sessionId/branch': {
+    PUT: {
+      params: { sessionId: string }
+      body: z.infer<typeof SelectAgentSessionBranchSchema>
+      response: void
+    }
+  }
   '/agent-sessions/:sessionId/messages': {
     GET: {
       params: { sessionId: string }
@@ -100,6 +145,7 @@ export type AgentSessionMessageSchemas = {
   '/agent-sessions/:sessionId/messages/:messageId': {
     GET: {
       params: { sessionId: string; messageId: string }
+      query?: AgentSessionMessageReadQuery
       response: AgentSessionMessageEntity
     }
     PATCH: {

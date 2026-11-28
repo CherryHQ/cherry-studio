@@ -30,6 +30,7 @@ function triggerResizeObserver() {
 
 describe('HorizontalScrollContainer', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     resizeObserverInstances.length = 0
     globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
@@ -52,24 +53,30 @@ describe('HorizontalScrollContainer', () => {
   afterEach(() => {
     globalThis.ResizeObserver = originalResizeObserver
     vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
-  it('uses ResizeObserver without registering a window resize listener', () => {
-    const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
-    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
-
-    const { unmount } = render(
+  it('measures overflow once when resize and scroll events arrive in the same frame', () => {
+    render(
       <HorizontalScrollContainer>
         <span>Tokens: 42</span>
       </HorizontalScrollContainer>
     )
 
-    expect(addEventListenerSpy).not.toHaveBeenCalledWith('resize', expect.any(Function))
+    const viewport = screen.getByText('Tokens: 42').closest('[data-horizontal-scroll-viewport]') as HTMLElement
+    setElementSize(viewport, { clientWidth: 100, scrollWidth: 300 })
+    const readScrollWidth = vi.fn(() => 300)
+    Object.defineProperty(viewport, 'scrollWidth', { configurable: true, get: readScrollWidth })
+    triggerResizeObserver()
+    triggerResizeObserver()
+    fireEvent.scroll(viewport)
+    expect(readScrollWidth).not.toHaveBeenCalled()
 
-    unmount()
-
-    expect(resizeObserverInstances[0]?.disconnect).toHaveBeenCalledOnce()
-    expect(removeEventListenerSpy).not.toHaveBeenCalledWith('resize', expect.any(Function))
+    act(() => {
+      vi.advanceTimersToNextFrame()
+    })
+    expect(readScrollWidth).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('.scroll-right-button')).toBeInTheDocument()
   })
 
   it('falls back to window resize events and removes the listener on unmount', () => {
@@ -83,9 +90,12 @@ describe('HorizontalScrollContainer', () => {
       </HorizontalScrollContainer>
     )
 
-    const content = screen.getByText('Tokens: 42').closest('[data-scrolling]') as HTMLElement
+    const content = screen.getByText('Tokens: 42').closest('[data-horizontal-scroll-viewport]') as HTMLElement
     setElementSize(content, { clientWidth: 100, scrollWidth: 300 })
     fireEvent.resize(window)
+    act(() => {
+      vi.advanceTimersToNextFrame()
+    })
 
     expect(document.querySelector('.scroll-right-button')).toBeInTheDocument()
 
@@ -99,25 +109,6 @@ describe('HorizontalScrollContainer', () => {
     expect(removeEventListenerSpy).toHaveBeenCalledWith('resize', resizeListener)
   })
 
-  it('renders the scroll button above the scroll content layer', () => {
-    render(
-      <HorizontalScrollContainer>
-        <button type="button">copy</button>
-        <span className="message-tokens">Tokens: 42</span>
-      </HorizontalScrollContainer>
-    )
-
-    const content = screen.getByText('Tokens: 42').closest('[data-scrolling]') as HTMLElement
-    setElementSize(content, { clientWidth: 100, scrollWidth: 300 })
-
-    triggerResizeObserver()
-
-    const scrollButton = document.querySelector('.scroll-right-button')
-
-    expect(content).toHaveClass('relative', 'z-0')
-    expect(scrollButton).toHaveClass('z-10')
-  })
-
   it('keeps the scroll button interaction intact', () => {
     render(
       <HorizontalScrollContainer scrollDistance={180}>
@@ -126,14 +117,23 @@ describe('HorizontalScrollContainer', () => {
       </HorizontalScrollContainer>
     )
 
-    const content = screen.getByText('Tokens: 42').closest('[data-scrolling]') as HTMLElement
+    const content = screen.getByText('Tokens: 42').closest('[data-horizontal-scroll-viewport]') as HTMLElement
     const scrollBy = vi.fn()
     Object.defineProperty(content, 'scrollBy', { configurable: true, value: scrollBy })
     setElementSize(content, { clientWidth: 100, scrollWidth: 300 })
 
     triggerResizeObserver()
+    act(() => {
+      vi.advanceTimersToNextFrame()
+    })
     fireEvent.click(document.querySelector('.scroll-right-button') as HTMLElement)
 
     expect(scrollBy).toHaveBeenCalledWith({ left: 180, behavior: 'smooth' })
+    content.scrollLeft = 200
+    fireEvent.scroll(content)
+    act(() => {
+      vi.advanceTimersToNextFrame()
+    })
+    expect(document.querySelector('.scroll-right-button')).not.toBeInTheDocument()
   })
 })

@@ -27,20 +27,6 @@ describe('ProviderService reorder', () => {
     return rows.map((row) => row.providerId)
   }
 
-  it('creates new providers at the top of the list', async () => {
-    await seedProviders()
-
-    const created = providerService.create({ providerId: 'grok', name: 'Grok' })
-
-    const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'grok')).limit(1)
-
-    expect(rows[0]?.orderKey).toBeTruthy()
-    // Created disabled; auto-enable later must not rely on update() to jump it to the top.
-    expect(created.isEnabled).toBe(false)
-    expect(rows[0]?.isEnabled).toBe(false)
-    expect(await readOrder()).toEqual(['grok', 'openai', 'anthropic', 'gemini'])
-  })
-
   it('batchUpsert appends only missing providers in input order', async () => {
     await seedProviders()
 

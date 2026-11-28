@@ -240,6 +240,14 @@ preset uses the same renderer for Streamdown.
 
 ### Icon Generation
 
+Provider and Model logos are full-canvas tiles. Source SVGs own each brand's artwork scale and negative space;
+callers size the complete tile without adding another inset or enlarging its canvas. Neutral light backgrounds
+use `var(--icon-neutral-background, #FFFFFF)` so a host can provide a presentation surface without recoloring the
+mark. Fixed brand backgrounds remain part of the artwork. Mini-app launchpad tiles set this component-local
+variable to `--muted` in light mode and reset it in dark mode, preserving the icon's existing dark treatment.
+Monochrome marks use theme-specific foregrounds and backgrounds; fixed brand-color artwork retains its original
+palette. Generic action glyphs remain separate.
+
 Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.
 
 In this command, `--type=icons` means general UI icons that are not Provider or Model logos.
@@ -313,7 +321,7 @@ semantics and emits the corresponding public `data-ui` `part:*` tokens without r
 Existing renderer code, application tests, and custom themes that use `data-slot` continue to work; new selectors can
 use the generated semantic layer. The application-level token grammar, stability tiers, maintained anchors, and
 selector rules are defined by the
-[UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
+[UI Semantic Contract](../../docs/dev/references/components/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
 are public selectors; inferred roles are best-effort discovery coordinates.
 
 ## Directory Structure
@@ -338,7 +346,7 @@ icons/                  # Raw icon assets for code generation
 
 ## Naming Conventions
 
-All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/references/architecture/naming-conventions.md`](../../docs/references/architecture/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
+All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/dev/references/architecture/naming-conventions.md`](../../docs/dev/references/architecture/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
 
 Examples:
 
@@ -361,6 +369,26 @@ A button component with multiple variants and sizes.
 - `asChild`: render through Radix `Slot`
 - all standard React button props
 
+#### Icon colors
+
+[`Button`](./src/components/primitives/button.tsx) makes Lucide descendants without `lucide-custom` inherit the
+button text color through `[&_.lucide:not(.lucide-custom)]:text-current`. This selector can override a foreground
+utility placed directly on the icon.
+
+For an intentionally different icon color, put **both** `lucide-custom` and the semantic foreground utility on the
+icon. For the built-in loading spinner, pass both through `loadingIconClassName`:
+
+```tsx
+<Button variant="outline" loading={loading} loadingIconClassName="lucide-custom text-muted-foreground">
+  <Play className="lucide-custom size-3.5 text-muted-foreground" />
+  {label}
+</Button>
+```
+
+Use the same classes for conditional replacement icons and custom `loadingIcon` elements. Leave the marker off
+when the icon should inherit the button variant's text color, such as a primary or destructive action. Avoid
+hard-coded colors, `!important`, or page-level SVG overrides to bypass this contract.
+
 ### Input
 
 The Shadcn-compatible native input primitive.
@@ -376,10 +404,6 @@ The Shadcn-compatible native input primitive.
 ### useDndReorder
 
 Keeps drag reordering correct when the rendered list is a filtered subset of the source list.
-
-### useDndState
-
-Reads the active and hovered identifiers from the current dnd-kit context.
 
 ## Utilities
 
@@ -402,3 +426,25 @@ Delay for imperative Dialog hosts before unmounting: 200 ms.
 ## License
 
 MIT
+
+## ScrollArea spacing contract
+
+`ScrollArea.className` owns the scroll region's dimensions and boundary. `viewportProps` owns
+scroll events, focus, and viewport behavior. Neither carries content padding; put that spacing
+in `contentProps.className`. The scrollbar stays anchored to the root, independently of the
+content inset. Internal scrollbar track spacing is part of the primitive and remains unchanged.
+
+```tsx
+<ScrollArea
+  className="max-h-60"
+  viewportProps={{ className: 'overflow-x-hidden', tabIndex: 0 }}
+  contentProps={{ className: 'pl-5 pr-3' }}>
+  {children}
+</ScrollArea>
+```
+
+An ancestor with padding still insets the whole scroll region. For edge-aligned nested lists,
+keep the group full width, pad its heading and content separately, and reserve a separate lane
+for the outer scrollbar when both tracks can be visible. Preserve native scroll chaining.
+The `cherry-scroll-area/no-container-padding` Oxlint rule checks explicit consumer padding;
+it cannot decide whether an ancestor's inset is intentional or verify rendered geometry.

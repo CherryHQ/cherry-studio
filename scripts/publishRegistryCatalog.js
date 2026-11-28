@@ -15,6 +15,76 @@ const { pathToFileURL } = require('node:url')
 
 const CATALOG_FILES = ['models.json', 'providers.json', 'provider-models.json']
 
+// Frozen v1-v3 share this closed vocabulary; newer application/SDK keys do not belong here.
+const V1_V3_IMAGE_PARAM_KEYS = new Set([
+  'addWatermark',
+  'aspectRatio',
+  'background',
+  'bottomScale',
+  'cfg',
+  'customSize',
+  'detail',
+  'enableInterleave',
+  'function',
+  'guidanceScale',
+  'imageResolution',
+  'imageWeight',
+  'isSketch',
+  'leftScale',
+  'magicPromptOption',
+  'maxImages',
+  'moderation',
+  'negativePrompt',
+  'numImages',
+  'numInferenceSteps',
+  'outputCompression',
+  'outputFormat',
+  'personGeneration',
+  'promptEnhancement',
+  'promptExtend',
+  'quality',
+  'refMode',
+  'refStrength',
+  'renderingSpeed',
+  'resemblance',
+  'resolution',
+  'rightScale',
+  'safetyTolerance',
+  'seed',
+  'sequentialImageGeneration',
+  'size',
+  'sourceLang',
+  'strength',
+  'style',
+  'styleType',
+  'targetLang',
+  'thinkingMode',
+  'topScale',
+  'upscaleFactor'
+])
+
+// Historical OpenAI image calls consume four native bindings and four mapped vendor fields.
+const V1_V3_OPENAI_IMAGE_PARAM_KEYS = new Set([
+  'numImages',
+  'size',
+  'seed',
+  'aspectRatio',
+  'quality',
+  'background',
+  'moderation',
+  'style'
+])
+const V1_V3_OPENAI_IMAGE_ADAPTERS = new Set(['openai', 'azure', 'huggingface'])
+const OPENAI_IMAGE_ENDPOINTS = new Set(['openai-image-generation', 'openai-image-edit'])
+
+function usesLegacyOpenAIImageWire(file, entry, catalog) {
+  const endpoint = (entry?.endpointTypes ?? catalog.models.get(entry?.modelId)?.endpointTypes)?.[0]
+  if (!OPENAI_IMAGE_ENDPOINTS.has(endpoint)) return false
+  if (file === 'models.json') return true
+  const adapter = catalog.providers.get(entry.providerId)?.endpointConfigs?.[endpoint]?.adapterFamily
+  return V1_V3_OPENAI_IMAGE_ADAPTERS.has(adapter)
+}
+
 /** Published schema versions, oldest first: every frozen baseline up to the current one. */
 function listSchemaVersions(compatDirectory, currentVersion) {
   return fs
@@ -49,9 +119,37 @@ function dropIssuePaths(document, issuePaths) {
   return dropped
 }
 
-/** Prune until the frozen validator accepts, or `null` when a break is not droppable. */
-function downconvert(validateCatalogFile, file, document) {
+function projectLegacyImageParams(schemaVersion, file, document, catalog) {
+  if (schemaVersion > 3 || file === 'providers.json') return 0
+  const entries = file === 'models.json' ? document?.models : document?.overrides
+  if (!Array.isArray(entries)) return 0
   let dropped = 0
+  for (const entry of entries) {
+    const openai = usesLegacyOpenAIImageWire(file, entry, catalog)
+    for (const mode of Object.values(entry?.imageGeneration?.modes ?? {})) {
+      const supports = mode?.supports
+      if (!supports || typeof supports !== 'object' || Array.isArray(supports)) continue
+      for (const key of Object.keys(supports)) {
+        if (V1_V3_IMAGE_PARAM_KEYS.has(key) && (!openai || V1_V3_OPENAI_IMAGE_PARAM_KEYS.has(key))) continue
+        delete supports[key]
+        dropped += 1
+      }
+      // Legacy image controls cannot execute animated output; retain their static choices.
+      const format = supports.outputFormat
+      if (format?.type === 'enum' && Array.isArray(format.options) && format.options.includes('gif')) {
+        format.options = format.options.filter((option) => option !== 'gif')
+        if (format.options.length === 0) delete supports.outputFormat
+        else if (format.default === 'gif') delete format.default
+        dropped += 1
+      }
+    }
+  }
+  return dropped
+}
+
+/** Prune until the frozen validator accepts, or `null` when a break is not droppable. */
+function downconvert(validateCatalogFile, file, document, schemaVersion, catalog) {
+  let dropped = projectLegacyImageParams(schemaVersion, file, document, catalog)
   for (;;) {
     try {
       validateCatalogFile(file, document)
@@ -84,7 +182,17 @@ async function publishRegistryCatalog({
   sourceAppVersion,
   revision
 }) {
+  const { stampAndSerialize } = await import('../packages/provider-registry/scripts/catalogSerialization.mjs')
   const published = []
+  const originals = Object.fromEntries(
+    CATALOG_FILES.map((file) => [file, fs.readFileSync(path.join(sourceDirectory, file))])
+  )
+  const models = JSON.parse(originals['models.json']).models
+  const providers = JSON.parse(originals['providers.json']).providers
+  const catalog = {
+    models: new Map((Array.isArray(models) ? models : []).map((model) => [model?.id, model])),
+    providers: new Map((Array.isArray(providers) ? providers : []).map((provider) => [provider?.id, provider]))
+  }
 
   for (const version of listSchemaVersions(compatDirectory, currentVersion)) {
     const { validateCatalogFile } = await import(
@@ -93,18 +201,23 @@ async function publishRegistryCatalog({
 
     const contents = {}
     for (const file of CATALOG_FILES) {
-      const original = fs.readFileSync(path.join(sourceDirectory, file))
+      const original = originals[file]
       if (version === currentVersion) {
         contents[file] = original
         continue
       }
-      const result = downconvert(validateCatalogFile, file, JSON.parse(original))
+      const result = downconvert(validateCatalogFile, file, JSON.parse(original), version, catalog)
       if (!result) {
         console.error(`v${version}: ${file} has a break that cannot be dropped, leaving the dir untouched`)
         break
       }
       // Re-serialize only what actually changed, so an untouched file stays byte-identical.
-      contents[file] = result.dropped === 0 ? original : Buffer.from(`${JSON.stringify(result.document, null, 2)}\n`)
+      if (result.dropped === 0) {
+        contents[file] = original
+      } else {
+        delete result.document.version
+        contents[file] = Buffer.from(stampAndSerialize(result.document))
+      }
     }
     if (Object.keys(contents).length !== CATALOG_FILES.length) continue
 

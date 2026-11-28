@@ -99,6 +99,7 @@ function MarkdownContent({
       {hasStreamed || isStreaming ? (
         <StreamingMarkdown
           {...commonProps}
+          preserveRelativeImageSrcs={Boolean(resolveImageSrc)}
           animated={isStreaming && content.length <= MAX_ANIMATED_CONTENT_LENGTH ? undefined : false}
           parseIncompleteMarkdown={isStreaming}
           parseMarkdownIntoBlocksFn={parseMarkdownBlocks}>

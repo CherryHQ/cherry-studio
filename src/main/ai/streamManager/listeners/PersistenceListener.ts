@@ -3,18 +3,19 @@
  * errors into `finalMessage.parts`, carries message-owned runtime stats, and
  * delegates the write to a `PersistenceBackend`.
  */
-
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { logFailure } from '@main/core/logger/logFailure'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { getProviderModelId } from '@shared/ai/executionIdentity'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type {
   CherryMessagePart,
   CherryUIMessage,
   MessageRuntimeStatsInput,
   MessageRuntimeTiming
 } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
 import {
@@ -34,8 +35,10 @@ export interface PersistenceListenerOptions {
   /** Listener id namespace — typically the topic id. */
   topicId: string
   /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
-  modelId?: UniqueModelId
+  modelId?: ExecutionId
   backend: PersistenceBackend
+  /** The content owner may normalize grouped sources before their checkpoint is saved. */
+  prepareMessage?: (message: CherryUIMessage, status: 'success' | 'paused' | 'error') => CherryUIMessage | undefined
   /**
    * Called when persistence fails after a terminal event. The DB row is already driven to
    * `error`; this lets the caller surface that error while the manager suppresses the original
@@ -88,7 +91,7 @@ export class PersistenceListener implements StreamListener {
     return true
   }
 
-  private owns(modelId: UniqueModelId | undefined): boolean {
+  private owns(modelId: ExecutionId | undefined): boolean {
     return !modelId || !this.opts.modelId || modelId === this.opts.modelId
   }
 
@@ -111,28 +114,21 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
-    // Strip live-only status parts (e.g. data-retry), then empty
-    // text/reasoning parts so neither can reach storage. Applied for all
-    // statuses. The `finalMessage`
-    // guard is for the typed-undefined error path (no finalMessage).
     const finalMessageForPersistence = finalMessage
-      ? {
+      ? (this.opts.prepareMessage?.(finalMessage, status) ?? {
           ...finalMessage,
           parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
-        }
+        })
       : finalMessage
-    const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
-    const runtimeStats: MessageRuntimeStatsInput = {
-      ...(runtimeTiming ? { runtimeTiming } : {}),
-      ...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) ? { contextTokens } : {})
-    }
+    result.finalMessage = finalMessageForPersistence
+    const runtimeStats: MessageRuntimeStatsInput | undefined = runtimeTiming ? { runtimeTiming } : undefined
 
     try {
       const saved = await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
-        modelId: this.opts.modelId,
-        ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
+        modelId: this.opts.modelId ? getProviderModelId(this.opts.modelId) : undefined,
+        ...(runtimeStats ? { runtimeStats } : {})
       })
       if (saved) result.persistence = { status: 'saved', message: saved }
       logger.info('Assistant message persisted', {
@@ -145,12 +141,17 @@ export class PersistenceListener implements StreamListener {
         status: 'failed',
         failure: toExecutionFailure(serializeError(err), this.opts.modelId, 'host')
       }
-      logger.error('Failed to persist assistant message', {
-        backend: this.opts.backend.kind,
-        topicId: this.opts.topicId,
-        status,
-        err
-      })
+      logFailure(
+        logger.withContext('PersistenceListener', {
+          backend: this.opts.backend.kind,
+          topicId: this.opts.topicId,
+          status
+        }),
+        'Failed to persist assistant message',
+        err,
+        'message.persist',
+        { source: 'application', kind: 'reliability', reason: 'persistence_failed', outcome: 'failed' }
+      )
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
       // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
       try {

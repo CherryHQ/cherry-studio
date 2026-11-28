@@ -73,6 +73,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const resolvedSendShortcut = resolveSendShortcut(storedSendShortcut)
   const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, resolvedSendShortcut)
   const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, resolvedSendShortcut, resolvedNewlineShortcut)
+  const [promptSuggestions, setPromptSuggestions] = usePreference('agent.input.suggestions.enabled')
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
@@ -94,6 +95,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
     'chat.message.render_as_markdown'
   )
+  const [scrollToBottomOnSend, setScrollToBottomOnSend] = usePreference('chat.message.scroll_to_bottom_on_send')
   const [showMessageOutline, setShowMessageOutline] = usePreference('chat.message.show_outline')
   const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
   const [codeCollapsible, setCodeCollapsible] = usePreference('chat.code.collapsible')
@@ -137,10 +139,9 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
     [t]
   )
 
-  const messageNavigationItems = useMemo<SelectOption<'none' | 'buttons' | 'anchor'>[]>(
+  const messageNavigationItems = useMemo<SelectOption<'none' | 'anchor'>[]>(
     () => [
       { value: 'none', label: t('settings.messages.navigation.none') },
-      { value: 'buttons', label: t('settings.messages.navigation.buttons') },
       { value: 'anchor', label: t('settings.messages.navigation.anchor') }
     ],
     [t]
@@ -247,6 +248,17 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                 ))}
               </SelectContent>
             </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-agent-prompt-suggestions" className="scroll-mt-6">
+            <SettingRowTitleSmall hint={t('agent.input.suggestions.hint')}>
+              {t('agent.input.suggestions.label')}
+            </SettingRowTitleSmall>
+            <Switch
+              aria-label={t('agent.input.suggestions.label')}
+              checked={promptSuggestions}
+              onCheckedChange={(checked) => void setPromptSuggestions(checked)}
+            />
           </SettingRow>
           <SettingDivider />
           <SettingRow id="setting-appearance-spell-check" className="scroll-mt-6">
@@ -366,6 +378,15 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               onCheckedChange={setUserMessageDefaultExpanded}
               label={t('settings.messages.user_content.default_expanded.label')}
               hint={t('settings.messages.user_content.default_expanded.hint')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-scroll-to-bottom-on-send" className="scroll-mt-6">
+            <SettingSwitch
+              checked={scrollToBottomOnSend}
+              onCheckedChange={setScrollToBottomOnSend}
+              label={t('settings.messages.scroll_to_bottom_on_send.label')}
+              hint={t('settings.messages.scroll_to_bottom_on_send.hint')}
             />
           </SettingRow>
           <SettingDivider />

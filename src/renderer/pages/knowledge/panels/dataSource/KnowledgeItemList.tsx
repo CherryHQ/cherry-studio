@@ -112,12 +112,14 @@ const KnowledgeItemList = ({
   // positioning div, so the rowgroup→row chain isn't strictly direct, but the row / columnheader /
   // gridcell roles still let assistive tech announce the columns and selection.
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-3">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div
         role="grid"
         aria-label={t('knowledge.data_source.table.aria_label')}
         className="flex min-h-0 flex-1 flex-col">
-        <div role="row" className={cn(KNOWLEDGE_ITEM_ROW_GRID, 'mb-2 h-11 shrink-0 border-b border-border px-2.5')}>
+        <div
+          role="row"
+          className={cn(KNOWLEDGE_ITEM_ROW_GRID, 'mx-3 mb-2 h-11 shrink-0 border-b border-border px-2.5')}>
           <div role="columnheader" className="flex items-center self-stretch">
             {/* Full-cell label so the whole select-all column is clickable, matching the rows. */}
             <label className="flex size-full cursor-pointer items-center">
@@ -178,7 +180,7 @@ const KnowledgeItemList = ({
               role="rowgroup"
               autoHideScrollbar
               itemContainerStyle={{ paddingBottom: 6 }}
-              className="pb-6">
+              contentProps={{ className: 'px-3 pb-6' }}>
               {renderItemRow}
             </DynamicVirtualList>
           )}
