@@ -335,7 +335,10 @@ export class AcpConnection extends LocalConnection {
     this.shutdownRuntime = client.shutdown
     const agent = await client.initialize()
     const { response } = agent
-    this.localSessionInfo.subscriptionUsage = advertisesAcpSubscriptionUsage(response) ? true : undefined
+    this.localSessionInfo.subscriptionUsage =
+      acpPreset(this.config.presetId)?.subscriptionUsage !== 'unsupported' && advertisesAcpSubscriptionUsage(response)
+        ? true
+        : undefined
     this.localSessionInfo.protocolInfo = acpProtocolInfo(response)
     logger.info('ACP handshake completed', {
       agentId: this.agentId,
