@@ -75,14 +75,16 @@ import {
 } from '@shared/ai/localAgent'
 import { AGENTS_MAX_LIMIT, type AgentEntity } from '@shared/data/api/schemas/agents'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
-import type { CodeCli } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
 
+import { useRuntimeProvenance } from '../hooks/useRuntimeProvenance'
 import { LocalAgentAdvancedSettings } from './LocalAgentAdvancedSettings'
 import { LocalAgentLogin } from './LocalAgentLogin'
 import { LocalAgentTerminalDialog } from './LocalAgentTerminalDialog'
 import { LocalAgentWebUiActions } from './LocalAgentWebUiActions'
+import { RuntimeProvenanceDetails } from './RuntimeProvenanceDetails'
 
 const installErrorKeys = {
   registry: 'local_agents.install_error.registry',
@@ -667,6 +669,9 @@ export function LocalAgentDetails({
   } = useLocalAgentModelCatalog(preset?.id ?? agent?.id ?? 'custom-new', initial, !modelList && available, agent)
   const modelSelection = useLocalAgentModelSelection(initial, catalog?.models ?? [])
   const version = useLocalAgentVersion(sdk || initial.executableOverride ? undefined : preset?.id, detectedPath)
+  const provenanceTool =
+    preset?.id === 'deepseek-harness' ? CodeCli.DEEPSEEK_HARNESS : preset?.id === 'hermes' ? CodeCli.HERMES : undefined
+  const provenance = useRuntimeProvenance(provenanceTool, `${detection?.path ?? ''}|${version?.current ?? ''}`)
   const currentVersion = valid(version?.current)
   const latestVersion = valid(version?.latest)
   const updateVersion =
@@ -1165,6 +1170,7 @@ export function LocalAgentDetails({
           contentProps={{ className: 'flex min-h-full flex-col gap-2.5 px-6 pt-1.5 pb-2.5' }}
           viewportProps={{ ref: setScrollElement }}>
           <div className={cn(modelSettingsDetailClasses.sectionStack, 'min-h-0 shrink-0')}>
+            {provenance && available && <RuntimeProvenanceDetails provenance={provenance} />}
             <div className="flex flex-wrap items-center gap-2">
               {(sdk || initial.executableOverride || detectedPath || preset?.executable) && (
                 <InputGroup
