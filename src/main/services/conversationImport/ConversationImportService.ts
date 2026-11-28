@@ -25,6 +25,8 @@ import type {
 } from '@shared/ipc/schemas/conversationImport'
 
 import { claudeCodeAdapter } from './claudeCode'
+import { codexAdapter } from './codex'
+import { withReadonlyDatabaseSnapshots } from './readonlySqlite'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
 
 interface Prepared {
@@ -63,13 +65,14 @@ export class ConversationImportService extends BaseService {
     this.scans.delete(owner)
   }
   async discover(owner: string, source: HistorySource, requestedRoot?: string) {
-    if (source !== 'claude-code') throw new Error('unsupported_source')
+    if (source !== 'claude-code' && source !== 'codex') throw new Error('unsupported_source')
     this.cancel(owner)
-    let root = requestedRoot ?? application.getPath('external.claude.projects')
+    let root =
+      requestedRoot ?? application.getPath(source === 'codex' ? 'external.codex.home' : 'external.claude.projects')
     const scan: Scan = {
       id: randomUUID(),
       root,
-      adapter: claudeCodeAdapter,
+      adapter: source === 'codex' ? codexAdapter : claudeCodeAdapter,
       refs: new Map(),
       abort: new AbortController(),
       expiresAt: Date.now() + IMPORT_LIMITS.previewMs,
@@ -116,7 +119,11 @@ export class ConversationImportService extends BaseService {
     scan.abort.signal.throwIfAborted()
     return scan
   }
-  async preview(owner: string, scanId: string, targetAgentId: string, selections: ImportSelection[]) {
+  preview(owner: string, scanId: string, targetAgentId: string, selections: ImportSelection[]) {
+    return withReadonlyDatabaseSnapshots(() => this.preparePreview(owner, scanId, targetAgentId, selections))
+  }
+
+  private async preparePreview(owner: string, scanId: string, targetAgentId: string, selections: ImportSelection[]) {
     const scan = this.requireScan(owner)
     if (scan.id !== scanId || scan.busy) throw new Error('invalid_preview')
     this.target(targetAgentId)
@@ -223,7 +230,11 @@ export class ConversationImportService extends BaseService {
       scan.busy = false
     }
   }
-  async commit(owner: string, previewId: string, refs: string[]): Promise<ImportOutcome[]> {
+  commit(owner: string, previewId: string, refs: string[]): Promise<ImportOutcome[]> {
+    return withReadonlyDatabaseSnapshots(() => this.commitPreview(owner, previewId, refs))
+  }
+
+  private async commitPreview(owner: string, previewId: string, refs: string[]): Promise<ImportOutcome[]> {
     const scan = this.requireScan(owner)
     const preview = scan.preview
     if (

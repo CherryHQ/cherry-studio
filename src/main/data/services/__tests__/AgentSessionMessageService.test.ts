@@ -37,7 +37,8 @@ import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import {
   getImportedHistoryState,
   queueImportedHistoryTx,
-  setImportedMetadataTx
+  setImportedMetadataTx,
+  setMessageProvenanceTx
 } from '@data/services/importedSessionHistory'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
@@ -155,6 +156,42 @@ describe('AgentSessionMessageService', () => {
         .where(eq(agentSessionMessageFileRefTable.sourceId, ASSISTANT_MESSAGE_ID))
         .all()
     ).toEqual([])
+  })
+
+  it('presents imported Codex context as system history without rewriting stored messages', () => {
+    const data = {
+      parts: [{ type: 'text' as const, text: '# AGENTS.md instructions\n\n<INSTRUCTIONS>Notes</INSTRUCTIONS>' }]
+    }
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', data, status: 'success' }
+    })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).role).toBe('user')
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        setMessageProvenanceTx(tx, SESSION_ID, USER_MESSAGE_ID, { source: 'codex', sourceOrder: 1, isSetup: true })
+      )
+    const presented = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    expect(presented.role).toBe('system')
+    expect(presented.data.parts?.[0]).toEqual({
+      type: 'text',
+      text: expect.stringContaining('[Historical project instructions]')
+    })
+    const stored = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .get()
+    expect(stored?.role).toBe('user')
+    expect(
+      dbh.db
+        .select({ part: agentSessionMessagePartTable.payload })
+        .from(agentSessionMessagePartTable)
+        .where(eq(agentSessionMessagePartTable.messageId, USER_MESSAGE_ID))
+        .all()
+        .map((row) => row.part)
+    ).toEqual(data.parts)
   })
 
   it('settles a tool approval in the stored body without dropping message metadata', () => {

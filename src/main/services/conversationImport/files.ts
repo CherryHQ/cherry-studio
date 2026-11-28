@@ -5,15 +5,24 @@ import path from 'node:path'
 
 import { IMPORT_LIMITS } from './types'
 
-export async function* discoverJsonl(root: string, signal: AbortSignal, depth = 0): AsyncIterable<string> {
+export async function* discoverJsonl(
+  root: string,
+  signal: AbortSignal,
+  includeCompressed = false,
+  depth = 0
+): AsyncIterable<string> {
   signal.throwIfAborted()
   if (depth > 4) return
   for (const entry of await readdir(root, { withFileTypes: true })) {
     signal.throwIfAborted()
     if (entry.isSymbolicLink()) continue
     const file = path.join(root, entry.name)
-    if (entry.isDirectory()) yield* discoverJsonl(file, signal, depth + 1)
-    else if (entry.isFile() && entry.name.endsWith('.jsonl')) yield file
+    if (entry.isDirectory()) yield* discoverJsonl(file, signal, includeCompressed, depth + 1)
+    else if (
+      entry.isFile() &&
+      (entry.name.endsWith('.jsonl') || (includeCompressed && entry.name.endsWith('.jsonl.zst')))
+    )
+      yield file
   }
 }
 
@@ -22,6 +31,7 @@ export async function readJsonl(
   signal: AbortSignal
 ): Promise<{
   lines: { text: string; line: number }[]
+  unterminatedLine?: number
   fingerprint: string
   bytes: number
 }> {
@@ -49,5 +59,5 @@ export async function readJsonl(
     if (remainder.length > IMPORT_LIMITS.line) throw new Error('line_limit')
   }
   if (remainder.length) lines.push({ text: remainder.toString('utf8'), line: ++number })
-  return { lines, fingerprint: hash.digest('hex'), bytes }
+  return { lines, unterminatedLine: remainder.length ? number : undefined, fingerprint: hash.digest('hex'), bytes }
 }
