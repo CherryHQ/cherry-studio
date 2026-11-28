@@ -13,6 +13,7 @@ import type { EventPayload, WindowId } from '@shared/ipc/types'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, ChannelQrLoginEvent } from './ChannelAdapter'
 import { loadChannelAdapter } from './channelAdapterLoader'
+import type { ChannelChangeOrigin } from './channelCommands'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
 import { ChannelRegistration } from './ChannelRegistration'
@@ -32,8 +33,12 @@ export class ChannelManager extends BaseService {
   private readonly qrLogins = new Map<string, QrLogin>()
   private readonly channelLogs = new ChannelLogBuffer()
   // Channels a user just set up, awaiting their first connect outcome; startup reconnects never enter.
-  private readonly pendingConnectionReports = new Map<string, ChannelType>()
+  private readonly pendingConnectionReports = new Map<string, { type: ChannelType; origin: ChannelChangeOrigin }>()
   private acceptingConnections = false
+  // Pending until start() has tried every channel, so a caller that runs before start() waits too.
+  private readonly initialConnections = Promise.withResolvers<void>()
+  /** Channels started at launch that have not yet reported connected or failed. */
+  private awaitingFirstOutcome = new Set<string>()
 
   protected async onReady(): Promise<void> {
     this.registerDisposable(application.get('PowerService').onResume(() => this.handleSystemResume()))
@@ -65,10 +70,24 @@ export class ChannelManager extends BaseService {
       logger.error('Failed to list channels during startup', {
         error: error instanceof Error ? error.message : String(error)
       })
+      this.initialConnections.resolve()
       return
     }
 
     for (const channel of channels) this.requestReconcile(channel.id)
+    // connect() can return before the platform confirms (Discord waits for READY), so the
+    // wait ends on each started adapter's first reported outcome.
+    void Promise.allSettled([...this.runtimes.values()].map((runtime) => runtime.flush())).then(() => {
+      this.awaitingFirstOutcome = new Set(
+        channels
+          .map((channel) => channel.id)
+          .filter((id) => {
+            const adapter = this.getAdapter(id)
+            return adapter !== undefined && !adapter.connected && !this.hasReportedOutcome(id)
+          })
+      )
+      if (this.awaitingFirstOutcome.size === 0) this.initialConnections.resolve()
+    })
     logger.info('Channel manager started', { channelCount: channels.length })
   }
 
@@ -85,6 +104,11 @@ export class ChannelManager extends BaseService {
     await Promise.allSettled(runtimes.map((runtime) => runtime.dispose()))
     this.runtimes.clear()
     logger.info('Channel manager stopped')
+  }
+
+  /** Settles once the connect attempts started at launch have finished, whatever their outcome. */
+  whenInitialConnectionsSettled(): Promise<void> {
+    return this.initialConnections.promise
   }
 
   requestReconcile(channelId: string): void {
@@ -114,7 +138,7 @@ export class ChannelManager extends BaseService {
     this.qrLogins.set(channelId, { owner, requestId, dispose: () => window.removeListener('closed', close) })
     try {
       channelService.updateChannel(channelId, { isActive: true })
-      this.reportNextConnection(channelId, channel.type)
+      this.reportNextConnection(channelId, channel.type, 'ui')
       this.requestReconcile(channelId)
       return true
     } catch (error) {
@@ -160,8 +184,8 @@ export class ChannelManager extends BaseService {
   }
 
   /** Report the next connect success or failure of a channel the user just set up. */
-  reportNextConnection(channelId: string, type: ChannelType): void {
-    this.pendingConnectionReports.set(channelId, type)
+  reportNextConnection(channelId: string, type: ChannelType, origin: ChannelChangeOrigin): void {
+    this.pendingConnectionReports.set(channelId, { type, origin })
   }
 
   async removeChannel(channelId: string): Promise<void> {
@@ -334,16 +358,27 @@ export class ChannelManager extends BaseService {
     this.sendToRenderer('channel.log', entry)
   }
 
+  private hasReportedOutcome(channelId: string): boolean {
+    const status = application.get('CacheService').getShared(`channel.status.${channelId}`) as
+      | ChannelStatusEvent
+      | undefined
+    return status?.connected === true || Boolean(status?.error)
+  }
+
   private publishStatus(status: ChannelStatusEvent): void {
     application.get('CacheService').setShared(`channel.status.${status.channelId}`, status)
-    const type = this.pendingConnectionReports.get(status.channelId)
-    if (!type || (!status.connected && !status.error)) return
+    if ((status.connected || status.error) && this.awaitingFirstOutcome.delete(status.channelId)) {
+      if (this.awaitingFirstOutcome.size === 0) this.initialConnections.resolve()
+    }
+    const report = this.pendingConnectionReports.get(status.channelId)
+    if (!report || (!status.connected && !status.error)) return
     this.pendingConnectionReports.delete(status.channelId)
     trackMainProductEvent({
       event: 'feature_used',
       feature: 'channels',
       action: 'channel_connected',
-      target: type,
+      target: report.type,
+      origin: report.origin,
       status: status.connected ? 'success' : 'error'
     })
   }

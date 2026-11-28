@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { type AiFailureReason, aiFailureReasonSchema } from '@cherrystudio/remote-protocol/failure'
+import type { ScheduleKind } from '@shared/ai/scheduleTrigger'
 import type { AgentPermissionMode, AgentType } from '@shared/data/api/schemas/agents'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { ANALYTICS_PRESET_ID_PATTERN } from '@shared/utils/analyticsModelSource'
@@ -37,7 +38,6 @@ const featureSchema = z.enum([
   'voice',
   'mcp',
   'skills',
-  'scheduled_tasks',
   'channels',
   'provider'
 ])
@@ -61,13 +61,14 @@ export const featureUsedEventSchema = z.strictObject({
     'dictation_used',
     'server_added',
     'skill_installed',
-    'task_created',
     'channel_connected',
     'provider_configured',
     'skill_enabled',
     'skill_disabled',
     'skill_uninstalled',
-    'server_connected'
+    'server_connected',
+    'channel_disconnected',
+    'channel_deleted'
   ]),
   status: z.enum(['success', 'error']).optional(),
   modelSource: analyticsModelSourceSchema.optional(),
@@ -125,7 +126,8 @@ export const BEHAVIOR_ANALYTICS_EVENTS = [
   'agent_snapshot',
   'agent_session_action',
   'tool_approval',
-  'agent_context_event'
+  'agent_context_event',
+  'scheduled_task_snapshot'
 ] as const
 
 /** Where an Agent was created from; renderer callers attach it to the create command. */
@@ -146,6 +148,9 @@ export type AgentTurnSource =
   | 'doctor'
   | 'autonomous'
   | 'headless'
+
+/** Why a scheduled run stood down before reaching the Agent. */
+export type ScheduledTaskSkipReason = 'disabled' | 'capability' | 'untrusted_path' | 'no_file' | 'session_busy'
 
 export const chatBranchSourceSchema = z.enum(['regenerate', 'edit', 'manual', 'mention'])
 export type ChatBranchSource = z.infer<typeof chatBranchSourceSchema>
@@ -364,6 +369,40 @@ export type MainAnalyticsEvent =
       trigger?: 'manual' | 'auto'
       result?: HeartbeatRunResult
     }
+  // Schedule shape only; names, prompts, cron expressions, and workspace paths stay out.
+  | {
+      event: 'scheduled_task_changed'
+      action: 'created' | 'updated' | 'paused' | 'resumed' | 'deleted'
+      origin: 'ui' | 'agent_tool'
+      frequency: ScheduleKind
+      agentKind: 'builtin' | 'custom'
+      hasWorkspace: boolean
+      reuseSession: boolean
+      channelCount: number
+    }
+  | {
+      event: 'scheduled_task_run'
+      kind: 'task' | 'heartbeat'
+      result: 'success' | 'failed' | 'cancelled' | 'interrupted' | 'skipped'
+      skipReason?: ScheduledTaskSkipReason
+      run: 'scheduled' | 'manual'
+      durationMs?: number
+      channelCount: number
+      // This failure made the circuit breaker pause the schedule.
+      autoPaused?: boolean
+    }
+  | ({
+      event: 'scheduled_task_snapshot'
+      taskCount: number
+      autoPausedCount: number
+      reuseSessionCount: number
+      withChannelTaskCount: number
+      channelCount: number
+      activeChannelCount: number
+      connectedChannelCount: number
+      // Channels subscribed to at least one task's results.
+      resultChannelCount: number
+    } & Record<`status:${string}` | `frequency:${string}` | `channel:${string}`, number>)
   | { event: 'cherryin_quota_error'; composer: 'chat' | 'agent' }
   | {
       event: 'chat_turn_finished'

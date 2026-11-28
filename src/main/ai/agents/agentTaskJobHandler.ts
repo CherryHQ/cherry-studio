@@ -19,6 +19,7 @@ import type { JobHandler } from '@main/core/job/types'
 
 import { publishScheduledTaskResult } from './agentTaskNotification'
 import { type AgentTaskInput, runAgentTask } from './runAgentTask'
+import { claimManualRun, trackScheduledTaskRun } from './scheduledTaskAnalytics'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
@@ -58,6 +59,7 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
 
   onEnqueued(snapshot) {
     if (snapshot.scheduleId) {
+      claimManualRun(snapshot.scheduleId, snapshot.id)
       agentTaskService.notifyRunChange(snapshot.scheduleId, snapshot.id, 'membership')
     }
   },
@@ -88,13 +90,14 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
         logger.warn('Failed to publish settled task result', { jobId: event.jobId, error })
       }
     }
-    if (event.status !== 'failed' || !event.scheduleId) return
+    if (event.status !== 'failed' || !event.scheduleId) return trackScheduledTaskRun(event, false)
     // Captured once — closure capture would lose the narrowing above.
     const scheduleId = event.scheduleId
 
     const recent = jobService.listRecentTerminalByScheduleId(scheduleId, RECENT_TERMINAL_WINDOW)
-    if (recent.length < RECENT_TERMINAL_WINDOW) return
-    if (!recent.every((j) => j.status === 'failed')) return
+    if (recent.length < RECENT_TERMINAL_WINDOW || !recent.every((j) => j.status === 'failed')) {
+      return trackScheduledTaskRun(event, false)
+    }
 
     logger.warn('Agent task schedule failed in last N terminal runs — pausing', {
       scheduleId,
@@ -105,18 +108,21 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
       // separate pause commit and marker write would re-arm the schedule. The
       // post-commit timer sync disposes the armed timer (same two-step pattern
       // as the other schedule mutations).
-      application.get('DbService').withWriteTx((tx) => {
+      const wasEnabled = application.get('DbService').withWriteTx((tx) => {
         const snapshot = jobScheduleService.getByIdTx(tx, scheduleId)
         application.get('JobManager').updateJobScheduleTx(tx, scheduleId, {
           enabled: false,
           metadata: writeCircuitBreakerPaused(snapshot?.metadata, true)
         })
+        return snapshot?.enabled === true
       })
       application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+      trackScheduledTaskRun(event, wasEnabled)
     } catch (err) {
       logger.error('Failed to pause schedule after consecutive failures', err as Error, {
         scheduleId
       })
+      trackScheduledTaskRun(event, false)
     }
   }
 }

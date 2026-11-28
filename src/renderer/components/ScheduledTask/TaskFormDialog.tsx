@@ -40,6 +40,7 @@ import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceC
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { cn } from '@renderer/utils/style'
+import { formatTimes, type ScheduleKind } from '@shared/ai/scheduleTrigger'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
@@ -47,7 +48,6 @@ import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
 import {
   DEFAULT_SCHEDULE,
-  formatTimes,
   formStateToTrigger,
   getWeekdayLabel,
   parseScheduleDate,
@@ -56,7 +56,6 @@ import {
   scheduleForKind,
   scheduleInputsEqual,
   type ScheduleFormState,
-  type ScheduleKind,
   stringArraysEqual,
   type TaskDraftSnapshot,
   taskToDraftSnapshot,

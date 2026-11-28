@@ -94,6 +94,7 @@ describe('AgentJobsService', () => {
   let jobManager: JobManager
   let service: AgentJobsService
   let lifecycle: AgentLifecycleService
+  const analytics = { trackProductEvent: vi.fn() }
   const runtime = {
     isSessionBusy: () => false,
     isSessionBusyForArchive: vi.fn(() => false),
@@ -188,6 +189,8 @@ describe('AgentJobsService', () => {
           return { reconcileAgent: () => {} }
         case 'RuntimeActivityService':
           return { begin: () => ({ dispose: () => {} }) }
+        case 'AnalyticsService':
+          return analytics
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })
@@ -814,6 +817,21 @@ describe('AgentJobsService', () => {
       const resumed = service.resumeTask(AGENT_ID, task.id)
       expect(resumed?.enabled).toBe(true)
       expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+    })
+
+    it('does not count a manual pause as automatic once the user resumed a breaker pause', async () => {
+      const { agentTaskService, writeCircuitBreakerPaused } = await import('@data/services/AgentTaskService')
+      const task = service.createTask(AGENT_ID, form)
+      runtime.isSessionBusyForArchive.mockReturnValue(false)
+      runtime.closeSessionForArchive.mockResolvedValue(undefined)
+      await service.pauseTask(AGENT_ID, task.id)
+      jobScheduleService.update(task.id, { metadata: writeCircuitBreakerPaused({}, true) })
+      expect(agentTaskService.countForAnalytics().autoPausedCount).toBe(1)
+
+      service.resumeTask(AGENT_ID, task.id)
+      await service.pauseTask(AGENT_ID, task.id)
+
+      expect(agentTaskService.countForAnalytics().autoPausedCount).toBe(0)
     })
 
     it('broadcasts the projection on a real pause and resume', async () => {
@@ -1853,6 +1871,60 @@ describe('AgentJobsService', () => {
     it('run fires an owned task', async () => {
       const task = service.createTask(AGENT_ID, form)
       expect(await service.runTask(AGENT_ID, task.id)).toBe(true)
+    })
+  })
+
+  describe('analytics', () => {
+    const reported = (name: string) =>
+      analytics.trackProductEvent.mock.calls.map(([event]) => event).filter((event) => event.event === name)
+
+    beforeEach(() => analytics.trackProductEvent.mockClear())
+
+    it('reports each real task change with its schedule shape only, and nothing for a no-op', async () => {
+      seedChannel(CHANNEL_ID, AGENT_ID)
+      const task = service.createTask(
+        AGENT_ID,
+        { ...form, trigger: { kind: 'cron', expr: '30 9 * * 1-5' }, channelIds: [CHANNEL_ID] },
+        'agent_tool'
+      )
+      service.resumeTask(AGENT_ID, task.id)
+      await service.pauseTask(AGENT_ID, task.id)
+      await service.pauseTask(AGENT_ID, task.id)
+      service.resumeTask(AGENT_ID, task.id)
+      // An id-only or value-identical edit changes nothing, so it is no update.
+      service.updateTask(AGENT_ID, task.id, {}, 'agent_tool')
+      service.updateTask(AGENT_ID, task.id, { name: task.name }, 'agent_tool')
+      service.updateTask(AGENT_ID, task.id, { reuseSession: true })
+      await service.deleteTask(AGENT_ID, task.id, 'agent_tool')
+
+      const changes = reported('scheduled_task_changed')
+      expect(changes.map((event) => [event.action, event.origin])).toEqual([
+        ['created', 'agent_tool'],
+        ['paused', 'ui'],
+        ['resumed', 'ui'],
+        ['updated', 'ui'],
+        ['deleted', 'agent_tool']
+      ])
+      expect(changes[0]).toEqual({
+        event: 'scheduled_task_changed',
+        action: 'created',
+        origin: 'agent_tool',
+        frequency: 'weekdays',
+        agentKind: 'custom',
+        hasWorkspace: false,
+        reuseSession: false,
+        channelCount: 1
+      })
+      expect(changes[3]).toMatchObject({ reuseSession: true })
+    })
+
+    it('reports a Run-now as a manual run and stays silent when the task is not found', async () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      expect(await service.runTask(AGENT_ID, 'missing')).toBe(false)
+      expect(await service.runTask(AGENT_ID, task.id)).toBe(true)
+
+      await vi.waitFor(() => expect(reported('scheduled_task_run')).toMatchObject([{ run: 'manual', kind: 'task' }]))
     })
   })
 })

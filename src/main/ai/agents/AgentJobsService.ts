@@ -1,3 +1,5 @@
+import { isEqual } from 'es-toolkit'
+
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -6,9 +8,11 @@ import {
   agentTaskService,
   clearMissedTask,
   HEARTBEAT_PROMPT_SENTINEL,
+  isCircuitBreakerPaused,
   isMissedTask,
   normalizeTaskSessionReuseRevision,
   readTaskSessionReuse,
+  writeCircuitBreakerPaused,
   writeTaskSessionReuse
 } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
@@ -39,6 +43,13 @@ import {
   repairHeartbeatSchedules,
   syncHeartbeatSchedule
 } from './heartbeatSchedule'
+import {
+  claimManualRun,
+  clearManualRun,
+  markManualRun,
+  type ScheduledTaskChangeOrigin,
+  trackScheduledTaskChanged
+} from './scheduledTaskAnalytics'
 
 const logger = loggerService.withContext('AgentJobsService')
 
@@ -86,6 +97,17 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
     reuseRevision: normalizeTaskSessionReuseRevision(template.reuseRevision)
   }
 }
+
+/** What a task edit can change; timestamps and run state move on their own. */
+const TASK_CONFIG_FIELDS = [
+  'name',
+  'prompt',
+  'trigger',
+  'timeoutMinutes',
+  'workspace',
+  'reuseSession',
+  'channelIds'
+] as const satisfies readonly (keyof ScheduledTaskEntity)[]
 
 /**
  * Sole command owner for agent scheduled tasks — the renderer (IpcApi
@@ -245,7 +267,7 @@ export class AgentJobsService extends BaseService {
     if (!settled) logger.warn('Stopped with schedule work still in flight past the drain deadline')
   }
 
-  createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
+  createTask(agentId: string, form: AgentTaskForm, origin: ScheduledTaskChangeOrigin = 'ui'): ScheduledTaskEntity {
     this.assertAgentIsActive(agentId)
     this.assertPromptNotReserved(form.prompt)
     this.assertNameNotReserved(form.name)
@@ -285,10 +307,16 @@ export class AgentJobsService extends BaseService {
     const entity = agentTaskService.getTask(agentId, id)
     if (!entity) throw new Error(`Task ${id} disappeared after create`)
     logger.info('Task created', { taskId: id, agentId })
+    trackScheduledTaskChanged('created', entity, origin)
     return entity
   }
 
-  updateTask(agentId: string, taskId: string, patch: AgentTaskPatch): ScheduledTaskEntity | null {
+  updateTask(
+    agentId: string,
+    taskId: string,
+    patch: AgentTaskPatch,
+    origin: ScheduledTaskChangeOrigin = 'ui'
+  ): ScheduledTaskEntity | null {
     const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
     this.assertPromptNotReserved(patch.prompt)
@@ -367,7 +395,12 @@ export class AgentJobsService extends BaseService {
     }
 
     logger.info('Task updated', { taskId, agentId })
-    return this.getActiveTask(agentId, taskId)
+    const updated = this.getActiveTask(agentId, taskId)
+    // An id-only or value-identical patch still bumps updatedAt; only a real edit counts as one.
+    if (updated && TASK_CONFIG_FIELDS.some((field) => !isEqual(existing[field], updated[field]))) {
+      trackScheduledTaskChanged('updated', updated, origin)
+    }
+    return updated
   }
 
   async pauseTask(agentId: string, taskId: string): Promise<ScheduledTaskEntity | null> {
@@ -380,7 +413,9 @@ export class AgentJobsService extends BaseService {
     await application.get('JobManager').pauseJobScheduleById(taskId)
     agentTaskService.notifyReadModelChange([taskId])
     logger.info('Task paused', { taskId, agentId })
-    return this.getActiveTask(agentId, taskId)
+    const paused = this.getActiveTask(agentId, taskId)
+    if (paused) trackScheduledTaskChanged('paused', paused, 'ui')
+    return paused
   }
 
   resumeTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
@@ -402,13 +437,20 @@ export class AgentJobsService extends BaseService {
       }
       throw error
     }
+    // An explicit resume ends a breaker pause; a later manual pause must not count as automatic.
+    const schedule = jobScheduleService.getById(taskId)
+    if (schedule && isCircuitBreakerPaused(schedule.metadata)) {
+      jobScheduleService.update(taskId, { metadata: writeCircuitBreakerPaused(schedule.metadata, false) })
+    }
     agentTaskService.notifyReadModelChange([taskId])
     logger.info('Task resumed', { taskId, agentId })
-    return this.getActiveTask(agentId, taskId)
+    const resumed = this.getActiveTask(agentId, taskId)
+    if (resumed) trackScheduledTaskChanged('resumed', resumed, 'ui')
+    return resumed
   }
 
   /** @returns `false` when the task is not found / not owned by `agentId` (no distinction — no existence leak). */
-  async deleteTask(agentId: string, taskId: string): Promise<boolean> {
+  async deleteTask(agentId: string, taskId: string, origin: ScheduledTaskChangeOrigin = 'ui'): Promise<boolean> {
     return this.taskLocks.runExclusive(taskId, async () => {
       const existing = this.getActiveTask(agentId, taskId)
       if (!existing) return false
@@ -428,6 +470,7 @@ export class AgentJobsService extends BaseService {
       if (deleted) {
         agentTaskService.notifyReadModelChange([taskId], 'membership')
         logger.info('Task deleted', { taskId, agentId })
+        trackScheduledTaskChanged('deleted', existing, origin)
       }
       return deleted
     })
@@ -488,7 +531,12 @@ export class AgentJobsService extends BaseService {
     if (jobService.list({ scheduleId: schedule.id, status: ['pending', 'delayed', 'running'], limit: 1 }).length) {
       return 'busy'
     }
-    return (await application.get('JobManager').triggerJobScheduleNowById(schedule.id)) ? 'started' : 'paused'
+    markManualRun(schedule.id)
+    try {
+      return (await application.get('JobManager').triggerJobScheduleNowById(schedule.id)) ? 'started' : 'paused'
+    } finally {
+      clearManualRun(schedule.id)
+    }
   }
 
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */
@@ -507,6 +555,8 @@ export class AgentJobsService extends BaseService {
             scheduleId: taskId,
             idempotencyKey: `agent-task-missed:${taskId}:${missed.at}`
           })
+          markManualRun(taskId)
+          claimManualRun(taskId, job.id)
           jobScheduleService.updateTx(tx, taskId, {
             metadata: { ...schedule.metadata, missed: { ...missed, jobId: job.id } }
           })
@@ -515,7 +565,13 @@ export class AgentJobsService extends BaseService {
         if (enqueued) agentTaskService.notifyReadModelChange([taskId])
         return enqueued
       }
-      return application.get('JobManager').triggerJobScheduleNowById(taskId)
+      // The scheduler enqueues synchronously, so onEnqueued claims the mark before it is cleared.
+      markManualRun(taskId)
+      try {
+        return await application.get('JobManager').triggerJobScheduleNowById(taskId)
+      } finally {
+        clearManualRun(taskId)
+      }
     })
   }
 

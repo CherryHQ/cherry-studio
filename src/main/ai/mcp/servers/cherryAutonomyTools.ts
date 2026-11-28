@@ -70,6 +70,7 @@ import {
   CRON_TOOL_NAME,
   NOTIFY_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -697,15 +698,19 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
   }
   const task =
     action === 'add'
-      ? service.createTask(ctx.agentId, {
-          ...patch,
-          name: name!,
-          prompt: message!,
-          trigger: trigger!,
-          workspace: ctx.workspaceSource,
-          channelIds: channelIds?.length ? channelIds : undefined
-        })
-      : service.updateTask(ctx.agentId, id!, patch)
+      ? service.createTask(
+          ctx.agentId,
+          {
+            ...patch,
+            name: name!,
+            prompt: message!,
+            trigger: trigger!,
+            workspace: ctx.workspaceSource,
+            channelIds: channelIds?.length ? channelIds : undefined
+          },
+          'agent_tool'
+        )
+      : service.updateTask(ctx.agentId, id!, patch, 'agent_tool')
   if (!task) throw new Error(`Job "${id}" not found`)
 
   const outcome = action === 'add' ? 'created' : 'updated'
@@ -730,7 +735,7 @@ function listJobs(ctx: AutonomyToolsContext): CallToolResult {
 async function removeJob(ctx: AutonomyToolsContext, id: string | undefined): Promise<CallToolResult> {
   if (!id) throw new Error("'id' is required for remove")
 
-  const deleted = await application.get('AgentJobsService').deleteTask(ctx.agentId, id)
+  const deleted = await application.get('AgentJobsService').deleteTask(ctx.agentId, id, 'agent_tool')
   if (!deleted) throw new Error(`Job "${id}" not found`)
 
   logger.info('Cron job removed via tool', { agentId: ctx.agentId, taskId: id })
@@ -987,7 +992,9 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
           config,
           isActive: enabled ?? true
         },
-        30_000
+        30_000,
+        // A setup that fails before producing a QR code still reports its outcome.
+        (channel) => reportAgentToolConnection(channel, false)
       )
       const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
       // Extract base64 from data URI: "data:image/png;base64,..."
@@ -1035,6 +1042,7 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
     config,
     isActive: enabled ?? true
   })
+  reportAgentToolConnection(newChannel)
 
   logger.info('Channel added via config tool', { agentId: ctx.agentId, channelId: newChannel.id, type })
   return {
@@ -1044,6 +1052,17 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
         text: `Channel added and activated:\n${JSON.stringify({ id: newChannel.id, type, name, enabled: newChannel.isActive }, null, 2)}`
       }
     ]
+  }
+}
+
+/** Same rule as the UI: a channel left set to connect but not connected gets its next outcome reported. */
+function reportAgentToolConnection(
+  channel: AgentChannelEntity,
+  wasConnected = application.get('ChannelManager').getAdapter(channel.id)?.connected === true
+): void {
+  const manager = application.get('ChannelManager')
+  if (channel.isActive && !wasConnected) {
+    manager.reportNextConnection(channel.id, channel.type, 'agent_tool')
   }
 }
 
@@ -1065,7 +1084,9 @@ function configUpdateChannel(ctx: AutonomyToolsContext, args: ConfigInput): Call
     updates.config = { ...existing.config, ...args.config }
   }
 
-  updateAgentChannel(existing.id, updates)
+  // Read before updating: the update reconciles, which takes a connected adapter down synchronously.
+  const wasConnected = application.get('ChannelManager').getAdapter(existing.id)?.connected === true
+  reportAgentToolConnection(updateAgentChannel(existing.id, updates, 'agent_tool'), wasConnected)
 
   logger.info('Channel updated via config tool', { agentId: ctx.agentId, channelId: existing.id })
   return {
@@ -1076,7 +1097,7 @@ function configUpdateChannel(ctx: AutonomyToolsContext, args: ConfigInput): Call
 async function configRemoveChannel(ctx: AutonomyToolsContext, args: ConfigInput): Promise<CallToolResult> {
   const channel = getOwnedChannel(ctx, args.channel_id, 'remove_channel')
 
-  await deleteAgentChannel(channel.id)
+  await deleteAgentChannel(channel.id, 'agent_tool')
 
   logger.info('Channel removed via config tool', { agentId: ctx.agentId, channelId: channel.id, type: channel.type })
   return {
@@ -1090,6 +1111,7 @@ async function configReconnectChannel(
   preparedQrUrl?: string
 ): Promise<CallToolResult> {
   const channel = getOwnedChannel(ctx, channelId, 'reconnect_channel')
+  reportAgentToolConnection(channel)
 
   const needsQr =
     channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
