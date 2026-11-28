@@ -46,6 +46,7 @@ const KNOWN_NAVIGATION_ROUTES = [
   '/app/mini-app',
   '/app/code',
   '/app/launchpad',
+  '/app/api-gateway',
   '/app/agents',
   '/settings/general',
   '/settings/provider',

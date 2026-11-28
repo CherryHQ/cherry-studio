@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { getGatewayModelCatalog } from '@main/features/apiGateway/utils/models'
 import type { apiGatewayRequestSchemas } from '@shared/ipc/schemas/apiGateway'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
@@ -30,6 +31,10 @@ export const apiGatewayHandlers: IpcHandlersFor<typeof apiGatewayRequestSchemas>
   'api_gateway.stop': stopGateway,
   'api_gateway.restart': () => toStatusResult(() => application.get('ApiGatewayService').restart()),
   'api_gateway.lan.set_enabled': ({ enabled }) => application.get('ApiGatewayService').setLanEnabled(enabled),
+  'api_gateway.lan_http.set_enabled': ({ enabled }) => application.get('ApiGatewayService').setLanHttpEnabled(enabled),
+  'api_gateway.lan_http.addresses': () => application.get('ApiGatewayService').getLanHttpAddresses(),
+  'api_gateway.models': async () =>
+    (await getGatewayModelCatalog()).map(({ apiModel: { id, owned_by }, name }) => ({ id, owned_by, name })),
   'api_gateway.remote.create_invitation': () => application.get('ApiGatewayService').createRemoteInvitation(),
   'api_gateway.remote.list_claims': async () => application.get('RemoteAccessService').pendingClaims(),
   'api_gateway.remote.decide_pairing': async ({ claimId, capabilities }) =>
