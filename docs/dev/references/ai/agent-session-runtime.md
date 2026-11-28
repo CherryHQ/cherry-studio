@@ -308,10 +308,12 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    Startup reconciles those IDs with their committed submissions. Opening the session also checks
    inputs saved before admission. When Durable places the input, the driver emits `run-started` after the preceding
    answer. Main gives it a distinct Run and holds the handoff until the source reply has an open
-   stream and any earlier handoff settles. Steers keep the existing Run and reply. The preceding reply settles as answered at the boundary; Durable reports its
-   input's outcome when the run ends, and the host then replaces a reply whose input did not
-   complete. An autonomous reply settles at that boundary, and a deferred user turn resumes
-   there. Only explicit refusal permits fallback to Main’s queue.
+   stream and any earlier handoff settles. Steers keep the existing Run and reply. The host uses
+   the input outcomes associated with its reply, including steers spanning native runs.
+   When a provider failure leaves follow-ups queued, the failed reply settles and the follow-ups
+   remain available in the dock.
+   An autonomous reply settles at that boundary, and a deferred user turn resumes there.
+   Only explicit refusal permits fallback to Main’s queue.
    An input queued before a restart has no entry-side context; the host reads its bound user
    message instead. If that input starts native work by itself, it also gets a new reply.
 3. **No eligible native operation** —
@@ -371,7 +373,7 @@ positions retain their order independently of the canonical assistant row.
 
 A `run-checkpoint` event identifies its owning Run through the stable input association and native
 context. Main retains evidence received before placement creates a reply, attaches it to an active
-Run, or updates only the private checkpoint of an already successful Run. A later session-wide
+Run, or updates only the private checkpoint of an already successful Run. A later foreground
 completion cannot replace that exact answer position. Pi Durable obtains these positions from
 committed submission answers, independently of foreground inactivity; cold pending-reply recovery
 commits the same evidence with its terminal body. Receiving a checkpoint does not terminate a Run.

@@ -688,14 +688,10 @@ export async function createPiDurableRuntime(
                         change.ops.length > 0 &&
                         change.ops.every((op) => Array.isArray(op[1]) && op[1][0] === 'tools'))
                   ) &&
-                  projection.commitToolResult(previous, after, records[0], publication.seq, toolSlot)
+                  projection.commitToolResult(previous, after, records[0], toolSlot)
                 )
                   return
-                projection.update(
-                  after,
-                  { type: 'commit', revision: publication.seq, changes: changed, answers },
-                  fold.history
-                )
+                projection.update(after, { type: 'commit', changes: changed, answers }, fold.history)
               },
               end() {}
             }).detach
@@ -828,7 +824,6 @@ export async function createPiDurableRuntime(
       project = false
     ): Promise<SubmitResult> {
       if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
-      entry.projection.beginAdmission(input.inputId)
       const attempt = entry.admission.then(async (): Promise<SubmitResult> => {
         if (unavailable()) {
           return { ...rejected('submit', 'closed'), inputId: input.inputId }
@@ -934,7 +929,8 @@ export async function createPiDurableRuntime(
       })
       const completed = attempt.then((result) => {
         if (result.status === 'unknown') entry.projection.input({ inputId: input.inputId, facts: ['dispatch-started'] })
-        entry.projection.endAdmission(input.inputId, result.status === 'acknowledged')
+        if (result.status === 'acknowledged' && result.facts.includes('locally-handled'))
+          entry.projection.completeLocalInput(input.inputId)
         return result
       })
       entry.admission = completed.then(() => {})

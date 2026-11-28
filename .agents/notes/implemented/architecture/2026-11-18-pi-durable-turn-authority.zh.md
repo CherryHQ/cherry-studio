@@ -45,7 +45,9 @@ Pi Durable 持久记录每条输入的生命周期，包括准入、放置、原
 
 ### 结局
 
-连接把 Durable 的输入结局映射为产品的终局状态：
+提供商报错时，前台工作可能结束，同时 Durable 将后续消息保留在原生队列中。宿主在已结算的回复上显示错误，并以原提交 ID 保留排队中的后续消息。
+
+连接随原生轮次的结束边界一起转发其输入结局，两者共同保留在观察队列溢出的恢复中。Main 汇总关联到同一条回复的输入结局，其中包括跨原生轮次的 steer。结算前，Main 从输入绑定的 Durable 上下文回读缺失的终局。回读后仍缺少终局时，回复不会按成功结算。
 
 - `completed` → `success`
 - `aborted` → `paused`
@@ -71,7 +73,7 @@ Stop 调用连接的 `interrupt()`。有 follow-up 在等待时，Durable 将根
 - 忙碌时按 Enter 发送原生 follow-up（`whenBusy: 'follow-up'`）。运行时能力 `nativeFollowUp` 让输入框立即提交。后续消息面板展示原生队列。
 - steer 快捷键发送 steer（`whenBusy: 'steer'`），由 Durable 在下一次模型调用前放置。
 
-原生工作运行期间，连接接受这些发送；只有在压缩期间才拒绝输入。Durable 放置排队输入时，Main 为它打开回复，因此每条排队输入都有自己的回复。前一条回复仍在启动时到达的放置会等待它，而不是并入它；放入运行中轮次的 steer 仍共享该轮次的接续。Durable 在运行结束时才报告每条输入的结局，此时下一条输入已经放置；如果前一条输入没有完成（例如回答被输出上限截断），Main 会用该结局替换前一条回复。Main 自己的队列只保存被 Durable 拒绝的输入、提交在到达 Durable 之前就失败的输入，以及在没有原生工作运行时到达的输入。
+原生工作运行期间，连接接受这些发送；只有在压缩期间才拒绝输入。Durable 放置排队输入时，Main 为它打开回复，因此每条排队输入都有自己的回复。前一条回复仍在启动时到达的放置会等待它，而不是并入它；放入运行中轮次的 steer 仍共享该轮次的接续。当一次原生提交结束前一轮并放置下一条输入时，Main 根据前一轮的输入结局结算其回复，并将下一轮的输出交给新回复。Main 自己的队列只保存被 Durable 拒绝的输入、提交在到达 Durable 之前就失败的输入，以及在没有原生工作运行时到达的输入。
 
 ### 恢复
 
@@ -121,10 +123,13 @@ Durable 持久记录在跑的请求是否可以与用户交互。退出应用时
 
 ## 验证
 
-- AC1 — `PiDurableRuntimeConnection.test.ts` › "reports a stop that Durable records before close as a paused turn, not a failure"、"preserves output truncation through the desktop error boundary" 与 "keeps the turn and the access when the Durable backend reports a diagnostic"；`AgentSessionRuntimeService.projection.test.ts` › "keeps a stopped reply paused when the runtime reports the abort before closing"、"replaces a paused reply with the Durable outcome reported before/after Stop registers"（一个终局事件）、"keeps a reply paused when Stop ends its background continuation"、"keeps the output-limit classification for a truncated Durable outcome on reopen"、"saves a truncated answer as an output-limit error after its follow-up was placed" 与 "settles an unfinished reply from its Durable $outcome outcome on reopen"；`PiDurableRuntimeConnection.test.ts` › "reports a truncated answer on its own input and completes the follow-up on its own outcome"。
+- AC1 — `PiDurableRuntimeConnection.test.ts` › "reports a stop that Durable records before close as a paused turn, not a failure"、"reports output truncation before the desktop completion boundary" 与 "keeps the turn and the access when the Durable backend reports a diagnostic"；`AgentSessionRuntimeService.projection.test.ts` › "keeps a stopped reply paused when the runtime reports the abort before closing"、"replaces a paused reply with the Durable outcome reported before/after Stop registers"（一个终局事件）、"keeps a reply paused when Stop ends its background continuation"、"keeps the output-limit classification for a truncated Durable outcome on reopen"、"saves a truncated answer as an output-limit error after its follow-up was placed" 与 "settles an unfinished reply from its Durable $outcome outcome on reopen"；`PiDurableRuntimeConnection.test.ts` › "reports a truncated answer on its own input and completes the follow-up on its own outcome"。
 - AC2 — `PiDurableRuntimeConnection.test.ts` › "keeps the access open after Stop, ends running background children and answers the next message"；`AgentSessionRuntimeService.projection.test.ts` › "keeps a retained connection open on Stop and starts later input only after native confirmation" 与 "ends a retained Stop whose native interrupt never returns"；Electron 的 Stop 场景会回答下一条消息。
 - AC3 — 基于真实运行时的 `PiDurableRuntimeConnection.test.ts`："resynchronizes a failed child projection without closing the root access" 注入一次子会话写入故障，"resynchronizes the root projection after an observation overflow without ending the turn" 通过阻塞消费者产生 Durable 的溢出缺口，"keeps the turn and the access when the Durable backend reports a diagnostic" 在轮次中途触发后端错误钩子。
 - AC4 — `PiDurableRuntimeConnection.test.ts` 中的原生 follow-up 测试（排在前一条回答之后放置、原生工作运行时发送、Stop 后暂停队列、抛出异常的提交、重新打开后回答）；`agentSessionRuntimeState.test.ts` 的放置转换；`AgentSessionRuntimeService.projection.test.ts` › "gives a Durable input $label its own reply when placed"、"gives a Durable placement its own reply when it arrives before the previous one opens" 与 "marks a queued Durable input that Stop withdrew as not sent"；`AgentComposer.test.tsx` 的忙碌时 Enter 与 "resends or restores a message that Stop withdrew before sending"；`MessageGroup.test.tsx` › "marks a withdrawn user message as not sent and offers to resend or edit it"；Electron 的排队 follow-up 与杀进程场景。
 - AC5 — `PiDurableRuntimeConnection.test.ts` › "names the placed input that reopening resumes"；`AgentSessionRuntimeService.projection.test.ts` › "continues a resumed Durable input in its original reply"、"continues a resumed input in its linked reply when an earlier reply sits below it" 与 "links each steered input to the reply opened for it"；在 Electron 杀进程场景中，被中断的输入在其原始回复中完成。
 - AC6 — `AgentSessionRuntimeService.projection.test.ts` › "settles an unfinished reply from its Durable $outcome outcome on reopen"；`recoverSessionDeliveries.test.ts` › "leaves an admitted Durable delivery turn for the runtime to resume" 与 "ends a recovered Durable delivery turn whose session cannot connect"；Electron 杀进程场景结束时没有 error 消息行。
 - AC7 — `tests/e2e/smoke/piDurableTurnAuthority.test.ts` 使用本地模拟提供商：排队 follow-up、steer、Stop 后发送新消息，以及在一轮中途对 Main 执行 SIGKILL，每种情况都落库 Durable 结局，没有 error 消息行或 error part；Stop 与杀进程场景会在子任务面板中显示子会话记录。在栈的基线上，排队、Stop 与杀进程场景会失败。
+- Regression — `PiDurableRuntimeConnection.test.ts` 验证提供商报错会结算当前回复，重新打开后 follow-up 仍在队列中。Electron 的失败场景验证已提交的正文和提供商错误保存在失败的回复上，输入框退出运行状态，队列中仍显示该输入。
+- Regression — `AgentSessionRuntimeService.projection.test.ts` 验证 steer 成功接续时，Main 仍将早先的截断错误结算到同一条桌面回复，并保留两段正文。
+- Regression — `PiDurableRuntimeConnection.test.ts` 在模型报错后让阻塞的观察队列溢出，验证 Main 持久化原始错误，同时 follow-up 继续排队。

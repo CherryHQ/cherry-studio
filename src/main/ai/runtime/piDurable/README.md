@@ -73,7 +73,9 @@ text even when shared behavior wraps its native input.
 Input placement reserves attribution before a model call. Each native answer is
 associated with its product input once; later snapshots and autonomous child-result
 turns do not repeat a prior input's response association.
-The adapter delivers content, input outcomes and foreground settlement from one native revision.
+The adapter delivers content, input outcomes and ended-run membership from one native revision.
+When a run fails and the native inbox retains its follow-ups, Main settles the failed reply
+immediately. The composer keeps showing the retained inputs in the queue.
 Successful submission answer positions become `run-checkpoint` events, addressed through the
 stable product input association. Main resolves the owning Run, including deferred placements
 and already saved replies. Overall foreground settlement does not overwrite this precise answer
@@ -81,7 +83,10 @@ position. Pending-reply recovery reads the same native answer and commits its ch
 The connection consumes that batch; it does not poll pending inputs or infer completion from idle.
 It reports an input only when its state changes and reconsiders a child's status and release on
 snapshots, activity changes and input changes.
-An `aborted` outcome, including one caused by user Stop, settles the turn as paused; `failed` and
+The connection sends the input outcomes with the retained run boundary, including when another native
+run continues the foreground execution. Main combines the outcomes by input ID for the owning reply
+and reads any missing terminal outcome from its bound Durable context before settling.
+An `aborted` outcome, including one caused by user Stop, settles the reply as paused; `failed` and
 `unanswered` outcomes report an error carrying their native reason.
 A message sent while native work runs is submitted with Durable's `follow-up` busy policy and
 persisted at once. The Work composer sends it immediately instead of holding it in its follow-up
@@ -90,10 +95,9 @@ boundary, in the same batch as the preceding answer. The connection announces th
 `run-started` after that batch's projection, so the preceding answer stays in its reply and Main
 opens a new one. The event marks the placement as a follow-up: Main holds it while the previous reply
 is still starting, so it never joins that reply, while steers placed into the running turn still share
-its continuation. Durable reports the preceding input's outcome only when the run ends, so Main
-settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
-cycle completion aggregates only the inputs owned by the current Run. A follow-up whose submission
-fails before it reaches Durable moves to Main's queue.
+its continuation. At a same-commit handoff, Main settles the preceding reply through its input
+outcomes and carries the stream into the new reply. A follow-up whose submission fails before it
+reaches Durable moves to Main's queue.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.
