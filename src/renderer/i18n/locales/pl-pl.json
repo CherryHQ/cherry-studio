@@ -1712,6 +1712,7 @@
   "error.diagnosis.payload": "Treść żądania jest zbyt duża, zmniejsz rozmiar pliku lub tekstu",
   "error.diagnosis.permission": "Dostawca odrzucił to żądanie. Sprawdź szczegóły błędu, plan konta, uprawnienia klucza API lub dostęp do tego zasobu",
   "error.diagnosis.prefill_memory": "Za mało pamięci, aby przetworzyć to żądanie. Skróć rozmowę lub użyj mniejszego modelu.",
+  "error.diagnosis.provider_unavailable": "Dostawca {{provider}} nie jest już dostępny w tej aplikacji. Wybierz model innego dostawcy dla tej rozmowy.",
   "error.diagnosis.proxy": "Błąd serwera proxy lub certyfikatu SSL, sprawdź ustawienia proxy i sieci",
   "error.diagnosis.quota": "Limit konta został wyczerpany, doładuj konto lub zmień dostawcę",
   "error.diagnosis.rate_limit": "Zbyt wiele żądań w krótkim czasie. Poczekaj chwilę i spróbuj ponownie lub przełącz się na model o wyższym limicie żądań",
