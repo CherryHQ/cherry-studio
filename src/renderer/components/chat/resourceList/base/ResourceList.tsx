@@ -611,7 +611,7 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       className={cn(
         'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-accent-foreground!',
-        'focus-visible:pointer-events-auto focus-visible:bg-accent focus-visible:text-accent-foreground! focus-visible:opacity-100 focus-visible:outline-none',
+        'focus-visible:pointer-events-auto focus-visible:bg-accent focus-visible:text-accent-foreground! focus-visible:opacity-100',
         RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
         'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100 aria-pressed:pointer-events-auto aria-pressed:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100',
         className
@@ -642,7 +642,8 @@ function ItemActions({ active, children, className, pinned, ref, ...props }: Ite
         className
       )}
       {...props}>
-      <div className="flex min-w-0 items-center overflow-hidden">{children}</div>
+      {/* The cancelled 3px padding keeps focus halos inside the clip the reveal animation needs. */}
+      <div className="-m-[3px] flex min-w-0 items-center overflow-hidden p-[3px]">{children}</div>
     </div>
   )
 }

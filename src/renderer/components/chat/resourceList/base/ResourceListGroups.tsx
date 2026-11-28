@@ -409,7 +409,8 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           onContextMenu={stopEventPropagation}
           onPointerDown={stopEventPropagation}
           onPointerUp={stopEventPropagation}>
-          <div className="flex min-w-0 items-center overflow-hidden">{groupHeaderAction}</div>
+          {/* The cancelled 3px padding keeps focus halos inside the clip the reveal animation needs. */}
+          <div className="-m-[3px] flex min-w-0 items-center overflow-hidden p-[3px]">{groupHeaderAction}</div>
         </div>
       )}
     </div>
