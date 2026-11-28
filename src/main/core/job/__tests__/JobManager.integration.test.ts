@@ -384,6 +384,37 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('resolveRetryPolicy: sizes attempts from the job input and retries a failed run', async () => {
+      let calls = 0
+      const handler: JobHandler<SlowInput> = {
+        recovery: 'abandon',
+        defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
+        resolveRetryPolicy: (input) =>
+          input.message === 'retry-me' ? { maxAttempts: 3, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 } : undefined,
+        async execute() {
+          calls++
+          throw new Error('boom')
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({ handlers: [['task.resolve', handler as JobHandler]] })
+
+      const plain = jobManager.enqueue('task.resolve' as never, { message: 'plain' } as never)
+      const retried = jobManager.enqueue('task.resolve' as never, { message: 'retry-me' } as never)
+      expect(jobService.getById(plain.id)?.maxAttempts).toBe(1)
+      expect(jobService.getById(retried.id)?.maxAttempts).toBe(3)
+
+      await vi.waitFor(async () => {
+        await drainAllQueues(jobManager)
+        expect(jobService.getById(retried.id)?.status).toBe('failed')
+      })
+      expect(jobService.getById(retried.id)?.attempt).toBe(2)
+      expect(jobService.getById(plain.id)?.status).toBe('failed')
+      expect(jobService.getById(plain.id)?.attempt).toBe(0)
+      expect(calls).toBe(4)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
     it('retry: leaves a job already executing in THIS process alone (no double-dispatch)', async () => {
       // Regression for #16291: a job enqueued + started during the startup quiet
       // window is still `running` when the recovery sweep fires. Without the

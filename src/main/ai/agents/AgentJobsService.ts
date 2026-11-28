@@ -17,7 +17,7 @@ import { loggerService } from '@logger'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
-import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
+import { type ScheduledTaskEntity, type TaskRetry, TaskRetrySchema } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -56,6 +56,7 @@ type AgentTaskJobInputTemplate = {
   agentId: string
   prompt: string
   timeoutMinutes: number
+  retry?: TaskRetry
   workspace: AgentSessionWorkspaceSource
   reuseRevision: number
 }
@@ -77,11 +78,13 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
     if (!parsedWorkspace.success) return null
     workspace = parsedWorkspace.data
   }
+  const parsedRetry = TaskRetrySchema.safeParse(template.retry)
   return {
     agentId: template.agentId,
     prompt: typeof template.prompt === 'string' ? template.prompt : '',
     timeoutMinutes:
       typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
+    ...(parsedRetry.success ? { retry: parsedRetry.data } : {}),
     workspace,
     reuseRevision: normalizeTaskSessionReuseRevision(template.reuseRevision)
   }
@@ -263,6 +266,7 @@ export class AgentJobsService extends BaseService {
           prompt: form.prompt,
           timeoutMinutes:
             form.timeoutMinutes === null ? 0 : (form.timeoutMinutes ?? DEFAULT_AGENT_TASK_TIMEOUT_MINUTES),
+          ...(form.retry ? { retry: form.retry } : {}),
           workspace: form.workspace,
           reuseRevision: 0
         },
@@ -305,9 +309,11 @@ export class AgentJobsService extends BaseService {
       schedulePatch.trigger = patch.trigger
     }
     const nextTimeoutMinutes = patch.timeoutMinutes === null ? 0 : (patch.timeoutMinutes ?? existing.timeoutMinutes)
+    const nextRetry = patch.retry === null ? undefined : (patch.retry ?? existing.retry)
     const templateChanged =
       (patch.prompt !== undefined && patch.prompt !== existing.prompt) ||
       (patch.timeoutMinutes !== undefined && nextTimeoutMinutes !== existing.timeoutMinutes) ||
+      patch.retry !== undefined ||
       patch.workspace !== undefined
 
     const nextReuseEnabled = patch.reuseSession ?? existing.reuseSession
@@ -350,6 +356,7 @@ export class AgentJobsService extends BaseService {
           agentId,
           prompt: patch.prompt ?? existing.prompt,
           timeoutMinutes: nextTimeoutMinutes,
+          ...(nextRetry ? { retry: nextRetry } : {}),
           workspace: patch.workspace ?? existing.workspace,
           reuseRevision
         }

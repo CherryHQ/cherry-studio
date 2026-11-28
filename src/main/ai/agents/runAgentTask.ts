@@ -47,6 +47,7 @@ import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { TaskRetry } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -55,6 +56,8 @@ export type AgentTaskInput = {
   agentId: string
   prompt: string
   timeoutMinutes: number
+  /** Failed-run retry config; absent means a failed run is not retried. */
+  retry?: TaskRetry
   workspace?: AgentSessionWorkspaceSource
   /** Reuse-config epoch captured when this job was enqueued. */
   reuseRevision: number
@@ -225,6 +228,13 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     effectivePrompt = frameScheduledTrigger({ kind: 'task', taskName, instruction: prompt })
   }
 
+  // Attempt-local: an interrupted/cancelled attempt leaves `taskResultStatus`
+  // on the shared row; a later attempt must not inherit it, or the terminal
+  // notification reports the stale status over the final failure.
+  if (ctx.attempt > 0 && ctx.metadata.taskResultStatus !== undefined) {
+    await ctx.patchMetadata({ taskResultStatus: null })
+  }
+
   const expectedReuseRevision = normalizeTaskSessionReuseRevision(ctx.input.reuseRevision)
   const currentReuse = readTaskSessionReuse(scheduleSnapshot?.metadata)
   // A queued job captures the reuse epoch at enqueue time. It must not attach
@@ -370,6 +380,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (started.reason === 'busy') {
         completionActive = false
+        if (ctx.attempt > 0 && resolved.reused) {
+          // A timed-out previous attempt can still own the session while it
+          // tears down. Completing as a skip would consume this retry and clear
+          // the original error; fail retryably so a later attempt admits cleanly.
+          throw new Error('Agent session still busy from the previous attempt')
+        }
         return { kind: 'skipped', result: 'Skipped (session busy)' }
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
@@ -407,6 +423,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       resolved.session.id === session.id
     ) {
       application.get('AgentJobsService').releaseTaskSessionReuse(reuseBinding, session.id)
+      // Terminal: a retry resubmits the full prompt in a fresh session, which can
+      // repeat tool effects this run already committed and rebinds the run row.
+      Object.assign(runError, { retryable: false })
     }
     if (pausedStatus) await ctx.patchMetadata({ taskResultStatus: pausedStatus })
     if (!runSignal.aborted && !pausedStatus && subscribedChannels.length > 0) {

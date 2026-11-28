@@ -204,6 +204,75 @@ describe('JobManager smoke (dummy.echo)', () => {
     activityDispose.mockClear()
   })
 
+  it.each([
+    { scope: 'same queue', slots: 3, waitingQueue: undefined },
+    { scope: 'global cap', slots: 50, waitingQueue: 'retry-waiting-other' }
+  ])(
+    'dispatches pending work blocked by $scope while failed attempts wait for retry',
+    async ({ slots, waitingQueue }) => {
+      const type = `dummy.retry-backoff-${slots}`
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let entered = 0
+      jobManager.registerHandler(type as never, {
+        recovery: 'abandon',
+        defaultConcurrency: slots,
+        defaultRetryPolicy: { maxAttempts: 2, backoff: 'fixed', baseDelayMs: 3_600_000, maxDelayMs: 3_600_000 },
+        async execute(ctx) {
+          entered += 1
+          if ((ctx.input as { fail: boolean }).fail) {
+            await gate
+            throw new Error('retryable probe failure')
+          }
+          return { done: true }
+        }
+      })
+      const first = Array.from({ length: slots }, () => jobManager.enqueue(type as never, { fail: true } as never))
+      let settled = 0
+      for (const handle of first)
+        void handle.finished.then(() => {
+          settled += 1
+        })
+      await vi.waitFor(() => expect(entered).toBe(slots))
+      const fourth = jobManager.enqueue(type as never, { fail: false } as never, { queue: waitingQueue })
+      await drainTrailingDispatch()
+      expect(jobService.getById(fourth.id)?.status).toBe('pending')
+      release()
+      await vi.waitFor(() =>
+        expect(first.map((h) => jobService.getById(h.id)?.status)).toEqual(
+          Array.from({ length: slots }, () => 'delayed')
+        )
+      )
+      await drainTrailingDispatch()
+      expect(jobService.getById(fourth.id)?.status).toBe('completed')
+      expect(settled).toBe(0)
+      expect(first.map((h) => jobService.getById(h.id)?.status)).toEqual(Array.from({ length: slots }, () => 'delayed'))
+    }
+  )
+
+  it('does not retry a handler throw marked non-retryable', async () => {
+    const type = 'dummy.terminal-throw'
+    let entered = 0
+    jobManager.registerHandler(type as never, {
+      recovery: 'abandon',
+      defaultRetryPolicy: { maxAttempts: 3, backoff: 'fixed', baseDelayMs: 10, maxDelayMs: 10 },
+      async execute() {
+        entered += 1
+        throw Object.assign(new Error('terminal overflow'), { retryable: false })
+      }
+    })
+    const handle = jobManager.enqueue(type as never, {} as never)
+    const settled = await handle.finished
+    expect(settled.status).toBe('failed')
+    expect(settled.error?.code).toBe('JOB_HANDLER_THREW')
+    expect(settled.error?.retryable).toBe(false)
+    await drainTrailingDispatch()
+    expect(entered).toBe(1)
+    expect(jobService.getById(handle.id)?.status).toBe('failed')
+  })
+
   it('runs a job end-to-end (pending → running → completed)', async () => {
     const handle = jobManager.enqueue('dummy.echo' as never, { message: 'hello' } as never)
     expect(handle.snapshot.status).toBe('pending')
