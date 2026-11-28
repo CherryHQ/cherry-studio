@@ -518,7 +518,6 @@ const TaskGuardField: FC<{
   )
 }
 
-type TaskFormDialogProps = {
 export type TaskFormDialogProps = {
   agentNotice?: ReactNode
   agentSelector?: ComponentType<AgentSelectorSingleIdProps>
