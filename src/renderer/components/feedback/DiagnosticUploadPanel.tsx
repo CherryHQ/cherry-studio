@@ -7,10 +7,11 @@ import { Alert, Button, Checkbox, DialogFooter, ScrollArea, Textarea } from '@ch
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
-import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
+import type { AppErrorContext } from '@shared/types/appError'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import {
   DIAGNOSTIC_DESCRIPTION_MAX_BYTES,
   DIAGNOSTIC_FEEDBACK_FORM_URL,
@@ -30,8 +31,10 @@ function discardRetainedUpload(bundleId: string) {
 }
 
 interface DiagnosticUploadPanelProps {
+  readonly aiDiagnosis?: DiagnosticAiDiagnosis
   readonly chatTopicId?: string
   readonly description: string
+  readonly errorContext?: AppErrorContext
   readonly onBusyChange?: (busy: boolean) => void
   readonly onClose: () => void
   readonly onDescriptionChange: (description: string) => void
@@ -43,13 +46,16 @@ export interface DiagnosticUploadPanelHandle {
 
 export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   ref,
+  aiDiagnosis,
   chatTopicId,
   description,
+  errorContext,
   onBusyChange,
   onClose,
   onDescriptionChange
 }: DiagnosticUploadPanelProps & { ref?: React.RefObject<DiagnosticUploadPanelHandle | null> }) {
   const { t } = useTranslation()
+  const [attachedDiagnosis] = useState(aiDiagnosis)
   const uploadFormId = useId()
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [includeChatRecords, setIncludeChatRecords] = useState(false)
@@ -58,6 +64,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
   const [retainedBundleId, setRetainedBundleId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
   const retainedBundleIdRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
@@ -85,6 +92,8 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     diagnosticDescriptionByteLength(normalizedDescription) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES
   const showDescriptionError = hasAttemptedSubmit && !descriptionValid
   const isBusy = operationStatus !== 'idle'
+  // A failed-message analysis may quote the conversation, so it follows the chat-history opt-in.
+  const sentDiagnosis = attachedDiagnosis?.topicId === undefined || includeChatRecords ? attachedDiagnosis : undefined
   const canAttemptUpload = operationStatus === 'idle' && acknowledged
 
   useEffect(() => onBusyChange?.(isBusy), [isBusy, onBusyChange])
@@ -103,18 +112,19 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   const requestClose = useCallback(async () => {
     if (isBusy) return false
     if (retainedBundleId) {
+      setActionError(null)
       setOperationStatus('discarding')
       try {
         const discardResult = await discardRetainedUpload(retainedBundleId)
         if (discardResult.status === 'busy') {
-          toast.error(t('settings.about.diagnostics.errors.busy'))
+          setActionError(t('settings.about.diagnostics.errors.busy'))
           return false
         }
         retainedBundleIdRef.current = null
         setRetainedBundleId(null)
       } catch (error) {
         logger.error('Failed to discard retained diagnostic upload', error as Error)
-        toast.error(t('settings.about.diagnostics.upload.errors.discard_failed'))
+        setActionError(t('settings.about.diagnostics.upload.errors.discard_failed'))
         return false
       } finally {
         if (mountedRef.current) setOperationStatus('idle')
@@ -127,31 +137,34 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   useImperativeHandle(ref, () => ({ requestClose }), [requestClose])
 
   const openManualForm = async () => {
+    setActionError(null)
     try {
       await openExternalWebsite(DIAGNOSTIC_FEEDBACK_FORM_URL)
     } catch (error) {
       logger.error('Failed to open the diagnostic feedback form', error as Error)
-      toast.error(t('settings.about.diagnostics.upload.errors.open_form_failed'))
+      setActionError(t('settings.about.diagnostics.upload.errors.open_form_failed'))
     }
   }
 
   const openReport = async () => {
     if (result?.status !== 'uploaded') return
+    setActionError(null)
     try {
       await openExternalWebsite(result.reportUrl)
     } catch (error) {
       logger.error('Failed to open diagnostic status page', error as Error)
-      toast.error(t('settings.about.diagnostics.report.open_failed'))
+      setActionError(t('settings.about.diagnostics.report.open_failed'))
     }
   }
 
   const revealBundle = async () => {
     if (!savedUpload) return
+    setActionError(null)
     try {
       await ipcApi.request('file.show_in_folder', createFilePathHandle(savedUpload.filePath))
     } catch (error) {
       logger.error('Failed to reveal diagnostic upload fallback', error as Error)
-      toast.error(t('settings.about.diagnostics.errors.reveal_failed'))
+      setActionError(t('settings.about.diagnostics.errors.reveal_failed'))
     }
   }
 
@@ -165,7 +178,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
       return
     }
     if (uploadResult.status === 'busy') {
-      toast.error(t('settings.about.diagnostics.errors.busy'))
+      setActionError(t('settings.about.diagnostics.errors.busy'))
       return
     }
     const nextBundleId = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
@@ -176,6 +189,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   const uploadBundle = async () => {
     if (!canAttemptUpload || !descriptionValid) return
+    setActionError(null)
     setOperationStatus('submitting')
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
@@ -183,12 +197,14 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         ...(includeChatRecords && chatTopicId ? { chatTopicId } : {}),
         includeLogs: true,
         includeTraces: true,
-        range: '24h'
+        range: '24h',
+        ...(errorContext ? { errorContext } : {}),
+        ...(sentDiagnosis ? { aiDiagnosis: sentDiagnosis } : {})
       })
       acceptSubmissionResult(uploadResult)
     } catch (error) {
       logger.error('Failed to upload diagnostic bundle', error as Error)
-      toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
+      if (mountedRef.current) setActionError(t('settings.about.diagnostics.upload.errors.upload_failed'))
     } finally {
       if (mountedRef.current) setOperationStatus('idle')
     }
@@ -207,13 +223,14 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
       await uploadBundle()
       return
     }
+    setActionError(null)
     setOperationStatus('submitting')
     try {
       const retryResult = await ipcApi.request('diagnostics.bundle.retry_upload', { bundleId: retainedBundleId })
       acceptSubmissionResult(retryResult)
     } catch (error) {
       logger.error('Failed to retry diagnostic upload', error as Error)
-      toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
+      if (mountedRef.current) setActionError(t('settings.about.diagnostics.upload.errors.upload_failed'))
     } finally {
       if (mountedRef.current) setOperationStatus('idle')
     }
@@ -221,17 +238,18 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   const saveUpload = async () => {
     if (!retainedBundleId || savedUpload || isBusy) return
+    setActionError(null)
     setOperationStatus('saving')
     try {
       const saveResult = await ipcApi.request('diagnostics.bundle.save_upload', { bundleId: retainedBundleId })
       if (saveResult.status === 'busy') {
-        toast.error(t('settings.about.diagnostics.errors.busy'))
+        setActionError(t('settings.about.diagnostics.errors.busy'))
       } else if (saveResult.status === 'saved') {
         setSavedUpload(saveResult)
       }
     } catch (error) {
       logger.error('Failed to save retained diagnostic upload', error as Error)
-      toast.error(t('settings.about.diagnostics.upload.errors.save_failed'))
+      if (mountedRef.current) setActionError(t('settings.about.diagnostics.upload.errors.save_failed'))
     } finally {
       if (mountedRef.current) setOperationStatus('idle')
     }
@@ -240,6 +258,11 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <ScrollArea contentProps={{ className: 'px-6 py-2' }} className="min-h-0">
+        {sentDiagnosis ? (
+          <p className="text-muted-foreground mb-4 text-sm">
+            {t('settings.about.diagnostics.report.ai_diagnosis_included')}
+          </p>
+        ) : null}
         {result ? (
           <UploadResultContent
             result={result}
@@ -297,6 +320,11 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         )}
       </ScrollArea>
 
+      {actionError ? (
+        <p role="alert" className="text-error px-6 text-xs">
+          {actionError}
+        </p>
+      ) : null}
       <DialogFooter className="mt-4 px-6 py-4">
         {isBusy ? (
           <Button variant={operationStatus === 'discarding' ? 'destructive' : 'emphasis'} loading disabled>

@@ -46,7 +46,7 @@ class PopupService {
   }
 
   /** A PopupHost is mounted and subscribed (so an entry would actually render). */
-  private hasHost(): boolean {
+  isHostMounted(): boolean {
     return this.listeners.size > 0
   }
 
@@ -97,7 +97,7 @@ class PopupService {
     instanceId: string,
     dismissResult: R
   ): Promise<R> {
-    if (!this.hasHost()) {
+    if (!this.isHostMounted()) {
       logger.warn('createPopup show() with no PopupHost mounted; resolving dismissResult', { instanceId })
       return Promise.resolve(dismissResult)
     }
@@ -121,7 +121,7 @@ class PopupService {
 
   /** Mount a confirm-family prefab. No host → resolves `false` immediately (dev warning). */
   showConfirm(confirmType: ConfirmPopupType, props: ConfirmPopupProps): Promise<boolean> {
-    if (!this.hasHost()) {
+    if (!this.isHostMounted()) {
       logger.warn('confirm popup with no PopupHost mounted; resolving false', { confirmType })
       return Promise.resolve(false)
     }

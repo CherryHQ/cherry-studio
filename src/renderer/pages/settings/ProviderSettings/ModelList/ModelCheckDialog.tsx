@@ -323,7 +323,7 @@ export default function ModelCheckDialog() {
   }
 
   const handleShowConnectionErrorDetail = () => {
-    if (singleError) showErrorDetailPopup({ error: singleError })
+    if (singleError) void showErrorDetailPopup({ error: singleError })
   }
 
   const startDisabled =

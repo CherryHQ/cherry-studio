@@ -1,16 +1,26 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import { LocalizedToastError } from '@renderer/utils/errorToast'
+
+const { i18nMock } = vi.hoisted(() => ({
+  i18nMock: { language: 'en-US', t: (key: string) => key }
+}))
 
 vi.mock('@renderer/services/toast', (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => import('@cherrystudio/ui/components/primitives/toast'))
 
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string) => enUS[key as keyof typeof enUS] ?? key }
-}))
+i18nMock.t = (key: string) => enUS[key as keyof typeof enUS] ?? key
+vi.mock('@renderer/i18n/resolver', () => ({ default: i18nMock }))
 
+import { appErrorContextService } from '../AppErrorContextService'
+import { presentedRouteService } from '../PresentedRouteService'
 import { toast } from '../toast'
 
+beforeEach(() => {
+  MockCacheUtils.resetMocks()
+})
 afterEach(() => toast.closeAll())
 
 describe('provider entitlement toasts', () => {
@@ -35,22 +45,76 @@ required service tier.`
     })
   })
 
-  it('shows a Cherry AI plan quota rejection in the plan wording without provider settings', () => {
+  it('titles a Cherry AI plan quota rejection and shows the plan wording on the second line', () => {
     const planText = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时后重试。'
-    const key = toast.errorFromException(
-      {
-        name: 'Error',
-        message: `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`,
-        statusCode: 429,
-        providerErrorCategory: 'quota'
-      },
-      { provider: { id: 'cherryai-subscription', name: 'CherryAI' }, modelName: 'DeepSeek V4.1 Flash' }
+    const failure = {
+      name: 'Error',
+      message: `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`,
+      statusCode: 429,
+      providerErrorCategory: 'quota'
+    }
+    const key = toast.errorFromException(failure, {
+      provider: { id: 'cherryai-subscription', name: 'CherryAI' },
+      modelName: 'DeepSeek V4.1 Flash'
+    })
+
+    const shown = toast.getToastQueue().toasts.find((item) => item.key === key)
+    expect(shown).toMatchObject({
+      title: enUS['models.detail.quota_insufficient_for_request'],
+      description: planText,
+      action: undefined,
+      cause: failure
+    })
+  })
+
+  it('titles an unclassified error generically and keeps its raw text only in the detail', () => {
+    const raw = "ENOENT: no such file or directory, open '/Users/alice/notes.md'"
+    const failure = new Error(raw)
+    const key = toast.errorFromException(failure, { provider: { id: 'acme', name: 'Acme' } })
+
+    const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+    expect(shown.title).toBe(enUS['toast.error.unexpected'])
+    expect(shown.description).toBe(`Acme · ${enUS['toast.error.interrupted']}`)
+    expect(shown.cause).toBe(failure)
+  })
+
+  it('titles an unclassified error with the caller summary but keeps classified diagnoses', () => {
+    const failure = new Error('ipc handler threw')
+    const summarized = toast.errorFromException(failure, { title: 'Failed to send message' })
+    const classified = toast.errorFromException(
+      { name: 'Error', message: 'fetch failed' },
+      { key: 'classified', title: 'Failed to send message' }
     )
 
+    const { toasts } = toast.getToastQueue()
+    expect(toasts.find((item) => item.key === summarized)).toMatchObject({
+      title: 'Failed to send message',
+      cause: failure
+    })
+    expect(toasts.find((item) => item.key === classified)?.title).toBe(enUS['error.diagnosis.network'])
+  })
+
+  it('titles a recovery failure with its own localized summary and keeps the raw cause', async () => {
+    const raw = new Error('Enablement unavailable')
+    const key = toast.errorFromException(
+      { name: 'Error', message: 'fetch failed' },
+      {
+        title: 'Original summary',
+        actions: {
+          retry: () => Promise.reject(new LocalizedToastError('Connected, but enabling failed', { cause: raw }))
+        }
+      }
+    )
+
+    await toast
+      .getToastQueue()
+      .toasts.find((item) => item.key === key)!
+      .action!.onClick()
+
     expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
-      title: enUS['models.detail.quota_insufficient_for_request'],
-      details: planText,
-      action: undefined
+      type: 'error',
+      title: 'Connected, but enabling failed',
+      cause: raw
     })
   })
 })
@@ -66,4 +130,20 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   expect(shown.action?.label).toBe(enUS['toast.error.retry'])
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
+})
+
+describe('error toast origin', () => {
+  const contextOf = (key: string) => {
+    const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+    return appErrorContextService.contextForHostError(String(shown.occurrence), shown)
+  }
+
+  it('attributes a generic exception to the route it was shown on, and a provider failure to the provider', () => {
+    presentedRouteService.recordPresentedRoute('/files')
+
+    expect(contextOf(toast.errorFromException(new Error('disk full'))).source).toBe('/files')
+    expect(
+      contextOf(toast.errorFromException(new Error('upstream down'), { provider: { id: 'acme', name: 'Acme' } })).source
+    ).toBe('provider')
+  })
 })

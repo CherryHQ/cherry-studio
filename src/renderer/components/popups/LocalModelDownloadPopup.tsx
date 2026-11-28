@@ -76,8 +76,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, id, description }) => 
         // Dismissing mid-download would leave it running with nothing on screen
         // reporting it; Cancel is the only way out, and it actually stops the download.
         closeOnOverlayClick={!downloading}
-        overlayClassName="z-[90]"
-        className={cn('confirm-popup z-[90] gap-5 sm:max-w-lg')}
+        className={cn('confirm-popup gap-5 sm:max-w-lg')}
         onInteractOutside={(event) => {
           if (downloading) {
             event.preventDefault()
