@@ -978,7 +978,7 @@ it('uses child-specific compaction budgets instead of the large root reserve', a
   }
   const root = confirmed(await runtime.create(config))
   const events = await observe(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('completed')
   expect(nativeBudgets).toEqual([
     { enabled: true, reserveTokens: 108_192, keepRecentTokens: 20_000 },
