@@ -1,6 +1,8 @@
 import { spawn } from 'child_process'
 import path from 'node:path'
 
+import { t } from '@main/i18n'
+import { mergeEnvironment } from '@main/utils/env'
 import { terminateProcessTree } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 
@@ -68,7 +70,11 @@ export function classifyClaudeStartupError(error: unknown): ClaudeStartupProbeFa
   return { reason: 'exit', detail }
 }
 
-export async function probeClaudeExecutable(executablePath: string, cwd?: string): Promise<ClaudeStartupProbeResult> {
+export async function probeClaudeExecutable(
+  executablePath: string,
+  cwd?: string,
+  overrides?: Record<string, string>
+): Promise<ClaudeStartupProbeResult> {
   // npm-global shims (.cmd/.bat) need cmd.exe, and a shell concatenates its
   // command line unquoted — quote a spaced shim path so it still resolves.
   const needsShell = ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
@@ -83,7 +89,7 @@ export async function probeClaudeExecutable(executablePath: string, cwd?: string
   // Discovery resolves system binaries on the login-shell PATH and the terminal
   // launches with that same env; probe with it too, not the stale process env.
   try {
-    const env = await getRawShellEnv()
+    const env = mergeEnvironment(await getRawShellEnv(), overrides)
     const child = spawn(command, ['--version'], {
       windowsHide: true,
       detached: process.platform !== 'win32',
@@ -167,13 +173,8 @@ function truncateDetail(detail: string): string {
 
 /** Actionable failure text: names the binary and offers the managed-binary recovery path. */
 export function describeClaudeStartupFailure(executablePath: string, failure: ClaudeStartupProbeFailure): string {
-  const prefix =
-    failure.reason === 'startup-crash'
-      ? `The selected Claude Code system binary "${executablePath}" crashed during startup`
-      : failure.reason === 'timeout'
-        ? `The selected Claude Code system binary "${executablePath}" did not respond during the startup check`
-        : failure.reason === 'spawn'
-          ? `The selected Claude Code system binary "${executablePath}" could not be started`
-          : `The selected Claude Code system binary "${executablePath}" failed the startup check`
-  return `${prefix} (${truncateDetail(failure.detail)}). Switch to the managed Claude binary, reinstall a tested version, or select another executable.`
+  return t(`code_cli.claude_startup.${failure.reason}`, {
+    path: executablePath,
+    detail: truncateDetail(failure.detail)
+  })
 }

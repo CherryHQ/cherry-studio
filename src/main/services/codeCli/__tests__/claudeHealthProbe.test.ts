@@ -3,6 +3,8 @@ import { EventEmitter } from 'node:events'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { t } from '@main/i18n'
+
 import { classifyClaudeStartupError, describeClaudeStartupFailure, probeClaudeExecutable } from '../claudeHealthProbe'
 
 vi.mock('child_process', () => ({ spawn: vi.fn() }))
@@ -117,6 +119,14 @@ describe('describeClaudeStartupFailure', () => {
     expect(message).toContain('C:\\Tools\\claude.exe')
     expect(message).toContain('crashed during startup')
     expect(message).toContain('managed Claude binary')
+  })
+
+  it('provides translated recovery instructions in Chinese', () => {
+    const message = t('code_cli.claude_startup.startup-crash', { path: '/bin/claude', detail: 'SIGSEGV' }, 'zh-CN')
+    expect(message).toContain('/bin/claude')
+    expect(message).toContain('崩溃')
+    expect(message).toContain('托管')
+    expect(message).not.toContain('Switch to')
   })
 
   it('truncates an unbounded failure detail', () => {

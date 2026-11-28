@@ -12,6 +12,8 @@ import {
 } from '@shared/ai/localAgent'
 import type { InputFor } from '@shared/ipc/types'
 
+import { describeClaudeStartupFailure, probeClaudeExecutable } from './claudeHealthProbe'
+
 export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
   const snapshots = await application
     .get('BinaryManager')
@@ -89,6 +91,17 @@ export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.o
     )
   )
   try {
+    if (preset.id === 'claude' && launch.source === 'system') {
+      const probe = await probeClaudeExecutable(
+        launch.executable,
+        config.directory ?? application.getPath('sys.home'),
+        env
+      )
+      if (!probe.ok) {
+        await binding?.dispose()
+        return { success: false, message: describeClaudeStartupFailure(launch.executable, probe.failure) }
+      }
+    }
     const result = await application.get('CodeCliService').openTerminal({
       executable: launch.executable,
       args: [...(binding?.args ?? []), ...args],
