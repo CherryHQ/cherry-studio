@@ -4,6 +4,7 @@ import type { RuntimeEffortControl, RuntimeModelOption } from '@cherrystudio/age
 import {
   hasPermissionModeChoices,
   selectedPermissionMode,
+  type AgentPermissionMode,
   type PermissionModeApplication,
   type PermissionModeChoice
 } from '@cherrystudio/agent-runtime/cli'
@@ -285,10 +286,17 @@ export function getLocalAgentLaunchMode(
   return catalog && { ...catalog, options: [...catalog.options] }
 }
 
+export function getLocalPermissionChoice(mode: LocalAgentSelection | undefined, permission: AgentPermissionMode) {
+  return mode?.options.find(
+    ({ permissionMode, requiresConfirmation }) => permissionMode === permission && !requiresConfirmation
+  )
+}
+
+export function getLocalSessionPermission(info?: LocalAgentSessionInfo) {
+  return info?.launchPermission ?? info?.hostPermission ?? info?.mode
+}
+
 export interface LocalAgentSessionOverrides {
-  mode?: { configId: string; value: string }
-  launchBypass?: { agentId: string; presetId: string } | null
-  hostPermissionMode?: { agentId: string; value: AcpHostPermissionMode }
   thoughtLevel?: { configId: string; value: string; modelId?: string }
   configOptions?: Record<string, string | boolean>
   updatedAt: number

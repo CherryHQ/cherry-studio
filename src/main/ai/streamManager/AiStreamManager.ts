@@ -1089,6 +1089,7 @@ export class AiStreamManager extends BaseService {
     source?: SourceSnapshot | null
     /** Per-request retry limit; `0` also disables model fallback. */
     maxRetries?: number
+    utilityTask?: boolean
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -1104,6 +1105,7 @@ export class AiStreamManager extends BaseService {
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       ...(input.resolvedModel ? { resolvedModel: input.resolvedModel } : {}),
+      ...(input.utilityTask ? { utilityTask: true } : {}),
       messages,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
@@ -2478,7 +2480,11 @@ export class AiStreamManager extends BaseService {
       }
       const fromThrow = serializeError(result.threw.error)
       const serialized =
-        result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow) && !fromThrow.i18nKey
+        result.streamErrorText !== undefined &&
+        !signal.aborted &&
+        !hasHttpMetadata(fromThrow) &&
+        !fromThrow.providerErrorCategory &&
+        !fromThrow.i18nKey
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
       if (fromThrow.reportingHandled === true) serialized.reportingHandled = true

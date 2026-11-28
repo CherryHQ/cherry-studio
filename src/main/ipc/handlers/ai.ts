@@ -263,8 +263,6 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').selectLocalSessionModel(sessionId, modelId),
   'ai.local_agents.set_config_option': ({ sessionId, configId, value }) =>
     application.get('AgentSessionRuntimeService').setLocalConfigOption(sessionId, configId, value),
-  'ai.local_agents.set_mode': ({ sessionId, configId, value }) =>
-    application.get('AgentSessionRuntimeService').setLocalMode(sessionId, configId, value),
   'ai.local_agents.set_thought_level': ({ sessionId, configId, value, modelId }) =>
     application.get('AgentSessionRuntimeService').setLocalThoughtLevel(sessionId, configId, value, modelId),
   'ai.local_agents.session_info': async ({ sessionId }) =>

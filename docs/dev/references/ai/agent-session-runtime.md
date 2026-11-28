@@ -381,8 +381,9 @@ The first segment retains the Run's message ID; later keys combine the Run ID wi
 first part ID. `sourceMessageId` retains the durable owner for approvals, usage and fork. Only the
 last segment exposes the completed Run's fork boundary and statistics. Existing open text and tools
 stay in their original segment; a steer never cuts a string or moves a tool into a new parent.
-Only the first visible content segment owns the Run identity header; subsequent segments keep their
-body and tool parents without repeating it. Boundary compaction parts are separate marker rows with
+A pending Run without parts shows its identity header after its latest placed input. Once content
+appears, the first visible content segment owns that header. Subsequent segments keep their body
+and tool parents without repeating it. Boundary compaction parts are separate marker rows with
 no assistant header, action footer or selection checkbox. In-loop compaction remains inside its process
 group. A paused Run projects one stable interrupted marker from its persisted terminal status,
 after both its last content and its latest placed input. Unplaced queue inputs and

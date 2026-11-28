@@ -147,7 +147,7 @@ it.skipIf(process.platform === 'win32')(
         })
       const before = await reads()
       const multiple = await observedPrompt('multiple')
-      expect(multiple.usage?.inputTokens).toBe(11052)
+      expect(multiple).toMatchObject({ usage: { inputTokens: 11052 } })
       expect(context.contextAfterPrompt(multiple, 'reply')).toMatchObject({
         model: 'test/fixture',
         revision: 'reply',
