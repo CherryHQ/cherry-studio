@@ -127,6 +127,8 @@ const MessageHeader: FC<Props> = memo(
     // Names remain historical; adapters may supply current avatars for authors that still exist.
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
+    const authorIcon =
+      !authorSnapshot || authorSnapshot.id === assistantProfile?.id ? assistantProfile?.avatarIcon : undefined
     const snapshotAvatarSrc = authorSnapshot?.avatarFileId
       ? meta.assistantAvatarSources?.get(authorSnapshot.avatarFileId)
       : undefined
@@ -165,7 +167,9 @@ const MessageHeader: FC<Props> = memo(
     const hasBodySlot = !!contentSlot || !!footerSlot
     const toggleAuthorProfile = isAssistantMessage ? actions.toggleAuthorProfile : undefined
 
-    const assistantAvatar = authorAvatar ? (
+    const assistantAvatar = authorIcon ? (
+      <MessageAvatarFrame>{authorIcon}</MessageAvatarFrame>
+    ) : authorAvatar ? (
       <MessageAvatar
         avatar={authorAvatar}
         fallback={authorSnapshot?.emoji || avatarName}

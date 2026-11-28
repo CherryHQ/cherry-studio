@@ -123,7 +123,7 @@ describe('OpenCode read-only source snapshots', () => {
       { type: 'text', text: 'first' },
       { type: 'text', text: 'second' }
     ])
-    expect(result.messages[1].messageSnapshot?.model.name).toBe('historic')
+    expect(result.messages[1].messageSnapshot?.model?.name).toBe('historic')
     expect(await fingerprintFiles()).toEqual(before)
     message('msg_tail', 2, 'user', { text: 'new committed message' })
     expect((await read()).sourceFingerprint).not.toBe(result.sourceFingerprint)

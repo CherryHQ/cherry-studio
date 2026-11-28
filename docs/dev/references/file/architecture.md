@@ -154,6 +154,9 @@ currently cover binary reads, optimistic writes, metadata, path and dangling-sta
 internal-entry batch creation, trash operations, rename, open/reveal, and the directory-tree
 protocol.
 
+`file.select_folder` opens the native directory picker with an optional absolute starting path.
+It returns the selected absolute path or `null` when the user cancels.
+
 `file.validate_notes_directory` is a transport adapter for the existing Notes-directory selection
 policy in `src/main/services/notesDirectory.ts`, shared with legacy `FileStorage`. This stateless
 Notes-owned module belongs to the business tier, outside foundation helpers and the generic

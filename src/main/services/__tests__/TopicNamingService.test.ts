@@ -279,6 +279,31 @@ describe('TopicNamingService', () => {
     })
   })
 
+  it.each(['agent:main:acp-bridge:uuid', 'acp-bridge:uuid', '[Working directory: ~/project…'])(
+    'replaces technical titles without overriding manual names: %s',
+    (name) => {
+      mocks.getAgent.mockReturnValue({ localRuntime: { presetId: 'openclaw' } })
+      for (const manual of [false, true]) {
+        mocks.updateSession.mockClear()
+        mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', name, isNameManuallyEdited: manual })
+        createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'Explain this project')
+        if (manual) expect(mocks.updateSession).not.toHaveBeenCalled()
+        else
+          expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
+            name: 'Explain this project',
+            isNameManuallyEdited: false
+          })
+      }
+    }
+  )
+
+  it('preserves an ACP title from a custom agent even when it looks like an OpenClaw bridge title', () => {
+    mocks.getAgent.mockReturnValue({ localRuntime: { executableOverride: '/custom/acp' } })
+    mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', name: 'acp-bridge:my-task' })
+    createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'Inspect the workspace')
+    expect(mocks.updateSession).not.toHaveBeenCalled()
+  })
+
   it('renames default unnamed agent sessions from the first user message without generating a summary', async () => {
     mocks.getSession.mockReturnValue({
       id: 'session-1',

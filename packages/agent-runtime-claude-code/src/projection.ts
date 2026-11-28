@@ -315,11 +315,15 @@ export class ClaudeProjection {
     return [{ type: 'message.tool-output', ref: this.ref(owner.id), part: call.index, tool: part }]
   }
 
-  result(message: SDKResultMessage): ObservationPayload[] {
-    if (message.subtype !== 'success' || message.structured_output === undefined) return []
-    return this.updateContent(message.uuid, 'assistant', [
-      projectBlock({ type: 'text', text: JSON.stringify(message.structured_output) }, false)
-    ])
+  result(message: SDKResultMessage, correlatedCommand = false): ObservationPayload[] {
+    if (message.subtype !== 'success') return []
+    const text =
+      message.structured_output !== undefined
+        ? JSON.stringify(message.structured_output)
+        : correlatedCommand && message.local_command && !message.is_error
+          ? message.result || `/${message.local_command}`
+          : undefined
+    return text ? this.updateContent(message.uuid, 'assistant', [projectBlock({ type: 'text', text }, false)]) : []
   }
 
   private preview(): ObservationPayload[] {

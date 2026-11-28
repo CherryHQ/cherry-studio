@@ -5,6 +5,7 @@ import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { ArtifactBackfillService } from '@main/ai/agents/ArtifactBackfillService'
+import { AgentDelegationService } from '@main/ai/agentSession/AgentDelegationService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AgentImportService } from '@main/ai/agentSession/import/AgentImportService'
@@ -15,6 +16,7 @@ import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
+import { LocalAgentMcpBridgeService } from '@main/ai/mcp/LocalAgentMcpBridgeService'
 import { McpAppViewService } from '@main/ai/mcp/McpAppViewService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
@@ -26,6 +28,7 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { LocalAgentOverlayService } from '@main/ai/runtime/cli/LocalAgentOverlayService'
 import { SkillSubscriptionService } from '@main/ai/skills/SkillSubscriptionService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
@@ -53,7 +56,8 @@ import { CherryCloudNotificationService } from '@main/services/cherryCloud/Cherr
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CherryInModelSyncService } from '@main/services/CherryInModelSyncService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
-import { CodeCliService } from '@main/services/codeCli'
+import { CodeBuddyWebUiService } from '@main/services/CodeBuddyWebUiService'
+import { CodeCliService, LocalAgentInstallService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ComputerUseService } from '@main/services/ComputerUseService'
 import { ConversationImportService } from '@main/services/conversationImport/ConversationImportService'
@@ -70,6 +74,8 @@ import {
   FileObservationService
 } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
+import { LocalAgentAuthService } from '@main/services/LocalAgentAuthService'
+import { LocalAgentWebUiService } from '@main/services/LocalAgentWebUiService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -154,6 +160,12 @@ export const services = {
   CherryCloudNotificationService,
   DeepSeekHarnessService,
   HermesDashboardService,
+  CodeBuddyWebUiService,
+  LocalAgentWebUiService,
+  LocalAgentInstallService,
+  LocalAgentOverlayService,
+  LocalAgentAuthService,
+  LocalAgentMcpBridgeService,
   FileManager,
   FileEditService,
   AttachmentPresenceService,
@@ -204,6 +216,7 @@ export const services = {
   ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
+  AgentDelegationService,
   AgentImportService,
   AgentSessionDeliveryService,
   AgentJobsService,
