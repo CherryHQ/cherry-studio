@@ -5,11 +5,18 @@ import type {
   EntryId,
   EntryRecord,
   LiveState,
+  SubmissionId,
   TaskId
 } from '@earendil-works/pi-durable'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
-import { isLivePartInput, runtimeId, ThreadFeed, type ObservationPayload } from '@cherrystudio/agent-runtime'
+import {
+  isLivePartInput,
+  runtimeId,
+  ThreadFeed,
+  type InputState,
+  type ObservationPayload
+} from '@cherrystudio/agent-runtime'
 
 import { previewTextAppends } from '../src/previewTextAppends'
 import { DurableProjection, type DurableObservation } from '../src/projection'
@@ -242,9 +249,7 @@ it('publishes admission and input facts without reading the transcript', async (
     }
   })
   const inputId = runtimeId<'input'>('queued')
-  projection.beginAdmission(inputId)
   projection.input({ inputId, facts: ['accepted', 'queued'] })
-  projection.endAdmission(inputId, true)
   await expect
     .poll(() => events.at(-1))
     .toMatchObject({
@@ -867,30 +872,55 @@ describe('Durable observation deltas', () => {
     expect(events[gap + 1]?.type).toBe('snapshot')
   })
 
-  // Catches a completion lost with the snapshot that used to carry it, or delivered before the input it reports.
-  it('delivers completion on the last frame of its update', async () => {
+  it('settles only the previous run when the next run starts in the same commit', async () => {
     const { projection } = setup(view([]))
     const batches: DurableObservation[] = []
     const observation = projection.observe((batch) => {
       batches.push(batch)
     })
-    const inputId = runtimeId<'input'>('quiet')
-    projection.update(view([]), { type: 'commit', revision: 1, changes: [{ inputId, facts: ['accepted', 'queued'] }] })
-    projection.update(view([]), {
+    const first: InputState = {
+      inputId: runtimeId('first'),
+      nativeInput: { session: projection.ref, id: runtimeId('5') },
+      facts: ['accepted', 'placed']
+    }
+    const second: InputState = {
+      inputId: runtimeId('second'),
+      nativeInput: { session: projection.ref, id: runtimeId('8') },
+      facts: ['accepted', 'placed']
+    }
+    const next = 9 as TaskId
+    projection.update(view([], { run: { id: taskId, taskId, inputs: [5 as SubmissionId], turns: 0 } }), {
       type: 'commit',
-      revision: 2,
-      changes: [{ inputId, facts: ['accepted', 'placed'], outcome: 'completed' }]
+      changes: [first, { ...second, facts: ['accepted', 'queued'] }]
     })
-    projection.beginAdmission(runtimeId<'input'>('admitted'))
-    projection.endAdmission(runtimeId<'input'>('admitted'), true)
+    const answered = { ...first, outcome: 'completed' as const }
+    projection.update(
+      view([entry(10, 'First answer')], { run: { id: next, taskId: next, inputs: [8 as SubmissionId], turns: 0 } }),
+      { type: 'commit', changes: [answered, second] }
+    )
+    const secondAnswer = { ...second, outcome: 'completed' as const }
+    projection.update(view([entry(10, 'First answer'), entry(11, 'Second answer', next)]), {
+      type: 'commit',
+      changes: [secondAnswer]
+    })
     await observation.drain()
     const completed = batches.filter((batch) => batch.completion)
-    expect(completed.map((batch) => batch.events.map((event) => event.type))).toEqual([
-      ['input.changed'],
-      ['activity.changed']
+    expect(completed.map((batch) => batch.completion)).toEqual([
+      { inputs: [answered], nextRunId: next },
+      { inputs: [secondAnswer], entryId: '11' }
     ])
-    expect(completed[0].completion?.inputs).toMatchObject([{ inputId, outcome: 'completed' }])
-    expect(batches.filter((batch) => batch.events.some((event) => event.type === 'snapshot'))).toHaveLength(1)
+    expect(
+      batches
+        .slice(0, batches.indexOf(completed[0]) + 1)
+        .some((batch) =>
+          batch.events.some(
+            (event) =>
+              event.type === 'input.changed' &&
+              event.input.inputId === first.inputId &&
+              event.input.outcome === 'completed'
+          )
+        )
+    ).toBe(true)
   })
 })
 
@@ -956,7 +986,6 @@ it('retains exact input answer positions while another native Run remains active
   const inputId = runtimeId<'input'>('answered-input')
   projection.update(view([entry(11, 'A final answer')], live()), {
     type: 'commit',
-    revision: 1,
     changes: [{ inputId, facts: ['accepted', 'placed'], outcome: 'completed' }],
     answers: [{ inputId, entryId: '11' }]
   })

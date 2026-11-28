@@ -3293,17 +3293,19 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'turn-complete': {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
         if (turn) {
-          turn.forkAnchor ??= event.forkAnchor
-            ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
-            : undefined
+          const input = runInputOutcome(turn.taskIds.flatMap((id) => turn.inputOutcomes?.get(id) ?? []))
+          const terminal = input && nativeOutcomeTerminal(input)
+          const outcome =
+            terminal?.status === 'error' ? terminal : { status: event.status ?? terminal?.status ?? 'success' }
+          if (outcome.status === 'success' && event.forkAnchor)
+            turn.forkAnchor ??= {
+              ...event.forkAnchor,
+              excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id)
+            }
           // A native abort that Cherry did not start must still end the renderer stream as paused.
-          if (event.status === 'paused' && !entry.closing)
+          if (outcome.status === 'paused' && !entry.closing)
             application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-runtime-aborted')
-          this.applyRuntimeStateEvent(entry, {
-            type: 'runtime-terminal',
-            turn,
-            outcome: { status: event.status ?? 'success' }
-          })
+          this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome })
         }
         this.clearApiRetry(entry)
         this.refreshContextUsage(entry)
@@ -4103,7 +4105,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return reply?.status === 'pending' ? reply.id : undefined
   }
 
-  /** Records a native outcome for a reply that no runtime turn will settle. */
+  /** Records native input outcomes for live settlement, handoff and recovery. */
   private noteNativeOutcome(entry: AgentSessionRuntimeEntry, contextId: string, input: NativeInputState): void {
     if (entry.agentType !== 'pi-durable' || !input.outcome) return
     if (entry.stopping?.input?.ids.includes(input.inputId)) {

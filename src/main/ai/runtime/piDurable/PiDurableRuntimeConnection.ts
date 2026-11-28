@@ -127,8 +127,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly queued = new Set<string>()
   /** Product inputs whose placement was announced; each placement starts its own reply once. */
   private readonly placed = new Set<string>()
-  /** The input whose reply the host is writing. */
-  private readonly runInputs = new Set<string>()
   private readonly children = new Map<
     string,
     | { state: 'opening'; pending: Promise<DurableChildResource | undefined> }
@@ -238,8 +236,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (running) this.queued.add(input.message.id)
     else {
       this.placed.add(input.message.id)
-      this.runInputs.clear()
-      this.runInputs.add(input.message.id)
       this.failure = undefined
       this.turnUsage.reset()
     }
@@ -570,8 +566,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           this.failure = undefined
           this.turnUsage.reset()
         }
-        this.runInputs.clear()
-        for (const id of placements) this.runInputs.add(id)
         this.events.push({ type: 'run-started', inputIds: placements })
       }
       for (const answer of batch.answers ?? []) {
@@ -601,15 +595,16 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           active: results.status !== 'confirmed' || results.value.active
         })
       }
-      if (batch.completion && !this.compacting && !this.closing && this.sending) {
-        // Queued executions settle separately; every steer belongs to this execution.
-        const inputs = this.runInputs.size
-          ? batch.completion.inputs.filter((input) => !!input.inputId && this.runInputs.has(input.inputId))
-          : batch.completion.inputs
-        const failed = inputs.map(nativeOutcomeTerminal).find((terminal) => terminal?.status === 'error')
-        if (failed?.status === 'error') this.failure ??= failed.error
+      const completion = batch.completion
+      if (completion && completion.nextRunId === undefined && !this.compacting && !this.closing && this.sending) {
+        const { inputs, entryId } = completion
+        // Product input outcomes already reached Main through input-state.
+        if (!inputs.some(hasProductInputId)) {
+          const failed = inputs.map(nativeOutcomeTerminal).find((terminal) => terminal?.status === 'error')
+          if (failed?.status === 'error') this.failure ??= failed.error
+        }
         const aborted = inputs.some((input) => input.outcome === 'aborted')
-        this.finishTurn(aborted ? undefined : batch.completion.entryId, aborted)
+        this.finishTurn(aborted ? undefined : entryId, aborted)
       }
     } catch (error) {
       this.fail(error)
@@ -621,8 +616,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.autonomous = true
     this.failure = undefined
     this.turnUsage.reset()
-    this.runInputs.clear()
-    if (recoveredInputId) this.runInputs.add(recoveredInputId)
     this.events.push({
       type: 'autonomous-turn-state',
       state: 'started',
@@ -653,7 +646,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (this.steers.delete(messageId)) {
       this.queued.delete(messageId)
       this.placed.add(messageId)
-      this.runInputs.add(messageId)
       this.events.push({ type: 'steer-boundary', inputIds: [messageId] })
       return
     }
@@ -667,7 +659,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private finishTurn(entryId?: string, aborted = false) {
     if (this.closing || !this.sending) return
     this.sending = false
-    this.runInputs.clear()
     this.events.push(
       this.failure
         ? { type: 'error', error: this.failure }

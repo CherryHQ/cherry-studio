@@ -1651,23 +1651,27 @@ describe('desktop Pi Durable connection', () => {
     expect(JSON.stringify(serialized)).not.toContain('private-key')
   })
 
-  it('preserves output truncation through the desktop error boundary', async () => {
+  it('reports output truncation before the desktop completion boundary', async () => {
     const response = assistantReply('', 'length')
     response.content = [{ type: 'thinking', thinking: 'Partial reasoning' }]
     setScript([response])
     const { connection, events } = await connect()
-    await connection.send({ message: message('Solve a reasoning task') })
+    const user = message('Solve a reasoning task')
+    await connection.send({ message: user })
     await done(events)
 
-    const failure = events.find((event) => event.type === 'error')
-    expect(failure).toBeDefined()
-    if (failure?.type !== 'error') throw new Error('Expected a truncation failure')
-    expect(serializeError(failure.error)).toMatchObject({
-      reason: 'output-truncated',
-      finishReason: 'length',
-      i18nKey: 'output_token_limit_reached'
-    })
-    expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
+    const boundary = events.findIndex((event) => event.type === 'turn-complete')
+    expect(boundary).toBeGreaterThanOrEqual(0)
+    expect(events.slice(0, boundary)).toContainEqual(
+      expect.objectContaining({
+        type: 'input-state',
+        input: expect.objectContaining({
+          inputId: user.id,
+          outcome: 'unanswered',
+          error: expect.objectContaining({ code: 'output-truncated' })
+        })
+      })
+    )
   })
 
   it('loads workspace instructions and reflects changes on later model requests', async () => {
@@ -2635,9 +2639,7 @@ describe('desktop Pi Durable connection', () => {
       outcome: 'failed',
       error: { code: 'model_error', message: '429: CONCURRENCY_LIMITED' }
     })
-    expect(events.find((event) => event.type === 'error')).toMatchObject({
-      error: { message: expect.stringContaining('CONCURRENCY_LIMITED') }
-    })
+    expect(events.some((event) => event.type === 'turn-complete')).toBe(true)
     const boundary = events.length
     await connection.send({ message: message('try again') })
     await expect.poll(() => events.slice(boundary).some((event) => event.type === 'turn-complete')).toBe(true)
@@ -3465,6 +3467,44 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
+  it('reports a failed run while its follow-up stays queued', async () => {
+    const held = gate()
+    script = respondingModel(() =>
+      held.wait({ ...assistantReply('', 'error'), errorMessage: '402 Insufficient Balance' })
+    )
+    const { connection, events, nativeInputs } = await connect()
+    const first = message('first')
+    await connection.send({ message: first })
+    await held.reached
+    const second = message('second')
+    try {
+      await expect(submitBusy(connection, 'followUp', second)).resolves.toMatchObject({ status: 'acknowledged' })
+      await expect.poll(() => nativeInputs.findLast((state) => state.inputId === second.id)?.facts).toContain('queued')
+    } finally {
+      held.open()
+    }
+
+    await expect.poll(() => nativeInputs.findLast((state) => state.inputId === first.id)?.outcome).toBe('failed')
+    await done(events)
+    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(nativeInputs.findLast((state) => state.inputId === first.id)?.error?.message).toContain(
+      '402 Insufficient Balance'
+    )
+    expect(nativeInputs.findLast((state) => state.inputId === second.id)).toMatchObject({
+      facts: ['accepted', 'queued']
+    })
+    expect(events.some((event) => event.type === 'run-started')).toBe(false)
+    await connection.close()
+
+    const reopened = await connect()
+    await expect(reopened.connection.lookupInput(reopened.connection.contextId!, second.id)).resolves.toMatchObject({
+      status: 'confirmed',
+      value: { found: true, input: { inputId: second.id, facts: ['accepted', 'queued'] } }
+    })
+    expect(script.calls).toHaveLength(1)
+  })
+
   it('reports each queued Run checkpoint before idle and replays the exact answer positions on reopen', async () => {
     const first = gate()
     const second = gate()
@@ -3557,7 +3597,7 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
   })
 
-  it('retains an earlier input failure when a steer joins the same run', async () => {
+  it('reports both native outcomes and one reply boundary when a steer continues a truncated response', async () => {
     const held = gate()
     script = respondingModel((call) => {
       const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
@@ -3572,12 +3612,27 @@ describe('desktop Pi Durable connection', () => {
     await expect(submitBusy(connection, 'steer', steer)).resolves.toMatchObject({ status: 'acknowledged' })
     await expect.poll(() => nativeInputs.some((state) => state.inputId === steer.id)).toBe(true)
     held.open()
-    await expect.poll(() => events.some((event) => event.type === 'error'), { timeout: 10000 }).toBe(true)
+    await done(events, 10000)
     expect(events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [steer.id] }))
     expect(events.filter((event) => event.type === 'run-started')).toEqual([])
-    const failure = events.find((event) => event.type === 'error')!
-    if (failure.type !== 'error') throw new Error('Missing Run failure')
-    expect(serializeError(failure.error)).toMatchObject({ reason: 'output-truncated', finishReason: 'length' })
+    const boundary = events.findIndex((event) => event.type === 'turn-complete')
+    expect(boundary).toBeGreaterThanOrEqual(0)
+    expect(events.slice(0, boundary)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'input-state',
+          input: expect.objectContaining({
+            inputId: first.id,
+            outcome: 'unanswered',
+            error: expect.objectContaining({ code: 'output-truncated' })
+          })
+        }),
+        expect.objectContaining({
+          type: 'input-state',
+          input: expect.objectContaining({ inputId: steer.id, outcome: 'completed' })
+        })
+      ])
+    )
   })
 
   // AC4: a send that races running native work used to fail with "Durable already has an active submission".
