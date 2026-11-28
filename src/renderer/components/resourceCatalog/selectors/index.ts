@@ -28,4 +28,3 @@ export {
   type ResourceSelectorShellLabels,
   type ResourceSelectorShellProps
 } from './ResourceSelectorShell'
-export { WorkspaceSelector, type WorkspaceSelectorProps } from './WorkspaceSelector'

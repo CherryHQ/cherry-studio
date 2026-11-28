@@ -5,8 +5,9 @@ import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 
 import { TO_MARKDOWN_RUNTIME_TOOL_NAME } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
-import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
+import { SkeletonValue } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import ToolHeader from '../ToolHeader'
 
 function readSourcePath(input: unknown): string | undefined {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined

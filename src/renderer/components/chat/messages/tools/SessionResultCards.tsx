@@ -6,11 +6,11 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { AGENT_DELEGATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { CONVERSATION_ROUTES } from '@shared/utils/conversationRoute'
 
-import { useOptionalMessageListActions } from '../../MessageListProvider'
-import type { ToolResponseLike } from '../toolResponse'
-import { useToolResponsePreview } from '../useToolResponsePreview'
+import { useOptionalMessageListActions } from '../MessageListProvider'
+import { getSessionToolTargets, type SessionToolTarget } from './agent'
 import { AgentDelegationCard } from './AgentDelegationCard'
-import { getSessionToolTargets, type SessionToolTarget } from './sessionToolResult'
+import type { ToolResponseLike } from './toolResponse'
+import { useToolResponsePreview } from './useToolResponsePreview'
 
 const KIND_LABEL_KEYS = {
   create: 'message.tools.sessionCreate.created',

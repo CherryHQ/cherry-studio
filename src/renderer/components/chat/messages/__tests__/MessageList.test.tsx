@@ -61,7 +61,7 @@ vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
   useChatLayoutMode: () => chatLayoutModeMock
 }))
 
-vi.mock('@renderer/components/chat/HtmlArtifactView', async () => {
+vi.mock('@renderer/components/chat/HtmlArtifactPopupOutlet', async () => {
   const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
 
   return {

@@ -11,9 +11,9 @@ import { ipcApi } from '@renderer/ipc'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { CONVERSATION_ROUTES } from '@shared/utils/conversationRoute'
 
-import { useOptionalMessageListActions } from '../../MessageListProvider'
-import type { MessageToolApprovalInput } from '../../types'
-import { parseSessionCreateResult } from './sessionToolResult'
+import { useOptionalMessageListActions } from '../MessageListProvider'
+import type { MessageToolApprovalInput } from '../types'
+import { parseSessionCreateResult } from './agent'
 
 export function AgentDelegationCard({ output }: { output: unknown }) {
   const receipt = parseSessionCreateResult(output)

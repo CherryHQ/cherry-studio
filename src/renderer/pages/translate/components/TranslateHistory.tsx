@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { ConfirmDialog, EmptyState, PageSidePanel } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FileIcon } from '@renderer/components/icons/FileIcon'
+import IconButton from '@renderer/components/translate/IconButton'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useLanguages, useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
 import { ipcApi } from '@renderer/ipc'
@@ -33,7 +34,6 @@ import {
   saveTranslationFileAs,
   type TranslationFiles
 } from '../translationFiles'
-import IconButton from './IconButton'
 
 const logger = loggerService.withContext('TranslateHistory')
 

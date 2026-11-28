@@ -6,9 +6,10 @@ import {
   type GlobToolOutput as GlobToolOutputType
 } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
-import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 import { TerminalContainer } from './TerminalOutput'
 
 export function GlobTool({

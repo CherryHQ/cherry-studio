@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next'
 
 import { AgentToolsType, isBackgroundAgentOutput, type ToolRendererProps } from '../shared/agentToolTypes'
-import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
+import { SkeletonValue } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import ToolHeader from '../ToolHeader'
 
 function formatDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000)
