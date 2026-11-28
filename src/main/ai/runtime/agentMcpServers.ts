@@ -34,6 +34,8 @@ const logger = loggerService.withContext('AgentMcpServers')
 export interface AgentMcpServer {
   id?: string
   name: string
+  /** Source access rules for an external MCP bridge, captured with this connection. */
+  source?: McpServerEntity
   /** Serves this server over `transport`; closing the transport ends it. */
   connect(transport: Transport): Promise<unknown>
 }
@@ -99,6 +101,7 @@ export function buildAgentMcpServers(
       servers[mcpId] = {
         id: legacyServer.id,
         name: mcpId,
+        source: legacyServer,
         connect: serveAgentMcpServer(() =>
           createMcpBridgeServer(mcpId, legacyServer, { interactionContext, audience: 'model' })
         )

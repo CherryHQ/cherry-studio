@@ -19,6 +19,8 @@ import {
   Harness,
   type ConversationId
 } from '@earendil-works/pi-durable'
+import { McpServer } from '@modelcontextprotocol/server'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { childTimeline } from '@test-helpers/childTimeline'
@@ -30,6 +32,7 @@ import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { runtimeId, ThreadFeed, type InputState } from '@cherrystudio/agent-runtime'
@@ -76,6 +79,7 @@ import { getShellEnv } from '@main/utils/shellEnv'
 import { MessageProjectionService } from '@renderer/services/aiTransport/MessageProjectionService'
 import { AGENT_SESSION_STREAM_TOPIC_CACHE_KEY } from '@shared/ai/agentSessionStreamTopic'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { buildMcpWireWildcard } from '@shared/ai/tools/mcpSourcePolicy'
 import { McpServerSchema } from '@shared/data/types/mcpServer'
 import { ENDPOINT_TYPE, ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
@@ -93,8 +97,10 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { subagentCall, gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type * as AgentMcpServers from '../agentMcpServers'
+import type { buildAgentMcpServers } from '../agentMcpServers'
 import type * as GatewayBinding from '../pi/gatewayModelBinding'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
+import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
@@ -204,6 +210,7 @@ describe('desktop Pi Durable connection', () => {
 
   beforeEach(async () => {
     driver = new PiDurableRuntimeDriver()
+    mocks.mcpServers.mockReturnValue({})
     vi.mocked(getShellEnv).mockReset()
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
@@ -1947,6 +1954,71 @@ describe('desktop Pi Durable connection', () => {
     expect(script.calls).toHaveLength(0)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
+
+  // Uses the real desktop preparation, native code mode, shared gate and MCP wire.
+  it.each(['auto', 'bypassPermissions'] as const)(
+    'requires approval for source-wildcard MCP calls nested in native code mode under %s',
+    async (mode) => {
+      const source = McpServerSchema.parse({
+        id: '12345678-1234-4234-8234-123456789abc',
+        name: 'zonefoundry-sonos',
+        isActive: true,
+        disabledAutoApproveTools: [buildMcpWireWildcard('zonefoundry-sonos')]
+      })
+      const execute = vi.fn(async () => ({ content: [{ type: 'text' as const, text: 'played' }] }))
+      snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: mode }
+      snapshot.agent.mcps = [source.id]
+      snapshot.mcpServerSnapshots = new Map([[source.id, source]])
+      const actual = await vi.importActual<{ buildAgentMcpServers: typeof buildAgentMcpServers }>('../agentMcpServers')
+      const bridges = actual.buildAgentMcpServers(
+        snapshot.session,
+        snapshot.agent,
+        new Set(),
+        snapshot.mcpServerSnapshots,
+        null,
+        directory,
+        [],
+        { sourceChannel: null, channels: [], allowAnyOwnedChannel: false }
+      )
+      expect(bridges[source.id].source).toBe(source)
+      mocks.mcpServers.mockReturnValue({
+        [source.id]: {
+          id: source.id,
+          name: source.id,
+          source,
+          connect: async (transport: Parameters<ReturnType<typeof buildAgentMcpServers>[string]['connect']>[0]) => {
+            const server = new McpServer({ name: 'speaker-fixture', version: '1' })
+            server.registerTool('play', { inputSchema: z.object({}) }, execute)
+            return serveStdio(() => server, { transport })
+          }
+        }
+      })
+      const toolName = buildPiMcpToolName(source.id, 'play')
+      setScript([
+        assistantReply([toolCallPart('native-code', 'codemode', { code: `await tools.${toolName}({})` })], 'toolUse'),
+        assistantReply('Denied speaker call')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('play music') })
+      const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+      // A bypass regression finishes the turn without asking. Do not wait until timeout to catch it.
+      await expect
+        .poll(
+          () =>
+            approvals().length > 0 || events.some((event) => event.type === 'turn-complete' || event.type === 'error')
+        )
+        .toBe(true)
+      expect(approvals()).toHaveLength(1)
+      expect(approvals()[0].request.toolName).toBe(toolName)
+      expect(approvals()[0].request.toolCallId).toMatch(/^native-code\//)
+      expect(execute).not.toHaveBeenCalled()
+      toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: false })
+      await done(events)
+      expect(execute).not.toHaveBeenCalled()
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+      expect(toolApprovalRegistry.size()).toBe(0)
+    }
+  )
 
   it.each(['/goal', '/goal Recall the imported conversation'])(
     'routes %s locally and retains imported history for the next model input after reopening',

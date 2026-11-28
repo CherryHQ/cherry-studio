@@ -167,8 +167,8 @@ export async function prepareDurableDesktop(
         isDisabled,
         additionalReadOnlyRoots: [...prompt.skillPaths, application.getPath('feature.agents.outputs')],
         autoApprovedTools: policies('auto'),
-        approvalRequiredTools: policies('required'),
-        nonBypassableApprovalTools: policies('required', true),
+        approvalRequiredTools: new Set([...policies('required'), ...mcp.approvalRequiredTools]),
+        nonBypassableApprovalTools: new Set([...policies('required', true), ...mcp.nonBypassableApprovalTools]),
         delegationTools: policies('delegation')
       },
       async reconcile(next: AgentRuntimeConnectInput, active: boolean) {
