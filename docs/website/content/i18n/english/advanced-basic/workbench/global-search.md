@@ -35,6 +35,14 @@ Search takes you back to the corresponding content. Check the type before openin
 {% endstep %}
 {% endstepper %}
 
+## Recall a previous query
+
+When the input is empty, Search history shows your six most recent queries. Choose Show all queries to see up to 20. Selecting a query fills the input and searches with the current filters; it does not open a result. Use Tab to reach history actions, then Enter or Space to activate them.
+
+Opening a result or entering Messages records the current settled query. To keep a query that has no results, use the Search button beside the input once the search finishes. Typing alone does not add history. Queries are trimmed and deduplicated by exact text; recent conversations and tasks remain a separate list.
+
+Use a row's remove button or Clear search history to remove queries without deleting conversations or navigation recents. History is stored locally as disposable cache and can be lost when that cache is reset. Do not treat it as a permanent archive.
+
 ### Use Case: Retrieving Last Month's Client Conclusion
 
 Search for the client project name, then narrow the type to [Messages] and limit the update time. Once you find the conclusion, open the original conversation and check for any subsequent revisions. If you need to use the conclusion for a new task, copy the confirmed summary rather than relying on scattered fragments from memory in a new conversation.
