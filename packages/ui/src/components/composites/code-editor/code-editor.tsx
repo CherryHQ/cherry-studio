@@ -349,7 +349,9 @@ const CodeEditor = ({
         scrollCleanupRef.current = () => scrollElement.removeEventListener('scroll', handleScroll)
       }}
       onChange={(_value, viewUpdate) => {
-        if (onChange && viewUpdate.docChanged) onChange(viewUpdate.state.sliceDoc())
+        if (!onChange || !viewUpdate.docChanged) return
+        handleUpdate(viewUpdate)
+        onChange(viewUpdate.state.sliceDoc())
       }}
       basicSetup={basicSetup}
       style={{

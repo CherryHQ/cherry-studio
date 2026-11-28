@@ -2,6 +2,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { EditorView } from '@uiw/react-codemirror'
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { CodeStyleProvider } from '../CodeStyleProvider'
@@ -15,6 +16,25 @@ vi.mock('@renderer/components/markdown', () => ({
 
 // Toggling preview must retain the user's draft, selection and undo history after controlled-value echoes.
 describe('PromptEditorField session', () => {
+  it('keeps the caret at the deletion point when a controlled change is applied synchronously', async () => {
+    function Host() {
+      const [value, setValue] = useState('abcdef')
+      return (
+        <CodeStyleProvider>
+          <PromptEditorField label="Prompt" value={value} onChange={(next) => flushSync(() => setValue(next))} />
+        </CodeStyleProvider>
+      )
+    }
+    const host = render(<Host />)
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    await waitFor(() => expect(host.container.querySelector('.cm-editor')).not.toBeNull())
+    const getEditor = () => EditorView.findFromDOM(host.container.querySelector('.cm-editor')!)!
+    act(() => getEditor().dispatch({ changes: { from: 2, to: 3 }, selection: { anchor: 2 } }))
+
+    expect(getEditor().state.sliceDoc()).toBe('abdef')
+    expect(getEditor().state.selection.main.anchor).toBe(2)
+  })
+
   it('retains edits across preview while an external replacement starts a fresh document', async () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
