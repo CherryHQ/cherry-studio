@@ -41,6 +41,7 @@ import {
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { probeReadable } from '@main/utils/file'
+import { isDecodableImage } from '@main/utils/image'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
@@ -1046,10 +1047,15 @@ async function materializeUserContent(
 
     const claudeType = toClaudeImageMediaType(parsed.mediaType)
     if (claudeType) {
-      images.push({
-        type: 'image',
-        source: { type: 'base64', media_type: claudeType, data: parsed.data }
-      })
+      const bytes = Buffer.from(parsed.data, 'base64')
+      if (await isDecodableImage(bytes)) {
+        images.push({
+          type: 'image',
+          source: { type: 'base64', media_type: claudeType, data: parsed.data }
+        })
+      } else {
+        unavailableParts.push(originalPart)
+      }
       continue
     }
 

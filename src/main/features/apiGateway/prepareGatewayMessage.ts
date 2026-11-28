@@ -16,6 +16,7 @@ import { stripAnthropicBillingHeader } from './utils/anthropicBillingHeader'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
+import { sanitizeAnthropicRequestImages } from './utils/sanitizeAnthropicImages'
 
 const logger = loggerService.withContext('GatewayMessage')
 
@@ -63,6 +64,16 @@ export async function prepareGatewayMessage(config: MessageConfig) {
       duplicateToolUseCount: normalization.duplicateToolUseCount,
       duplicateToolResultCount: normalization.duplicateToolResultCount
     })
+  }
+  if (isInternalAnthropicAgentRequest) {
+    const imageSanitization = await sanitizeAnthropicRequestImages((effectiveParams as MessageCreateParams).messages)
+    if (imageSanitization.replacedCount > 0) {
+      effectiveParams = { ...(effectiveParams as MessageCreateParams), messages: imageSanitization.messages }
+      logger.warn('Replaced undecodable image blocks in internal Agent request', {
+        ...logContext,
+        replacedCount: imageSanitization.replacedCount
+      })
+    }
   }
   logger.info('Converting gateway protocol request', {
     ...logContext,
