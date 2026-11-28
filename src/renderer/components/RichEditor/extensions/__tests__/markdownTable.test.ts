@@ -1,11 +1,10 @@
 import type { JSONContent } from '@tiptap/core'
 import { MarkdownManager } from '@tiptap/markdown'
-import { StarterKit } from '@tiptap/starter-kit'
 import { describe, expect, it } from 'vitest'
 
-import { MarkdownTable } from '../markdownTable'
+import { createRichEditorExtensions } from '../../createExtensions'
 
-const manager = new MarkdownManager({ extensions: [StarterKit, MarkdownTable] })
+const manager = new MarkdownManager({ extensions: createRichEditorExtensions() })
 
 const cell = (type: 'tableHeader' | 'tableCell', text: string): JSONContent => ({
   type,

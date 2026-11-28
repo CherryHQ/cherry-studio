@@ -145,7 +145,7 @@ const NpxSearch: FC = () => {
             return (
               <div
                 key={record.name}
-                className="rounded-lg border border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-accent">
+                className="rounded-lg border border-transparent bg-transparent px-3 py-2 transition-[color] hover:bg-accent">
                 <div className="mb-1.5 flex items-start justify-between gap-3">
                   <h3 className="selectable m-0 min-w-0 truncate text-sm leading-6">{record.name}</h3>
                   <Flex className="shrink-0 items-center gap-1">

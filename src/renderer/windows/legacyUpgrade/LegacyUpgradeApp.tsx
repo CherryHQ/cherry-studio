@@ -73,7 +73,7 @@ export default function LegacyUpgradeApp({ screen }: { screen: LegacyUpgradeScre
             {state.phase === 'downloading' && <Progress value={state.percent} aria-label={install?.downloading} />}
           </div>
         )}
-        {!active && (
+        {!active && !screen.showBridgeDownload && (
           <Accordion type="single" collapsible className="mt-5">
             <AccordionItem value="older-versions" className="border-0 first:border-t-0">
               <AccordionTrigger className="py-2 text-sm font-normal text-muted-foreground">
@@ -128,6 +128,14 @@ export default function LegacyUpgradeApp({ screen }: { screen: LegacyUpgradeScre
               ? screen.downloadPrerequisite
               : screen.download}
         </Button>
+        {screen.showBridgeDownload && (
+          <Button
+            variant="outline"
+            disabled={locked}
+            onClick={() => void invoke(LegacyUpgradeChannels.Download, 'bridge')}>
+            {screen.download}
+          </Button>
+        )}
       </footer>
     </main>
   )

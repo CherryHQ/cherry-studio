@@ -84,7 +84,7 @@ describe('ApiGateway server lifecycle', () => {
     service = new ApiGatewayService()
     if (refusals === 3) {
       await expect(service.ensureInternalGateway()).rejects.toMatchObject({
-        message: expect.stringContaining('internal API Gateway'),
+        message: expect.stringContaining('internal Unified Gateway'),
         cause: expect.objectContaining({ code: 'EACCES', address: '::1' })
       })
       expect(service.getInternalGatewayOrigin()).toBeUndefined()

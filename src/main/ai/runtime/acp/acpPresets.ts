@@ -19,8 +19,7 @@ import {
 } from '@cherrystudio/agent-runtime-acp/v1'
 import { ampSubscriptionUsage } from '@cherrystudio/agent-runtime-amp-acp'
 import { ampCli } from '@cherrystudio/agent-runtime-amp-acp/cli'
-import { antigravityPreset, readAntigravitySubscriptionUsage } from '@cherrystudio/agent-runtime-antigravity-acp'
-import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
+import { antigravityPreset } from '@cherrystudio/agent-runtime-antigravity-acp'
 import { clinePreset } from '@cherrystudio/agent-runtime-cline-acp'
 import { codeBuddyPreset } from '@cherrystudio/agent-runtime-codebuddy-acp'
 import {
@@ -109,6 +108,7 @@ type DesktopAcpPreset = {
         read(launch: LaunchSpec, spawn: SpawnStdio, signal: AbortSignal): Promise<RuntimeAccountResult>
       }
   subscriptionUsage?:
+    | 'unsupported'
     | { transport: 'acp'; read: AcpSubscriptionUsageReader }
     | (({ transport: 'cli'; executable: string } | { transport: 'terminal' }) & {
         read(
@@ -254,17 +254,7 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
         attachOpenClawGateway(env, launch, () => application.get('OpenClawService').acquireGateway(signal))
     }
   ],
-  [
-    antigravityPreset.id,
-    {
-      protocol: antigravityPreset.protocol,
-      subscriptionUsage: {
-        transport: 'cli',
-        executable: antigravityCli.executable,
-        read: readAntigravitySubscriptionUsage
-      }
-    }
-  ],
+  [antigravityPreset.id, { protocol: antigravityPreset.protocol, subscriptionUsage: 'unsupported' }],
   [
     dshPreset.id,
     {

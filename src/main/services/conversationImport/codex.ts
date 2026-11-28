@@ -217,7 +217,7 @@ async function readCodexSession(
     diagnose('unsupported_history_layout', undefined, 'error')
   if (meta.data.history_mode === 'paginated' && rows.some(({ row }, index) => row.ordinal !== index))
     diagnose('unsupported_history_order', undefined, 'error')
-  result.title = index?.titles.get(result.originalSessionId) ?? result.title
+  result.title = index?.titles.get(result.originalSessionId) ?? ''
   for (const line of index?.invalidLines ?? [])
     result.diagnostics.push({ code: 'invalid_json', path: indexPath!, line, severity: 'warning' })
   let model: string | undefined
