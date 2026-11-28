@@ -91,6 +91,8 @@ overrides:
   ai: "6.0.185"
 
 patchedDependencies:
+  # Preserve the parsed diagram background in the single-SVG TeaVM renderer (issue #25658).
+  "@plantuml/mcp-js@0.2.4": patches/@plantuml__mcp-js@0.2.4.patch
   "@larksuiteoapi/node-sdk@1.73.0": patches/@larksuiteoapi__node-sdk@1.73.0.patch
   # Accumulate streaming chat-completions tool-call deltas missing id and synthesize stable IDs (Issue #23741).
   # Remove only when an upstream version tolerates first deltas without id and all repository regressions pass unpatched.
