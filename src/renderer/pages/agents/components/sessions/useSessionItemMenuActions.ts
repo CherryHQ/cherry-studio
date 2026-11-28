@@ -11,6 +11,7 @@ import type { AgentSessionExportOptions } from '@renderer/services/agentSessionE
 import { showImageActionFeedback } from '@renderer/services/imageActionFeedback'
 import { toast } from '@renderer/services/toast'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -55,7 +56,7 @@ export function useSessionItemMenuActions({
             { showSuccessToast: false }
           )
         } else if (summaryError) {
-          toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
+          toast.error(formatErrorMessageWithPrefix(summaryError, t('message.error.fetchTopicName')))
         }
       } finally {
         finishTopicRenaming(topicId)

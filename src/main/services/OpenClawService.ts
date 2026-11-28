@@ -10,7 +10,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
 import { crossPlatformSpawn, removeEnvProxy, terminateProcessTree } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -27,6 +27,7 @@ import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { readsInLanguage } from '@shared/utils/languageScript'
 import { isNonChatModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
 
@@ -666,11 +667,11 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private formatValidationDetails(issues: OpenClawValidationIssue[]): string {
-    const visible = issues
-      .slice(0, OPENCLAW_VISIBLE_ISSUE_LIMIT)
-      .map((issue) => this.sanitizeDiagnostic(`${issue.path}: ${issue.message}`))
-    const remaining = issues.length - visible.length
+  private formatValidationDetails(issueLines: string[]): string {
+    const visible = issueLines.slice(0, OPENCLAW_VISIBLE_ISSUE_LIMIT)
+    // Check the CLI lines alone; the translated counter would otherwise pass them in any UI language.
+    if (!readsInLanguage(visible.join('\n'), getAppLanguage())) return ''
+    const remaining = issueLines.length - visible.length
     if (remaining > 0) {
       visible.push(t('openclaw.errors.more_issues', { count: remaining }))
     }
@@ -722,7 +723,9 @@ export class OpenClawService extends BaseService {
     const kind = report.issues.some((issue) => isCherryManagedConfigPath(issue.path))
       ? 'binary_incompatible'
       : 'external_config_invalid'
-    const details = this.formatValidationDetails(report.issues)
+    const issueLines = report.issues.map((issue) => this.sanitizeDiagnostic(`${issue.path}: ${issue.message}`))
+    logger.warn('OpenClaw rejected the generated config', { kind, issues: issueLines })
+    const details = this.formatValidationDetails(issueLines)
     const message =
       kind === 'binary_incompatible'
         ? t('openclaw.errors.binary_incompatible', { details })
@@ -860,7 +863,7 @@ export class OpenClawService extends BaseService {
   private throwSchemaCapabilityError(diagnostic: string): never {
     const summary = this.sanitizeDiagnostic(diagnostic)
     logger.warn('OpenClaw schema capability check failed', { summary })
-    const details = summary ? `\n${summary}` : ''
+    const details = summary && readsInLanguage(summary, getAppLanguage()) ? `\n${summary}` : ''
     throw new OpenClawPreflightError('binary_incompatible', t('openclaw.errors.binary_incompatible', { details }))
   }
 

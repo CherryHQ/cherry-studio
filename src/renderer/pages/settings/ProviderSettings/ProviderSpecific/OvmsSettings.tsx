@@ -7,6 +7,7 @@ import { Button, ColFlex } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix, LocalizedError } from '@renderer/utils/error'
 
 import { useOvmsSupport } from '../hooks/useOvmsSupport'
 import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
@@ -56,9 +57,13 @@ const OvmsSettings: FC = () => {
       }
       const match = errMsg.match(/code (\d+)/)
       const code = match ? match[1] : 'unknown'
-      const errorMsg = code in errCodeMsg ? (errCodeMsg[code as keyof typeof errCodeMsg] ?? errMsg) : errMsg
+      const codeMessage = code in errCodeMsg ? errCodeMsg[code as keyof typeof errCodeMsg] : undefined
 
-      toast.error(t('ovms.failed.install') + errorMsg)
+      toast.error(
+        codeMessage
+          ? formatErrorMessageWithPrefix(new LocalizedError(codeMessage), t('ovms.failed.install'))
+          : formatErrorMessageWithPrefix(errMsg, t('ovms.failed.install'))
+      )
       setIsInstallingOvms(false)
     }
   }
@@ -71,7 +76,7 @@ const OvmsSettings: FC = () => {
       setOvmsStatus(status)
       setIsRunningOvms(false)
     } catch (error: unknown) {
-      toast.error(t('ovms.failed.run') + (error instanceof Error ? error.message : String(error)))
+      toast.error(formatErrorMessageWithPrefix(error, t('ovms.failed.run')))
       setIsRunningOvms(false)
     }
   }
@@ -84,7 +89,7 @@ const OvmsSettings: FC = () => {
       setOvmsStatus(status)
       setIsStoppingOvms(false)
     } catch (error: unknown) {
-      toast.error(t('ovms.failed.stop') + (error instanceof Error ? error.message : String(error)))
+      toast.error(formatErrorMessageWithPrefix(error, t('ovms.failed.stop')))
       setIsStoppingOvms(false)
     }
   }

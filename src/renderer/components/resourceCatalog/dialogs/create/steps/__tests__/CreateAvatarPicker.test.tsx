@@ -1,7 +1,8 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { useForm, useFormState, useWatch } from 'react-hook-form'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import type * as Ui from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
@@ -112,14 +113,19 @@ describe('CreateAvatarPicker', () => {
     expect(screen.getByTestId('avatar')).toHaveTextContent('🎓')
   })
 
-  it('keeps the emoji and reports why when the image cannot be prepared', async () => {
+  it('keeps the emoji and reports the failure in the UI language when the image cannot be prepared', async () => {
+    const previousLanguage = i18next.language
+    i18next.language = 'zh-CN'
+    onTestFinished(() => {
+      i18next.language = previousLanguage
+    })
     vi.mocked(prepareEntityImageBytes).mockRejectedValue(new Error('Image could not be processed'))
     const user = userEvent.setup()
     render(<Harness />)
 
     await upload(user)
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Image could not be processed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.general.avatar.update_failed'))
     expect(screen.getByTestId('image-bytes')).toHaveTextContent('none')
     expect(screen.getByLabelText('Upload', { selector: 'input' })).toBeEnabled()
   })

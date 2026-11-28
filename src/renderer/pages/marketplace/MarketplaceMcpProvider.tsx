@@ -11,6 +11,7 @@ import { SettingGroup, SettingsContentColumn } from '@renderer/components/Settin
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getProviderDisplayName, isSameMcpServerCandidate } from '@renderer/utils/mcpDiscovery'
 import { toCreateMcpServerDto } from '@renderer/utils/mcpServerDraft'
 import { cn } from '@renderer/utils/style'
@@ -106,11 +107,12 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
         setAllServers((prev) => ({ ...prev, [provider.key]: result.allServers }))
         toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
       } else {
+        // Provider sync results carry renderer-translated copy, never raw provider text.
         toast.error(result.message)
       }
     } catch (error: any) {
       logger.error('Failed to fetch MCP servers', error)
-      toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.mcp.sync.error')))
     } finally {
       setIsFetching(false)
     }

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { InputFor } from '@shared/ipc/types'
 
 import { AvatarPicker } from './AvatarPicker'
@@ -28,6 +30,7 @@ export function AgentAvatarPicker({
   size = 'md',
   onChanged
 }: Props) {
+  const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
@@ -68,7 +71,7 @@ export function AgentAvatarPicker({
         if (session.active) onChanged({ avatarSrc: data.avatarSrc, emoji: data.configuration?.avatar ?? '🤖' })
       }
     } catch (error: any) {
-      if (session.active) toast.error(error.message)
+      if (session.active) toast.error(formatErrorMessageWithPrefix(error, t('settings.general.avatar.update_failed')))
     } finally {
       session.pending = false
       if (session.active) setPending(false)

@@ -7,6 +7,7 @@ import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { AppRouter } from '@renderer/types/router'
+import { localizedErrorDetail } from '@renderer/utils/error'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -148,7 +149,7 @@ export default function ProviderSettingsPage() {
           type="error"
           showIcon
           message={t('common.error')}
-          description={error.message}
+          description={localizedErrorDetail(error)}
           action={
             <Button variant="outline" size="sm" onClick={() => void refetch()}>
               {t('common.retry')}

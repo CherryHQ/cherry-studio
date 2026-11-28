@@ -9,7 +9,7 @@ import {
   isSystemWorkspaceSession,
   type SessionListItem
 } from '@renderer/utils/chat/sessionListHelpers'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { localizedErrorDetail } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
@@ -128,7 +128,7 @@ export function SessionListBody({
         <ResourceList.ErrorState>
           <div className="flex flex-col gap-2">
             <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
-            <div className="text-muted-foreground">{formatErrorMessage(error)}</div>
+            <div className="text-muted-foreground">{localizedErrorDetail(error)}</div>
             <Button
               size="sm"
               variant="outline"

@@ -61,7 +61,7 @@ describe('buildDiagnosticReportDescription', () => {
       })
     ).toEqual([
       { id: 'location', value: 'Home conversation' },
-      { id: 'errorMessage', value: 'API Key 无效，请检查并重新配置 (Unauthorized)' }
+      { id: 'errorMessage', value: 'API Key 无效，请检查并重新配置' }
     ])
 
     expect(
@@ -112,6 +112,22 @@ describe('buildDiagnosticReportDescription', () => {
       ].join('\r\n')
     )
     expect(description).not.toContain('secret response payload')
+  })
+
+  it('keeps the provider reason next to the translated summary in the submitted report', () => {
+    expect(
+      buildDiagnosticReportDescription({
+        error: { name: 'AI_APICallError', message: 'Incorrect API key provided', stack: null, statusCode: 401 },
+        labels,
+        localizedErrorMessage: 'API Key 无效，请检查并重新配置',
+        location: 'Home conversation'
+      })
+    ).toBe(
+      [
+        'Location: Home conversation',
+        'Error message: API Key 无效，请检查并重新配置 (Incorrect API key provided)'
+      ].join('\r\n')
+    )
   })
 
   it('omits unavailable context', () => {

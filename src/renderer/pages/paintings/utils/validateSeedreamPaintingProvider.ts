@@ -9,7 +9,7 @@ export function validateSeedreamPaintingProvider(
   provider: Pick<PaintingProviderRuntime, 'id' | 'presetProviderId'>
 ): void {
   if (isSeedream5xTargetModel(modelId ?? '') && (provider.presetProviderId ?? provider.id) === 'dmxapi') {
-    throw createPaintingGenerateError('REMOTE_ERROR', {
+    throw createPaintingGenerateError('SEEDREAM_DMXAPI_UNSUPPORTED', {
       message: i18n.t('paintings.seedream.dmxapi_unsupported'),
       presentation: 'toast'
     })

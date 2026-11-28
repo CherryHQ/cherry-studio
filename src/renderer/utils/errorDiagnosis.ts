@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
+import { LocalizedError } from '@renderer/utils/error'
 import { readDefaultModel } from '@renderer/utils/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
 import {
@@ -36,13 +37,13 @@ function failureReason(error: unknown): string {
 async function requireDiagnosisPermission() {
   const key = 'app.privacy.data_collection.enabled'
   if ((await preferenceService.getAuthoritative(key)) !== true || preferenceService.getCachedValue(key) === false) {
-    throw new Error(i18n.t('error.diagnosis.free_model_unavailable'))
+    throw new LocalizedError(i18n.t('error.diagnosis.free_model_unavailable'))
   }
 }
 
 async function generateDiagnosis(system: string, prompt: string): Promise<string> {
   await requireDiagnosisPermission()
-  const unavailable = () => new Error(i18n.t('error.diagnosis.default_model_unavailable'))
+  const unavailable = () => new LocalizedError(i18n.t('error.diagnosis.default_model_unavailable'))
   const model = await readDefaultModel().catch((error: unknown) => {
     logger.warn('Unable to resolve the default model for AI diagnosis', { reason: failureReason(error) })
     return undefined
@@ -334,7 +335,7 @@ The examples above demonstrate structure only. Write all four diagnosis fields i
   try {
     return parseResponse(response)
   } catch {
-    throw new Error(i18n.t('error.diagnosis.free_model_unavailable'))
+    throw new LocalizedError(i18n.t('error.diagnosis.free_model_unavailable'))
   }
 }
 

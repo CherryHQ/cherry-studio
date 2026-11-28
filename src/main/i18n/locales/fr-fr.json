@@ -295,7 +295,7 @@
   "paintings.image_download_failed": "L’image a été générée, mais son téléchargement a échoué.",
   "paintings.image_mix_failed": "Échec du mélange des images",
   "selection.name": "Assistant de sélection de texte",
-  "settings.mcp.oauth.callback.listen_error": "Impossible d’écouter le rappel OAuth sur 127.0.0.1:{{port}} ({{reason}}). Vérifiez que le port est disponible, puis réessayez.",
+  "settings.mcp.oauth.callback.listen_error": "Impossible d’écouter le rappel OAuth sur 127.0.0.1:{{port}}. Vérifiez que le port est disponible, puis réessayez.",
   "settings.mcp.oauth.callback.message": "Vous pouvez fermer cette page et retourner à Cherry Studio",
   "settings.mcp.oauth.callback.title": "Authentification Réussie",
   "settings.mcp.oauth.cancelled": "L'autorisation a été annulée.",

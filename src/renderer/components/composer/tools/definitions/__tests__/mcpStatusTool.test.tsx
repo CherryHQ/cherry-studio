@@ -382,7 +382,7 @@ describe('mcpStatusTool', () => {
       openLatestRegisteredPanel()[0].action?.({})
     })
 
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Save failed: Network down'))
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Save failed'))
 
     const settledItems = openLatestRegisteredPanel()
     expect(settledItems[0]).toMatchObject({ disabled: false })

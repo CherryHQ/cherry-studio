@@ -11,8 +11,9 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
@@ -441,6 +442,11 @@ describe('GeneralSettings', () => {
   })
 
   it('keeps developer mode enabled and unlocks the controls when disabling CDP fails', async () => {
+    const previousLanguage = i18next.language
+    i18next.language = 'zh-CN'
+    onTestFinished(() => {
+      i18next.language = previousLanguage
+    })
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'app.developer_mode.enabled': true,
       'BootConfig.app.remote_debugging.enabled': true
@@ -459,7 +465,7 @@ describe('GeneralSettings', () => {
     const user = userEvent.setup()
     render(<GeneralSettings />)
     await user.click(screen.getByRole('switch', { name: 'Developer mode' }))
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Cannot save CDP setting'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.save_failed'))
     expect(MockUsePreferenceUtils.getPreferenceValue('app.developer_mode.enabled')).toBe(true)
     expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(true)
     expect(screen.getByRole('switch', { name: 'Developer mode' })).toBeEnabled()

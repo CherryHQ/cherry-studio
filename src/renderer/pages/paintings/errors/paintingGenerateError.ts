@@ -1,6 +1,7 @@
 import i18n from '@renderer/i18n/resolver'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { localizedErrorDetail } from '@renderer/utils/error'
 import {
   normalizePaintingGenerateError,
   PaintingGenerateError,
@@ -19,12 +20,8 @@ export {
 } from '@shared/ai/paintingGenerateError'
 
 export function translatePaintingGenerateError(error: Error): string {
-  if (!(error instanceof PaintingGenerateError)) {
-    return error.message
-  }
-
-  if (error.code === 'REMOTE_ERROR') {
-    return error.message || i18n.t('paintings.generate_failed')
+  if (!(error instanceof PaintingGenerateError) || error.code === 'REMOTE_ERROR') {
+    return localizedErrorDetail(error) ?? i18n.t('paintings.generate_failed')
   }
 
   const keyMap: Record<Exclude<PaintingGenerateErrorCode, 'REMOTE_ERROR'>, string> = {
@@ -45,7 +42,10 @@ export function translatePaintingGenerateError(error: Error): string {
     CUSTOM_SIZE_REQUIRED: 'paintings.zhipu.custom_size_required',
     CUSTOM_SIZE_RANGE: 'paintings.zhipu.custom_size_range',
     CUSTOM_SIZE_DIVISIBLE: 'paintings.zhipu.custom_size_divisible',
-    CUSTOM_SIZE_PIXELS: 'paintings.zhipu.custom_size_pixels'
+    CUSTOM_SIZE_PIXELS: 'paintings.zhipu.custom_size_pixels',
+    SEEDREAM_INVALID_SIZE: 'paintings.seedream.invalid_size',
+    SEEDREAM_TRANSPARENT_PNG: 'paintings.seedream.transparent_png',
+    SEEDREAM_DMXAPI_UNSUPPORTED: 'paintings.seedream.dmxapi_unsupported'
   }
 
   return i18n.t(keyMap[error.code])

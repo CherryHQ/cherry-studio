@@ -6,6 +6,7 @@ import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
@@ -85,13 +86,13 @@ export function useOpenClawGatewayController({
         port: gatewayPort
       })
       if (!syncResult.success) {
-        toast.error(syncResult.message)
+        toast.error(formatErrorMessageWithPrefix(syncResult.message, t('code.apply_failed')))
         return
       }
 
       const startResult = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
       if (!startResult.success) {
-        toast.error(startResult.message)
+        toast.error(formatErrorMessageWithPrefix(startResult.message, t('code.launch.error')))
         return
       }
 
@@ -109,7 +110,7 @@ export function useOpenClawGatewayController({
       setStopping(true)
       const result = await ipcApi.request('openclaw.stop_gateway')
       if (!result.success) {
-        toast.error(result.message)
+        toast.error(formatErrorMessageWithPrefix(result.message, t('code.stop_failed')))
         return
       }
     } catch (err) {

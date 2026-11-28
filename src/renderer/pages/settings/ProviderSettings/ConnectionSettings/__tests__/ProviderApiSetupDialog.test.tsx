@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUIIcons from '@cherrystudio/ui/icons'
@@ -533,6 +534,21 @@ describe('ProviderApiSetupDialog', () => {
     expect(alert).toHaveTextContent('settings.models.manage.sync_pull_failed')
     expect(alert).toHaveTextContent('error.diagnosis.auth')
     expect(alert).not.toHaveTextContent('Invalid API key')
+  })
+
+  it('keeps the classified reason under a UI language that hides raw causes', async () => {
+    const { language, resolvedLanguage } = i18next
+    Object.assign(i18next, { language: 'de-DE', resolvedLanguage: 'de-DE' })
+    try {
+      storedApiKeys = [{ id: 'saved-key', key: 'sk-existing', isEnabled: true }]
+      fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('Invalid API key'))
+
+      render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('error.diagnosis.auth')
+    } finally {
+      Object.assign(i18next, { language, resolvedLanguage })
+    }
   })
 
   it('does not offer undiscovered models after a failed upstream load', async () => {

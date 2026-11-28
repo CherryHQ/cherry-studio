@@ -54,7 +54,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { formatFileSize } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
 import type { BinaryInstallSettings, CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
@@ -87,6 +87,13 @@ import {
 const logger = loggerService.withContext('EnvironmentDependencies')
 
 type CleanupBlockedResult = Extract<BinaryRemoveResult, { status: 'cleanup_blocked' }>
+const CLEANUP_BLOCKED_REASON_KEYS: Record<CleanupBlockedResult['reason'], string> = {
+  backend_unavailable: 'settings.dependencies.cleanupBlockedReason.backend_unavailable',
+  query_failed: 'settings.dependencies.cleanupBlockedReason.query_failed',
+  conflict: 'settings.dependencies.cleanupBlockedReason.conflict',
+  dependency_blocked: 'settings.dependencies.cleanupBlockedReason.dependency_blocked',
+  cleanup_failed: 'settings.dependencies.cleanupBlockedReason.cleanup_failed'
+}
 
 // A first install asks for the exact version rather than letting main resolve
 // `latest`: that resolves against whichever PyPI mirror answers, and a lagging
@@ -209,7 +216,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
         if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
-          toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+          toast.error(formatErrorMessageWithPrefix(error, t('settings.dependencies.updateCheckFailed')))
         }
         return null
       } finally {
@@ -313,7 +320,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       }
     } catch (error) {
       logger.error('Failed to remove tool', error as Error)
-      toast.error(formatErrorMessage(error))
+      toast.error(formatErrorMessageWithPrefix(error, t('common.delete_failed')))
     } finally {
       setDeleteTarget(null)
       await refreshState()
@@ -326,7 +333,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await ipcApi.request('binary.remove_tool', { name, definitionOnly: true })
     } catch (error) {
       logger.error('Failed to remove tool definition', error as Error)
-      toast.error(formatErrorMessage(error))
+      toast.error(formatErrorMessageWithPrefix(error, t('common.delete_failed')))
     } finally {
       setDefinitionFallback(null)
       await refreshState()
@@ -539,7 +546,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               ? t('settings.dependencies.removeDefinitionOnlyDependents', {
                   dependents: definitionFallback.result.dependents.join(', ')
                 })
-              : (definitionFallback?.result.message ?? definitionFallback?.result.reason)
+              : definitionFallback
+                ? t(CLEANUP_BLOCKED_REASON_KEYS[definitionFallback.result.reason])
+                : ''
         })}
         confirmText={t('common.delete')}
         cancelText={t('common.cancel')}
@@ -1189,7 +1198,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
     commitQueueRef.current = commitQueueRef.current
       .then(() => setSettings(next))
       .catch((error) => {
-        toast.error(formatErrorMessage(error))
+        toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
       })
   }
   const commitUrl = (key: 'githubMirror' | 'npmRegistry' | 'pipIndexUrl', value: string) => {

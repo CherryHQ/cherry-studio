@@ -305,7 +305,8 @@ cross-field contract at the renderer and main boundaries:
    mode's `pairedEnumKey` into canonical `size`; the paired sentinel and width/
    height companions are removed. `sanitizeSeedreamImageParams` removes stale
    grouping/search/stream controls and supplies missing defaults before IPC.
-   Renderer failures use localized messages through `REMOTE_ERROR`.
+   Renderer failures throw typed `SEEDREAM_*` codes that the painting error
+   presenter translates.
 3. **Resolved model/provider → main gate → partition → delivery.**
    `AiService.generateImage` identifies the model using
    `model.presetModelId ?? parseUniqueModelId(model.id).modelId`. Before

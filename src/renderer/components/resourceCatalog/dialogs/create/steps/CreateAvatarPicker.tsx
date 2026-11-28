@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { AvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/AvatarPicker'
 import { prepareAvatarImage } from '@renderer/components/resourceCatalog/dialogs/components/prepareAvatarImage'
 import { toast } from '@renderer/services/toast'
-import { getErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { blobToDataUrl } from '@renderer/utils/image'
 
 import type { ResourceCreateWizardFormValues } from '../types'
@@ -52,7 +52,8 @@ export function CreateAvatarPicker({ form, fallbackAvatar, onPendingChange, ...d
       form.setValue('avatarImage', { data, previewUrl }, { shouldDirty: true })
       setOpen(false)
     } catch (error) {
-      if (mountedRef.current) toast.error(getErrorMessage(error))
+      if (mountedRef.current)
+        toast.error(formatErrorMessageWithPrefix(error, t('settings.general.avatar.update_failed')))
     } finally {
       if (mountedRef.current) setPending(false)
     }

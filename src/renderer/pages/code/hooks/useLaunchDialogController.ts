@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -115,7 +116,7 @@ export function useLaunchDialogController({
           terminal: effectiveTerminal
         })
         if (!runResult.success) {
-          toast.error(runResult.message)
+          toast.error(formatErrorMessageWithPrefix(runResult.message, t('code.launch.error')))
           return
         }
         setLaunchOpen(false)
@@ -230,7 +231,7 @@ export function useLaunchDialogController({
         terminal: effectiveTerminal
       })
       if (!runResult.success) {
-        toast.error(runResult.message)
+        toast.error(formatErrorMessageWithPrefix(runResult.message, t('code.launch.error')))
       } else {
         setLaunchOpen(false)
       }
