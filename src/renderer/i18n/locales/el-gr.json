@@ -1264,6 +1264,7 @@
   "chat.translate": "Μετάφραση",
   "chat.user": "Χρήστης",
   "chat.web_search.warning.openai": "Το μοντέλο GPT5 με ελάχιστη ένταση σκέψης δεν υποστηρίζει αναζήτηση στο διαδίκτυο",
+  "code.adv.claude.auto_mode_classifier_hint": "Ο ταξινομητής αδειών της αυτόματης λειτουργίας ακολουθεί το μοντέλο Sonnet όταν έχει οριστεί, αλλιώς το κύριο μοντέλο. Το Haiku εξυπηρετεί μόνο τίτλους/περιλήψεις παρασκηνίου και δεν κατευθύνει την αυτόματη λειτουργία (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Απενεργοποίηση Πλαισίου 1M",
   "code.adv.claude.disable_attribution_header": "Απενεργοποίηση Κεφαλίδας Απόδοσης",
   "code.adv.claude.disable_auto_upgrade": "Απενεργοποίηση Αυτόματης Αναβάθμισης",

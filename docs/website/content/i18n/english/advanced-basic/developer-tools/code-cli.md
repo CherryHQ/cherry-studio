@@ -67,7 +67,7 @@ Click **Launch**, confirm that the account or model is correct, then execute fil
 When configuring Claude Code, **Model** offers two modes:
 
 * **General**: All requests use the same model, offering simple configuration;
-* **Detailed**: Set Fable, Opus, Sonnet, Haiku, and Subagent separately in **Model Role Mapping**. The **Actual Request Model** in the table is the model ultimately used for each role; you can also enable **1M** context for specific roles if needed.
+* **Detailed**: Set Fable, Opus, Sonnet, Haiku, and Subagent separately in **Model Role Mapping**. The **Actual Request Model** in the table is the model ultimately used for each role; you can also enable **1M** context for specific roles if needed. Auto mode's permission classifier follows the Sonnet model when set, otherwise the main model; Haiku only serves background titles/summaries and does not steer auto mode (since SDK 0.3.284).
 
 Use **Detailed** only when you specifically need to assign different models to roles such as background subtasks, compression, or titles. Roles left blank will follow the main model. After making changes, use a small task to confirm that each role can request normally.
 

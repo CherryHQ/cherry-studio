@@ -1264,6 +1264,7 @@
   "chat.translate": "翻訳",
   "chat.user": "ユーザー",
   "chat.web_search.warning.openai": "GPT5モデルの最小思考強度ではネット検索はサポートされません",
+  "code.adv.claude.auto_mode_classifier_hint": "自動モードの権限クラシファイアは、設定されている場合は Sonnet モデルに、未設定の場合はメインモデルに従います。Haiku はバックグラウンドのタイトル/要約専用で、自動モードには影響しません（SDK 0.3.284+）。",
   "code.adv.claude.disable_1m_context": "1Mコンテキストを無効にする",
   "code.adv.claude.disable_attribution_header": "アトリビューションヘッダーを無効にする",
   "code.adv.claude.disable_auto_upgrade": "自動アップグレードを無効にする",

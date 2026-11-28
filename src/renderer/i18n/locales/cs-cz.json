@@ -1266,6 +1266,7 @@
   "chat.translate": "Přeložit",
   "chat.user": "Uživatel",
   "chat.web_search.warning.openai": "Nastavení minimálního úsilí o uvažování u modelu GPT-5 nepodporuje webové vyhledávání.",
+  "code.adv.claude.auto_mode_classifier_hint": "Klasifikátor oprávnění automatického režimu se řídí modelem Sonnet, je-li nastaven, jinak hlavním modelem. Haiku slouží pouze pro titulky/souhrny na pozadí a automatický režim neřídí (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Vypnout kontext 1M",
   "code.adv.claude.disable_attribution_header": "Vypnout hlavičku atribuce",
   "code.adv.claude.disable_auto_upgrade": "Vypnout automatickou aktualizaci",

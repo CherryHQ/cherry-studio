@@ -1264,6 +1264,7 @@
   "chat.translate": "แปล",
   "chat.user": "ผู้ใช้",
   "chat.web_search.warning.openai": "โมเดล GPT-5 ที่มีระดับการใช้เหตุผลน้อยที่สุดไม่รองรับการค้นหาเว็บ",
+  "code.adv.claude.auto_mode_classifier_hint": "ตัวจำแนกสิทธิ์ของโหมดอัตโนมัติจะตามโมเดล Sonnet เมื่อตั้งค่าไว้ มิฉะนั้นจะตามโมเดลหลัก Haiku ใช้สำหรับชื่อเรื่อง/สรุปเบื้องหลังเท่านั้น และไม่ควบคุมโหมดอัตโนมัติ (SDK 0.3.284+)",
   "code.adv.claude.disable_1m_context": "ปิดการใช้งาน 1M Context",
   "code.adv.claude.disable_attribution_header": "ปิดส่วนหัวแสดงที่มา",
   "code.adv.claude.disable_auto_upgrade": "ปิดอัปเกรดอัตโนมัติ",

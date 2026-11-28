@@ -1266,6 +1266,7 @@
   "chat.translate": "Tradu",
   "chat.user": "Utilizator",
   "chat.web_search.warning.openai": "Efortul minim de raționament al modelului GPT-5 nu acceptă căutarea web.",
+  "code.adv.claude.auto_mode_classifier_hint": "Clasificatorul de permisiuni al modului automat urmează modelul Sonnet atunci când este setat, altfel modelul principal. Haiku servește doar pentru titluri/rezumate în fundal și nu direcționează modul automat (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Dezactivează Contextul 1M",
   "code.adv.claude.disable_attribution_header": "Dezactivează antetul de atribuire",
   "code.adv.claude.disable_auto_upgrade": "Dezactivare actualizare automată",

@@ -1264,6 +1264,7 @@
   "chat.translate": "Translate",
   "chat.user": "User",
   "chat.web_search.warning.openai": "The GPT-5 model's minimal reasoning effort does not support web search.",
+  "code.adv.claude.auto_mode_classifier_hint": "Auto mode's permission classifier follows the Sonnet model when set, otherwise the main model. Haiku only serves background titles/summaries and does not steer auto mode on SDK 0.3.284+.",
   "code.adv.claude.disable_1m_context": "Disable 1M Context",
   "code.adv.claude.disable_attribution_header": "Disable Attribution Header",
   "code.adv.claude.disable_auto_upgrade": "Disable Auto Upgrade",

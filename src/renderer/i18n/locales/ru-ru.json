@@ -1282,6 +1282,7 @@
   "chat.translate": "Перевести",
   "chat.user": "Пользователь",
   "chat.web_search.warning.openai": "Модель GPT5 с минимальной интенсивностью мышления не поддерживает поиск в интернете",
+  "code.adv.claude.auto_mode_classifier_hint": "Классификатор разрешений авторежима следует модели Sonnet, если она задана, иначе основной модели. Haiku используется только для фоновых заголовков/резюме и не управляет авторежимом (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Отключить контекст 1M",
   "code.adv.claude.disable_attribution_header": "Отключить заголовок атрибуции",
   "code.adv.claude.disable_auto_upgrade": "Отключить автоматическое обновление",

@@ -1264,6 +1264,7 @@
   "chat.translate": "번역",
   "chat.user": "사용자",
   "chat.web_search.warning.openai": "GPT-5 모델의 최소 추론 수준에서는 웹 검색을 지원하지 않습니다.",
+  "code.adv.claude.auto_mode_classifier_hint": "자동 모드의 권한 분류자는 설정된 경우 Sonnet 모델을 따르고, 그렇지 않으면 기본 모델을 따릅니다. Haiku는 백그라운드 제목/요약 전용이며 자동 모드에 영향을 주지 않습니다(SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "1M 컨텍스트 비활성화",
   "code.adv.claude.disable_attribution_header": "귀속 헤더 비활성화",
   "code.adv.claude.disable_auto_upgrade": "자동 업그레이드 비활성화",

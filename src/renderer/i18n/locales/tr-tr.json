@@ -1264,6 +1264,7 @@
   "chat.translate": "Çevir",
   "chat.user": "Kullanıcı",
   "chat.web_search.warning.openai": "GPT-5 modelinin minimum akıl yürütme çabası web aramasını desteklemiyor.",
+  "code.adv.claude.auto_mode_classifier_hint": "Otomatik modun izin sınıflandırıcısı, ayarlıysa Sonnet modelini, değilse ana modeli izler. Haiku yalnızca arka plan başlıkları/özetleri içindir ve otomatik modu yönlendirmez (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "1M Bağlamı Devre Dışı Bırak",
   "code.adv.claude.disable_attribution_header": "İlişkilendirme Üstbilgisini Devre Dışı Bırak",
   "code.adv.claude.disable_auto_upgrade": "Otomatik Yükseltmeyi Devre Dışı Bırak",

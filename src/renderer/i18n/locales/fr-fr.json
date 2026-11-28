@@ -1264,6 +1264,7 @@
   "chat.translate": "Traduire",
   "chat.user": "Utilisateur",
   "chat.web_search.warning.openai": "Le modèle GPT5 avec une intensité de réflexion minimale ne prend pas en charge la recherche sur Internet.",
+  "code.adv.claude.auto_mode_classifier_hint": "Le classifieur d'autorisation du mode auto suit le modèle Sonnet s'il est défini, sinon le modèle principal. Haiku sert uniquement aux titres/résumés d'arrière-plan et ne pilote pas le mode auto (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Désactiver le contexte 1M",
   "code.adv.claude.disable_attribution_header": "Désactiver l'en-tête d'attribution",
   "code.adv.claude.disable_auto_upgrade": "Désactiver la mise à niveau automatique",
