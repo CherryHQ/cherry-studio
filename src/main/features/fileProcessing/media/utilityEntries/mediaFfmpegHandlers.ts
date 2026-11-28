@@ -614,7 +614,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
           onStderrLine: (line) => {
             // The input dump prints container tags as plain lines; only the filter's records count.
             if (!METADATA_FILTER_LINE.test(line)) return
-            const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
+            const time = /pts_time:\s*(-?[0-9]*\.?[0-9]+)/.exec(line)
             if (time?.[1]) {
               // Without -copyts MPEG-TS rebases to the video start, not the format start input -ss counts from.
               timestampMs = relativeInputSeekMs(Number(time[1]), formatStartSeconds)

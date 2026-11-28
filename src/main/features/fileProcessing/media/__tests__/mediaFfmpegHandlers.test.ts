@@ -2047,6 +2047,20 @@ describe('mediaFfmpegHandlers scene scan records', () => {
     }
   }
 
+  it('maps a negative-PTS cut onto the seek offset from a negative format start', async () => {
+    completedScan('{"format":{"start_time":"-2.000000"}}', () =>
+      [
+        '[Parsed_metadata_4 @ 0x1] frame:0 pts:-1 pts_time:-1',
+        '[Parsed_metadata_4 @ 0x1] lavfi.scene_score=0.8',
+        ''
+      ].join('\n')
+    )
+
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(sceneInput, context())
+
+    expect(detected.changes).toEqual([{ timestampMs: 1_000, score: 0.8 }])
+  })
+
   it('reads the scan start time without counting the packets of a multi-audio-track file', async () => {
     completedScan(
       '{"format":{"start_time":"1.000000","duration":"10.000000"},"streams":[{"index":0,"codec_type":"video"},{"index":1,"codec_type":"audio"},{"index":2,"codec_type":"audio"}]}',
