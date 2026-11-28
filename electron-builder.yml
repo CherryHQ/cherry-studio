@@ -24,7 +24,7 @@ files:
   - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**" # ClaudeCodeBinaryService downloads the native runtime on demand
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
-  - "!electron-builder.cn.config.cjs"
+  - "!electron-builder.*.config.cjs"
   - "!release-bundle.json"
   - "!electron.vite.entries.config.ts"
   - "!.*"
@@ -85,6 +85,7 @@ asarUnpack:
   - resources/**
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
+  - "node_modules/@cursor/sdk-*/**" # Cursor locates platform executables by package path.
   - "node_modules/@img/sharp-*/**"
   - "node_modules/sharp/**"
   - "node_modules/@img/colour/**"
@@ -98,6 +99,10 @@ asarUnpack:
   - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
+  - from: "out/pi-acp"
+    to: "pi-acp"
+  - from: "packages/ui/licenses"
+    to: "licenses/ui"
   - from: "src/main/ai/voice/localAdapters/NOTICE.txt"
     to: "voice-audio/NOTICE.txt"
   - from: "migrations/sqlite-drizzle"
@@ -215,70 +220,230 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.2.2 - Agent Approvals, Provider Fixes, and Polish
+    Cherry Studio 2.2.5 - Local Agents, History Import, and the Unified Gateway
 
     ✨ New Features
-    - [Computer Use] Computer Use is now on by default and asks before accessing each app. Choose Always, Approve for session, or Reject, and manage saved approvals in Settings. Bypass mode skips these prompts without saving permissions. (action required: turn it off in Settings if you do not want it.)
-    - [Skills] Added an "Export skills to external agents" switch in Settings → Skills. It is off by default for new installations, so the shared skills directory is no longer created without an explicit opt-in; installations that already exported keep it on, and turning it off removes only the links Cherry Studio created.
-    - [Agent] Agents on DeepSeek models now show a short intent line above each tool call. Agent sessions keep tool steps expanded by default and fold repeated calls of the same kind.
-    - [App] Added Polish language support.
-
-    💄 Improvements
-    - [MCP] QVeris now supports OAuth browser sign-in as its primary credential, with QVERIS_API_KEY as an optional fallback, so it can be enabled without an API key.
-    - [Files] File sizes use one consistent format across the app.
-    - [Agent] Polished session details typography, icon alignment, spacing, and the no-workspace placeholder.
+    - [Agent] Agent Services (Beta): install, configure, and chat with local Claude Code, Codex, and ACP-compatible agents, with native model selection, permissions, session controls, usage reporting, and local dictation. Message editing and conversation forking are disabled where a local runtime cannot support them.
+    - [Agent] Import local Claude Code, Codex, and OpenCode conversation histories into an existing Pi Agent from Data Settings.
+    - [Agent] New Cherry Assistant and Cherry Support agents default to Pi Durable with Auto permissions.
+    - [Agent] Create an Agent or Assistant from a single sentence: describe a purpose, pick a model, and Auto create sets the name, avatar, System Prompt, and matching knowledge bases, MCP servers, skills, or web search. Manual create walks through identity, built-in tools, MCP servers, reply language, heartbeat, environment variables, and IM channels (WeChat, Feishu, WeCom, DingTalk, QQ, Telegram, Discord, Slack), ending on a summary page that shows what was configured, with buttons to adjust settings or start a conversation, and WeChat or Feishu QR login can be completed there.
+    - [Agent] Agents can create new Agents and Assistants and change their own settings from a conversation, each after your approval, shown as a card that opens the result. On Pi Durable Agents, every part of the System Prompt can be edited, AI-optimized, and restored, including the persona and memory files.
+    - [Agent] Click the Assistant or Agent avatar to open a profile pane with usage, recent topics, scheduled tasks, suggested next steps and "Try asking" opening questions, quick settings that change in place, and an Outputs tab collecting pages, media, and files the Agent delivered or images the Assistant generated across sessions.
+    - [Agent] The Agent and Assistant edit dialogs are reorganized into a main page and "More settings" sub-pages, including per-Agent channels and scheduled tasks; plan/small model and quick-prompt bindings are removed.
+    - [Agent] Pi Durable queued messages appear only in the queue panel—where you can view, edit, reorder, withdraw, and steer them into the running turn—until the agent takes them. Stopping a reply pauses the queue and resuming continues it in order, even after restart, and model failures no longer leave a reply running or drop queued messages.
+    - [Agent] Pi Durable resumes a turn after a broken model stream or a temporary network outage, and restores pending approvals, questions, and queued replies after restart.
+    - [Agent] A System Prompt preview shows the full prompt the Pi Durable runtime sends, with only the Agent's own instructions editable and an approximate token count.
+    - [MCP] Claude Code and Pi can discover remote skills and load verified instructions and current attachments on demand, with each skill's reading permission set in MCP Server settings. App-only MCP tools are hidden from the model, and MCP Apps open from tool results with their connection origins shown.
+    - [Chat] Quote selected text with a configurable shortcut, jump back to quoted messages, and save a reply to selected text as a draft; right-click a rendered formula to copy its LaTeX.
+    - [Chat] Home chat history shows where the recent-messages limit cuts off.
+    - [Chat] Collapsed reasoning shows a one-line preview with an expand/collapse chevron, and with auto-collapse enabled reasoning starts collapsed while streaming.
+    - [Chat] When a third-party provider runs out of quota, the input suggests topping up, switching providers, or subscribing to Cherry AI.
+    - [Models] Reasoning and tool continuity are preserved when switching between compatible model routes, while history the new endpoint cannot reuse is left out.
+    - [Models] Added CherryIN Claude Fable 5.2 with its 1M context window, 128K output, and xhigh reasoning, Gemini 4 Neon, and Seedream 5.5 image generation; synced the Tencent Cloud TokenHub catalog; added the missing DashScope Qwen Image and Z-Image models; enabled AiHubMix native search for Gemini 4 and Vertex native search for Gemini 4 Hydrogen and Carbon; and restored reasoning controls for SWE-2, Flint, Beam, Fugu, and Namazu custom-provider models.
+    - [OCR] Added PaddleOCR VL-1.5, VL-1.6, and VL models to image OCR; VL images are parsed as documents for better formula recognition.
+    - [Paintings] You can add an image from a URL.
+    - [Files] Copy a file's absolute path from the Files list or image grid, right-click the open preview for the same menu as the list, and view Mermaid diagrams at full size with sharp rendering in the preview window.
+    - [Desktop] Native scroll bounce on macOS in the main window and detached tabs.
+    - [Quick Panel] `/` search ranks exact and prefix command or skill name matches ahead of description-only matches.
+    - [Code Viewer] Fold nested JSON objects and arrays and follow indentation guides in Trace and other code viewers.
+    - [Providers] Deep-link provider import lets you edit the provider ID, choose merge or replace when the ID already exists, and shows where the API key will be sent; merge is the default and no longer overwrites an existing endpoint.
+    - [Gateway] Open Unified Gateway from Launchpad, copy API URLs and Model IDs for third-party clients, and use keyless local model calls and authenticated LAN sharing, with a redesigned icon and consistent naming across entry points.
+    - [Cherry AI] Without signing in to Cherry AI, the built-in free Qwen model now powers helper features: topic and note naming, translation and language detection, AI error diagnosis, conversation starters, prompt polish, and assistant auto-configure. Chatting with Qwen still requires signing in.
+    - [Remote] Paired clients can discover the available desktop Agent models and choose one for a new remote conversation.
+    - [PlantUML] PlantUML diagrams render locally without sending their source to a remote server, and a pager shows every page of multi-page diagrams. Diagrams that relied on remote includes need those definitions inlined.
+    - [Selection Assistant] Save both the selected text and the generated result to Notes with one click.
+    - [App] Added Korean (ko-KR) language support.
 
     🐛 Bug Fixes
-    - [Models] CherryIN Claude Sonnet 4.5 tool requests no longer fail with a Bedrock parameter validation error.
-    - [Models] Claude Opus 5.5 requests on AWS Bedrock now use adaptive reasoning.
-    - [Models] SiliconFlow uses manual API key entry; the obsolete OAuth login was removed (action required if you signed in with OAuth).
-    - [Chat] "Input exceeds the context limit" errors are now recognized as context-length rejections, so the existing recovery guidance appears.
-    - [Chat] Local Markdown file links now open from chat surfaces that do not provide an artifact preview.
-    - [Chat] Fixed the first composer toolbar activation being lost while loading, and internal tab navigation no longer blocks interaction.
-    - [Agent] Fixed the missing AskUserQuestion card when a streamed approval request arrives before its tool source.
-    - [Agent] Fixed the Skip button getting stuck on the final AskUserQuestion when all questions are skipped.
-    - [Agent] Expanding a Pi Durable read tool call no longer shows blank file details.
-    - [Agent] Pi Durable agents now automatically load workspace instruction files such as AGENTS.md.
-    - [Agent] Ordinary MCP tools are discoverable through tool search in the Pi Durable runtime instead of returning "No matching tools found."
-    - [Agent] Agent tool guidance now treats deferred tools as available through discovery and uses the exact tool names from the session, so agents stop reporting available tools as missing.
-    - [Agent] When reasoning exhausts the response budget, you now get accurate output-token-limit guidance, and DeepSeek V4.1 Flash capacity resolves correctly for versioned model IDs.
-    - [API Gateway] Claude Code MCP ToolSearch results are no longer dropped for third-party models.
-    - [Code] Code Mate's Unified Gateway model picker now lists Cherry Cloud models that are available only to agents.
-    - [Doctor] Doctor no longer reports a missing API key or an unavailable model list for CherryAI and Cherry Cloud; for Cherry Cloud it now tells you when you need to sign in.
-    - [UI] Website favicons stay visible in dark mode with a soft light-gray backplate while keeping their original colors.
-    - [Updater] Release notes in the update dialog now follow the app's resolved language, including when the app follows the system language.
+    - [Agent] The first conversation with a new Agent no longer asks for a name or overwrites the name already set.
+    - [Agent] Fixed startup and backup restore failures when upgrading older Agent sessions that contain detached messages.
+    - [Agent] When the native SDK can preserve context, Claude Code conversations can edit their first message after tool retries or compaction, and Plan Only hides file mutation tools.
+    - [Agent] Messages sent while a turn is running are no longer dropped when the runtime connection changes, and the local permission mode is shared across sessions.
+    - [Agent] Agent replies keep intermediate text and tool calls in order during streaming and after Stop, with consistent spacing; avatars show while waiting and on every visible reply segment, and completed process groups fold after a steer.
+    - [Agent] Work conversations name the Claude Code process exit and its diagnostic reference in the error card instead of a generic error, and non-Anthropic endpoints now surface upstream JSON error reasons.
+    - [Agent] Subagents follow root permissions and reliably show approval requests with their task origin and complete commands; nested tools, including calls from code-mode scripts, use the same approval policy.
+    - [Agent] Pi and Pi Durable Agents show Knowledge Search and Manage Knowledge once a knowledge base is bound, and turning Knowledge Search off also disables document listing and reading.
+    - [Agent] Fixed re-importing local Skills already in the library and loading enabled Skills whose folder names contain spaces or leading dots; safe Unicode characters in skill folder names are preserved.
+    - [Agent] Fixed the missing cause when a System Prompt could not be assembled and when Pi Durable fails to initialize, instead of suggesting a network interruption.
+    - [Agent] The built-in Assistant asks for approval before submitting feedback through wrapped, nested, `gh api`, inline-interpreter, or PowerShell commands, and Cherry Support asks before every PowerShell command.
+    - [Agent] Text-layer PDFs that the parser rejects as malformed are now converted, and scanned PDFs use the default document processor. DeepSeek history imports keep conversations when an attachment is missing and warn about the missing file.
+    - [Agent] Scheduled tasks no longer misinterpret interval durations ("1d" no longer runs every minute), unsupported formats are rejected, and reused sessions are compacted and recover after overflow.
+    - [Agent] Single-message "Export as Markdown (with reasoning)" no longer omits reasoning in Work mode, and assistant reply edits save when you are signed out or out of quota.
+    - [Agent] Opening older conversations with very large tool results after upgrading loads less data, and long conversations keep their loaded messages as new turns arrive.
+    - [Agent] The WeChat and Feishu login QR code shows in chat when a Pi Durable Agent sets up its channel.
+    - [Agent] Claude Read results show image previews in chat, and an Agent conversation opens at the correct scroll position; an uploaded Assistant avatar shows in the header, greeting, and tab.
+    - [Agent] RTK exit code 3 (Ask verdict) rewrites now require user approval instead of being applied automatically.
+    - [Agent] Claude Code tool guards now cover Windows PowerShell calls and MultiEdit, and Claude Code can use the CLI already downloaded by Cherry Studio when no standalone CLI is found.
+    - [Chat] Stopping a message translation clears the loading placeholder and keeps any text already saved, and the translation page stops rendering when no output is pending.
+    - [Chat] Unified Gateway conversations preserve thought signatures on whitespace-only assistant text, and chats with signed history no longer fail when switching models or connections.
+    - [Chat] Anthropic-compatible providers no longer reject tool requests whose tool root schema is a non-object, untyped, `$ref`, or combinator schema, Gemini requests no longer fail when an MCP tool declares an unsupported enum or const, and non-portable regex patterns in MCP tool schemas are stripped before sending.
+    - [Chat] Continuing a conversation whose earlier assistant replies contained blank text blocks no longer errors, and follow-up requests no longer fail after history is trimmed or compacted.
+    - [Chat] "Retry all" on a grouped answer retries each failed model with that reply's model instead of the model currently selected in the composer.
+    - [Chat] Responses API requests no longer fail when an assistant uses a legacy custom reasoning effort parameter, and legacy custom Anthropic tool choices serialize correctly.
+    - [Chat] Fixed image generation with providers that return an image URL: images served from the provider endpoint are downloaded with the provider credential, Gemini-compatible relays that return image URLs download correctly, and New API Google image requests route to generateContent.
+    - [Chat] Requests no longer send conflicting output-token fields, and a provider that rejects the requested output-token budget is retried with a lower limit.
+    - [Chat] Context size is estimated from the outgoing request, avoiding inflated estimates and early compression after server-side tool use.
+    - [Chat] A failed Agent turn that carries a runtime detail now shows that detail instead of a misleading "check your network" interruption message.
+    - [Chat] The message navigation rail is no longer hidden behind the input box, the Ask Question composer shows an emphasized Next button when options are selected, and tooltips stay closed after a menu restores focus.
+    - [Markdown] Equation numbers no longer overlap display formulas, code blocks no longer draw operator ligatures, and wide formulas scroll horizontally in side-by-side replies.
+    - [Notes] Pasted images stay visible after reopening notes when the image path contains spaces or Markdown punctuation.
+    - [Files] File renames no longer submit twice when focus moves after Enter, and cancelled edits stay cancelled.
+    - [Files] Inline HTML previews no longer jump in height when CSS decoration overflows the content, and extremely wide or tall SVG previews no longer render blank.
+    - [Files] Fixed XLSX preview totals and chart points when worksheet references differ in capitalization, and cells that depend on an unavailable formula now show the formula instead of a misleading number.
+    - [Files] Fixed document conversion failures when a server returns a ZIP result with a mixed-case or parameterized Content-Type header.
+    - [Files] Fixed removal of missing PDF originals from the file library while retaining translation history and translated PDFs.
+    - [Files] The built-in filesystem tool deletes a symlink itself instead of the directory or file it points to.
+    - [Files] Remote-access attachments are cleared when a remote session disconnects without sending, and authenticated remote sessions are reaped after a sixty-second receive idle.
+    - [Preview] Offline PlantUML previews honor diagram background colors and built-in icons, no longer hang after switching views when a diagram references unbundled standard-library includes, and multi-page diagrams show every page.
+    - [Preview] Mermaid previews ignore obsolete worker replies when the diagram or rendering options change, and Graphviz previews use theme-aware defaults and render braces in quoted graph names and leading comments.
+    - [Skills] External skill exports now default to off on upgrade without a saved setting.
+    - [MCP] Connected servers that do not implement resource template discovery no longer show a false start-failure dialog, servers whose probe gets no response fall back to the legacy handshake, and the built-in memory server no longer loses entities after a failed save or overwrites a corrupted file.
+    - [Backup] Restore failures are shown readably in a dialog, and the S3 restore picker shows its empty message in the app language.
+    - [Errors] Request-body buffer limit and "payload is too large" rejections get request-size guidance, timeouts are no longer reported as provider HTTP errors, oMLX prefill memory rejections suggest shortening the conversation or a smaller model, low credit balance rejections are recognized, and AI error diagnosis runs on demand with your default model.
+    - [Errors] Quota refusals returned with 429 are no longer prefixed with the rate-limit hint, and a Work conversation identifies a missing model provider with help choosing a replacement.
+    - [Errors] Windows Work conversations and MCP launches no longer fail when a captured environment variable contains NUL bytes.
+    - [Usage] Request entries no longer show 0 rows when sorted by cost, filtering by clicking chart data points is restored, and an open dashboard includes the new day after midnight.
+    - [Conversations] Dropping a topic onto its own group header keeps it in place.
+    - [Code CLI] Code CLI launches on Linux by detecting common terminal emulators instead of failing with `spawn xterm ENOENT`, and keeps local CLI availability when version lookup is offline with a detection retry instead of a misleading installation action.
+    - [Quick Assistant] A dedicated drag area above chat messages keeps the window movable without interfering with text selection.
+    - [Gateway] Statusless context-window overflow errors map to HTTP 400 instead of HTTP 500, so retries no longer storm and Agent runtimes can trigger compaction.
+    - [Providers] The provider list filter supports keyboard navigation and announces the active filter to screen readers.
+
+    💄 Improvements
+    - [UI] Conversation history and management views are full-width with immediate selection highlights, improved resource dialogs, and a refined Unified Gateway icon.
+    - [Agent] Completed Agent tool histories collapse by default with a step count, and very large histories no longer mount tens of thousands of DOM nodes on open.
+    - [Agent] The avatar picker shows upload, random, and emoji in one panel and lets you crop an uploaded image.
+    - [Agent] An Agent's reply language is a single dropdown with an "Other language…" option, and heartbeat settings are grouped in one card.
+    - [Agent] Built-in Agents show a fixed, system-managed skill list.
+    - [Agent] The remaining-messages context is shown as a clear "Last N messages" or "Follow global" choice when editing an Assistant or Agent.
+    - [Chat] When a quick action prefills the composer over text you already typed, you can replace the draft or keep it, with a "Don't ask again" option.
+    - [Conversations] Conversation rows no longer show a one-click Archive action; Archive remains in the context menu and can be undone from the toast, and rows stay interactive when item dragging is unavailable.
+    - [Feedback] Problem reports omit chat history by default; select the option to include the last 24 hours of the affected conversation.
+    - [Privacy] Updated desktop privacy policy disclosures and consent version. (action required: review the updated privacy policy if data collection is enabled.)
+    - [Models] The model service list filter explains what its tabs group by, and the model selector can pin or unpin the CherryAI group.
+    - [UI] Fixed tooltip and sidebar selection flicker, opened Mini Apps directly from Launchpad, and made Mini App and CodeMate icons consistent, including Codex dark mode.
+    - [Files] File type icons are consistent across the Files library, composer, and message attachments.
+    - [Diagnostics] A new Doctor check reports unreadable provider registry files and whether the built-in or downloaded catalog is in use.
+    - [Settings] Settings search tolerates accents, case, and full-width characters, and composers focus their input when you switch conversations or tabs.
+    - [Desktop] The main window starts at 90% of the work area (capped at 1440 × 900), while a saved window size still takes precedence.
+
+    ⚡ Performance
+    - [Agent] Long Agent conversations update individual streaming parts and load a completed reply without reloading unrelated history pages; a reply stays readable if its first history read fails.
+    - [Agent] Oversized tool outputs no longer stall history loading, and completed tool details load on demand while streaming stays responsive.
+    - [Chat] Code-heavy conversations do less layout work, and the composer stays stable when switching between sending and pausing.
+    - [Files] Native file-watcher cleanup is faster and no longer blocks workspace cleanup.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.2.2 - 智能体审批、服务商修复与波兰语支持
+    Cherry Studio 2.2.5 - 本地智能体、历史导入与统一网关
 
     ✨ 新功能
-    - [电脑操作] 电脑操作现在默认开启，并在访问每个应用前请求批准。可选择「始终允许」「本次会话允许」或「拒绝」，并可在设置中管理已保存的批准。绕过模式会跳过这些提示且不保存权限。（需要操作：如不希望启用，请在设置中关闭。）
-    - [技能] 在「设置 → 技能」新增「导出技能给外部 Agent」开关。新安装默认关闭，不再未经同意就创建共享技能目录；此前已经导出的安装升级后保持开启，关闭后只会移除 Cherry Studio 创建的链接。
-    - [智能体] 使用 DeepSeek 模型的智能体现在会在每次工具调用上方显示一句简短意图。智能体会话默认展开工具步骤，并折叠同类的重复调用。
-    - [应用] 新增波兰语支持。
-
-    💄 改进
-    - [MCP] QVeris 现在支持通过浏览器 OAuth 登录作为主要凭证，QVERIS_API_KEY 为可选备用方式，因此无需配置 API Key 也能启用。
-    - [文件] 全应用统一文件大小的显示格式。
-    - [智能体] 优化会话详情的字体排版、图标对齐、间距以及无工作区占位状态的显示。
+    - [智能体] 智能体服务（Beta）：可安装、配置并与本地 Claude Code、Codex 和 ACP 兼容智能体对话，支持原生模型选择、权限、会话控制、用量统计和本地听写；本地运行时不支持的消息编辑和会话分叉会被禁用。
+    - [智能体] 可在「数据设置」中把本地 Claude Code、Codex 和 OpenCode 的对话历史导入已有的 Pi 智能体。
+    - [智能体] 新建的 Cherry 小助手和 Cherry Support 默认使用 Pi Durable 和自动权限。
+    - [智能体] 一句话创建智能体或助手：描述用途并选择模型后，「自动创建」会生成名称、头像、系统提示词，并匹配知识库、MCP 服务、技能或联网搜索。仍可使用「手动创建」逐步设置身份、内置工具、MCP 服务、回复语言、心跳、环境变量和 IM 频道（微信、飞书、企业微信、钉钉、QQ、Telegram、Discord、Slack），最后停在配置摘要页，可直接调整设置或开始对话，微信或飞书的扫码登录也可在该页完成。
+    - [智能体] 智能体现在可以在对话中创建新的智能体和助手、修改自身设置，每一步都需要你的确认，结果以卡片展示并可打开。对于 Pi Durable 智能体，系统提示词的每个部分都可以编辑、AI 优化和恢复，包括人设和记忆文件。
+    - [智能体] 点击助手或智能体头像可打开资料面板，查看用量、最近话题、定时任务、建议和「试着问」开场问题、可原地修改的快速设置，以及汇总各会话交付的网页、媒体、文件和助手生成图片的「产出」页。
+    - [智能体] 智能体和助手的编辑对话框重整为主页和「更多设置」子页，包含每个智能体的频道和定时任务；移除了 Plan/小模型和快捷提示词绑定。
+    - [智能体] Pi Durable 的排队消息在智能体取用前只显示在队列面板，可查看、编辑、拖动排序、撤回或插入当前轮。停止回复会暂停队列，继续后按顺序发送，重启后仍然有效；模型失败也不再让回复停留在运行中或丢失排队消息。
+    - [智能体] Pi Durable 在模型流中断或临时网络故障后会继续当前回合，重启后会恢复待确认、提问和排队回复。
+    - [智能体] 系统提示词预览会显示 Pi Durable 运行时实际发送的完整提示词，仅智能体自身的指令可编辑，并显示大致 token 数。
+    - [MCP] Claude Code 和 Pi 可以发现远端技能，并按需加载已验证的指令和当前附件，每个技能的读取权限可在 MCP 服务器设置中配置。仅供 App 使用的 MCP 工具对模型不可见，MCP App 可从工具结果打开并显示其连接来源。
+    - [对话] 使用可配置的快捷键引用选中文本、跳回被引用的消息，并将对选中文本的回复保存为草稿；右键渲染后的公式可复制其 LaTeX。
+    - [对话] 首页对话历史会标示最近消息上限的截断位置。
+    - [对话] 折叠的推理内容会显示单行预览和展开/收起箭头；开启自动折叠后，推理在流式过程中即保持折叠。
+    - [对话] 第三方服务商额度用尽时，输入框会建议充值、切换服务商或订阅 Cherry AI。
+    - [模型] 在兼容的模型路由之间切换时会保留推理和工具上下文，并略过新端点无法复用的历史。
+    - [模型] 新增 CherryIN Claude Fable 5.2（100 万上下文、128K 输出、xhigh 推理层级）、Gemini 4 Neon 和 Seedream 5.5 图像生成；同步腾讯云 TokenHub 模型列表；补齐缺失的 DashScope 通义万相图像和 Z-Image 模型；为 Gemini 4 启用 AiHubMix 原生搜索，并为 Gemini 4 Hydrogen/Carbon 启用 Vertex 原生搜索；恢复 SWE-2、Flint、Beam、Fugu、Namazu 等自定义服务商模型的推理强度控制。
+    - [OCR] 图像 OCR 新增 PaddleOCR VL-1.5、VL-1.6 和 VL 模型；VL 图像按文档解析以获得更好的公式识别。
+    - [绘画] 支持通过 URL 添加图片。
+    - [文件] 可在文件列表或图片网格中复制文件绝对路径，右键打开的预览可使用与列表相同的菜单，预览窗口中的 Mermaid 图表以原始尺寸清晰显示。
+    - [桌面端] macOS 主窗口和独立窗口支持原生滚动回弹。
+    - [快捷面板] `/` 搜索会优先显示命令或技能名称精确匹配和前缀匹配的结果，再显示仅描述匹配的结果。
+    - [代码查看器] 在 Trace 等代码查看器中可折叠嵌套的 JSON 对象和数组，并显示缩进参考线。
+    - [服务商] 深度链接导入服务商时可编辑服务商 ID、在 ID 已存在时选择合并或替换，并显示 API 密钥将发送到哪里；默认合并，且不再覆盖已有端点。
+    - [网关] 可从启动台打开统一网关，复制供第三方客户端使用的 API 地址和模型 ID，并使用无需密钥的本地模型调用和需认证的局域网共享；图标和两个入口的命名与布局也已统一。
+    - [Cherry AI] 未登录 Cherry AI 时，内置免费 Qwen 模型现在可为辅助功能提供支持：话题与笔记命名、翻译与语言检测、AI 错误诊断、开场问题、提示词润色和助手自动配置。与 Qwen 对话仍需登录。
+    - [远程] 已配对的客户端可以发现桌面端可用的智能体模型，并为新的远程会话选择模型。
+    - [PlantUML] PlantUML 图表在本地渲染，不再将源码发送到远程服务器；多页图表可通过分页器查看每一页。依赖远程 include 的图表需要把相关定义内联到源码中。
+    - [划词助手] 一键将选中文本和生成结果同时保存到笔记。
+    - [应用] 新增韩语（ko-KR）支持。
 
     🐛 问题修复
-    - [模型] CherryIN Claude Sonnet 4.5 的工具请求不再因 Bedrock 参数校验错误而失败。
-    - [模型] AWS Bedrock 上的 Claude Opus 5.5 请求现在使用自适应推理。
-    - [模型] SiliconFlow 改为手动填写 API Key，移除了已失效的 OAuth 登录（此前使用 OAuth 登录的用户需要操作）。
-    - [对话] 「输入超出上下文限制」错误现在会被识别为上下文长度问题，并显示原有的恢复建议。
-    - [对话] 在未提供工件预览的对话界面中，本地 Markdown 文件链接现在可以正常打开。
-    - [对话] 修复加载期间首次输入框工具栏操作丢失的问题；站内标签页切换后不再阻塞交互。
-    - [智能体] 修复流式批准请求先于工具来源到达时 AskUserQuestion 卡片缺失的问题。
-    - [智能体] 修复全部问题都跳过时，最后一个 AskUserQuestion 的「跳过」按钮卡住的问题。
-    - [智能体] Pi Durable 展开读取工具调用时不再显示空白文件详情。
-    - [智能体] Pi Durable 智能体现在会自动加载 AGENTS.md 等工作区指令文件。
-    - [智能体] Pi Durable 运行时中的普通 MCP 工具现在可通过工具搜索发现，而不再返回「未找到匹配的工具」。
-    - [智能体] 智能体工具指引现在会把延迟加载的工具视为可通过发现获取，并使用会话中真实的工具名称，避免把可用工具误报为缺失。
-    - [智能体] 当推理耗尽响应预算时会显示准确的最大输出 token 提示，并修正带版本号模型 ID 的 DeepSeek V4.1 Flash 容量查询。
-    - [API 网关] 使用第三方模型时，Claude Code 的 MCP ToolSearch 结果不再丢失。
-    - [代码] Code Mate 的统一网关模型选择器现在会列出仅对智能体开放的 Cherry Cloud 模型。
-    - [诊断] 诊断工具不再为 CherryAI 和 Cherry Cloud 误报缺少 API Key 或模型列表不可用；Cherry Cloud 未登录时会提示登录。
-    - [界面] 深色模式下网站图标通过柔和的浅灰底板保持清晰，同时保留原始颜色。
-    - [更新] 更新对话框中的版本说明现在会使用应用实际生效的语言，包括跟随系统语言的情况。
+    - [智能体] 新智能体的首次对话不再询问名称，也不会覆盖已设置的名称。
+    - [智能体] 修复升级包含游离消息的旧智能体会话时启动和备份恢复失败的问题。
+    - [智能体] 当原生 SDK 能保留上下文时，Claude Code 会话可在工具重试或压缩后编辑首条消息；Plan Only 会隐藏文件修改工具。
+    - [智能体] 回合运行期间发送的消息在运行时连接变化时不再被丢弃，本地权限模式会在会话之间共享。
+    - [智能体] 智能体回复在流式过程中和停止后都会保持中间文本与工具调用的顺序，并保持一致的间距；等待回复时和每个可见回复片段都会显示头像，转向后已完成的过程分组会折叠。
+    - [智能体] Work 会话的错误卡片会显示 Claude Code 进程退出状态和诊断编号，而不再显示通用错误；非 Anthropic 端点会显示上游 JSON 错误原因。
+    - [智能体] 子智能体遵循根权限，并能可靠显示带有任务来源和完整命令的审批请求；嵌套工具（包括来自代码模式脚本的调用）使用相同的审批策略。
+    - [智能体] Pi 和 Pi Durable 智能体在绑定知识库后会显示「知识检索」和「管理知识」，关闭「知识检索」也会禁用文档列出和读取。
+    - [智能体] 修复重新导入库中已有的本地技能、以及加载文件夹名含空格或前导点的已启用技能的问题；保留技能文件夹名中的安全 Unicode 字符。
+    - [智能体] 修复系统提示词组装失败和 Pi Durable 初始化失败时缺少原因、被误报为网络中断的问题。
+    - [智能体] 内置助手在通过包装、嵌套、`gh api`、内联解释器或 PowerShell 命令提交反馈前会请求确认，Cherry Support 在执行每条 PowerShell 命令前都会确认。
+    - [智能体] 解析器判定为格式错误的文本层 PDF 现在会被转换，扫描件 PDF 使用默认文档处理器。DeepSeek 历史导入在附件缺失时会保留会话并提示缺失文件。
+    - [智能体] 定时任务不再误读间隔时长（「1d」不再每分钟运行），不支持的格式会被拒绝，复用会话会被压缩并在溢出后恢复。
+    - [智能体] Work 模式单条消息「导出为 Markdown（含推理）」不再遗漏推理；未登录或额度用尽时也能保存助手回复的编辑。
+    - [智能体] 升级后打开含超大工具结果的旧会话时加载的数据更少，长会话在新回合到达时保留已加载的消息。
+    - [智能体] Pi Durable 智能体设置频道时，微信和飞书的登录二维码可在对话中显示。
+    - [智能体] Claude Read 结果会在对话中显示图片预览，重新打开智能体会话时滚动位置正确；上传的助手头像会显示在标题、问候语和标签页中。
+    - [智能体] RTK 退出码 3（Ask 判定）的重写现在需要用户批准，不再自动应用。
+    - [智能体] Claude Code 工具防护现已覆盖 Windows PowerShell 调用和 MultiEdit；找不到独立 Claude CLI 时，Claude Code 可使用 Cherry Studio 已下载的 CLI。
+    - [对话] 停止消息翻译会清除加载占位并保留已保存的文本，没有待输出内容时翻译页会停止渲染。
+    - [对话] 统一网关会话会保留仅含空白文本上的思考签名，带有签名历史的对话在切换模型或连接时不再失败。
+    - [对话] Anthropic 兼容服务商不再拒绝工具根 schema 为非对象、无类型、`$ref` 或组合类型的工具请求；当 MCP 工具声明不支持的 enum 或 const 时，Gemini 请求不再失败；MCP 工具 schema 中不可移植的正则表达式会在发送前移除。
+    - [对话] 继续包含空白助手文本块的旧对话不再报错，历史被截断或压缩后后续请求不再失败。
+    - [对话] 分组回答的「全部重试」会用各自回复的模型重试每个失败的模型，而不再使用输入框当前选择的模型。
+    - [对话] 助手使用旧版自定义推理强度参数时 Responses API 请求不再失败，旧版自定义 Anthropic 工具选择也能正确序列化。
+    - [对话] 修复返回图片 URL 的服务商图像生成：来自服务商端点的图片会携带凭据下载，Gemini 兼容中转返回的图片 URL 可正确下载，New API 的 Google 图像请求会路由到 generateContent。
+    - [对话] 请求不再发送冲突的输出 token 字段；服务商拒绝所请求的输出 token 上限时，会自动以更低的上限重试。
+    - [对话] 上下文大小改为根据发出的请求估算，避免服务端工具调用后估值偏高和过早压缩。
+    - [对话] 携带运行详情的智能体回合失败现在会显示该详情，不再显示具有误导性的「请检查网络」中断提示。
+    - [对话] 消息导航栏不再被输入框遮挡，Ask Question 输入组件在选中选项后会显示强调的「下一步」按钮，菜单重新获得焦点后提示气泡保持关闭。
+    - [Markdown] 公式编号不再与行间公式重叠，代码块不再显示连字符号，并排回复中的宽公式可横向滚动。
+    - [笔记] 图片路径包含空格或 Markdown 标点时，粘贴的图片在重新打开笔记后仍可见。
+    - [文件] 按 Enter 后移动焦点时文件重命名不再重复提交，取消的编辑保持取消。
+    - [文件] 当 CSS 装饰溢出内容时，内嵌 HTML 预览不再跳动，极宽或极高的 SVG 预览不再空白。
+    - [文件] 当工作表引用大小写不一致时，XLSX 预览的合计和图表数据点不再出错；依赖不可用公式结果的单元格会显示公式，而不是误导性的数字。
+    - [文件] 修复服务器返回大小写混合或带参数的 Content-Type 的 ZIP 结果时文档转换失败的问题。
+    - [文件] 修复从文件库移除缺失的 PDF 原件时同时保留翻译历史和已翻译 PDF。
+    - [文件] 内置文件系统工具删除符号链接时，只删除链接本身，而不再删除它指向的目录或文件。
+    - [文件] 远程会话未发送即断开时会清除桌面端残留的附件，认证会话在接收空闲六十秒后被回收。
+    - [预览] 离线 PlantUML 预览会遵循图表背景色并支持内置图标，引用未打包标准库 include 时切换视图不再卡住，多页图表可显示每一页。
+    - [预览] 图表或渲染选项变化时，Mermaid 预览会忽略过期的 worker 结果；Graphviz 预览使用主题默认配色，并可正确处理带引号的图名中的花括号和开头的注释。
+    - [技能] 无已保存设置时，外部技能导出在升级后默认关闭。
+    - [MCP] 未实现资源模板发现的服务在连接后不再误报启动失败；探测无响应的服务会回退到旧版握手；内置记忆服务器在保存失败后不再丢失实体，也不会覆盖损坏的记忆文件。
+    - [备份] 恢复失败会在对话框中清晰显示，S3 恢复文件选择器的空提示会使用应用语言。
+    - [错误] 请求体缓冲区上限和「payload 过大」拒绝会给出请求大小提示；超时不再被报告为服务商 HTTP 错误；oMLX 预填充内存拒绝会建议缩短对话或改用更小的模型；低余额拒绝会被识别；AI 错误诊断会按需使用你的默认模型运行。
+    - [错误] 因 429 被拒绝的额度错误不再被加上限流提示前缀，Work 会话会识别缺失的模型服务商并引导你选择替代模型。
+    - [错误] 当捕获的环境变量包含 NUL 字节时，Windows 上的 Work 会话和 MCP 启动不再失败。
+    - [用量] 按费用排序时请求记录不再显示为空，点击图表数据点筛选请求列表已恢复，打开中的统计页会在跨天后包含新一天的数据。
+    - [会话] 将话题拖到它自己的分组标题上时，话题会保持原位。
+    - [代码 CLI] 在 Linux 上会检测常见的终端模拟器来启动 Code CLI，而不再因 `spawn xterm ENOENT` 失败；版本查询离线时会保留本地 CLI 可用状态，并提供重新检测，而不是误导性的安装操作。
+    - [快捷助手] 在聊天消息上方恢复专用拖动区域，窗口可移动且不影响文本选择。
+    - [网关] 无状态码的上下文窗口溢出错误会映射为 HTTP 400 而不是 HTTP 500，避免反复重试，并让智能体运行时可以触发压缩。
+    - [服务商] 服务商列表筛选支持键盘操作，并向屏幕阅读器播报当前筛选项。
+
+    💄 改进
+    - [界面] 会话历史和管理视图改为全宽，选中高亮即时显示，资源对话框得到改进，统一网关图标也已更新。
+    - [智能体] 已完成的智能体工具历史默认折叠并显示步骤数，超大历史打开时不再挂载数万个 DOM 节点。
+    - [智能体] 头像选择器在同一面板中提供上传、随机和表情，并可裁剪上传的图片。
+    - [智能体] 智能体的回复语言为单一菜单，包含「其他语言…」选项，心跳设置合并为一张卡片。
+    - [智能体] 内置智能体显示系统管理的固定技能列表。
+    - [智能体] 编辑助手或智能体时，剩余消息上下文以清晰的「最近 N 条消息」或「跟随全局」选项呈现。
+    - [对话] 快捷操作在已有草稿上预填输入框时，可选择替换或保留草稿，并提供「不再询问」。
+    - [会话] 会话行不再显示一键归档按钮；归档仍在右键菜单中，并可从提示中撤销。拖动不可用时，会话行仍保持可交互。
+    - [反馈] 问题反馈默认不包含聊天记录；可选择包含受影响对话最近 24 小时的记录。
+    - [隐私] 更新桌面端隐私政策说明和同意版本。（需要操作：如已启用数据收集，请查看更新后的隐私政策。）
+    - [模型] 模型服务列表筛选会说明各标签的分组方式，模型选择器可固定或取消固定 CherryAI 分组。
+    - [界面] 修复提示气泡和侧边栏选中闪烁，支持从启动台直接打开小程序，并统一小程序和 CodeMate 图标（包括 Codex 深色模式）。
+    - [文件] 文件类型图标在文件库、输入框和消息附件中保持一致。
+    - [诊断] 新增 Doctor 检查，报告无法读取的服务商注册表文件，以及当前使用的是内置还是下载的目录。
+    - [设置] 设置搜索可忽略重音、大小写和全角字符差异；切换会话或标签页时，输入框会自动获得焦点。
+    - [桌面端] 主窗口默认以工作区的 90% 打开（最大 1440 × 900），已保存的窗口尺寸仍然优先。
+
+    ⚡ 性能优化
+    - [智能体] 长智能体会话按片段更新流式内容，加载完成的回复时不再重新加载无关的历史分页；首次历史读取失败时回复仍可读。
+    - [智能体] 超大工具结果不再阻塞历史加载，已完成的工具详情按需加载，流式更新保持流畅。
+    - [对话] 代码较多的对话减少布局开销，发送与暂停切换时输入框保持稳定。
+    - [文件] 原生文件监听器清理更快，不再阻塞工作区清理。
     <!--LANG:END-->

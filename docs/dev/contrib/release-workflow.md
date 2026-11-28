@@ -118,7 +118,7 @@ The workflow and publication scripts are pinned to the selected `main` commit; o
 
 The **Release** workflow checks GitHub Actions for a successful `ci.yml` push run whose `head_sha` exactly equals the commit being released. A successful run for an older commit does not satisfy this gate.
 
-If CI is queued, running, cancelled, or failing, no build is dispatched. Fix or rerun CI first.
+If CI is queued, running, cancelled, or failing, no build is dispatched. For a failed run, open **Release CI failures** in the run summary after the required checks finish. It lists failed jobs and steps with links to the logs for that commit. Fix or rerun CI before building.
 
 ### Repairing the Initial Release Branch
 
@@ -137,10 +137,12 @@ Before building, the workflow verifies that:
 
 - The workflow was started from `main`, with a valid tag and exact release SHA.
 - The branch version matches `package.json`.
-- CI succeeded for the exact branch commit.
+- Full CI succeeded for a push to the exact release branch at the expected commit.
 - A matching published release does not already exist.
 
 Formal releases compile Global and CN JS once each in parallel on Linux with `build:release` or `build:release:cn`. Each edition starts packaging as soon as its own bundle succeeds, without waiting for the other edition. Platform jobs download the corresponding `release-js-<edition>` artifact and invoke electron-builder separately. Each bundle includes main, preload, renderer, and utility-process outputs with a source SHA, edition, version, and SHA-256 file inventory. Packaging rejects missing, altered, or mismatched bundles. Native dependencies and helpers are prepared for the packaging target, rather than copied from the bundle builder. Sentry uploads run in each edition's bundle job, including utility-process sourcemaps.
+
+For a CN macOS bridge release, set the repository variable `CHERRY_MAC_CN_REGION_BRIDGE_TAG` to the exact stable release tag before release-branch CI completes. The automatic build and manual retries both read it. Set `CHERRY_MAC_BRIDGE_ELECTRON_ASSETS` to a JSON object with the pinned Electron `version` and one entry each for `x64` and `arm64`. Each entry contains the corresponding patched Electron ZIP's HTTPS `url` and lowercase hex `sha256`. See [CN macOS Electron bridge packaging](../../../scripts/packaging/README.md#cn-macos-electron-bridge) for building the ZIPs. The bridge tag uses the dual-edition release. CN macOS packaging verifies the pinned ZIP, target architecture, signature, and notarization ticket before upload. Keep the bridge tag and asset variables in place until the release and any retries are complete. To build a replacement bridge, select a higher stable tag and reuse the assets if the pinned Electron version matches.
 
 The release entry points rely on the exact-source CI gate instead of repeating the full typecheck; ordinary development, preview, and nightly build commands still run their existing checks. A release source missing either release entry point fails during preparation. Bundle jobs clear `out` before compilation; packaging jobs clear `out` and `dist` before downloading current output. Bundle artifacts have three-day retention; after expiry, retry the bundle jobs as well as packaging.
 
@@ -248,7 +250,7 @@ Publish only after the latest release branch commit has passed CI and an `all`-p
 
 The approval job does not hold the release-state lock. After approval, the publication job acquires that lock and takes one final state snapshot. It requires the approved run, draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; and confirms that notes and artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. If the release branch changed while approval was waiting, publication fails closed and the new exact-head build creates a new approval. The fetched `main` SHA in the final snapshot is the hotfix cutoff for the release; a hotfix merged after it belongs to the next release. Publication makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
 
-Publishing triggers **Post Release** automatically. The GitCode job reads the completed COS inventory and uploads package attachments in batches of at most four concurrent Shanghai SCF invocations. Each invocation streams one file from the regional COS endpoint to the GitCode upload URL. Allow the corresponding concurrency in the SCF function quota. Each file retains its three-attempt retry policy and isolated temporary files. All package uploads must succeed before update manifests or shared JSON metadata are uploaded; a failed batch is drained and stops synchronization. The job then checks that GitCode lists all expected attachments. GitCode synchronization failure fails the workflow without rolling back the GitHub release. GitCode currently has no documented draft API, so it receives assets only after approval and GitHub publication.
+Publishing triggers **Post Release** automatically. The GitCode job reads the completed COS inventory and checks the GitCode Pull mirror for the release tag before writing release metadata. It checks up to 20 times at 30-second intervals when the tag is missing. The job stops immediately if the tag resolves to a different commit than the COS inventory. Once the tag matches, it uploads package attachments in batches of at most four concurrent Shanghai SCF invocations. Each invocation streams one file from the regional COS endpoint to the GitCode upload URL. Allow the corresponding concurrency in the SCF function quota. Each file retains its three-attempt retry policy and isolated temporary files. All package uploads must succeed before update manifests or shared JSON metadata are uploaded; a failed batch is drained and stops synchronization. The job then checks that GitCode lists all expected attachments. GitCode synchronization failure fails the workflow without rolling back the GitHub release. GitCode currently has no documented draft API, so it receives assets only after approval and GitHub publication.
 
 ### Retry GitCode Synchronization
 
@@ -258,6 +260,8 @@ Publishing triggers **Post Release** automatically. The GitCode job reads the co
 4. Run synchronization. It requires an already published GitHub Release and a retained complete COS inventory for the original all-platform run. An existing GitCode Release is updated and files are uploaded again, with package files before update manifests.
 
 The COS lifecycle controls retention. Keep referenced objects available for the supported retry window, including objects reused by newer partial builds. Builds created before the COS cutover need separate migration to use this sync path. Use **Re-run failed jobs** to retry a failed sync in the original run. The `clean` input removes signing-runner dependencies before a normal Windows build.
+
+If the tag is still missing after these checks, open **Project settings** → **Repository mirroring** → **Pull** in GitCode and inspect the GitHub mirror. Before triggering a manual sync, check whether the mirror will force-update diverged branches. After the correct tag arrives, retry with `sync-only`.
 
 Preparation, build, draft finalization, approval, publication, and GitCode synchronization failures or cancellations are included in the failure notification. Skipped dependent jobs do not hide the originating failure. Sync-only dry runs never send notifications.
 

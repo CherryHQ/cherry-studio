@@ -1,5 +1,10 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
-export { type DeferredToolOutput, type DeferredToolResultRef, isDeferredToolOutput } from './deferredToolResult'
+export {
+  type DeferredToolOutput,
+  type DeferredToolResultRef,
+  isDeferredToolOutput,
+  toolResultValue
+} from './deferredToolResult'
 export {
   blobRefsOf,
   envelopeDisplayExcerpt,
@@ -14,8 +19,6 @@ export {
 } from './persistedToolOutput'
 export type {
   ActiveExecution,
-  AiAgentSessionWarmCloseRequest,
-  AiAgentSessionWarmRequest,
   AiChatRequestBody,
   AiStreamAbortRequest,
   AiStreamAdmissionReason,
@@ -26,6 +29,7 @@ export type {
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   AiToolApprovalRespondResponse,
+  AiToolResultReadOptions,
   AiToolResultRequest,
   AiToolResultResponse,
   ApprovalDecision,

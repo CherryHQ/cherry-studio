@@ -22,6 +22,7 @@ export interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
   isModelDisabled?: ModelSelectorFilter
   includeAgentOnlyModels?: boolean
   showSubscriptionOffers?: boolean
+  forUtilityTask?: boolean
   noneOptionLabel?: string
   onSelect: (model: Model | undefined) => void
 }
@@ -77,6 +78,7 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
   includeAgentOnlyModels,
   noneOptionLabel,
   showSubscriptionOffers,
+  forUtilityTask,
   onSelect
 }) => (
   <ModelSelector
@@ -88,6 +90,7 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     includeAgentOnlyModels={includeAgentOnlyModels}
     noneOptionLabel={noneOptionLabel}
     showSubscriptionOffers={showSubscriptionOffers}
+    forUtilityTask={forUtilityTask}
     trigger={
       <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
     }

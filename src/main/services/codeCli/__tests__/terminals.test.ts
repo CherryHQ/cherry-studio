@@ -77,8 +77,10 @@ describe('escapePowerShellSingleQuoted', () => {
     const cfg = WINDOWS_TERMINALS_WITH_COMMANDS.find((t) => t.id === TerminalApp.POWERSHELL)
     if (!cfg) throw new Error('no PowerShell builder')
     const temp = 'C:\\Users\\O’Brien\\AppData\\Local\\Temp\\cherry.cmd'
-    const { args } = cfg.command('', temp)
-    // The literal embeds the escaped form, so no recognized quote can terminate it.
-    expect(args[2]).toBe(`"& '${escapePowerShellSingleQuoted(temp)}'"`)
+    const { command, args } = cfg.command('', temp)
+    // cmd /c start launches PowerShell with the escaped literal as its -Command payload,
+    // so no recognized quote can terminate it.
+    expect(command).toBe('cmd')
+    expect(args[args.length - 1]).toBe(`& '${escapePowerShellSingleQuoted(temp)}'`)
   })
 })

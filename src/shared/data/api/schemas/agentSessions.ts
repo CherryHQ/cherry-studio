@@ -4,9 +4,11 @@
 
 import * as z from 'zod'
 
+import { AgentSessionImportMetadataSchema } from '@shared/data/types/conversationImport'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { TraceIdSchema } from '@shared/data/types/trace'
 
+import { ConversationListSortBySchema, ConversationListSortLocaleSchema } from '../../types/conversationList'
 import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import {
@@ -35,6 +37,7 @@ export const AgentSessionEntitySchema = z.strictObject({
   name: SessionNameEntitySchema,
   isNameManuallyEdited: z.boolean(),
   description: z.string().optional(),
+  importMetadata: AgentSessionImportMetadataSchema.nullable().optional(),
   workspaceId: z.string(),
   workspace: AgentWorkspaceEntitySchema,
   /** Container-level OTel trace id — one trace tree per session. */
@@ -81,6 +84,9 @@ export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 
 /** Query for `GET /agent-sessions` (cursor pagination + optional agent filter). */
 export const ListAgentSessionsQuerySchema = z.strictObject({
+  sortBy: ConversationListSortBySchema.optional(),
+  sortLocale: ConversationListSortLocaleSchema.optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
   ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   agentId: z.string().optional(),
   workspaceId: z.string().min(1).optional(),

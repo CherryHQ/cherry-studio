@@ -1,5 +1,5 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
+import type { ChatTransport, streamText, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 import type { RecordAiInvocationInput, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
@@ -53,6 +53,11 @@ export interface CallOverrides {
   topP?: number
   topK?: number
   stopSequences?: string[]
+  presencePenalty?: number
+  frequencyPenalty?: number
+  seed?: number
+  output?: Parameters<typeof streamText>[0]['output']
+  activeTools?: string[]
   /** Client tool definitions WITHOUT `execute` — the model emits the call and the gateway forwards it. */
   tools?: ToolSet
   toolChoice?: ToolChoice<ToolSet>
@@ -84,6 +89,8 @@ export interface AiRequest {
 export interface AiChatRequest extends AiRequest {
   conversation: ConversationRef
   mcpToolIds?: string[]
+  /** A utility task (naming, translation, diagnosis, prompt helpers) rather than a conversation turn. */
+  utilityTask?: boolean
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured when the message was submitted. */
@@ -104,6 +111,10 @@ export interface AiChatRequest extends AiRequest {
    * This field is intentionally absent from renderer IPC schemas.
    */
   contextOwner?: ContextOwner
+  /** Gateway-backed Claude Code supplies replay provenance while retaining history ownership. */
+  replayProviderState?: boolean
+  /** Trusted desktop gateway caller opting into output-budget validation recovery. */
+  retryOutputTokenLimit?: boolean
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
   /** In-process caller identity used only for targeted embedded MCP authorization. */

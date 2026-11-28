@@ -18,6 +18,7 @@ import { useResourceListPaneResize } from './useResourceListPaneResize'
 export interface PageSidebarProps {
   children?: ReactNode
   open?: boolean
+  hidden?: boolean
   width?: string | number
   className?: string
   style?: CSSProperties
@@ -28,6 +29,7 @@ export interface PageSidebarProps {
 export function PageSidebar({
   children,
   open,
+  hidden,
   width,
   className,
   style,
@@ -62,8 +64,9 @@ export function PageSidebar({
           animate={open ? { width: resolvedWidth, opacity: 1 } : { width: 0, opacity: 0 }}
           exit={{ width: 0, opacity: 0 }}
           transition={isResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
-          aria-hidden={!open}
-          inert={!open}
+          hidden={hidden}
+          aria-hidden={hidden || !open}
+          inert={hidden || !open}
           data-ui="part:conversation-navigation"
           data-resource-list-pane
           data-resizing={isResizing || undefined}

@@ -63,6 +63,17 @@ describe('cherryinHandlers', () => {
     expect(mainWindowService.showMainWindow).not.toHaveBeenCalled()
   })
 
+  it('returns a successful sign-in when the account has no API keys', async () => {
+    runtimeService.signIn.mockResolvedValueOnce({ accountId: null, apiKeys: '' })
+
+    const result = await cherryinHandlers['cherryin.sign_in'](
+      { requestId: 'request-1', oauthServer: 'https://open.cherryin.ai' },
+      { senderId: 'w1' }
+    )
+
+    expect(result).toEqual({ apiKeys: '' })
+  })
+
   it('dispatches get_balance to the service', async () => {
     await expect(
       cherryinHandlers['cherryin.get_balance']({ apiHost: 'https://open.cherryin.ai' }, { senderId: 'w1' })

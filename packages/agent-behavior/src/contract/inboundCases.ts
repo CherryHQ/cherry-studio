@@ -35,8 +35,8 @@ const lifecycle = (partial: Partial<LifecycleHandlers>): LifecycleHandlers => ({
 })
 
 export const inboundCases: readonly ContractCase[] = [
-  // Catches a gate whose block or rewrite is ignored, a call key that differs between gate and tool, or an after() that
-  // cannot tell a nested call, so a nested call's result is offloaded (H9, D31).
+  // Catches a gate whose block or rewrite is ignored, a blocked result without its reason, so a goal never stops on a
+  // denial, a call key that differs between gate and tool, or an after() that cannot tell a nested call (H9, D31, D9).
   {
     name: 'tools run under a stable call key; the gate blocks, rewrites and replaces',
     covers: ['tools.register', 'toolGate.register'],
@@ -99,8 +99,11 @@ export const inboundCases: readonly ContractCase[] = [
         'after() must replace the result'
       )
       check(
-        dangerResult?.isError === true && dangerResult.text.includes('not allowed'),
-        'a blocked call must leave an error result naming the reason'
+        dangerResult?.isError === true &&
+          dangerResult.text.includes('not allowed') &&
+          dangerResult.blocked === 'not allowed' &&
+          echoResult?.blocked === undefined,
+        "a blocked call must leave an error result naming the reason, with the gate's reason as `blocked`"
       )
       const echoKey = seen[0].slice('before:'.length)
       same(

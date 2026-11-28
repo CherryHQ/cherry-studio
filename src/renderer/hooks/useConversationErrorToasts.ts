@@ -5,8 +5,8 @@ import { dataApiService } from '@data/DataApiService'
 import { useCommandRuntime } from '@renderer/hooks/command'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import { toast, type ErrorToastContext } from '@renderer/services/toast'
+import type { ExecutionFinishEvent } from '@renderer/types/message'
 import { getProviderDisplayName } from '@renderer/utils/naming'
 import type { ActiveExecution, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -217,11 +217,17 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       attempt.executionId = executionId
       attempt.userMessageId ??= event.userMessageId
       const error = event.message.parts.findLast((part) => part.type === 'data-error')?.data
+      // A runtime failure can finish with no structured error part; the trailing
+      // text then carries the only detail (for example "Claude Code open:
+      // native-storage-unavailable"). Surface it instead of the generic stream
+      // diagnosis, which misreads local failures as network interruptions.
+      const errorDetail = event.message.parts.findLast((part) => part.type === 'text' && part.text.trim() !== '')
       attempt.result = {
         success: !event.isAbort,
         error:
           !event.isAbort && (event.isError || error)
-            ? (error ?? new Error(i18n.t('error.diagnosis.stream')))
+            ? (error ??
+              new Error(errorDetail?.type === 'text' ? errorDetail.text.trim() : i18n.t('error.diagnosis.stream')))
             : undefined
       }
       attempt.message ??= { ...event.message, parts: [] }

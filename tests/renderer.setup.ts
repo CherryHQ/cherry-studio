@@ -104,6 +104,7 @@ vi.mock('uuid', () => ({
 vi.mock('@iconify/react', () => {
   const React = require('react')
   return {
+    addCollection: vi.fn(),
     Icon: ({ icon, ...props }: { icon?: string }) =>
       React.createElement('span', { ...props, 'data-icon': icon, 'data-testid': 'iconify-icon' })
   }
@@ -144,6 +145,7 @@ vi.stubGlobal('electron', {
 })
 vi.stubGlobal('api', {
   file: {
+    selectFolder: vi.fn().mockResolvedValue(null),
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
   },
@@ -171,6 +173,9 @@ vi.mock('@cherrystudio/ui', async () => {
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const { createCodeHighlightPlugin } =
     await import('@cherrystudio/ui/components/composites/markdown/plugins/code-highlight')
+  const { BUTTON_HANDLE_DRAG_SENSORS, DragDropRoot } =
+    await import('@cherrystudio/ui/components/composites/sortable/drag-drop-root')
+  const { withManagerProbe } = await import('./__mocks__/dndDriver')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -183,6 +188,17 @@ vi.mock('@cherrystudio/ui', async () => {
   })
   const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   const FormFieldNameContext = React.createContext(undefined)
+  const DialogOpenChangeContext = React.createContext(undefined)
+  // Hidden so role queries never see it; tests reach the dialog's X button through its data-slot.
+  const MockDialogClose = () => {
+    const onOpenChange = React.useContext(DialogOpenChangeContext)
+    return React.createElement('button', {
+      type: 'button',
+      hidden: true,
+      'data-slot': 'dialog-close',
+      onClick: () => onOpenChange?.(false)
+    })
+  }
   return {
     KeyboardLayerProvider,
     BarVisualizer,
@@ -199,7 +215,8 @@ vi.mock('@cherrystudio/ui', async () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
-    BlurCancelPointerSensor: class BlurCancelPointerSensor {},
+    BUTTON_HANDLE_DRAG_SENSORS,
+    DragDropRoot: withManagerProbe(DragDropRoot),
     ReorderableList: ({ items, renderItem, getId }) =>
       React.createElement(
         React.Fragment,
@@ -370,6 +387,11 @@ vi.mock('@cherrystudio/ui', async () => {
     },
     DropdownMenuContent: ({ children }) => React.createElement('div', null, children),
     DropdownMenuSeparator: () => React.createElement('hr'),
+    DropdownMenuLabel: ({ children }) => React.createElement('div', null, children),
+    DropdownMenuPortal: ({ children }) => React.createElement(React.Fragment, null, children),
+    DropdownMenuRadioGroup: ({ children }) => React.createElement('div', { role: 'group' }, children),
+    DropdownMenuRadioItem: ({ children, disabled, value }) =>
+      React.createElement('button', { type: 'button', role: 'menuitemradio', disabled, value }, children),
     DropdownMenuSub: ({ children }) => React.createElement('div', null, children),
     DropdownMenuSubContent: ({ children }) => React.createElement('div', null, children),
     DropdownMenuSubTrigger: ({ children }) => React.createElement('div', null, children),
@@ -557,16 +579,29 @@ vi.mock('@cherrystudio/ui', async () => {
       }),
     ImagePreviewTrigger: ({ alt, dialogProps: _dialogProps, item, items: _items, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
-    Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
-      open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
+    Dialog: ({ children, onOpenChange, open, ...props }) =>
+      open
+        ? React.createElement(
+            DialogOpenChangeContext.Provider,
+            { value: onOpenChange },
+            React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children)
+          )
+        : null,
     DialogContent: ({
       children,
       closeOnOverlayClick: _closeOnOverlayClick,
+      guardDismiss: _guardDismiss,
       onEscapeKeyDown: _onEscapeKeyDown,
-      showCloseButton: _showCloseButton,
+      showCloseButton = true,
       size,
       ...props
-    }) => React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
+    }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-size': size, 'data-testid': 'dialog-content' },
+        children,
+        showCloseButton ? React.createElement(MockDialogClose) : null
+      ),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
@@ -785,6 +820,8 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('div', { ...props, 'data-testid': 'select-content' }, children),
     SelectGroup: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'select-group' }, children),
+    SelectLabel: ({ children, ...props }) => React.createElement('div', props, children),
+    SelectSeparator: (props) => React.createElement('hr', props),
     SelectItem: ({ children, value, ...props }) => {
       const context = React.useContext(SelectContext)
       return React.createElement(

@@ -1,4 +1,3 @@
-import { createMockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 /**
  * Tests for renderer-side PreferenceService warm-up and subscription semantics.
  *
@@ -11,6 +10,7 @@ import { createMockPreferenceService } from '@test-mocks/renderer/PreferenceServ
  * (one round-trip for N keys), dedupe concurrent subscriptions, and re-attempt
  * subscription for keys that are cached but not yet subscribed.
  */
+import { createMockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
