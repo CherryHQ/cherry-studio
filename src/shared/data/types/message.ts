@@ -13,11 +13,14 @@ import type {
 import * as z from 'zod'
 
 import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
+import { AgentSessionCostSnapshotSchema, type AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import { LocalAgentTurnUsageSchema, type LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
+import type { MessageProvenance } from './conversationImport'
 import { FileEntryIdSchema } from './file'
 import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
@@ -83,10 +86,7 @@ export const MessageStatsSchema = z.strictObject({
   inputTokens: z.number().optional(),
   outputTokens: z.number().optional(),
   totalTokens: z.number().optional(),
-  /**
-   * Real end-of-turn context size: the last step's total tokens, rather than
-   * the cumulative per-invocation sum. Message-owned durable-compaction anchor.
-   */
+  /** @deprecated Legacy context count retained for reading stored messages. */
   contextTokens: z.number().optional(),
 
   /** Input token breakdown (cache accounting). Mirrors v6 `inputTokenDetails`. */
@@ -168,6 +168,9 @@ export interface MessageData {
   modelSelection?: 'default' | 'explicit'
   /** Main-authoritative request controls for resuming this assistant turn. */
   turnOptions?: AssistantTurnOptions
+  localTurnUsage?: LocalAgentTurnUsage
+  /** Main-authored cumulative native-session cost, independent of per-message usage statistics. */
+  localSessionCost?: AgentSessionCostSnapshot
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -204,10 +207,13 @@ export interface CherryUIMessageMetadata {
   modelSelection?: MessageData['modelSelection']
   /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
   messageSnapshot?: MessageSnapshot
+  /** Source identity for imported history; retained by display and capture projections. */
+  provenance?: MessageProvenance
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
   /** Main-authoritative request controls frozen with the persisted assistant row. */
   turnOptions?: AssistantTurnOptions
+  localTurnUsage?: LocalAgentTurnUsage
   /**
    * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
    * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
@@ -424,6 +430,9 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.localSessionCost !== undefined && !AgentSessionCostSnapshotSchema.safeParse(v.localSessionCost).success)
+    return false
+  if (v.localTurnUsage !== undefined && !LocalAgentTurnUsageSchema.safeParse(v.localTurnUsage).success) return false
   if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
   if (v.turnOptions !== undefined) {
     if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
@@ -472,7 +481,8 @@ export const MessageSnapshotSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
   emoji: z.string().optional(),
-  model: ModelSnapshotSchema
+  model: ModelSnapshotSchema.optional(),
+  nativeModel: z.object({ runtime: z.string(), id: z.string().optional(), name: z.string().optional() }).optional()
 })
 export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
 

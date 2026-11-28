@@ -14,6 +14,17 @@ export const catalogueReport = [
 
 export function conversationParts(origin: string, attachment: string, forkSource: string) {
   const data = {
+    'acp-content': {
+      type: 'data-acp-content',
+      data: {
+        content: { type: 'resource', resource: { uri: origin + '/inventory.txt', text: 'Fixture inventory' } },
+        reasoning: false
+      }
+    },
+    'agent-plan': {
+      type: 'data-agent-plan',
+      data: { entries: [{ content: 'Review inventory', priority: 'medium', status: 'completed' }] }
+    },
     'imported-status': { type: 'data-imported-status', data: { status: 'interrupted' } },
     error: { type: 'data-error', data: { name: 'Error', message: 'Fixture provider connection closed' } },
     translation: { type: 'data-translation', data: { content: '翻译示例：已核对所有目录。', targetLanguage: 'zh-CN' } },
@@ -198,7 +209,7 @@ export function conversationParts(origin: string, attachment: string, forkSource
     [data.compact, data['compaction-anchor']],
     [data['conversation-reset'], data['agent-session-fork']],
     [data['imported-status'], data.error],
-    [data['agent-task-event'], data['knowledge-scope']]
+    [data['agent-task-event'], data['knowledge-scope'], data['agent-plan'], data['acp-content']]
   ]
   return { history, clear: data.clear, code }
 }

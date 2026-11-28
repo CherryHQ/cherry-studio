@@ -1125,7 +1125,7 @@ it.each(['same-context', 'other-context', 'other-session'] as const)(
               .get('DbService')
               .withWriteTx((tx) => reservePiBranchTx(tx, sessionId, user.id, 'another-branch'))
           : f.context
-    prepareNativeSubmission(owner.sessionId, user.id, owner.id, 'steer')
+    prepareNativeSubmission(owner.sessionId, user.id, owner.id)
     await f.projection.attach()
     await f.projection.refresh()
     const nativeUser: RuntimeMessage = {
@@ -1178,7 +1178,7 @@ it('keeps two retained inputs and one shared answer across archive replay and re
       sessionId: f.context.sessionId,
       message: { role: 'user', data: { parts: [{ type: 'text', text }] } }
     })
-    prepareNativeSubmission(f.context.sessionId, user.id, f.context.id, 'steer')
+    prepareNativeSubmission(f.context.sessionId, user.id, f.context.id)
     return user
   })
   await f.projection.attach()
@@ -1330,7 +1330,7 @@ it('places a child input once without revisiting its context on content updates'
     sessionId: f.context.sessionId,
     message: { role: 'user', data: { parts: [{ type: 'text', text: 'question' }] } }
   })
-  prepareNativeSubmission(f.context.sessionId, user.id, f.context.id, 'steer')
+  prepareNativeSubmission(f.context.sessionId, user.id, f.context.id)
   await f.projection.attach()
   await f.projection.refresh()
   await f.send({

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-19-interactive-shell-discovery.md
+2026-11-19-interactive-shell-discovery.md: ce09aae41622b841f86cd0c3932384480ebcb759
+2026-11-19-interactive-shell-discovery.zh.md: c17520eebe3bb9c848009f0035872cec68ea0b54

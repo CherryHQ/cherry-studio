@@ -160,6 +160,7 @@ export const SIDEBAR_FAVORITES = [
   'files',
   'code_tools',
   'notes',
+  'api_gateway',
   'openclaw'
 ] as const
 
@@ -373,7 +374,8 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
+// Retain retired CLI configuration keys when reading and updating stored preferences.
+export const CODE_CLI_IDS = [...Object.values(CodeCli), 'gemini-cli'] as unknown as readonly [
   'claude-code',
   'openai-codex',
   'opencode',
@@ -413,12 +415,18 @@ export interface CodeCliToolState {
   current: string | null
   /** Terminal app — an id from `code_cli.get_available_terminals`. */
   terminal?: string
-  /** Working directory for this CLI tool (shared across all its providers). */
+  /** Legacy per-tool working directory and history, read when initializing the shared workspace. */
   directory?: string
+  directoryHistory?: string[]
 }
 
-/** Preference value for `feature.code_cli.configs`. */
-export type CodeCliConfigs = Partial<Record<CodeCliId, CodeCliToolState>>
+/** Code Mate state keyed by CLI id, or by preset id for ACP-only agents. */
+export type CodeCliConfigs = Partial<Record<string, CodeCliToolState>>
+
+export interface CodeCliWorkspace {
+  directory?: string
+  directoryHistory?: string[]
+}
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)
