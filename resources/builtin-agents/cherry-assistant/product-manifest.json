@@ -897,8 +897,8 @@
     }
   ],
   "providers": {
-    "version": "5179a16fddc562d9",
-    "count": 68,
+    "version": "0ce6d5648cfaa54f",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -995,6 +995,10 @@
       {
         "id": "litellm",
         "name": "LiteLLM"
+      },
+      {
+        "id": "llmtr",
+        "name": "LLMTR"
       },
       {
         "id": "anthropic",
