@@ -24,6 +24,7 @@ import { ensureAgentSessionRootTx, getAgentSessionHead } from './agentSessionMes
 import { agentSessionService } from './AgentSessionService'
 
 const locatorSchema = z.discriminatedUnion('kind', [
+  z.object({ version: z.literal(1), kind: z.literal('local') }),
   z.object({ version: z.literal(1), kind: z.literal('pi') }),
   z.object({
     version: z.literal(1),
@@ -164,6 +165,26 @@ class AgentSessionContextService {
     return rows.length === 1 ? rows[0].context : undefined
   }
 
+  localRootForThread(sessionId: string, providerId: string, nativeThreadId: string) {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ context: contexts })
+      .from(contexts)
+      .innerJoin(backends, eq(backends.id, contexts.backendId))
+      .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
+      .where(
+        and(
+          eq(contexts.sessionId, sessionId),
+          eq(backends.localProviderId, providerId),
+          eq(contexts.nativeThreadId, nativeThreadId),
+          isNull(contexts.parentContextId),
+          isNull(sessions.deletedAt)
+        )
+      )
+      .get()?.context
+  }
+
   roots(backendId: string): AgentSessionContextRow[] {
     return application
       .get('DbService')
@@ -287,7 +308,9 @@ class AgentSessionContextService {
   reserveBranchTx(
     tx: DbOrTx,
     binding: Pick<AgentSessionContextRow, 'sessionId' | 'backendId' | 'anchorMessageId'> &
-      Partial<Pick<AgentSessionContextRow, 'id' | 'nativeThreadId' | 'checkpointMapping'>>
+      Partial<
+        Pick<AgentSessionContextRow, 'id' | 'nativeThreadId' | 'bindingState' | 'checkpointMapping' | 'localModel'>
+      >
   ): AgentSessionContextRow {
     this.backendTx(tx, binding.backendId)
     if (!binding.anchorMessageId) throw new Error('Branch anchor is required')
@@ -378,8 +401,21 @@ class AgentSessionContextService {
     state: AgentRuntimeBackendRow['state']
   ): AgentRuntimeBackendRow {
     const parsed = locatorSchema.parse(locator)
+    if (parsed.kind === 'local') throw new Error('A local backend requires a provider')
     const existing = tx.select().from(backends).where(eq(backends.locator, parsed)).get()
     return existing ?? tx.insert(backends).values({ locator: parsed, state }).returning().get()
+  }
+
+  ensureLocalBackendTx(tx: DbOrTx, providerId: string): AgentRuntimeBackendRow {
+    const existing = tx.select().from(backends).where(eq(backends.localProviderId, providerId)).get()
+    return (
+      existing ??
+      tx
+        .insert(backends)
+        .values({ locator: { version: 1, kind: 'local' }, state: 'bound', localProviderId: providerId })
+        .returning()
+        .get()
+    )
   }
 
   backend(id: string): AgentRuntimeBackendRow {
@@ -407,6 +443,10 @@ class AgentSessionContextService {
     const row = tx.select().from(contexts).where(eq(contexts.id, id)).get()
     if (!row) throw new Error('Native context does not exist')
     return row
+  }
+
+  setLocalModelTx(tx: DbOrTx, contextId: string, localModel: NonNullable<AgentSessionContextRow['localModel']>) {
+    return tx.update(contexts).set({ localModel }).where(eq(contexts.id, contextId)).returning().get()
   }
 
   bindContext(id: string, nativeThreadId: string): AgentSessionContextRow {

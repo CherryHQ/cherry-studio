@@ -580,4 +580,68 @@ describe('OpenAiResponsesMessageConverter.toAiSdkTools blank names', () => {
       expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
     }
   )
+
+  it('flattens Responses namespace tools, avoids collisions, and maps namespaced history round-trip', () => {
+    const schema = { type: 'object' as const, properties: { code: { type: 'string' } }, required: ['code'] }
+    const request = params({
+      tools: [
+        {
+          type: 'function',
+          name: 'mcp__automation__js',
+          description: 'Top-level colliding tool',
+          strict: false,
+          parameters: schema
+        },
+        {
+          type: 'namespace',
+          name: 'mcp__automation',
+          description: 'Tools in the mcp__automation namespace.',
+          tools: [
+            { type: 'function', name: 'js', description: 'Run JS', strict: false, parameters: schema },
+            { type: 'function', name: 'reset', description: 'Reset REPL', parameters: { type: 'object' } }
+          ]
+        } as never
+      ],
+      input: [
+        {
+          type: 'function_call',
+          call_id: 'call_ns_1',
+          name: 'js',
+          namespace: 'mcp__automation',
+          arguments: '{"code":"1+1"}'
+        } as never,
+        {
+          type: 'function_call_output',
+          call_id: 'call_ns_1',
+          output: '2'
+        }
+      ]
+    })
+
+    const uiMessages = converter.toUIMessages(request)
+    expect(uiMessages[0]?.parts[0]).toMatchObject({
+      type: 'dynamic-tool',
+      toolName: 'mcp__automation__js__2',
+      toolCallId: 'call_ns_1',
+      state: 'output-available',
+      input: { code: '1+1' },
+      output: '2'
+    })
+
+    const aiTools = converter.toAiSdkTools(request)
+    expect(Object.keys(aiTools ?? {})).toEqual([
+      'mcp__automation__js',
+      'mcp__automation__js__2',
+      'mcp__automation__reset'
+    ])
+    expect(converter.resolveClientToolCall('mcp__automation__js')).toEqual({ name: 'mcp__automation__js' })
+    expect(converter.resolveClientToolCall('mcp__automation__js__2')).toEqual({
+      name: 'js',
+      namespace: 'mcp__automation'
+    })
+    expect(converter.resolveClientToolCall('mcp__automation__reset')).toEqual({
+      name: 'reset',
+      namespace: 'mcp__automation'
+    })
+  })
 })

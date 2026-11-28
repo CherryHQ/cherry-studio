@@ -19,13 +19,11 @@ export function prepareClaudeBranch(
     const root = ensureAgentSessionRootTx(tx, sessionId)
     const anchor = messageId ?? getAgentSessionHead(tx, sessionId) ?? root
     const existing = contexts.branchTx(tx, sessionId, anchor)
+    const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir }, 'bound')
     if (existing && (opening || !nativeId || existing.nativeThreadId === nativeId)) {
-      const backend = contexts.backendTx(tx, existing.backendId)
-      if (backend.locator.kind !== 'claude-code' || backend.locator.configDir !== configDir)
-        throw new Error('The selected branch belongs to another runtime backend')
+      if (existing.backendId !== backend.id) throw new Error('The selected branch belongs to another runtime backend')
       return existing
     }
-    const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir }, 'bound')
     return contexts.reserveBranchTx(tx, {
       sessionId,
       backendId: backend.id,

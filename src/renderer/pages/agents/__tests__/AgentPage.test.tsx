@@ -2818,4 +2818,33 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-visible'))
   })
+
+  it('reuses the remembered workspace when creating a new session for a local agent', async () => {
+    agentPageMocks.lastUsedWorkspaceId = 'workspace-a'
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      {
+        id: 'agent-b',
+        model: null,
+        name: 'Claude Code',
+        type: 'local',
+        localRuntime: { providerId: 'claude-provider', presetId: 'claude', enabled: true, args: [], env: {} }
+      } as any
+    ]
+    agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
+      if (path === '/agent-workspaces/workspace-a') return agentPageMocks.workspace
+      return undefined
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select missing agent' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith('agent-b', {
+        type: AGENT_WORKSPACE_TYPE.USER,
+        workspaceId: 'workspace-a'
+      })
+    )
+  })
 })

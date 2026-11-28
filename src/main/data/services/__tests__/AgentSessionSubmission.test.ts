@@ -63,7 +63,7 @@ describe('message-owned native input bindings', () => {
     expect(messages.branchTip(sessionId, messageId)).toBe(messageId)
     expect(messages.listSessionMessages(sessionId, { messageId: id }).items.map((item) => item.id)).toEqual([messageId])
 
-    prepareNativeSubmission(sessionId, id, contextId, 'follow-up')
+    prepareNativeSubmission(sessionId, id, contextId)
     const pos = messages.saveInputTimelinePosition(sessionId, id, contextId, 0, {})
     expect(pos).toBeGreaterThan(0)
     const reply = messages.replyTo(sessionId, id)
@@ -80,7 +80,7 @@ describe('message-owned native input bindings', () => {
       stageFollowup: true,
       message: { id, role: 'user', data: { parts: [{ type: 'text', text: 'withdrawn question' }] } }
     })
-    prepareNativeSubmission(sessionId, id, contextId, 'follow-up')
+    prepareNativeSubmission(sessionId, id, contextId)
     messages.markUserMessageUnsent(sessionId, id, contextId)
     expect(messages.listSessionMessages(sessionId).items[0]).toMatchObject({ id, status: 'paused', pos: null })
     expect(messages.saveInputTimelinePosition(sessionId, id, contextId)).toBeUndefined()
@@ -90,7 +90,7 @@ describe('message-owned native input bindings', () => {
     const ids = [uuid(), uuid()]
     for (const id of ids) {
       messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [] } } })
-      prepareNativeSubmission(sessionId, id, contextId, 'follow-up', { text: id, parts: [] })
+      prepareNativeSubmission(sessionId, id, contextId, { text: id, parts: [] })
     }
     const later = messages.saveMessage({
       sessionId,
@@ -107,10 +107,10 @@ describe('message-owned native input bindings', () => {
   })
 
   it('keeps the original input immutable without exposing its private binding to message clients', () => {
-    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     expect(messages.getSessionMessage(sessionId, messageId)).not.toHaveProperty('inputContextId')
     expect(messages.getSessionMessage(sessionId, messageId)).not.toHaveProperty('nativeInputId')
-    expect(() => prepareNativeSubmission(sessionId, messageId, contextId, 'steer')).toThrow('already bound')
+    expect(() => prepareNativeSubmission(sessionId, messageId, contextId)).toThrow('already bound')
     expect(() =>
       messages.updateSessionMessage(sessionId, messageId, { data: { parts: [{ type: 'text', text: 'edited' }] } })
     ).toThrow()
@@ -125,7 +125,7 @@ describe('message-owned native input bindings', () => {
   })
 
   it.each(['rejected', 'unsupported'] as const)('removes only the attempted binding after %s', (status) => {
-    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     applyNativeSubmissionResult(sessionId, contextId, {
       status,
       inputId: runtimeId(messageId),
@@ -139,14 +139,14 @@ describe('message-owned native input bindings', () => {
   })
 
   it('does not make an uncertain input editable or eligible for another submission', () => {
-    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     applyNativeSubmissionResult(sessionId, contextId, {
       status: 'unknown',
       inputId: runtimeId(messageId),
       error: { operation: 'submit', code: 'disconnected', message: 'receipt unavailable' }
     })
     expect(messages.inputBinding(sessionId, messageId)?.contextId).toBe(contextId)
-    expect(() => prepareNativeSubmission(sessionId, messageId, contextId, 'reject')).toThrow('already bound')
+    expect(() => prepareNativeSubmission(sessionId, messageId, contextId)).toThrow('already bound')
     expect(() => messages.deleteSessionMessage(sessionId, messageId)).toThrow()
   })
 
@@ -161,7 +161,7 @@ describe('message-owned native input bindings', () => {
       parentId: parent,
       message: { role: 'assistant', status: 'pending', data: { parts: [] } }
     })
-    for (const id of [parent, linked.id]) prepareNativeSubmission(sessionId, id, contextId, 'steer')
+    for (const id of [parent, linked.id]) prepareNativeSubmission(sessionId, id, contextId)
     expect(messages.pendingReplyInputs({ sessionId, contextId })).toMatchObject([
       { sessionId, contextId, runId: reply.id, inputId: parent }
     ])
@@ -183,7 +183,7 @@ describe('message-owned native input bindings', () => {
   })
 
   it('keeps placement immutable across repeated observations and late submission results', () => {
-    prepareNativeSubmission(sessionId, messageId, contextId, 'follow-up')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     expect(messages.saveInputTimelinePosition(sessionId, messageId, contextId, 10)).toBe(11)
     applyNativeSubmissionResult(sessionId, contextId, { status: 'acknowledged', ...nativeInput() })
     applyNativeSubmissionResult(sessionId, contextId, {
@@ -197,7 +197,7 @@ describe('message-owned native input bindings', () => {
   })
 
   it('keeps a late event on the captured context and ignores another branch', () => {
-    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     const edited = messages.saveMessage({
       sessionId,
       parentId: contexts.context(contextId).anchorMessageId!,
@@ -212,7 +212,7 @@ describe('message-owned native input bindings', () => {
   })
 
   it('cleans an orphan from the legacy context without clearing a different native context in the same session', () => {
-    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     const nativeAssistant = uuid()
     const legacyAssistant = uuid()
     for (const [id, token] of [
@@ -237,7 +237,7 @@ describe('message-owned native input bindings', () => {
   })
 
   it('leaves a native placeholder for its owner but cleans an unbound input on a sibling branch', () => {
-    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     const nativeAssistant = uuid()
     messages.saveMessage({
       sessionId,
@@ -281,7 +281,7 @@ describe('message-owned native input bindings', () => {
     const agentId = uuid()
     dbh.db.insert(agentTable).values({ id: agentId, type: 'pi', name: 'Pi', instructions: '', orderKey: 'a0' }).run()
     dbh.db.update(agentSessionTable).set({ agentId }).where(eq(agentSessionTable.id, sessionId)).run()
-    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     const durableInput = messages.saveMessage({
       sessionId,
       message: { role: 'user', data: { parts: [{ type: 'text', text: 'saved on Durable' }] } }
@@ -289,7 +289,7 @@ describe('message-owned native input bindings', () => {
     const context = application
       .get('DbService')
       .withWriteTx((tx) => reserveDurableBranchTx(tx, sessionId, durableInput.id, uuid()))
-    prepareNativeSubmission(sessionId, durableInput.id, context.id, 'reject')
+    prepareNativeSubmission(sessionId, durableInput.id, context.id)
     const reply = messages.saveMessage({
       sessionId,
       parentId: messageId,
@@ -304,7 +304,7 @@ describe('message-owned native input bindings', () => {
   })
 
   it('cascades the input binding with its owning session without preventing permanent deletion', () => {
-    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, sessionId)).run()
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual([])
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
@@ -315,7 +315,7 @@ describe('message-owned native input bindings', () => {
     const agentId = uuid()
     dbh.db.insert(agentTable).values({ id: agentId, type: 'pi', name: 'Pi', instructions: '', orderKey: 'a0' }).run()
     dbh.db.update(agentSessionTable).set({ agentId }).where(eq(agentSessionTable.id, sessionId)).run()
-    prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
+    prepareNativeSubmission(sessionId, messageId, contextId)
     const previous = uuid()
     messages.saveMessage({
       sessionId,

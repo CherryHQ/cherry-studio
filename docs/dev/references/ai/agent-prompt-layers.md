@@ -21,7 +21,7 @@ Agent conversations combine several independently stored prompt sources. They ar
 |---:|---|---|---|
 | 1 | Platform and runtime safety constraints | Application and runtime code | Non-overridable runtime policy; materialized with the connection |
 | 2 | Agent System Prompt | `agent.instructions` in Agent configuration | Authoritative role, goals, capability scope, and behavioral constraints; applies from the next fresh model turn after save |
-| 3 | Workspace Instructions | `<workspace>/system.md` plus runtime-native `CLAUDE.md` / scoped `AGENTS.md` context | Workspace-local guidance; an explicit `system.md` replaces the runtime's native base, including when the file is empty |
+| 3 | Workspace Instructions | `<workspace>/system.md` plus runtime-native `CLAUDE.md` / scoped `AGENTS.md` context | For open Agents, an explicit `system.md` replaces the runtime's native base, including when the file is empty |
 | 4 | Agent Persona | `<agent-data>/SOUL.md` | Persistent name, personality, tone, and communication style across workspaces |
 
 Lower-priority guidance still applies when it does not conflict with a higher-priority source. `USER.md`, `memory/FACT.md`, journal entries, and retrieved knowledge are context rather than behavioral authority. This hierarchy is injected only when `agent.instructions` resolves to non-blank content. Agents without a configured System Prompt retain the legacy role-discovery and role-bearing `SOUL.md` fallback instead of receiving a hierarchy that points to a missing authority source.
@@ -44,8 +44,9 @@ precedence hierarchy is injected.
 
 ## Workspace Instructions
 
-An explicit `system.md` selects a custom base across runtimes; an empty file
-deliberately selects an empty custom base. Each driver maps the common
+For open Agents, an explicit `system.md` selects a custom base across runtimes,
+including an empty custom base when the file is empty. The common prompt builder
+skips the file lookup for sealed Agents. Each driver maps the common
 `{ base, append }` result into its SDK: Claude Code uses its preset/custom base,
 Pi uses system/append overrides. Runtime-
 native workspace context can still load according to that driver's trust
