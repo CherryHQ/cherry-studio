@@ -136,6 +136,8 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
           headers: ctx.headers,
           abortSignal: ctx.signal,
           prompt,
+          // Repair is a side request inside the tool loop; SDK retries would multiply it per bad call.
+          maxRetries: 0,
           output: Output.object({ schema: jsonSchema(schemaJson) })
         },
         ctx.retryInvalidOutput

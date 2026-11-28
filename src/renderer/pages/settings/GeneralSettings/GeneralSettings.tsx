@@ -48,6 +48,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
+import { MAX_RETRY_FALLBACK_MODELS } from '@shared/ai/retry'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
@@ -139,7 +140,10 @@ const GeneralSettings: FC = () => {
   const proxyTestButtonRef = useRef<HTMLButtonElement>(null)
   const pendingProxyPreferenceSave = useRef<(() => void) | null>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
-  const configuredRetryFallbackModelIds = useMemo(() => retryFallbackModelIds ?? [], [retryFallbackModelIds])
+  const configuredRetryFallbackModelIds = useMemo(
+    () => (retryFallbackModelIds ?? []).slice(0, MAX_RETRY_FALLBACK_MODELS),
+    [retryFallbackModelIds]
+  )
   const {
     resolvedSelectedModelIds: resolvedRetryFallbackModelIds,
     isLoading: isFallbackSelectorDataLoading,
@@ -584,15 +588,19 @@ const GeneralSettings: FC = () => {
               <div className="min-w-0 flex-1">
                 <SettingRowTitle className="flex items-center gap-1.5">
                   {t('settings.models.retry.fallback_models')}{' '}
-                  <HelpTooltip content={t('settings.models.retry.fallback_models_description')} />
+                  <HelpTooltip
+                    content={t('settings.models.retry.fallback_models_description', {
+                      count: MAX_RETRY_FALLBACK_MODELS
+                    })}
+                  />
                 </SettingRowTitle>
               </div>
               <div className={`flex min-w-0 items-center ${settingsControlClasses.model}`}>
                 <ModelSelector
                   multiple={true}
                   selectionType="id"
-                  value={retryFallbackModelIds}
-                  onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
+                  value={configuredRetryFallbackModelIds}
+                  onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds.slice(0, MAX_RETRY_FALLBACK_MODELS))}
                   filter={chatModelFilter}
                   trigger={
                     <Button

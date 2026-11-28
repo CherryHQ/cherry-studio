@@ -193,7 +193,8 @@ see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
   the tool's input schema. An invalid result from a normally completed
   generation allows one additional attempt unless the Chat request sets
   `maxRetries: 0`. Other failures, such as an unknown tool name, are returned
-  unrepaired.
+  unrepaired. The follow-up call passes `maxRetries: 0`, so one bad tool call
+  cannot become more than one repair request.
 
 ## Where to read more
 
