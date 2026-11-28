@@ -1577,7 +1577,7 @@ export class OpenClawService extends BaseService {
   ): { provider: OpenClawSyncProvider; primaryModel: OpenClawSyncModel } {
     const { providerId, modelId, model: primaryModel } = this.resolveGatewayModel(uniqueModelId)
     const model = {
-      ...this.toOpenClawModel(primaryModel),
+      ...this.toOpenClawModel(primaryModel, false),
       id: formatGatewayModelId(providerId, primaryModel.apiModelId ?? modelId),
       provider: openClawCli.gatewayProviderId,
       endpoint_type: 'openai' as const
@@ -1695,15 +1695,16 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private toOpenClawModel(model: DataModel): OpenClawSyncModel {
+  private toOpenClawModel(model: DataModel, includeBinding = true): OpenClawSyncModel {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
     // Resolve bindings without `resolveApiKey` so a stale id cannot advance rotation
     // while the serialized model omits the credential and uses the provider key.
-    const boundEntry = model.apiKeyId
-      ? providerService.getApiKeys(model.providerId).find((entry) => entry.id === model.apiKeyId && entry.isEnabled)
-      : undefined
+    const boundEntry =
+      includeBinding && model.apiKeyId
+        ? providerService.getApiKeys(model.providerId).find((entry) => entry.id === model.apiKeyId && entry.isEnabled)
+        : undefined
     const boundApiKey = boundEntry?.key
     return {
       id: model.apiModelId ?? modelId,

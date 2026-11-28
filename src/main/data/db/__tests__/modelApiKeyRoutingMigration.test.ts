@@ -6,9 +6,13 @@ import { describe, expect, it } from 'vitest'
 import { applyMigrations } from '@data/db/applyMigrations'
 
 describe('per-model api key routing migration: upgrade from main', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0044_model_api_key_routing' })
+  const dbh = setupTestDatabase({ beforeMigration: '0045_model_api_key_routing' })
 
   it('preserves an existing model and adds a null api_key_id', () => {
+    const latestMigration = dbh.sqlite
+      .prepare('SELECT created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1')
+      .get() as { created_at: number }
+    expect(latestMigration.created_at).toBe(1795780867972)
     const columnsBefore = (dbh.sqlite.pragma('table_info(user_model)') as Array<{ name: string }>).map(
       (column) => column.name
     )

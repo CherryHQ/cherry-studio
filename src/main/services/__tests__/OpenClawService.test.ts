@@ -2860,6 +2860,28 @@ describe('OpenClawService gateway status state machine', () => {
         expect(apiGatewayMock.liveKeys.size).toBe(0)
       })
 
+      it('launches a bound gateway model with only the scoped gateway credential', async () => {
+        const { modelService } = await import('@data/services/ModelService')
+        const { providerService } = await import('@data/services/ProviderService')
+        vi.mocked(modelService.getByKey).mockReturnValue(createModel({ apiKeyId: 'key-bound' }))
+        vi.mocked(providerService.getApiKeys).mockReturnValue([
+          { id: 'key-bound', key: 'sk-bound-upstream', isEnabled: true }
+        ])
+
+        await expect(service.syncConfig('openai::gpt-4o', undefined, true)).resolves.toEqual({ success: true })
+        await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+        const config = privateConfigOf(0)
+        const [apiKey] = apiGatewayMock.liveKeys
+        const provider = config.models.providers['cherry-api-gateway']
+        expect(provider.apiKey).toBe(apiKey)
+        expect(provider.models).toMatchObject([{ id: 'openai:gpt-4o' }])
+        expect(provider.models[0]).not.toHaveProperty('apiKey')
+        expect(JSON.stringify(config)).not.toContain('sk-bound-upstream')
+        expect(fs.readFileSync(formalPath(), 'utf8')).not.toContain('sk-bound-upstream')
+        expect(providerService.getApiKeys).not.toHaveBeenCalled()
+      })
+
       it('restarts an owned gateway on a fresh credential when the gateway model changes', async () => {
         await service.syncConfig('openai::gpt-4o', undefined, true)
         await service.startGateway()
