@@ -82,6 +82,46 @@ describe('MermaidRenderService', () => {
     await expect(next).resolves.toBe('<svg>small</svg>')
   })
 
+  it.each(['start', 'post'])('continues queued renders when worker %s throws', async (failure) => {
+    const service = await loadService()
+    const first = service.render('first', { theme, diagramId: 'a' })
+    const failed = service.render('failed', { theme, diagramId: 'b' })
+    const remaining = service.render('remaining', { theme, diagramId: 'c' })
+    const firstWorker = FakeWorker.instances[0]
+    const firstOutcome = first.catch((error: unknown) => error)
+    const failedOutcome = failed.catch((error: unknown) => error)
+
+    if (failure === 'start') {
+      let failStart = true
+      vi.stubGlobal(
+        'Worker',
+        class extends FakeWorker {
+          constructor() {
+            if (failStart) {
+              failStart = false
+              throw new Error('Worker dispatch failed')
+            }
+            super()
+          }
+        }
+      )
+      firstWorker.onerror?.({ message: 'Previous worker crashed' } as ErrorEvent)
+      expect(await firstOutcome).toBeInstanceOf(Error)
+    } else {
+      vi.spyOn(firstWorker, 'postMessage').mockImplementationOnce(() => {
+        throw new Error('Worker dispatch failed')
+      })
+      firstWorker.reply(firstWorker.posted[0], '<svg>first</svg>')
+      expect(await firstOutcome).toBe('<svg>first</svg>')
+    }
+
+    expect(await failedOutcome).toMatchObject({ message: 'Worker dispatch failed' })
+    const fresh = FakeWorker.instances[1]
+    expect(fresh.posted.map((request) => request.source)).toEqual(['remaining'])
+    fresh.reply(fresh.posted[0], '<svg>remaining</svg>')
+    await expect(remaining).resolves.toBe('<svg>remaining</svg>')
+  })
+
   it('fails the current render when the worker crashes and recovers for the next one', async () => {
     const service = await loadService()
     const crashed = service.render('graph A', { theme, diagramId: 'a' })

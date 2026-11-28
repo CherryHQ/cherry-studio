@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-27-mermaid-worker-dispatch.md
+2026-11-27-mermaid-worker-dispatch.md: 9aeb2e0eeb42967d7da4dd520b362ba407e12fd9
+2026-11-27-mermaid-worker-dispatch.zh.md: f5f1da9866169fad8e70f3bab00eb35eb348e613

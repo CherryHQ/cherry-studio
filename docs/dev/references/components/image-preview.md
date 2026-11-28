@@ -86,8 +86,9 @@ SVG, Graphviz, PlantUML, and Mermaid diagrams are centered in their host.
 keeps one render in flight; a newer request for a diagram still waiting in the
 queue replaces it, and every caller of that diagram receives the newer SVG. A
 render that runs longer than 10 s is stopped by terminating the worker, and a
-crashed worker is replaced on the next request. Rendering does not depend on the
-container's size, so folded or hidden diagrams render like visible ones.
+crashed worker is replaced when the next job is dispatched. If starting the
+worker or posting a job throws, that job fails and the next queued job can try
+a fresh worker. Folded or hidden diagrams render independently of host size.
 
 Labels are measured with an `OffscreenCanvas` (`canvas-text-measurer.ts`), which
 works in the worker and matches Merman's DOM-based browser measurer within half a
