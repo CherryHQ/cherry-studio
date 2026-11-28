@@ -327,6 +327,7 @@ export function useAgentMessageListProviderValue({
           showHeader: row.showHeader,
           ...(row.sourceMessageId && { parentId: null }),
           sourceMessageId: row.sourceMessageId,
+          isBeforeLatestRunInput: row.isBeforeLatestRunInput,
           isRunBoundary: row.isRunBoundary,
           ...(row.isRunBoundary === false && { stats: undefined })
         }
