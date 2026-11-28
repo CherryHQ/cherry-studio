@@ -99,7 +99,11 @@ async function initialize(sessionId: string): Promise<void> {
     if (error instanceof SyntaxError) throw new Error('history_corrupt')
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
-  if (history.messages.length !== state.messageCount || history.messages.some((row) => !row.provenance))
+  // Model-switch handoffs are product history, not native continuation: they are replayed from the
+  // database (getModelSwitchHandoff) and never enter the native file, so they must not count against
+  // reconstruction. Any other row without import provenance is real continuation and still blocks it.
+  const recoverable = history.messages.filter((row) => !row.data.modelSwitchHandoff)
+  if (recoverable.length !== state.messageCount || recoverable.some((row) => !row.provenance))
     throw new Error('history_unrecoverable')
   await mkdir(sessions, { recursive: true })
   const temporary = file + '.tmp'
