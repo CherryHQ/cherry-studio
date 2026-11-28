@@ -32,6 +32,7 @@ import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
 const { resolveModelMock, resolveReasoningProfileMock } = vi.hoisted(() => ({
   // Default to no registry match; individual cases supply the preset contract
