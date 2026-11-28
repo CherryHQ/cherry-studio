@@ -1,3 +1,5 @@
+/* global buildCurlCommand */
+
 const rowsEl = document.getElementById('rows')
 const detailsEl = document.getElementById('details')
 const filterEl = document.getElementById('filter')
@@ -103,12 +105,23 @@ function renderRows(force = false) {
   }
 }
 
+function appendCurlSection(event) {
+  const curl = buildCurlCommand(event)
+  const content = appendSection('cURL', () => curl)
+  const pre = document.createElement('pre')
+  pre.className = 'body-preview'
+  pre.textContent = curl
+  content.appendChild(pre)
+}
+
 function renderDetails(event, force = false) {
   const nextSignature = JSON.stringify(event)
   if (!force && nextSignature === detailsSignature) return
 
   detailsSignature = nextSignature
   detailsEl.replaceChildren()
+
+  appendCurlSection(event)
 
   appendKeyValueSection('Request', {
     id: event.id,
