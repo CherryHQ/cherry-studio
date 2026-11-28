@@ -158,7 +158,9 @@ export function buildContextOptions(scope: RequestScope, toolTokens = 0): Contex
   // and aiCore rejects `onBeforeCompress` without a `contextWindow` outright
   // (previously the `as number` cast smuggled a `NaN` past that check and every
   // comparison against it was silently false).
-  if (slidingWindowFallbackActive(scope)) {
+  // The `!== null` guard lives inside slidingWindowFallbackActive; restated inline so
+  // TypeScript narrows `contextWindow` for resolveInputRoom below.
+  if (slidingWindowFallbackActive(scope) && contextWindow !== null) {
     logger.debug('compress enabled but no model resolved — sliding-window fallback only')
     const outputReservation =
       scope.requestedMaxOutputTokens ??
