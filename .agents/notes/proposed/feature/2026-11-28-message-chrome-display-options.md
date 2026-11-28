@@ -12,33 +12,33 @@ The issue lists concrete display controls that have no native setting on current
 
 ## Proposal
 
-Add a "Message display" group of native toggles under Settings > Messages, seven toggles: separate user/assistant controls for avatar, background and timestamp, plus one assistant-only provider-name control:
+Add a "Message display" visual preview under Settings > Messages, not a list of toggle switches. Show representative user and assistant messages and let users choose visible/hidden treatments directly in the preview. Provide seven independent display choices: separate user/assistant controls for avatar, background and timestamp, plus one assistant-only provider-name control. Preview controls have accessible labels, keyboard operation and a visible selected state; hidden elements retain a discoverable preview affordance so they can be restored:
 
 - Show user avatar / show model avatar. Hiding the avatar removes its reserved space while keeping the remaining header and body aligned with each other. Other header content, such as the author name, remains.
 - Show provider name. Applies only to assistant messages. Current `MessageHeader.tsx` renders author/model identity but no separate provider-name prefix, so this setting adds an optional provider label rather than hiding an existing one. It defaults off to preserve current rendering. Existing model and author labels remain unchanged; missing provider metadata produces no label.
-- Show message background, one toggle for user messages and one for assistant messages. Turning a background off renders that side's messages on the plain conversation background; turning it on uses the existing message background design token for that side. Defaults preserve the selected message style: keep today's user bubble fill and plain assistant messages. The existing message-style option continues to control layout, not whether a fill may be shown.
-- Show message timestamp, one toggle for user messages and one for assistant messages.
+- Show message background, one display choice for user messages and one for assistant messages. Turning a background off renders that side's messages on the plain conversation background; turning it on uses the existing message background design token for that side. Defaults preserve the selected message style: keep today's user bubble fill and plain assistant messages. The existing message-style option continues to control layout, not whether a fill may be shown.
+- Show message timestamp, one display choice for user messages and one for assistant messages.
 
-Each toggle is a boolean in the existing display settings state, defaults to the current behavior, including the currently absent provider label and assistant background, and takes effect immediately without a restart. Settings copy is added in all 18 locales at implementation time. Keep existing DOM hooks for custom CSS. CSS can override presentation properties such as fill, but a hidden element that is not rendered cannot be restored by CSS. Do not promise unconditional CSS precedence over visibility toggles.
+Each display choice is stored as a boolean in the existing display settings state, defaults to the current behavior, including the currently absent provider label and assistant background, and takes effect immediately without a restart. Settings copy is added in all 18 locales at implementation time. Keep existing DOM hooks for custom CSS. CSS can override presentation properties such as fill, but a hidden element that is not rendered cannot be restored by CSS. Do not promise unconditional CSS precedence over visibility choices.
 
 ## Alternatives considered
 
 - Keep custom CSS as the only path: rejected, for the reasons the issue gives - high barrier, and silent breakage on component renames.
-- One master "compact messages" preset instead of individual toggles: simpler, but the issue's asks are independent per element and per side (user vs model); a preset cannot express "hide only my avatar".
-- Include spacing adjustment for the thinking and search components in this Spec: deferred. Spacing is a numeric control, not a visibility toggle, and its defaults and bounds need design input; mixing it in would hold the four toggle families back.
+- One master "compact messages" preset instead of independent preview choices: simpler, but the issue's asks are independent per element and per side (user vs model); a preset cannot express "hide only my avatar".
+- Include spacing adjustment for the thinking and search components in this Spec: deferred. Spacing is a numeric control, not a visibility toggle, and its defaults and bounds need design input; mixing it in would hold the four display families back.
 - Treat item 6 of the issue ("continuously open more options") as in scope: rejected; open-ended scope cannot be verified. New options get their own Specs.
 
 ## Acceptance criteria
 
-- AC1 — Settings > Messages contains exactly seven toggles: user/assistant avatar, background and timestamp plus an assistant-only provider label. Initial values preserve current rendering, including no new provider label or assistant fill (verification: renderer)
-- AC2 — Toggling any option takes effect on the rendered conversation immediately, without restart, and persists across relaunch (verification: renderer)
+- AC1 — Settings > Messages uses an interactive message preview rather than toggle-switch rows, with exactly seven independent display choices: user/assistant avatar, background and timestamp plus an assistant-only provider label. Initial values preserve current rendering, including no new provider label or assistant fill (verification: renderer)
+- AC2 — Changing a preview choice updates both the sample and the rendered conversation immediately, is keyboard-accessible with a discoverable way to restore hidden elements, takes effect without restart, and persists across relaunch (verification: renderer)
 - AC3 — Hiding an avatar removes its reserved space; the remaining header and body stay aligned with each other, and author names remain (verification: renderer)
-- AC4 — The provider-name toggle controls only the new optional assistant provider label; model and author labels remain, and absent metadata produces no label (verification: renderer)
-- AC5 — Background toggles independently show/hide the existing background token for each side without changing the selected message-style layout; defaults match current per-style rendering (verification: renderer)
+- AC4 — The provider-name choice controls only the new optional assistant provider label; model and author labels remain, and absent metadata produces no label (verification: renderer)
+- AC5 — Background choices independently show/hide the existing background token for each side without changing the selected message-style layout; defaults match current per-style rendering (verification: renderer)
 - AC6 — All new settings copy is present in the 18 locale files (verification: unit)
 
 ## Risks
 
-- Setting sprawl: seven new toggles in one group is a visible settings-page cost. Grouping them under one "Message display" section keeps the page scannable; item 6 of the issue is deliberately out of scope to avoid a growing pile.
-- Interaction with custom CSS: a user stylesheet targeting the old DOM may override or conflict with a toggle. Keep DOM hooks stable where possible; document that CSS presentation overrides do not restore an element omitted by a visibility toggle.
-- Per-surface drift: Agent and chat surfaces share the message frame components, so the toggles apply to both; a surface that forks its message chrome later must respect the same settings.
+- Setting sprawl: seven independent choices add interaction complexity. A single message preview with clearly labeled, reversible choices keeps their effects visible; item 6 of the issue is deliberately out of scope to avoid a growing pile.
+- Interaction with custom CSS: a user stylesheet targeting the old DOM may override or conflict with a display choice. Keep DOM hooks stable where possible; document that CSS presentation overrides do not restore an element omitted by a visibility toggle.
+- Per-surface drift: Agent and chat surfaces share the message frame components, so the display choices apply to both; a surface that forks its message chrome later must respect the same settings.

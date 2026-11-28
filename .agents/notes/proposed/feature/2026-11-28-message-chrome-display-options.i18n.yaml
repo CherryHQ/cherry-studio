@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-28-message-chrome-display-options.md
-2026-11-28-message-chrome-display-options.md: 9f016a79708ccda0f451687fbf4681afd8991677
-2026-11-28-message-chrome-display-options.zh.md: 9da64038042807a1a6ad413c590e7c9f30cad28f
+2026-11-28-message-chrome-display-options.md: b7186820962fbf3176e7908032b9a03b02b0f5d7
+2026-11-28-message-chrome-display-options.zh.md: 84dd467e39b12894e9b34e45bec1c24cee72a6f7
