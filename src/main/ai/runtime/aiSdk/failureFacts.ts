@@ -11,6 +11,7 @@ import {
 
 import { providerFailureFacts } from '@main/ai/errorReporting'
 import { ProviderTransportError } from '@main/ai/utils/customFetch'
+import { ProviderContextOverflowError } from '@shared/ai/providerError'
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { isCancellation } from '@shared/utils/errorReporting'
 
@@ -76,6 +77,9 @@ export function classifyAiSdkFailure(error: unknown, depth = 0): FailureFacts {
   if (RetryError.isInstance(error) && depth < 3) return classifyAiSdkFailure(error.lastError, depth + 1)
   if (error instanceof ProviderTransportError) {
     return { ...facts, source: 'environment', kind: 'expected', reason: error.reason }
+  }
+  if (error instanceof ProviderContextOverflowError) {
+    return { ...facts, source: 'provider', kind: 'expected', reason: error.providerErrorCategory }
   }
   if (APICallError.isInstance(error)) {
     return { ...facts, source: 'provider', ...providerFailureFacts(error) }
