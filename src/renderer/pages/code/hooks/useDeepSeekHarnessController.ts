@@ -89,7 +89,7 @@ export function useDeepSeekHarnessController({
         ...settings
       })
       if (!result.success) {
-        toast.error(result.message)
+        toast.errorFromException(new Error(result.message))
         return
       }
     } catch (error) {
