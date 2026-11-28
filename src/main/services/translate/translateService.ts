@@ -115,6 +115,7 @@ export class TranslateService {
     streamManager.streamPrompt({
       streamId: req.streamId,
       uniqueModelId,
+      utilityTask: true,
       prompt: content,
       listener: wcListener,
       // Empty stays success: the renderer reports it as translate.error.empty on done.

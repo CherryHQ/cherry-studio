@@ -96,3 +96,60 @@ it.each([false, true])('validates repeated attachment IDs across messages (confl
     await archive.close()
   }
 })
+
+it.each([
+  ['files/image.png', 'Missing or invalid DeepSeek attachment'],
+  ['files/directory/', 'Missing or invalid DeepSeek attachment'],
+  ['../image.png', 'Unsafe ZIP path']
+])('rejects an invalid attachment reference (%s)', async (exportPath, error) => {
+  const source = conversation()
+  source.messages[0].fragments.push({
+    type: 'FILE',
+    files: [{ id: 'image', file_name: 'image.png', file_size: 2, export_path: exportPath, is_image: true }]
+  })
+  const archive = await openDeepseekArchive(
+    await archiveFixture(
+      [
+        ['files/image.png', 'x'],
+        ['files/directory/', '']
+      ],
+      3,
+      source
+    )
+  )
+  try {
+    await expect(archive.load('sample')).rejects.toThrow(error)
+  } finally {
+    await archive.close()
+  }
+})
+
+it.each([
+  ['files/missing.png', true],
+  ['files/another.png', false],
+  [null, false]
+])('compares original descriptors for repeated unavailable attachments (%s)', async (path, sameAttachment) => {
+  const source = conversation()
+  const attachment = {
+    id: 'shared',
+    file_name: 'image.png',
+    file_size: 65 * 1024 * 1024,
+    export_path: 'files/missing.png',
+    is_image: true
+  }
+  source.messages[0].fragments.push({ type: 'FILE', files: [attachment] })
+  source.messages[1].fragments.push({ type: 'FILE', files: [{ ...attachment, export_path: path }] })
+  const archive = await openDeepseekArchive(await archiveFixture([], 3, source))
+  try {
+    if (sameAttachment) {
+      const result = await archive.load('sample')
+      for (const message of result.messages.slice(0, 2)) {
+        expect(message.fragments).toContainEqual({ type: 'FILE', files: [{ ...attachment, export_path: null }] })
+      }
+    } else {
+      await expect(archive.load('sample')).rejects.toThrow('Conflicting DeepSeek attachment ID')
+    }
+  } finally {
+    await archive.close()
+  }
+})

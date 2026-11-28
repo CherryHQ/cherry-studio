@@ -961,7 +961,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     create: await window.api.preference.get('shortcut.topic.create'),
     search: await window.api.preference.get('shortcut.app.search')
   }))
-  const custom = { binding: ['CommandOrControl', 'Shift', 'Y'], enabled: true }
+  const custom = { binding: ['CommandOrControl', 'Shift', 'J'], enabled: true }
   const defaults = { binding: ['CommandOrControl', 'N'], enabled: true }
   const assistantName = app.resourceName('Shortcut assistant')
   const topicName = app.resourceName('Shortcut starting topic')
@@ -1031,9 +1031,9 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await showStartingTopic()
     await openShortcut()
     await row.locator('kbd').first().locator('..').click()
-    await row.getByRole('button', { name: 'Press Shortcut', exact: true }).press(`${primary}+Shift+Y`)
+    await row.getByRole('button', { name: 'Press Shortcut', exact: true }).press(`${primary}+Shift+J`)
     await expect.poll(readShortcut).toEqual(custom)
-    await expect(row.locator('kbd').last()).toHaveText('Y')
+    await expect(row.locator('kbd').last()).toHaveText('J')
     await screenshot('MP-109 custom shortcut saved')
 
     const chat = await showStartingTopic()
@@ -1073,7 +1073,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
       await input.press('Enter')
       await expect(topic).toContainText(app.resourceName(name))
     }
-    let createdId = await createWithShortcut(`${primary}+Shift+Y`)
+    let createdId = await createWithShortcut(`${primary}+Shift+J`)
     await expect(chat.getByRole('heading', { name: 'What should we talk about today?', exact: true })).toBeVisible()
     await screenshot('MP-109 custom shortcut creates conversation immediately')
     await nameCreatedTopic(createdId, 'Custom shortcut conversation')
@@ -1085,7 +1085,7 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
     await screenshot('MP-109 occupied shortcut rejected')
     expect(await readShortcut()).toEqual(custom)
     await page.keyboard.press('Escape')
-    await expect(row.locator('kbd').last()).toHaveText('Y')
+    await expect(row.locator('kbd').last()).toHaveText('J')
 
     await row.locator('.shortcut-undo-icon').click()
     await expect.poll(readShortcut).toEqual(defaults)

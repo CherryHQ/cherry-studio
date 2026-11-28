@@ -74,6 +74,28 @@ describe('AgentEntitySchema', () => {
     expect(parsed.configuration).toHaveProperty('reasoning_effort', undefined)
   })
 
+  it('preserves only supplied local runtime fields in a patch, including explicit removals', () => {
+    const patch = UpdateAgentSchema.parse({
+      localRuntime: { args: ['--acp'], executableOverride: undefined }
+    })
+    expect(patch.localRuntime).toEqual({ args: ['--acp'], executableOverride: undefined })
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { args: [1] } }).success).toBe(false)
+  })
+
+  it('rejects local execution through the generic Agent configuration', () => {
+    const configuration = { localRuntime: { presetId: 'cursor' } }
+    expect(AgentConfigurationSchema.safeParse(configuration).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ configuration }).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { presetId: 'unknown' } }).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { protocol: 'acp' } }).success).toBe(false)
+  })
+
+  it('requires protected settings to go through the local Agent command', () => {
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { env: { WORKSPACE: '/test' } } }).success).toBe(true)
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { env: { CURSOR_API_KEY: 'local-key' } } }).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { clearEnvironment: ['CURSOR_API_KEY'] } }).success).toBe(false)
+  })
+
   it('validates and deduplicates knowledgeBaseIds at the API parse boundary', () => {
     expect(UpdateAgentSchema.parse({ knowledgeBaseIds: ['kb-b', 'kb-b'] }).knowledgeBaseIds).toEqual(['kb-b'])
     expect(UpdateAgentSchema.parse({ knowledgeBaseIds: [] }).knowledgeBaseIds).toEqual([])

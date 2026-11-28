@@ -181,6 +181,7 @@ describe('translateService.open', () => {
             reasoningEffort?: string
             callOverrides?: Record<string, unknown>
             allowEmptySuccess?: boolean
+            utilityTask?: boolean
             listener: { id: string } | Array<{ id: string }>
           }
         ]
@@ -197,6 +198,8 @@ describe('translateService.open', () => {
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)
+    // Translation must keep working for a signed-out user on the built-in free model.
+    expect(arg.utilityTask).toBe(true)
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {

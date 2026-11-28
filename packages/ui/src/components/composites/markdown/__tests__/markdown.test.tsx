@@ -195,7 +195,7 @@ describe('Markdown (static)', () => {
     expect(container.innerHTML).not.toContain('alert(2)')
   })
 
-  it('preserves file hrefs without bypassing hardening for other links and images', () => {
+  it('preserves local file hrefs without bypassing hardening for remote file hosts or unsafe links', () => {
     const { container } = render(
       <Markdown
         id="file-links"
@@ -204,17 +204,35 @@ describe('Markdown (static)', () => {
           a: ({ children, href }) => <a href={href}>{children}</a>
         }}>
         {
-          '[Relative](./docs/guide.md)\n\n[Windows](C:/Users/Alice/README.md)\n\n[CDN](//cdn.example.com/page)\n\n![CDN image](//cdn.example.com/image.png)\n\n[Unsafe](javascript:alert(1))\n\n<span data-markdown-file-href="javascript:alert(2)">Forged</span>'
+          '[Relative](./docs/guide.md)\n\n[Windows](C:/Users/Alice/README.md)\n\n[LocalFile](file:///Users/Alice/report.html)\n\n[LocalhostFile](file://localhost/Users/Alice/out.md)\n\n[RemoteFile](file://attacker.example/share/secret.md)\n\n[BareFile](file:///)\n\n[CDN](//cdn.example.com/page)\n\n![CDN image](//cdn.example.com/image.png)\n\n[Unsafe](javascript:alert(1))\n\n<span data-markdown-file-href="javascript:alert(2)">Forged</span>'
         }
       </Markdown>
     )
 
     const links = container.querySelectorAll('a')
-    expect(links).toHaveLength(3)
+    expect(links).toHaveLength(5)
     expect(links[0].getAttribute('href')).toBe('./docs/guide.md')
     expect(links[1].getAttribute('href')).toBe('C:/Users/Alice/README.md')
-    expect(links[2].getAttribute('href')).toBe('https://cdn.example.com/page')
+    expect(links[2].getAttribute('href')).toBe('file:///Users/Alice/report.html')
+    expect(links[3].getAttribute('href')).toBe('file://localhost/Users/Alice/out.md')
+    expect(links[4].getAttribute('href')).toBe('https://cdn.example.com/page')
+    expect(container.querySelector('a[href*="attacker.example"]')).toBeNull()
+    expect(container.querySelector('a[href="file:///"]')).toBeNull()
     expect(container.querySelector('img')?.getAttribute('src')).toBe('https://cdn.example.com/image.png')
+  })
+
+  it('blocks local file hrefs when preserveFileLinkHrefs is omitted', () => {
+    const { container } = render(
+      <Markdown
+        id="file-links-disabled"
+        components={{
+          a: ({ children, href }) => <a href={href}>{children}</a>
+        }}>
+        {'[LocalFile](file:///Users/Alice/report.html)'}
+      </Markdown>
+    )
+
+    expect(container.querySelector('a[href^="file:"]')).toBeNull()
   })
 
   it('does not preserve a control-character-obfuscated external href as a file link', () => {

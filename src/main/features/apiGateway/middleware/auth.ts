@@ -60,6 +60,7 @@ export const authorizeCredentialScope = (
   const scope = application.get('ApiGatewayService').getCredentialScope(request.headers)
   if (!scope) return undefined
   const model = body && typeof body === 'object' && 'model' in body ? body.model : undefined
-  const allowed = request.method === 'POST' && new URL(request.url).pathname === scope.path && model === scope.model
+  const allowed =
+    request.method === 'POST' && scope.paths.includes(new URL(request.url).pathname) && model === scope.model
   return allowed ? undefined : { status: 403, error: 'Forbidden' }
 }

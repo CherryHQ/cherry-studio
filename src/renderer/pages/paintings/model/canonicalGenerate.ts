@@ -1,5 +1,6 @@
 import { buildParamsSchema } from '@cherrystudio/provider-registry'
 import { type FileMetadata } from '@renderer/types/file'
+import { normalizeImageSize } from '@shared/ai/imageSize'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { isSeedream5xTargetModel, sanitizeSeedreamImageParams } from '@shared/ai/seedreamImageContract'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
@@ -140,6 +141,11 @@ export async function canonicalGenerate<T extends PaintingData>(
     } else {
       delete paramValues.size
     }
+  }
+  if (typeof paramValues.size === 'string') {
+    const normalizedSize = normalizeImageSize(paramValues.size)
+    if (normalizedSize === undefined) delete paramValues.size
+    else paramValues.size = normalizedSize
   }
 
   // 4. Pre-fetch attached image bytes (encoded as `data:` URLs for the IPC),

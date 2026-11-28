@@ -833,6 +833,12 @@ function AgentSettingsCards({
               <SettingsLinkButton label={row.label} summary={row.summary} onClick={() => onOpen(row.page)} />
             </SettingsRow>
           ))}
+        {isSealedBuiltinAgentRole(agent.configuration?.builtin_role) ? (
+          <SettingsRow
+            label={t('library.config.agent.section.tools.tab.skills')}
+            hint={t('library.config.dialogs.edit.skills_fixed_hint')}
+          />
+        ) : null}
       </SettingsSection>
 
       <SettingsSection title={t('library.config.dialogs.edit.section.run')}>

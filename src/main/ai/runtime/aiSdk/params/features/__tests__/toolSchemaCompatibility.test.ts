@@ -17,6 +17,7 @@ import { createToolInspectTool } from '@main/ai/tools/adapters/aiSdk/meta/toolIn
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { createToolSearchTool } from '@main/ai/tools/adapters/aiSdk/meta/toolSearch'
 import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
+import { isPortableSchemaPattern, stripIncompatibleSchemaPatterns } from '@main/ai/utils/toolSchema'
 import { readFileInputSchema } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 
@@ -1259,6 +1260,71 @@ describe('toolSchemaCompatibilityFeature', () => {
     expect(declaration.parameters.properties.clickCount).toEqual({ anyOf: [{ type: 'number' }, { type: 'number' }] })
   })
 
+  it('sends tools whose const or enum the Google adapter would reject, keeping the values in the description', async () => {
+    const requests: Array<{
+      tools: Array<{
+        functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+      }>
+    }> = []
+    const captureFetch: typeof globalThis.fetch = async (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)))
+      return Response.json({ error: { message: 'captured' } }, { status: 400 })
+    }
+    const model = wrapLanguageModel({
+      model: createGoogleGenerativeAI({ apiKey: 'test-key', fetch: captureFetch })('gemini-3.5-flash'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'google',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        maxRetries: 0,
+        tools: {
+          search: tool({
+            inputSchema: jsonSchema({
+              type: 'object',
+              properties: {
+                mode: { type: 'number', const: 'auto' },
+                cursor: { type: 'string', const: null },
+                scope: { type: ['string', 'null'], const: null },
+                filter: { const: { kind: 'all' }, description: 'Filter.' },
+                tags: { const: ['a'] },
+                empty: { enum: [] },
+                status: { type: 'string', enum: ['ready', 'busy'] },
+                level: { enum: [1, 2, null] },
+                flag: { enum: [true, null] },
+                optional: {
+                  anyOf: [
+                    { type: 'string', enum: ['a'] },
+                    { type: 'null', enum: [null] }
+                  ]
+                }
+              }
+            })
+          })
+        }
+      })
+    ).rejects.toMatchObject({ name: 'AI_APICallError' })
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0].tools[0].functionDeclarations[0].parameters.properties).toEqual({
+      mode: { type: 'number', description: 'Required value (JSON): "auto".' },
+      cursor: { type: 'string', description: 'Required value (JSON): null.' },
+      scope: { type: 'string', description: 'Required value (JSON): null.', nullable: true },
+      filter: { type: 'object', description: 'Filter. Required value (JSON): {"kind":"all"}.' },
+      tags: { type: 'string', description: 'Required value (JSON): ["a"].' },
+      empty: { type: 'string', description: 'Original enum values (JSON): [].' },
+      status: { type: 'string', enum: ['ready', 'busy'] },
+      level: { type: 'integer', nullable: true },
+      flag: { type: 'boolean', nullable: true },
+      optional: { type: 'string', enum: ['a'], nullable: true }
+    })
+  })
+
   // Gemini's function-declaration proto has no `propertyNames` /
   // `additionalProperties` fields (issue #20939) — they 400 the whole
   // request as `Unknown name ... Cannot find field`.
@@ -1547,5 +1613,72 @@ describe('toolSchemaCompatibilityFeature', () => {
     ).tools[0].functionDeclarations[0]
     expect(declaration.name).toBe('cron')
     expect(declaration.parameters.properties.timeout_minutes).toMatchObject({ type: 'number', nullable: true })
+  })
+
+  it('strips non-portable regex pattern keywords while keeping portable patterns and properties named pattern (#24524)', async () => {
+    const rawMcpSchema: JSONSchema7 = {
+      type: 'object',
+      properties: {
+        fridaEscaped: { type: 'string', pattern: '^[^\\uD800-\\uDFFF]*$', description: 'Frida script' },
+        fridaSurrogate: { type: 'string', pattern: '^[^\uD800-\uDFFF]*$' },
+        unicodeEscape: { type: 'string', pattern: '^\\u4e00+$' },
+        surrogateHex: { type: 'string', pattern: '^\\x{D800}$' },
+        brokenRegex: { type: 'string', pattern: '[unclosed' },
+        escapedBackslashThenU: { type: 'string', pattern: '^\\\\u1234$' },
+        portable: { type: 'string', pattern: '^[a-zA-Z0-9_-]+$' },
+        pattern: { type: 'string', description: 'Glob pattern parameter' }
+      },
+      $defs: {
+        Nested: {
+          type: 'array',
+          items: { type: 'string', pattern: '^[^\\uD800-\\uDFFF]*$' }
+        }
+      }
+    }
+
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [{ type: 'function', name: 'mcp__frida__load_frida_script', inputSchema: rawMcpSchema }]
+    }
+
+    const result = await transform(params)
+    const transformed = result.tools?.[0]
+    expect(transformed?.type).toBe('function')
+    if (transformed?.type !== 'function') throw new Error('Expected function tool')
+
+    expect(transformed.inputSchema).toEqual({
+      type: 'object',
+      properties: {
+        fridaEscaped: { type: 'string', description: 'Frida script' },
+        fridaSurrogate: { type: 'string' },
+        unicodeEscape: { type: 'string' },
+        surrogateHex: { type: 'string' },
+        brokenRegex: { type: 'string' },
+        escapedBackslashThenU: { type: 'string', pattern: '^\\\\u1234$' },
+        portable: { type: 'string', pattern: '^[a-zA-Z0-9_-]+$' },
+        pattern: { type: 'string', description: 'Glob pattern parameter' }
+      },
+      $defs: {
+        Nested: {
+          type: 'array',
+          items: { type: 'string' }
+        }
+      }
+    })
+    // Never mutate the caller's cached schema object.
+    expect((rawMcpSchema.properties?.fridaEscaped as JSONSchema7 | undefined)?.pattern).toBe('^[^\\uD800-\\uDFFF]*$')
+
+    // Portable schemas (including valid UTF-16 surrogate pairs like emoji) stay untouched by reference.
+    const portableSchema: JSONSchema7 = {
+      type: 'object',
+      properties: {
+        emoji: { type: 'string', pattern: '^😀+$' },
+        date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }
+      }
+    }
+    expect(stripIncompatibleSchemaPatterns(portableSchema)).toBe(portableSchema)
+    expect(isPortableSchemaPattern(123)).toBe(false)
+    expect(isPortableSchemaPattern('trailing\\')).toBe(false)
+    expect(isPortableSchemaPattern('^\\\\\\uD800$')).toBe(false)
   })
 })

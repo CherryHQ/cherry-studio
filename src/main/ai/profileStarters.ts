@@ -47,6 +47,7 @@ export async function generateProfileStarters(
     .generateText({
       uniqueModelId: model.id,
       resolvedModel: { provider, model },
+      utilityTask: true,
       conversation: { id: `profile-starters:${randomUUID()}` },
       system: input.system,
       prompt: input.prompt,

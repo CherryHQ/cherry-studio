@@ -1,3 +1,5 @@
+import { messageProjectionService } from '@renderer/services/aiTransport'
+import { type MessagePartRows, PartOverrides, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { hasRenderableContent, isSteerHandoffEmptySuccess } from '@shared/ai/messageRenderability'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -10,44 +12,46 @@ import { hasDismissedNoResponsePart } from './dismissedNoResponse'
  * neither visible content nor a `data-error` part; it requires `!hasVisiblePart`
  * so an error turn that already shows answer content (e.g. streamed text before
  * the failure) does not get a misleading "No response" block. Shared by the
- * agents and home message list adapters. Returns the input map by reference
+ * agents and home message list adapters. Returns the input rows by reference
  * when nothing changes. This is a display fallback for historical / abnormal
  * chains; the authoritative empty-success → error transition is owned by
  * `AiStreamManager`.
  */
 export function withTerminalErrorFallback(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   noResponseMessage: string
-): Record<string, CherryMessagePart[]> {
-  let next = partsByMessageId
+): MessagePartRows {
+  const replacements = new Map<string, CherryMessagePart[]>()
 
   for (const message of messages) {
     if (message.role !== 'assistant') continue
-    const parts = partsByMessageId[message.id] ?? message.parts ?? []
+    const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
+    const resolvedParts = messageProjectionService.ownsRowParts(parts)
+      ? messageProjectionService.readParts(parts)
+      : parts
+    const hasVisiblePart = resolvedParts.some((part) => !isHiddenPart(part))
+    if (message.metadata?.provenance && hasVisiblePart) continue
     // Imported-history rows surface their original terminal status instead of a
     // synthesized error; an imported row never gets the no-response fallback.
     if (message.metadata?.importedHistory) {
-      const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
       if (message.metadata?.status === 'error' || !hasVisiblePart) {
-        if (next === partsByMessageId) next = { ...partsByMessageId }
-        next[message.id] = [
-          ...parts,
+        replacements.set(message.id, [
+          ...resolvedParts,
           { type: 'data-imported-status', data: { status: message.metadata.importedHistory.status } }
-        ]
+        ])
       }
       continue
     }
     if (message.metadata?.status !== 'error') continue
-    if (hasDismissedNoResponsePart(parts)) continue
-    if (hasRenderableContent(parts)) continue
-    if (parts.some((part) => part.type === 'data-error')) continue
+    if (hasDismissedNoResponsePart(resolvedParts)) continue
+    if (hasRenderableContent(resolvedParts)) continue
+    if (resolvedParts.some((part) => part.type === 'data-error')) continue
 
-    if (next === partsByMessageId) next = { ...partsByMessageId }
-    next[message.id] = [...parts, createNoResponsePart(noResponseMessage)]
+    replacements.set(message.id, [...resolvedParts, createNoResponsePart(noResponseMessage)])
   }
 
-  return next
+  return replacements.size ? new PartOverrides(partsByMessageId, replacements) : partsByMessageId
 }
 
 /**
@@ -57,24 +61,26 @@ export function withTerminalErrorFallback(
  */
 export function withEmptySuccessFallback(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   noResponseMessage: string
-): Record<string, CherryMessagePart[]> {
-  let next = partsByMessageId
+): MessagePartRows {
+  const replacements = new Map<string, CherryMessagePart[]>()
 
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     if (message.metadata?.status !== 'success') continue
-    const parts = partsByMessageId[message.id] ?? message.parts ?? []
-    if (hasDismissedNoResponsePart(parts)) continue
-    if (hasRenderableContent(parts)) continue
-    if (isSteerHandoffEmptySuccess(parts)) continue
+    const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
+    const resolvedParts = messageProjectionService.ownsRowParts(parts)
+      ? messageProjectionService.readParts(parts)
+      : parts
+    if (hasDismissedNoResponsePart(resolvedParts)) continue
+    if (hasRenderableContent(resolvedParts)) continue
+    if (isSteerHandoffEmptySuccess(resolvedParts)) continue
 
-    if (next === partsByMessageId) next = { ...partsByMessageId }
-    next[message.id] = [...parts, createNoResponsePart(noResponseMessage)]
+    replacements.set(message.id, [...resolvedParts, createNoResponsePart(noResponseMessage)])
   }
 
-  return next
+  return replacements.size ? new PartOverrides(partsByMessageId, replacements) : partsByMessageId
 }
 
 /**
@@ -84,9 +90,9 @@ export function withEmptySuccessFallback(
  */
 export function withNoResponseFallback(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   noResponseMessage: string
-): Record<string, CherryMessagePart[]> {
+): MessagePartRows {
   const withErrors = withTerminalErrorFallback(messages, partsByMessageId, noResponseMessage)
   return withEmptySuccessFallback(messages, withErrors, noResponseMessage)
 }

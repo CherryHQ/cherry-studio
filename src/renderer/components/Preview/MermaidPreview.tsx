@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useRef } from 'react'
+import React, { memo, useCallback, useLayoutEffect, useRef } from 'react'
 
 import { resolveMermaidTheme } from '@cherrystudio/ui/mermaid'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -29,15 +29,25 @@ const MermaidPreview = ({
 }) => {
   const { theme } = useTheme()
   const diagramId = useRef<string>(`mermaid-${crypto.randomUUID()}`).current
+  const renderGeneration = useRef(0)
 
   const renderMermaid = useCallback(
     async (content: string, container: HTMLDivElement) => {
+      const generation = renderGeneration.current
       const svg = await mermaidRenderService.render(content, { theme: resolveMermaidTheme(container), diagramId })
+      if (generation !== renderGeneration.current) return
       renderSvgInShadowHost(svg, container, { fit })
     },
     // Re-render on a theme switch: the diagram reads its colours from the tokens at render time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [diagramId, fit, theme]
+  )
+
+  useLayoutEffect(
+    () => () => {
+      renderGeneration.current += 1
+    },
+    [children, renderMermaid]
   )
 
   const { containerRef, error, isLoading } = useDebouncedRender(children, renderMermaid, { debounceDelay: 300 })
