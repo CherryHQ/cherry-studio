@@ -60,9 +60,10 @@ the native cancellation scope. Read captured input facts to distinguish
 acceptance from placement and completion.
 
 The desktop mirrors the ordered native follow-up inbox after attachment and on inbox commits.
-Editing and reordering check the still-waiting entries inside a native transaction. An edit takes
-its native content and product text part to placement under the original submission ID. The desktop
-can reapply that part on reopen. Withdrawing one entry uses the native submission abort operation.
+Editing and reordering check the still-waiting entries inside a native transaction. An edit carries
+its native content and the revised message parts to placement under the original submission ID. The desktop
+can reapply those parts on reopen, including legacy text-only edits. Withdrawing one entry uses the native
+submission abort operation.
 
 Several inputs can share a native answer. Native `done` alone is insufficient: Durable also uses it for truncated output
 and tool-only termination. The adapter reads the actual assistant stop reason before reporting

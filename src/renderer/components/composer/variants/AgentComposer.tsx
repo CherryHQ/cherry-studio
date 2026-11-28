@@ -83,6 +83,7 @@ import {
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentSessionFollowup } from '@shared/ai/agentSessionFollowups'
 import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { getLocalAgentProtocol, getLocalSessionPermission } from '@shared/ai/localAgent'
@@ -232,6 +233,7 @@ type Props = {
   compactWhenSingleLine?: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  onEditQueuedFollowup?: (topicId: string, item: AgentSessionFollowup) => void
   /** Sends during a running turn steer it instead of queueing, for windows that cannot keep a queue alive. */
   steerWhileBusy?: boolean
   /** The latest reply failed because a provider other than Cherry Cloud ran out of quota. */
@@ -267,6 +269,7 @@ const AgentComposerRoot = ({
   compactWhenSingleLine = false,
   previewInputFile,
   launchOptions,
+  onEditQueuedFollowup,
   steerWhileBusy = false,
   providerQuotaExhausted = false,
   renderControls,
@@ -448,6 +451,7 @@ const AgentComposerRoot = ({
         compactWhenSingleLine={compactWhenSingleLine}
         previewInputFile={previewInputFile}
         launchOptions={launchOptions}
+        onEditQueuedFollowup={onEditQueuedFollowup}
         steerWhileBusy={steerWhileBusy}
         providerQuotaExhausted={providerQuotaExhausted}
         renderControls={renderControls}
@@ -494,6 +498,7 @@ interface InnerProps {
   compactWhenSingleLine: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  onEditQueuedFollowup?: (topicId: string, item: AgentSessionFollowup) => void
   steerWhileBusy: boolean
   providerQuotaExhausted: boolean
   renderControls: AgentComposerControlsRenderer
@@ -586,6 +591,7 @@ const AgentComposerInner = ({
   compactWhenSingleLine,
   previewInputFile,
   launchOptions,
+  onEditQueuedFollowup,
   steerWhileBusy,
   providerQuotaExhausted,
   renderControls,
@@ -2049,8 +2055,13 @@ const AgentComposerInner = ({
                   description={compaction.error}
                 />
               )}
-              {hasDurableFollowUp && !launchOptions?.editing ? (
-                <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} canSteer={isStreaming} />
+              {hasDurableFollowUp && !launchOptions?.editing && onEditQueuedFollowup ? (
+                <NativeQueuedFollowups
+                  key={runtimeTopicId}
+                  topicId={runtimeTopicId}
+                  canSteer={isStreaming}
+                  onEdit={onEditQueuedFollowup}
+                />
               ) : null}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock

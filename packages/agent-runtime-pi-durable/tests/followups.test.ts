@@ -11,12 +11,17 @@ import { expect, it, onTestFinished } from 'vitest'
 import { runtimeId, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime } from '../src'
-import { changeFollowups, readFollowups } from '../src/followups'
+import { changeFollowups, followupEdit, readFollowups } from '../src/followups'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
   return result.value
 }
+
+it('reads the persisted text-only edit from an older inbox', () => {
+  const textPart = JSON.stringify({ type: 'text', text: 'First edit' })
+  expect(followupEdit({ queueEdit: { revision: 2, textPart } })).toEqual({ revision: 2, textPart })
+})
 
 it('preserves queued IDs across edit, reorder and restart, and only withdraws waiting inputs', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'durable-followups-'))
@@ -67,7 +72,13 @@ it('preserves queued IDs across edit, reorder and restart, and only withdraws wa
   expect(await active.status(context)).toMatchObject({ status: 'placed' })
   expect(await mutate({ type: 'reorder', before: order, after: [...order].reverse() })).toBe(false)
   expect(await mutate({ type: 'reorder', before: ['First', 'Second'], after: ['Second', 'First'] })).toBe(true)
-  const change = { type: 'edit', inputId: 'Second', revision: 0, content: 'Edited second', textPart: 'edited' } as const
+  const change = {
+    type: 'edit',
+    inputId: 'Second',
+    revision: 0,
+    content: 'Edited second',
+    parts: '[{"type":"text","text":"edited"}]'
+  } as const
   expect(await mutate(change)).toBe(true)
   expect(await mutate({ ...change, content: 'Stale edit' })).toBe(false)
   await harness.close(context)
@@ -76,7 +87,7 @@ it('preserves queued IDs across edit, reorder and restart, and only withdraws wa
   onTestFinished(() => resumed.close(context))
   const read = () => resumed.commit(async (tx) => readFollowups(await tx.doc(InboxDoc, conversation.id)), context)
   expect(await read()).toEqual([
-    { inputId: 'Second', submissionId: second.id, revision: 1, textPart: 'edited' },
+    { inputId: 'Second', submissionId: second.id, revision: 1, parts: '[{"type":"text","text":"edited"}]' },
     { inputId: 'First', submissionId: first.id, revision: 0 }
   ])
   const inputs: unknown[] = []
@@ -162,7 +173,7 @@ it.each([false, true])(
         inputId: 'Next',
         revision: 0,
         content: 'Edited next',
-        textPart: 'edited'
+        parts: '[{"type":"text","text":"edited"}]'
       })
     ).toBe(true)
     expect(observed.at(-1)).toEqual([{ inputId: 'Next', revision: 1 }])

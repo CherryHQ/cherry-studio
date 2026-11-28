@@ -17,12 +17,13 @@ export interface DurableFollowup {
   inputId: string
   submissionId: InboxItem['id']
   revision: number
+  parts?: string
   textPart?: string
   steering?: true
 }
 
 export type DurableFollowupChange =
-  | { type: 'edit'; inputId: string; revision: number; content: string; textPart: string }
+  | { type: 'edit'; inputId: string; revision: number; content: string; parts: string }
   | { type: 'reorder'; before: string[]; after: string[] }
   | { type: 'withdraw'; inputId: string }
   | { type: 'steer'; inputId: string; activeInputId: string; replyId: string }
@@ -42,18 +43,15 @@ export function followupSteerPlacement(data: unknown, runId?: TaskId): { replyId
   return steer.runId === runId ? { replyId: steer.replyId } : {}
 }
 
-export function followupEdit(data: unknown): Pick<DurableFollowup, 'revision' | 'textPart'> {
+export type DurableFollowupEdit = Pick<DurableFollowup, 'revision' | 'parts' | 'textPart'>
+
+export function followupEdit(data: unknown): DurableFollowupEdit {
   if (data && typeof data === 'object' && 'queueEdit' in data) {
     const edit = data.queueEdit
-    if (
-      edit &&
-      typeof edit === 'object' &&
-      'revision' in edit &&
-      'textPart' in edit &&
-      typeof edit.revision === 'number' &&
-      typeof edit.textPart === 'string'
-    ) {
-      return { revision: edit.revision, textPart: edit.textPart }
+    if (edit && typeof edit === 'object' && 'revision' in edit && typeof edit.revision === 'number') {
+      if ('parts' in edit && typeof edit.parts === 'string') return { revision: edit.revision, parts: edit.parts }
+      if ('textPart' in edit && typeof edit.textPart === 'string')
+        return { revision: edit.revision, textPart: edit.textPart }
     }
   }
   return { revision: 0 }
@@ -111,7 +109,7 @@ export async function changeFollowups(
         ...item.entry,
         data: {
           ...(item.entry.data as JsonObject),
-          queueEdit: { revision: change.revision + 1, textPart: change.textPart }
+          queueEdit: { revision: change.revision + 1, parts: change.parts }
         }
       }
       return true

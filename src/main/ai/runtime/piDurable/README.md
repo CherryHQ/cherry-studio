@@ -94,6 +94,10 @@ its continuation. Durable reports the preceding input's outcome only when the ru
 settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
 cycle completion aggregates only the inputs owned by the current Run. A follow-up whose submission
 fails before it reaches Durable moves to Main's queue.
+The composer saves edited text and attachments under the original waiting input and its captured
+revision. The native record carries the complete edited parts. Desktop projection reconciles parts
+and file references in one transaction, and startup recovery reads the same record. The run uses
+the knowledge-base authorization of its native connection.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.

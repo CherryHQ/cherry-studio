@@ -721,7 +721,7 @@ export const aiRequestSchemas = {
           type: z.literal('edit'),
           inputId: z.uuid(),
           revision: z.int().nonnegative(),
-          text: z.string()
+          parts: z.array(z.custom<CherryMessagePart>())
         }),
         z.strictObject({ type: z.literal('reorder'), before: z.array(z.uuid()), after: z.array(z.uuid()) }),
         z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() }),

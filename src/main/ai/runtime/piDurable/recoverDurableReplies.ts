@@ -1,7 +1,7 @@
 import type { ConversationId, EntryId, Storage, SubmissionRecord } from '@earendil-works/pi-durable'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
-import type { FollowupProjection } from '@cherrystudio/agent-runtime-pi-durable'
+import type { DurableFollowupEdit, FollowupProjection } from '@cherrystudio/agent-runtime-pi-durable'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
@@ -19,8 +19,18 @@ import { readDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('recoverDurableReplies')
 
-export function projectFollowupEdit(context: AgentSessionContextRow, messageId: string, serialized: string): void {
-  const part = JSON.parse(serialized) as Extract<CherryMessagePart, { type: 'text' }>
+export function projectFollowupEdit(
+  context: AgentSessionContextRow,
+  messageId: string,
+  edit: DurableFollowupEdit
+): void {
+  if (edit.parts !== undefined) {
+    const parts: CherryMessagePart[] = JSON.parse(edit.parts)
+    messages.applyNativeFollowupEdit(context.sessionId, context.id, messageId, parts)
+    return
+  }
+  if (edit.textPart === undefined) return
+  const part = JSON.parse(edit.textPart) as Extract<CherryMessagePart, { type: 'text' }>
   if (part?.type !== 'text' || typeof part.text !== 'string') throw new Error('Invalid Durable follow-up text part')
   messages.applyNativeFollowupEdit(context.sessionId, context.id, messageId, part)
 }
@@ -77,8 +87,7 @@ export async function recoverDurableFollowups(
         const source = await storage.entry(thread, entry, BACKGROUND_CONTEXT)
         if (!isWritable(context.sessionId)) break
         if (!source?.entry) continue
-        const { textPart } = followupEdit(source.entry.data)
-        if (textPart !== undefined) projectFollowupEdit(context, item.inputId, textPart)
+        projectFollowupEdit(context, item.inputId, followupEdit(source.entry.data))
         const promotion = followupSteerPlacement(source.entry.data, record.runId)
         messages.saveInputTimelinePosition(context.sessionId, item.inputId, context.id, 0, { modelId, promotion })
         reply = messages.replyTo(context.sessionId, item.inputId)

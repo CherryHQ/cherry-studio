@@ -388,7 +388,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),
   'ai.agent.session.change_followups': async ({ topicId, change }, { senderId }) => {
     if (!senderWebContents(senderId)) return false
-    return application.get('AgentSessionRuntimeService').changeFollowups(topicId, change)
+    return exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').changeFollowups(topicId, change))
   },
   'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
     const wc = senderWebContents(senderId)

@@ -49,7 +49,7 @@ it('rejects a drop computed from a queue changed in another window, and allows a
   const queue = (ids: string[]): AgentSessionFollowup[] =>
     ids.map((id) => ({ id, revision: 0, parts: [{ type: 'text', text: id }] }))
   cacheService.setShared(key, queue(['A', 'B', 'C', 'D']))
-  render(<NativeQueuedFollowups topicId={topicId} />)
+  render(<NativeQueuedFollowups topicId={topicId} onEdit={vi.fn()} />)
   await user.click(screen.getByRole('button', { name: 'Queued (4)' }))
   await user.click(screen.getByRole('button', { name: 'Start drag' }))
   act(() => cacheService.setShared(key, queue(['A', 'C', 'D', 'B'])))

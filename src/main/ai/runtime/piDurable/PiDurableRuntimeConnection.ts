@@ -20,7 +20,9 @@ import type {
   PiDurableRuntime,
   PiDurableThreadHandle
 } from '@cherrystudio/agent-runtime-pi-durable'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
@@ -33,12 +35,15 @@ import {
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { t } from '@main/i18n'
-import { replaceFollowupText, type AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
+import type { AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
+import { validateEditedInput } from '../../agentSession/editInput'
 import { buildAgentUserContent } from '../agentUserContent'
 import { PiChildTasks } from '../pi/PiChildTasks'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
@@ -427,6 +432,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     })
   }
 
+  private readonly editingFollowups = new Set<string>()
+
   async changeFollowups(
     change: AgentSessionFollowupChange,
     activeRun?: { inputId: string; replyId: string }
@@ -447,19 +454,36 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       })
     }
 
-    const parts = message.data.parts ?? []
-    const index = parts.findIndex((part) => part.type === 'text')
-    const original = parts[index]
-    if (original?.type !== 'text') return false
-    const replacement = replaceFollowupText(original, change.text)
-    const edited = parts.map((part, partIndex) => (partIndex === index ? replacement : part))
-    return this.handle.durable.changeFollowups({
-      type: 'edit',
-      inputId: change.inputId,
-      revision: change.revision,
-      content: wrapSteerReminder(buildAgentUserContent({ ...message, data: { ...message.data, parts: edited } })),
-      textPart: JSON.stringify(replacement)
-    })
+    const { inputId, revision, parts } = change
+    if (this.editingFollowups.has(inputId)) return false
+    const boundKnowledgeBaseIds = agentService.getAgent(this.input.agentId)?.knowledgeBaseIds
+    const before = resolveKnowledgeBaseScope(
+      boundKnowledgeBaseIds,
+      getKnowledgeBaseIdsFromParts(message.data.parts ?? [])
+    )
+    const after = resolveKnowledgeBaseScope(boundKnowledgeBaseIds, getKnowledgeBaseIdsFromParts(parts))
+    if (before.length !== after.length || before.some((id, index) => after[index] !== id))
+      throw new AgentSessionEditError('input_unsupported')
+    const handle = this.handle
+    this.editingFollowups.add(inputId)
+    try {
+      await validateEditedInput(parts)
+      if (this.closing || !messages.protectNativeFollowupFiles(this.input.sessionId, context.id, inputId, parts)) {
+        return false
+      }
+      const edited = await handle.durable.changeFollowups({
+        type: 'edit',
+        inputId,
+        revision,
+        content: wrapSteerReminder(buildAgentUserContent({ ...message, data: { ...message.data, parts } })),
+        parts: JSON.stringify(parts)
+      })
+      if (edited) messages.applyNativeFollowupEdit(this.input.sessionId, context.id, inputId, parts)
+      else messages.releaseNativeFollowupFiles(this.input.sessionId, inputId)
+      return edited
+    } finally {
+      this.editingFollowups.delete(inputId)
+    }
   }
 
   private async submit(input: AgentRuntimeCommand, text: string) {

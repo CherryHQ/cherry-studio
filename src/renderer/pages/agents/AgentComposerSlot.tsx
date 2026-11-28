@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
@@ -8,7 +8,10 @@ import AgentComposer, {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { GetAgentResponse } from '@renderer/types/agent'
+import type { AgentSessionFollowup } from '@shared/ai/agentSessionFollowups'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -73,20 +76,53 @@ function AgentComposerSlot({
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const rightPaneActions = useOptionalAgentRightPaneActions()
   const { t } = useTranslation()
+  const [queuedEdit, setQueuedEdit] = useState<{ sessionId: string; topicId: string; item: AgentSessionFollowup }>()
+  const activeQueuedEdit = queuedEdit?.sessionId === sessionId ? queuedEdit : undefined
+  const startQueuedEdit = useCallback(
+    (topicId: string, item: AgentSessionFollowup) => setQueuedEdit({ sessionId, topicId, item }),
+    [sessionId]
+  )
+  const cancelQueuedEdit = useCallback(() => setQueuedEdit(undefined), [])
+  const saveQueuedEdit = useCallback<AgentChatRuntimeState['sendMessage']>(
+    async (_, options) => {
+      const parts = options?.body?.userMessageParts
+      if (!activeQueuedEdit || !parts) return false
+      const { topicId, item } = activeQueuedEdit
+      const saved = await ipcApi.request('ai.agent.session.change_followups', {
+        topicId,
+        change: { type: 'edit', inputId: item.id, revision: item.revision, parts }
+      })
+      if (saved) setQueuedEdit((current) => (current === activeQueuedEdit ? undefined : current))
+      else toast.warning(t('chat.input.followup_queue.stale'))
+      return saved
+    },
+    [activeQueuedEdit, t]
+  )
+  const editTarget = useMemo(
+    () =>
+      editing ??
+      (activeQueuedEdit && {
+        messageId: activeQueuedEdit.item.id,
+        parts: activeQueuedEdit.item.parts
+      }),
+    [activeQueuedEdit, editing]
+  )
+  const isQueuedEdit = !editing && !!activeQueuedEdit
+  const onCancelEdit = isQueuedEdit ? cancelQueuedEdit : cancelEditing
   const editLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(
     () =>
-      editing
+      editTarget
         ? {
             initialDraft: { text: '', tokens: [] },
-            initialParts: editing.parts,
+            initialParts: editTarget.parts,
             editing: {
-              messageId: editing.messageId,
-              onCancel: cancelEditing,
-              sendLabel: t('agent.edit_resend.save')
+              messageId: editTarget.messageId,
+              onCancel: onCancelEdit,
+              sendLabel: t(isQueuedEdit ? 'common.save' : 'agent.edit_resend.save')
             }
           }
         : undefined,
-    [cancelEditing, editing, t]
+    [editTarget, isQueuedEdit, onCancelEdit, t]
   )
   const renderComposer = (isEditing = false) =>
     agentId ? (
@@ -99,17 +135,18 @@ function AgentComposerSlot({
         resolvedWorkspaceWarning={workspaceWarning ?? null}
         externalContextControls
         canChangeModel={!isEditing}
-        sendMessage={isEditing ? resendEditedMessage : sendMessage}
+        sendMessage={isEditing ? (isQueuedEdit ? saveQueuedEdit : resendEditedMessage) : sendMessage}
         stop={stop}
         isStreaming={!isEditing && isStreaming}
         messages={isEditing ? undefined : messages}
-        sendDisabled={binary.blocked || sendDisabled || (isEditing && (isStreaming || editBusy))}
+        sendDisabled={binary.blocked || sendDisabled || (isEditing && !isQueuedEdit && (isStreaming || editBusy))}
         onCreateEmptySession={isEditing ? undefined : onCreateEmptySession}
         compactWhenSingleLine={compactWhenSingleLine}
         previewInputFile={
           rightPaneActions?.canPreviewInputFileInRightPane ? rightPaneActions.previewInputFileInRightPane : undefined
         }
         launchOptions={isEditing ? editLaunchOptions : composerLaunchOptions}
+        onEditQueuedFollowup={isEditing ? undefined : startQueuedEdit}
         steerWhileBusy={steerWhileBusy}
         providerQuotaExhausted={!isEditing && providerQuotaExhausted}
       />
@@ -120,8 +157,8 @@ function AgentComposerSlot({
     ...composerContext,
     overrides: [
       ...(composerContext.overrides ?? []),
-      ...(editing && agentId
-        ? [{ id: `edit:${editing.messageId}`, priority: 10, render: () => renderComposer(true) }]
+      ...(editTarget && agentId
+        ? [{ id: `edit:${editTarget.messageId}`, priority: 10, render: () => renderComposer(true) }]
         : [])
     ]
   }
