@@ -207,9 +207,13 @@ export class KnowledgeBaseAdminService {
           type: 'file',
           data: {
             source: item.data.source,
-            // A `preparing` file has not been copied into the source base yet, so copy its original.
+            // An `idle` (queued, awaiting copy) or `preparing` (copy running)
+            // file has not been copied into the source base yet, so copy its
+            // original. `idle` bypasses the old `preparing`-only rule — without
+            // this, restore would point at the empty `raw/` path and omit a
+            // file whose original is still readable.
             path:
-              item.status === 'preparing'
+              item.status === 'idle' || item.status === 'preparing'
                 ? item.data.source
                 : getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
             // Carry the processed artifact across so the new base indexes from it

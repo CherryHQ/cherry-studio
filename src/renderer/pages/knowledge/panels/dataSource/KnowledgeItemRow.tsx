@@ -16,7 +16,7 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
-import { canReindexKnowledgeItem, toKnowledgeItemRowViewModel } from './utils/selectors'
+import { canCancelKnowledgeItem, canReindexKnowledgeItem, toKnowledgeItemRowViewModel } from './utils/selectors'
 
 export interface KnowledgeItemRowProps {
   item: KnowledgeItem
@@ -132,6 +132,7 @@ const KnowledgeItemRow = ({
   const Icon = icon.icon
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = canReindexKnowledgeItem(item)
+  const canCancel = canCancelKnowledgeItem(item)
   const canViewChunks = item.status === 'completed'
   // Every row's primary click views its original content in-app: files/URLs delegate
   // preview/fallback/error handling to `previewSource`, directories drill into their children, and
@@ -190,8 +191,10 @@ const KnowledgeItemRow = ({
     items.push({ type: 'separator' })
     items.push({
       type: 'item',
+      // A delete issued while the item is still queued/running cancels its jobs;
+      // label it as Cancel so the per-file cancelled path is discoverable.
       id: 'delete',
-      label: t('knowledge.data_source.actions.delete'),
+      label: t(canCancel ? 'knowledge.data_source.actions.cancel' : 'knowledge.data_source.actions.delete'),
       icon: <Trash2 className="size-3.5" />,
       destructive: true,
       onSelect: () => {
@@ -202,7 +205,7 @@ const KnowledgeItemRow = ({
     })
 
     return items
-  }, [canReindex, canViewChunks, item.type, onDelete, onPreviewSource, onReindex, onViewChunks, t])
+  }, [canCancel, canReindex, canViewChunks, item.type, onDelete, onPreviewSource, onReindex, onViewChunks, t])
 
   // Keyboard equivalent for the row's primary click action. Only handle keys raised on the row
   // itself so Enter/Space on the checkbox (which bubble up) don't also open chunks.

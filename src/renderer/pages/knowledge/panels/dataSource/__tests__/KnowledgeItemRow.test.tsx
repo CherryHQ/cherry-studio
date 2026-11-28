@@ -186,6 +186,9 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.actions.view_chunks': '查看 Chunks',
         'knowledge.data_source.actions.reindex': '重新索引',
         'knowledge.data_source.actions.delete': '删除',
+        'knowledge.data_source.actions.cancel': '取消',
+        'knowledge.data_source.status.queued': '排队中',
+        'knowledge.data_source.status.cancelling': '取消中',
         'knowledge.data_source.delete_failed': '删除数据源失败',
         'knowledge.data_source.preview.failed': '预览原文失败',
         'knowledge.data_source.reindex_failed': '数据源重新索引失败',
@@ -729,7 +732,13 @@ describe('KnowledgeItemRow', () => {
       fireEvent.contextMenu(screen.getByRole('row'))
 
       expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+      // Non-terminal rows offer Cancel (deletion cancels the jobs); terminal or
+      // already-cancelling rows offer Delete.
+      if (status === 'idle' || status === 'processing' || status === 'reading' || status === 'embedding') {
+        expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
+      } else {
+        expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+      }
     }
   )
 
@@ -831,7 +840,11 @@ describe('KnowledgeItemRow', () => {
       fireEvent.contextMenu(screen.getByRole('row'))
 
       expect(screen.queryByRole('button', { name: '重新索引' })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+      if (status === 'deleting') {
+        expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+      } else {
+        expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
+      }
     }
   )
 })

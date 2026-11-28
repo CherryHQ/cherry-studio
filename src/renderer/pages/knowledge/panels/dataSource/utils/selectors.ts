@@ -11,6 +11,18 @@ import { dataSourceTypeDisplayConfig, type KnowledgeItemRowViewModel } from './m
 export const canReindexKnowledgeItem = (item: KnowledgeItem): boolean =>
   item.status === 'completed' || item.status === 'failed'
 
+/**
+ * Whether the item is still queued or running and can therefore be cancelled
+ * by deleting it. `deleting` itself is already cancelling, so it is excluded —
+ * the row shows the cancelling state instead of offering cancel again.
+ */
+export const canCancelKnowledgeItem = (item: KnowledgeItem): boolean =>
+  item.status === 'idle' ||
+  item.status === 'preparing' ||
+  item.status === 'processing' ||
+  item.status === 'reading' ||
+  item.status === 'embedding'
+
 export const getItemStatus = (item: KnowledgeItem) => {
   switch (item.type) {
     case 'file':

@@ -10,7 +10,7 @@ const mockUseInfiniteQuery = vi.fn()
 const expectKnowledgeItemsQuery = (baseId: string, enabled: boolean) => {
   expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/knowledge-bases/:id/items', {
     params: { id: baseId },
-    query: { groupId: null },
+    query: { groupId: null, includeDeleting: true },
     limit: 50,
     enabled,
     swrOptions: {
@@ -101,7 +101,7 @@ describe('useKnowledgeItems', () => {
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/knowledge-bases/:id/items',
-      expect.objectContaining({ query: { groupId: 'directory-1' } })
+      expect.objectContaining({ query: { groupId: 'directory-1', includeDeleting: true } })
     )
   })
 

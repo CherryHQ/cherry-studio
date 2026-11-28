@@ -117,7 +117,13 @@ export const ListKnowledgeItemsQuerySchema = z.strictObject({
   type: KnowledgeItemTypeSchema.optional(),
   sortBy: KnowledgeItemSortBySchema.optional(),
   sortOrder: z.enum(['asc', 'desc']).optional(),
-  groupId: z.string().nullable().optional()
+  groupId: z.string().nullable().optional(),
+  /**
+   * Include `deleting` rows so the UI can render them as Cancelling while
+   * cleanup is pending. Defaults to false to preserve the long-standing
+   * contract that default list/search/RAG reads hide deletes.
+   */
+  includeDeleting: z.boolean().optional()
 })
 
 export type KnowledgeItemSortBy = z.infer<typeof KnowledgeItemSortBySchema>

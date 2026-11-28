@@ -108,4 +108,28 @@ describe('knowledgeHandlers', () => {
 
     expect(error).toBe(databaseError)
   })
+
+  it('add_items maps capacity validation to a domain error with structured counts', async () => {
+    const { DataApiError, ErrorCode: ErrorCode2 } = await import('@shared/data/api/errors')
+    const capacity = { requested: 5, active: 4998, remaining: 2, limit: 5000, kind: 'no_slots' as const }
+    knowledgeService.addItems.mockRejectedValueOnce(
+      new DataApiError(
+        ErrorCode2.VALIDATION_ERROR,
+        'This base has 4998 jobs still processing; 2 slots remain for 5 new items.',
+        422,
+        { fieldErrors: { base: ['x'] }, capacity } as never
+      )
+    )
+
+    const error = await knowledgeHandlers['knowledge.add_items'](
+      { baseId: 'base-1', items: [{ type: 'note', data: { source: 'n', content: 'c' } }] },
+      ctx
+    ).catch((cause) => cause)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: knowledgeErrorCodes.CAPACITY_EXCEEDED,
+      data: { details: { capacity } }
+    })
+  })
 })

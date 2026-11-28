@@ -142,8 +142,11 @@ export class KnowledgeQueryService {
     const item = knowledgeItemService.getById(itemId)
 
     if (item.type === 'file') {
-      // A `preparing` file has not been copied into raw/ yet; its original is the only copy.
-      if (item.status === 'preparing') {
+      // An `idle` (queued) or `preparing` (copy running) file has not been
+      // copied into raw/ yet; its original is the only copy. `idle` bypasses
+      // the old `preparing`-only rule — without this, preview resolves the
+      // empty `raw/` path for a file whose original is still readable.
+      if (item.status === 'idle' || item.status === 'preparing') {
         return AbsoluteFilePathSchema.parse(item.data.source)
       }
       return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)

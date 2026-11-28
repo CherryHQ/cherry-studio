@@ -73,10 +73,12 @@ export const useKnowledgeItems = (
 
   // `null` lists the base's top-level items; a directory item's id lists that directory's
   // direct children (drill-down). Memoized so a stable object re-keys the query only on change.
+  // `includeDeleting` keeps cancelling rows visible: without it the list hides
+  // `deleting` on refresh and the Cancelling label could never render on real rows.
   const sortBy = sort?.sortBy
   const sortOrder = sort?.sortOrder
   const query = useMemo(
-    () => ({ groupId, ...(sortBy && sortOrder ? { sortBy, sortOrder } : {}) }),
+    () => ({ groupId, includeDeleting: true, ...(sortBy && sortOrder ? { sortBy, sortOrder } : {}) }),
     [groupId, sortBy, sortOrder]
   )
 
@@ -174,6 +176,21 @@ export const useAddKnowledgeItems = (baseId: string) => {
       let submitError: Error | undefined
       let result: KnowledgeAddItemsResult | undefined
       try {
+        // One logical import operation in one atomic call for every strategy:
+        // `detect` needs the whole batch so same-name conflicts are detected
+        // across all of it before anything is written (atomic check-and-add);
+        // `replace` needs the whole batch so the purge-then-add stays atomic
+        // (chunking it would let an early chunk commit an auto-renamed copy
+        // that a later chunk then purges, silently dropping a selected file);
+        // `rename` (the default, and every internal caller) also needs the
+        // whole batch so the capacity guard reserves for the full selection
+        // before committing anything — chunking it would let the first 100
+        // commit and the last 50 reject when background work leaves only 125
+        // slots, leaving a partial success the user must untangle. The backend
+        // `KNOWLEDGE_ACTIVE_JOB_LIMIT` guard rejects over-capacity batches
+        // upfront with zero admissions, and processing concurrency stays bounded
+        // downstream via the per-base JobManager queue (5 slots) without
+        // dropping accepted files.
         result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
       } catch (error) {
         submitError = normalizeKnowledgeError(error)

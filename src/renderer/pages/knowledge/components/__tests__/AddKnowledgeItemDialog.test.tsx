@@ -411,7 +411,10 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
-      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+      expect(toast.warning).toHaveBeenCalledWith({
+        title: '已跳过 1 个不支持的文件',
+        description: 'photo.png'
+      })
     })
 
     it('submits remaining files when one picked file is missing', async () => {
@@ -428,7 +431,10 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
-      expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
+      expect(toast.warning).toHaveBeenCalledWith({
+        title: '1 file(s) could not be saved',
+        description: 'gone.pdf'
+      })
       expect(toast.error).not.toHaveBeenCalled()
       await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
@@ -441,7 +447,10 @@ describe('AddKnowledgeItemDialog', () => {
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
 
       await waitFor(() => {
-        expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
+        expect(toast.warning).toHaveBeenCalledWith({
+          title: '1 file(s) could not be saved',
+          description: 'gone.pdf'
+        })
       })
       await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
@@ -461,7 +470,10 @@ describe('AddKnowledgeItemDialog', () => {
         )
       })
       expect(mockFileSelect).not.toHaveBeenCalled()
-      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+      expect(toast.warning).toHaveBeenCalledWith({
+        title: '已跳过 1 个不支持的文件',
+        description: 'external.exe'
+      })
     })
 
     it('submits remaining pending files when one local file is missing', async () => {
@@ -475,7 +487,10 @@ describe('AddKnowledgeItemDialog', () => {
         )
       })
       expect(mockFileSelect).not.toHaveBeenCalled()
-      expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
+      expect(toast.warning).toHaveBeenCalledWith({
+        title: '1 file(s) could not be saved',
+        description: 'missing.pdf'
+      })
     })
 
     it('submits a large pick as one detect call so conflicts cover the whole selection', async () => {
@@ -493,6 +508,37 @@ describe('AddKnowledgeItemDialog', () => {
       expect(items).toHaveLength(150)
       expect(items[149]).toEqual({ type: 'file', data: { source: '/picked/doc-149.pdf', path: '/picked/doc-149.pdf' } })
       expect(toast.warning).not.toHaveBeenCalled()
+    })
+
+    it('submits a batch larger than 20 with partial failures still queued', async () => {
+      const picked = [
+        ...Array.from({ length: 22 }, (_, index) => createSelectedFile(`doc-${index}.pdf`, `/docs/doc-${index}.pdf`)),
+        createSelectedFile('photo.png', '/docs/photo.png'),
+        createSelectedFile('gone.pdf', '/docs/missing.pdf')
+      ]
+      mockFileSelect.mockResolvedValueOnce(picked)
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
+      })
+      const [items, strategy] = mockSubmitKnowledgeItems.mock.calls[0]
+      expect(strategy).toBe('detect')
+      // 22 supported and resolvable files are queued; the unsupported pick is
+      // filtered before admission and the missing file is skipped with a warning.
+      expect(items).toHaveLength(22)
+      expect(toast.warning).toHaveBeenCalledWith({
+        title: '已跳过 1 个不支持的文件',
+        description: 'photo.png'
+      })
+      expect(toast.warning).toHaveBeenCalledWith({
+        title: '1 file(s) could not be saved',
+        description: 'gone.pdf'
+      })
+      await waitFor(() => {
+        expect(onOpenChange).toHaveBeenCalledWith(false)
+      })
     })
 
     it('toasts and closes when the submit rejects (no panel to fall back to)', async () => {
@@ -609,7 +655,9 @@ describe('AddKnowledgeItemDialog', () => {
         expect(vi.mocked(ipcApi.request).mock.calls).toEqual([
           ['file.get_metadata', { kind: 'path', path: '/external/plain.md' }]
         ])
-        expect(vi.mocked(toast.warning).mock.calls).toEqual([['已跳过 1 个不支持的文件']])
+        expect(vi.mocked(toast.warning).mock.calls).toEqual([
+          [{ title: '已跳过 1 个不支持的文件', description: 'bad.exe' }]
+        ])
         expect(toast.error).not.toHaveBeenCalled()
         expect(toast.success).not.toHaveBeenCalled()
       }

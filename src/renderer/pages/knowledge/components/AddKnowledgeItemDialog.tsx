@@ -7,6 +7,7 @@ import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
+import { formatKnowledgeCapacityError } from '@renderer/utils/knowledgeCapacityError'
 import {
   type KnowledgeFileItemData,
   resolveFileEntryDataFromFile,
@@ -51,6 +52,42 @@ const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ex
 const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
 
 const describeFileMetadata = (file: { origin_name?: string; name?: string }) => file.origin_name || file.name
+
+const MAX_NAMED_SKIPPED_FILES = 3
+
+/**
+ * Actionable skipped-file description: first few filenames plus the remainder
+ * count, so a large batch import tells the user *which* files need attention
+ * instead of only how many were skipped. The remainder uses the already
+ * translated `url.more_entries` (`+{{count}} more`) so non-English toasts stay
+ * localized instead of falling back to a literal English `more`.
+ */
+const describeSkippedFileNames = (
+  t: (key: string, options?: Record<string, unknown>) => string,
+  names: Array<string | undefined>
+): string => {
+  const cleaned = names.filter((name): name is string => Boolean(name?.trim()))
+  if (cleaned.length === 0) {
+    return ''
+  }
+  const shown = cleaned.slice(0, MAX_NAMED_SKIPPED_FILES)
+  const remainder = cleaned.length - shown.length
+  if (remainder <= 0) {
+    return shown.join(', ')
+  }
+  const more = t('knowledge.data_source.add_dialog.url.more_entries', { count: remainder })
+  return `${shown.join(', ')} (${more})`
+}
+
+const notifySkippedFiles = (
+  t: (key: string, options?: Record<string, unknown>) => string,
+  title: string,
+  names: Array<string | undefined>,
+  warning: (message: { title: string; description?: string }) => void
+) => {
+  const description = describeSkippedFileNames(t, names)
+  warning(description ? { title, description } : { title })
+}
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
@@ -216,7 +253,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         if (session !== undefined && session !== sessionRef.current) {
           return
         }
-        setSubmitErrorMessage(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
+        const prefix = t('knowledge.data_source.add_dialog.submit.error')
+        setSubmitErrorMessage(
+          formatKnowledgeCapacityError(error, t, prefix) ?? formatErrorMessageWithPrefix(error, prefix)
+        )
       })
       .finally(() => {
         if (session === undefined || session === sessionRef.current) {
@@ -246,7 +286,14 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         throw fileOutcome.fatal
       }
       if (fileOutcome.skipped.length > 0) {
-        toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
+        // Partial failure: keep the resolvable files queued, report exactly which
+        // local paths failed so the user can fix permissions/moves and retry them.
+        notifySkippedFiles(
+          t,
+          t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }),
+          fileOutcome.skipped.map((failure) => failure.source),
+          toast.warning
+        )
       }
       return fileOutcome.resolved.map((data) => ({ type: 'file' as const, data }))
     },
@@ -258,9 +305,16 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const collectFileInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {
     if (pendingAddFiles?.length) {
       const supportedFiles = pendingAddFiles.filter((file) => isSupportedKnowledgeFile(file.name))
-      const skippedCount = pendingAddFiles.length - supportedFiles.length
-      if (skippedCount > 0) {
-        toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+      const skippedFiles = pendingAddFiles.filter((file) => !isSupportedKnowledgeFile(file.name))
+      if (skippedFiles.length > 0) {
+        // Unsupported types are filtered before admission: name them so the user
+        // knows to convert or drop them rather than retrying the same batch.
+        notifySkippedFiles(
+          t,
+          t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedFiles.length }),
+          skippedFiles.map((file) => file.name),
+          toast.warning
+        )
       }
       return collectResolvedFileInputs(supportedFiles, resolveFileEntryDataFromFile, (file) => file.name)
     }
@@ -275,9 +329,14 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     }
 
     const supportedFiles = selected.filter((file) => isSupportedKnowledgeFile(file.origin_name || file.name))
-    const skippedCount = selected.length - supportedFiles.length
-    if (skippedCount > 0) {
-      toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+    const skippedFiles = selected.filter((file) => !isSupportedKnowledgeFile(file.origin_name || file.name))
+    if (skippedFiles.length > 0) {
+      notifySkippedFiles(
+        t,
+        t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedFiles.length }),
+        skippedFiles.map((file) => file.origin_name || file.name),
+        toast.warning
+      )
     }
     return collectResolvedFileInputs(supportedFiles, resolveKnowledgeFileMetadataEntryData, describeFileMetadata)
   }, [collectResolvedFileInputs, pendingAddFiles, t])
@@ -337,7 +396,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         }
         await submitWithStrategy(items, 'detect')
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
+        const prefix = t('knowledge.data_source.add_dialog.submit.error')
+        toast.error(formatKnowledgeCapacityError(error, t, prefix) ?? formatErrorMessageWithPrefix(error, prefix))
         handleOpenChange(false)
       } finally {
         setIsResolvingSubmit(false)
@@ -372,7 +432,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
             return
           }
           setPendingConflict(null)
-          const message = formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error'))
+          const prefix = t('knowledge.data_source.add_dialog.submit.error')
+          const message = formatKnowledgeCapacityError(error, t, prefix) ?? formatErrorMessageWithPrefix(error, prefix)
           // Direct-pick sources have no panel to fall back to, so report inline (toast) and close.
           if (directPick) {
             toast.error(message)

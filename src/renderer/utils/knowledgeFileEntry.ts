@@ -84,6 +84,12 @@ export const resolveKnowledgeFileData = async (
   if (metadata.kind !== 'file') {
     throw new KnowledgeFileNotAFileError(result.data, displayName)
   }
+  // Per-file size admission: empty files index to zero chunks and would only
+  // fail later as `empty_indexable_text`. Skip them upfront with an actionable
+  // name so a large batch keeps its resolvable files queued.
+  if (typeof metadata.size === 'number' && metadata.size === 0) {
+    throw new KnowledgeFileResolveError(`File is empty, nothing to index for "${displayName}"`)
+  }
 
   return {
     source,

@@ -3,6 +3,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 import type { PreparedAtomicWrite } from '@main/utils/file'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
@@ -36,13 +37,37 @@ export function createCopySourcesJobHandler(
     async execute(ctx) {
       const { baseId, itemId, copies } = ctx.input
       ctx.signal.throwIfAborted()
-      if ('skip' in resolveLiveKnowledgeItem(itemId)) {
+      const liveAtStart = resolveLiveKnowledgeItem(itemId)
+      if ('skip' in liveAtStart) {
         logger.info('Skipping source copy for a missing or deleting item', { baseId, itemId, jobId: ctx.jobId })
         reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
         return
       }
 
       reportKnowledgeProgress(ctx, 0, { stage: 'copying' })
+      // A slow copy reports `copying` while streaming, but the row stays
+      // `idle` (Queued) until commit — indistinguishable from work waiting for
+      // a slot. Flip `idle` to `preparing` (Waiting) when the worker starts,
+      // so the panel shows Queued vs Waiting distinctly. Deleting/missing
+      // already returned above; `updateStatus` is a no-op for a row that
+      // turned `deleting` in the gap, and preview treats both states as
+      // "original is the only copy", so cancellation and preview are preserved.
+      if (liveAtStart.item.status === 'idle') {
+        try {
+          knowledgeItemService.updateStatus(itemId, 'preparing')
+        } catch (error) {
+          if (!isDataApiNotFoundError(error)) {
+            throw error
+          }
+          logger.info('Skipping source copy for an item deleted before its copy started', {
+            baseId,
+            itemId,
+            jobId: ctx.jobId
+          })
+          reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
+          return
+        }
+      }
       const prepared: PreparedAtomicWrite[] = []
       try {
         for (const copy of copies) {
@@ -59,8 +84,10 @@ export function createCopySourcesJobHandler(
           for (const write of prepared) {
             await write.commit()
           }
-          // The bytes are in raw/ now, so the item leaves `preparing` in the same section.
-          if (live.item.status === 'preparing') {
+          // The bytes are in raw/ now, so the item leaves its queued state in the same section.
+          // Awaiting-copy files start as `idle` (Queued); directories and retried copies may
+          // already be `preparing`.
+          if (live.item.status === 'preparing' || live.item.status === 'idle') {
             knowledgeItemService.updateStatus(itemId, 'processing')
           }
           return true

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
-import { getItemStatus, getItemTitle } from '../utils/selectors'
+import { canCancelKnowledgeItem, canReindexKnowledgeItem, getItemStatus, getItemTitle } from '../utils/selectors'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 describe('dataSourcePanel.selectors', () => {
@@ -50,5 +50,28 @@ describe('dataSourcePanel.selectors', () => {
     expect(getItemStatus(createDirectoryItem({ id: 'directory-2', status: 'preparing' }))).toMatchObject({
       kind: 'processing'
     })
+  })
+
+  it('reports queued, cancelling, and retry states per file for large batch imports', () => {
+    // Queued (admitted but not yet picked up) is distinct from waiting/processing.
+    expect(getItemStatus(createFileItem({ id: 'file-q', status: 'idle' }))).toMatchObject({
+      kind: 'processing',
+      labelKey: 'knowledge.data_source.status.queued'
+    })
+    expect(getItemStatus(createFileItem({ id: 'file-w', status: 'preparing' }))).toMatchObject({
+      kind: 'processing',
+      labelKey: 'knowledge.data_source.status.pending'
+    })
+    // Deleting is the cancellation path — never fall through to chunking.
+    expect(getItemStatus(createFileItem({ id: 'file-c', status: 'deleting' }))).toMatchObject({
+      kind: 'processing',
+      labelKey: 'knowledge.data_source.status.cancelling'
+    })
+    // Retry is admitted for completed/failed; cancel for any non-terminal state.
+    expect(canReindexKnowledgeItem(createFileItem({ id: 'file-r', status: 'failed' }))).toBe(true)
+    expect(canReindexKnowledgeItem(createFileItem({ id: 'file-p', status: 'processing' }))).toBe(false)
+    expect(canCancelKnowledgeItem(createFileItem({ id: 'file-p2', status: 'processing' }))).toBe(true)
+    expect(canCancelKnowledgeItem(createFileItem({ id: 'file-d', status: 'completed' }))).toBe(false)
+    expect(canCancelKnowledgeItem(createFileItem({ id: 'file-f', status: 'failed' }))).toBe(false)
   })
 })

@@ -100,14 +100,24 @@ The conflict strategy is part of admission:
 addItems(baseId, inputs)
   -> reject failed base
   -> no-op on empty inputs
+  -> capacity guard (skipped for restore copyInline, which stays all-or-nothing):
+       reject when the batch alone exceeds KNOWLEDGE_ACTIVE_JOB_LIMIT
+       reject when the batch does not fit the remaining slots
+       (fast-path JobManager list plus unqueued reservations, then authoritative
+       locked check against max(dbActive, queueActive + unqueued); unqueued
+       excludes reservations already visible as queued jobs by item identity)
+       rejections carry { requested, active, remaining, limit, kind } for i18n
   -> resolve detect / replace conflicts when requested
   -> under same-base mutation lock:
+       re-resolve replace conflicts (cancel->lock gap) for capacity projection + purge
+       capacity check against projected post-replacement state before purging
        reserve raw/ names, counting rows still being deleted (no bytes are copied here)
        create each item
        set root status to preparing for containers and for files that still owe their copy
        set root status to processing for other leaves
+       track pending unqueued reservations for competing admissions
        rollback created rows if create/status update fails
-  -> schedule each accepted item
+  -> schedule each accepted item (clearing its pending reservation as its job enqueues)
        owes bytes (file, url restored with a snapshot)
                  -> knowledge.copy-sources, which schedules the item once its bytes are committed
        container -> knowledge.prepare-root
@@ -116,8 +126,15 @@ addItems(baseId, inputs)
        deleting  -> skip
   -> if enqueue throws:
        mark accepted items that did not finish scheduling as failed
+       clear their pending reservations
        rethrow
 ```
+
+All conflict strategies submit the whole selection in one `add_items` call so
+capacity reserves for the full batch (zero admissions on rejection) and
+conflict resolution stays atomic. The renderer does not chunk `rename` transport:
+chunking would let the first 100 commit and the last 50 reject when background
+work leaves only 125 slots.
 
 ### Why Enqueue Failure Marks Items Failed
 
@@ -146,6 +163,11 @@ deleteItems(baseId, itemIds)
   -> reject items outside baseId
   -> collapse nested selections to top-level roots
   -> no-op if no roots remain
+  -> list live knowledge.delete-subtree jobs and exclude only roots already covered
+     by live cleanup (a requested root equal to or inside a live subtree);
+     a requested ancestor of a live child still enqueues, and orphaned
+     deleting roots with no live job are kept so bulk retry can rescue them
+  -> no-op if no roots remain after dedup
   -> under same-base mutation lock and one DB transaction:
        mark selected root subtrees deleting
        enqueue knowledge.delete-subtree

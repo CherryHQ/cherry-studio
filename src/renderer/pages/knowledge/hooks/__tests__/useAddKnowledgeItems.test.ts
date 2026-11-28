@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mockUseInvalidateCache = vi.fn()
 const mockInvalidateCache = vi.fn()
@@ -139,5 +140,82 @@ describe('useAddKnowledgeItems', () => {
         baseId: 'base-1'
       }
     )
+  })
+
+  it('submits a detect batch larger than 20 files in one atomic call', async () => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      type: 'file' as const,
+      data: {
+        source: `/docs/doc-${index}.pdf`,
+        path: `/docs/doc-${index}.pdf` as AbsoluteFilePath
+      }
+    }))
+
+    const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
+
+    await act(async () => {
+      await expect(result.current.submit(items, 'detect')).resolves.toEqual({ status: 'added' })
+    })
+
+    // Atomic conflict detection spans the whole batch: one call, no silent cap.
+    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.add_items', {
+      baseId: 'base-1',
+      items,
+      conflictStrategy: 'detect'
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
+  })
+
+  it('submits a rename resolution larger than 20 files in one atomic call without partial success', async () => {
+    const items = Array.from({ length: 150 }, (_, index) => ({
+      type: 'file' as const,
+      data: {
+        source: `/docs/doc-${index}.pdf`,
+        path: `/docs/doc-${index}.pdf` as AbsoluteFilePath
+      }
+    }))
+
+    const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
+
+    await act(async () => {
+      await expect(result.current.submit(items, 'rename')).resolves.toEqual({ status: 'added' })
+    })
+
+    // Atomic whole-selection admission: chunking rename would let the first 100
+    // commit and the last 50 reject when background work leaves only 125 slots,
+    // leaving a partial success. The backend capacity guard reserves for the
+    // full batch with zero admissions on rejection.
+    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.add_items', {
+      baseId: 'base-1',
+      items,
+      conflictStrategy: 'rename'
+    })
+  })
+
+  it('submits a replace resolution larger than the transport limit in one atomic call', async () => {
+    const items = Array.from({ length: 150 }, (_, index) => ({
+      type: 'file' as const,
+      data: {
+        source: `/docs/doc-${index}.pdf`,
+        path: `/docs/doc-${index}.pdf` as AbsoluteFilePath
+      }
+    }))
+
+    const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
+
+    await act(async () => {
+      await expect(result.current.submit(items, 'replace')).resolves.toEqual({ status: 'added' })
+    })
+
+    // Replace purges existing conflicts before reserving names: chunking it
+    // would let a later chunk purge an earlier chunk's auto-renamed admission.
+    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.add_items', {
+      baseId: 'base-1',
+      items,
+      conflictStrategy: 'replace'
+    })
   })
 })

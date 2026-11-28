@@ -272,7 +272,18 @@ const DataSourcePanelContent = ({
   }, [items, onReindexItems, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
+    // Submit every selected id, including rows already `deleting` (Cancelling):
+    // the service deduplicates against live `knowledge.delete-subtree` jobs, so
+    // roots already under live cleanup are left to their existing job (re-asking
+    // for them together with an unrelated row would otherwise cancel the
+    // combined job and strand the unrelated row), while orphaned `deleting`
+    // rows whose cleanup job is gone (retries exhausted) are retried.
     const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
+    if (itemIds.length === 0) {
+      setSelectedIds(new Set())
+      setIsBulkDeleteOpen(false)
+      return
+    }
     try {
       await onDeleteItems(itemIds)
     } catch (error) {

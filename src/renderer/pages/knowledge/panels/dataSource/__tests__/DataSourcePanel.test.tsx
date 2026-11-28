@@ -1392,6 +1392,40 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('submits already-deleting rows for bulk delete so the service can retry orphans', async () => {
+    const onDeleteItems = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '取消中.pdf', status: 'deleting' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const rowCheckboxes = screen.getAllByRole('checkbox', { name: '选择行' })
+    fireEvent.click(rowCheckboxes[0])
+    fireEvent.click(rowCheckboxes[1])
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(onDeleteItems).toHaveBeenCalledOnce()
+    })
+    // The service deduplicates against live `knowledge.delete-subtree` jobs:
+    // roots already under live cleanup are left to their existing job, while
+    // orphaned `deleting` rows with no live job are retried. The renderer
+    // submits every selected id so orphans can be rescued.
+    expect(onDeleteItems).toHaveBeenCalledWith(['file-1', 'file-2'])
+  })
+
   it('selects all rows from the header checkbox and clears selection when toggled again from all selected', async () => {
     render(
       <DataSourcePanel
