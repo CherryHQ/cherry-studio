@@ -1,4 +1,4 @@
-import type { KnowledgeItemType, KnowledgeSearchScoreKind } from '@shared/data/types/knowledge'
+import type { KnowledgeItemType, KnowledgeSearchScoreKind, KnowledgeSearchWarning } from '@shared/data/types/knowledge'
 
 export interface RecallHistoryItem {
   id: string
@@ -31,6 +31,7 @@ export interface RecallResultState {
   duration: number
   topScore: number
   scoreKind: KnowledgeSearchScoreKind | null
+  warning: KnowledgeSearchWarning | null
 }
 
 export interface RecallQueryActions {
