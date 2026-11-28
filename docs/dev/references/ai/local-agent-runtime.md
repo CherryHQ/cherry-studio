@@ -182,6 +182,11 @@ runtime turn and omits the original command from conversation messages and input
 When available, `/compact` uses standalone native compaction and refreshes context
 usage after the matching receipt. Claude, built-in Pi and Pi Durable accept compaction instructions.
 
+For Cursor, Cherry completes `/skill:<name>` from `.cursor/skills` and
+`.agents/skills` in the workspace and user home. On send, Cherry resolves the
+current descriptor and asks the Cursor SDK agent to read it using its existing
+tool permissions. ACP sessions get Skill commands from the harness catalog.
+
 ### Models and configuration
 
 Agent Services offers native models and Cherry models through the unified gateway.

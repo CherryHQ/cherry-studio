@@ -721,9 +721,10 @@ const AgentChatSessionCenter = ({
   const sessionId = session.id
   const workspacePath = session.workspace?.path
   const interactiveRuntime =
-    activeAgent?.type === 'claude-code'
-      ? 'claude-code'
-      : localRuntime?.enabled === true && (protocol === 'acp' || protocol === 'claude' || protocol === 'codex')
+    activeAgent?.type === 'claude-code' || activeAgent?.type === 'pi' || activeAgent?.type === 'pi-durable'
+      ? activeAgent.type
+      : localRuntime?.enabled === true &&
+          (protocol === 'acp' || protocol === 'claude' || protocol === 'codex' || protocol === 'cursor')
         ? protocol
         : undefined
   const canActivateRuntime =

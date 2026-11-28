@@ -121,14 +121,34 @@ export class CursorConnection extends LocalConnection {
   }
 
   async send(input: AgentRuntimeUserInput) {
+    const parts = await localContent(input, true)
+    await this.sendPrompt(
+      {
+        text: parts.flatMap((p) => (p.type === 'text' ? [p.text] : [])).join('\n'),
+        images: parts.flatMap((p) => (p.type === 'image' ? [{ data: p.data, mimeType: p.mimeType }] : []))
+      },
+      input
+    )
+  }
+
+  async runSkillCommand(prompt: string, _requestId: string, branchHead: string) {
+    await this.sendPrompt({ text: prompt, images: [] }, branchHead)
+  }
+
+  private async sendPrompt(prompt: Parameters<typeof sendCursorTurn>[1], input: AgentRuntimeUserInput | string) {
     const agent = this.agent
     if (!agent) throw new Error('Cursor SDK session is unavailable')
-    const parts = await localContent(input, true)
-    const prompt = {
-      text: parts.flatMap((p) => (p.type === 'text' ? [p.text] : [])).join('\n'),
-      images: parts.flatMap((p) => (p.type === 'image' ? [{ data: p.data, mimeType: p.mimeType }] : []))
-    }
+    const command = typeof input === 'string'
     this.begin(input)
+    if (command) {
+      this.events.push({
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'native-turn' },
+        interactive: true
+      })
+      this.continueSource()
+    }
     const signal = AbortSignal.any([this.abort.signal, this.turnAbort.signal])
     let lastModelCall: { id: string; inputTokens: number } | undefined
     try {
@@ -231,10 +251,14 @@ export class CursorConnection extends LocalConnection {
       this.finish(undefined, completed.status === 'cancelled' || signal.aborted ? 'cancelled' : 'stop')
     } catch (error) {
       if (signal.aborted) this.finish(undefined, 'cancelled')
-      else this.finish(error)
+      else {
+        this.finish(error)
+        if (command) throw error
+      }
     } finally {
       this.steerInput = undefined
       this.pendingRun = undefined
+      if (command) this.events.push({ type: 'autonomous-turn-state', state: 'finished' })
     }
   }
 

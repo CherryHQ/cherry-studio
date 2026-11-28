@@ -97,6 +97,7 @@ import {
   type LocalAgentSessionView
 } from '@shared/ai/localAgent'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
@@ -120,6 +121,7 @@ import { recoverDurableReplies } from '../runtime/piDurable/recoverDurableReplie
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
+import { buildSkillCommandPrompt, listSkillCommands, SKILL_COMMAND_PREFIX } from '../runtime/skillCommands'
 import type {
   AgentRuntimeConnectInput,
   AgentControlChunk,
@@ -1257,18 +1259,40 @@ export class AgentSessionRuntimeService extends BaseService {
     return (await this.currentConnection(entry)?.changeFollowups?.(change)) ?? false
   }
 
-  async listSessionCommands(sessionId: string, refresh = false): Promise<AgentSessionSlashCommand[]> {
+  async listSessionCommands(
+    sessionId: string,
+    refresh = false,
+    { forComposer = false } = {}
+  ): Promise<AgentSessionSlashCommand[]> {
     const session = agentSessionService.getById(sessionId)
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
     if (!agent) return []
-    if (agent.type !== 'claude-code' && agent.type !== 'local')
-      return AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands.map(({ command, description, subcommands }) => ({
+    const cache = application.get('CacheService')
+    const config = forComposer && agent.type === 'local' ? this.localConfigForSession(sessionId, agent.id) : undefined
+    const cursor = !!config?.enabled && getLocalAgentProtocol(config.presetId) === 'cursor'
+    if (cursor || (agent.type !== 'claude-code' && agent.type !== 'local')) {
+      const builtins: readonly SlashCommand[] = AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands
+      const commands: AgentSessionSlashCommand[] = builtins.map(({ command, description, subcommands }) => ({
         name: command.replace(/^\//, ''),
         description: description ?? '',
+        builtin: true,
         argumentHint: '',
         ...(subcommands && { subcommands })
       }))
-    const cache = application.get('CacheService')
+      if (
+        forComposer &&
+        !session.deletedAt &&
+        session.workspace?.path &&
+        (cursor || agent.type === 'pi' || agent.type === 'pi-durable')
+      ) {
+        const skills = await listSkillCommands(agent, session, cursor)
+        commands.push(
+          ...skills.map(({ name, description, argumentHint }) => ({ name, description, argumentHint, builtin: false }))
+        )
+        cache.setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId), commands)
+      }
+      return commands
+    }
     const cached = cache.getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId))
     if (cached && agent.type !== 'local' && !refresh) return cached
     if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
@@ -3343,7 +3367,15 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry || !connection || !generation || (expectedConnection && generation !== expectedConnection))
       return { completed: false }
 
-    const agentType = agentService.getAgent(entry.agentId)?.type
+    const agent = agentService.getAgent(entry.agentId)
+    const agentType = agent?.type
+    const isSkillCommand = invocation.name.startsWith(SKILL_COMMAND_PREFIX) && !!connection.runSkillCommand
+    const skill =
+      isSkillCommand && agent
+        ? (await listSkillCommands(agent, agentSessionService.getById(sessionId), agentType === 'local')).find(
+            ({ name }) => name === invocation.name
+          )
+        : undefined
     const catalog =
       (await connection.getSupportedCommands?.()) ??
       (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].slashCommands : [])
@@ -3369,13 +3401,22 @@ export class AgentSessionRuntimeService extends BaseService {
       !(command && 'builtin' in command && command.builtin === false)
     )
       return { completed: await this.compactSession(sessionId, generation, invocation.args || undefined) }
-    if (!command || !connection.runSlashCommand) return { completed: false }
+    if (isSkillCommand ? !skill || this.isSessionBusy(sessionId) : !command || !connection.runSlashCommand)
+      return { completed: false }
     if (senderId) entry.interactionWindowId = senderId
     const requestId = uuidv7()
     entry.slashCommandRequestId = requestId
     this.clearIdleTimer(entry)
     try {
-      const notice = await connection.runSlashCommand(invocation.name, invocation.args, requestId, branchHead)
+      if (skill && connection.runSkillCommand) {
+        await connection.runSkillCommand(
+          buildSkillCommandPrompt(skill.descriptorPath, invocation.args),
+          requestId,
+          branchHead
+        )
+        return { completed: true }
+      }
+      const notice = await connection.runSlashCommand?.(invocation.name, invocation.args, requestId, branchHead)
       return { completed: notice?.severity !== 'error', ...(notice && { notice }) }
     } finally {
       if (entry.slashCommandRequestId === requestId) delete entry.slashCommandRequestId

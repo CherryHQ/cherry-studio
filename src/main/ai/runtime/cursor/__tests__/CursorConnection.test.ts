@@ -73,6 +73,35 @@ describe('CursorConnection', () => {
     vi.clearAllMocks()
   })
 
+  it('streams a Skill response as an interactive turn anchored to the current branch', async () => {
+    const { connection, events, closeAndDrain } = await createCursorSession()
+    const prompt = 'Read the Skill instructions at "/workspace/.cursor/skills/review/SKILL.md".'
+    vi.mocked(sendCursorTurn).mockImplementation(async (_agent, content, _mode, host) => {
+      if (content.text === prompt) host.append('text', 'Reviewed using the selected Skill')
+      return { status: 'completed', wait: async () => ({ status: 'completed' }) } as unknown as Run
+    })
+
+    try {
+      await connection.runSkillCommand(prompt, 'command-request', 'branch-head')
+    } finally {
+      await closeAndDrain()
+    }
+
+    expect(events).toContainEqual({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'native-turn' },
+      interactive: true
+    })
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'message.parts',
+        changes: expect.arrayContaining([expect.objectContaining({ text: 'Reviewed using the selected Skill' })])
+      })
+    )
+    expect(events.some(({ type }) => type === 'input-state')).toBe(false)
+  })
+
   it('reports the last model call as context usage and keeps the turn total for billing', async () => {
     const { connection, events, closeAndDrain } = await createCursorSession('claude-sonnet-4-6')
     const run: Run = {

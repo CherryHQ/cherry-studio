@@ -89,8 +89,10 @@ import {
 import { subagentCall, gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type * as AgentMcpServers from '../agentMcpServers'
 import type * as GatewayBinding from '../pi/gatewayModelBinding'
+import type * as PiConnectionSources from '../pi/piConnectionSignature'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
+import { listSkillCommands } from '../skillCommands'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
 import { prepareDurableDesktop } from './durableDesktop'
@@ -144,7 +146,8 @@ vi.mock('@application', async () => {
   }
   return mockApplicationFactory(overrides)
 })
-vi.mock('../pi/piConnectionSignature', () => ({
+vi.mock('../pi/piConnectionSignature', async (importOriginal) => ({
+  ...(await importOriginal<typeof PiConnectionSources>()),
   capturePiConnectionSnapshot: mocks.capture,
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
@@ -161,7 +164,8 @@ vi.mock('@cherrystudio/agent-runtime-pi-durable', async (importOriginal) => {
 })
 vi.mock('../pi/gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.binding }))
 vi.mock('@main/ai/agents/prompt/buildAgentPrompt', () => ({ buildAgentPrompt: mocks.prompt }))
-vi.mock('@main/ai/runtime/agentMcpServers', () => ({
+vi.mock('@main/ai/runtime/agentMcpServers', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentMcpServers>()),
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: mocks.mcpServers
 }))
@@ -1941,6 +1945,41 @@ describe('desktop Pi Durable connection', () => {
     expect(text(events)).toBe('')
     expect(script.calls).toHaveLength(0)
   })
+
+  it('executes a Skill as an interactive native turn without an ordinary input or placement', async () => {
+    const { connection, events } = await connect()
+    const head = messages.captureHead(input.sessionId)
+    await connection.runSkillCommand('Use the selected Skill to review the report.', uuid(), head)
+
+    await expect.poll(() => text(events)).toContain('Hello world')
+    expect(JSON.stringify(script.calls[0].messages)).toContain('Use the selected Skill to review the report.')
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'autonomous-turn-state', state: 'started', interactive: true })
+    )
+    expect(events.some(({ type }) => type === 'input-state' || type === 'run-started')).toBe(false)
+    expect(messages.captureHead(input.sessionId)).toBe(head)
+  })
+
+  it.each([false, true])(
+    'reads the current workspace Skill descriptor for slash completion (Cursor=%s)',
+    async (cursor) => {
+      const skillDir = join(directory, cursor ? '.cursor' : '.agents', 'skills', 'review')
+      mkdirSync(skillDir, { recursive: true })
+      const descriptorPath = join(skillDir, 'SKILL.md')
+      const writeDescriptor = (description: string) =>
+        writeFileSync(descriptorPath, `---\nname: review\ndescription: ${description}\n---\nReview changes.\n`)
+      const catalog = () => listSkillCommands(snapshot.agent, snapshot.session, cursor)
+
+      writeDescriptor('Review this workspace')
+      await expect(catalog()).resolves.toMatchObject([
+        { name: 'skill:review', description: 'Review this workspace', descriptorPath }
+      ])
+      writeDescriptor('Review the current changes')
+      await expect(catalog()).resolves.toMatchObject([{ description: 'Review the current changes' }])
+      unlinkSync(descriptorPath)
+      await expect(catalog()).resolves.toEqual([])
+    }
+  )
 
   it.each(['/goal', '/goal Recall the imported conversation'])(
     'routes %s locally and retains imported history for the next model input after reopening',

@@ -375,7 +375,11 @@ const AgentComposerRoot = ({
   const { t } = useTranslation()
   const sessionSlashCommands = useMemo(() => {
     const catalog =
-      commands ??
+      commands?.map((command) =>
+        command.builtin && command.command === '/goal' && (agent?.type === 'pi' || agent?.type === 'pi-durable')
+          ? { ...command, description: t('chat.input.slash_commands.commands.goal') }
+          : command
+      ) ??
       (agent &&
         AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands.map((command) => ({
           ...command,
@@ -718,7 +722,13 @@ const AgentComposerInner = ({
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const requestCommands = useCallback(() => {
-    if ((agent?.type === 'claude-code' || agent?.type === 'local') && sessionId)
+    if (
+      (agent?.type === 'claude-code' ||
+        agent?.type === 'local' ||
+        agent?.type === 'pi' ||
+        agent?.type === 'pi-durable') &&
+      sessionId
+    )
       void ipcApi
         .request('ai.agent.session.commands', { sessionId })
         .catch((error) => logger.warn('Could not load session commands', { error }))

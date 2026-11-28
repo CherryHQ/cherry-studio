@@ -25,6 +25,7 @@ import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { getAcpHostPermissionModeSelection, type LocalAgentSelection } from '@shared/ai/localAgent'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -2780,31 +2781,50 @@ describe('AgentComposer', () => {
     }
   )
 
-  it('runs a catalog command outside the message queue and input history', async () => {
-    seedInputHistory(['previous message'])
-    mocks.ipcApiRequest.mockResolvedValue({ completed: true })
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={true}
-      />
-    )
+  it.each([
+    { runtime: 'pi-durable', command: '/goal pause', streaming: true },
+    { runtime: 'pi', command: '/skill:review changes', streaming: false },
+    { runtime: 'pi-durable', command: '/skill:review changes', streaming: false },
+    { runtime: 'local', command: '/skill:review changes', streaming: false }
+  ] as const)(
+    'runs $runtime command $command outside the message queue and input history',
+    async ({ runtime, command, streaming }) => {
+      seedInputHistory(['previous message'])
+      mocks.ipcApiRequest.mockResolvedValue({ completed: true })
+      if (command.startsWith('/skill:')) {
+        MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1'), [
+          { name: 'skill:review', description: 'Review changed files', argumentHint: '' }
+        ])
+      }
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          resolvedAgent={{
+            ...createControlledAgent(),
+            type: runtime,
+            ...(runtime === 'local' && {
+              localRuntime: { presetId: 'cursor', enabled: true, args: [], env: {}, providerId: 'cursor' }
+            })
+          }}
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={streaming}
+        />
+      )
 
-    await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: '/goal pause', tokens: [] })
-    })
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: command, tokens: [] })
+      })
 
-    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.run_slash_command', {
-      sessionId: 'session-1',
-      text: '/goal pause'
-    })
-    expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['previous message'])
-  })
+      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.run_slash_command', {
+        sessionId: 'session-1',
+        text: command
+      })
+      expect(mocks.sendMessage).not.toHaveBeenCalled()
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['previous message'])
+    }
+  )
 
   it('strips the knowledge sentence from input history but keeps a skill sentence', async () => {
     // Input history is the one composer path backed by localStorage, so it is the only place a

@@ -32,6 +32,7 @@ import {
   lookupNativeInput,
   applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
@@ -56,6 +57,7 @@ import { AsyncEventQueue } from '@shared/utils/async'
 import { markReportingHandled } from '@shared/utils/errorReporting'
 
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
+import { isSkillCommandInput, skillCommandInputId } from '../skillCommands'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -505,6 +507,41 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  async runSkillCommand(prompt: string, requestId: string, branchHead: string) {
+    const context = await readSessionHistory(this.input.sessionId, branchHead, this.context?.id, true)
+    const send = this.handle?.input.submit
+    if (!send || !this.context || this.sending || this.active || this.closing || this.manualCompactInFlight)
+      throw new Error('Pi session is unavailable or busy')
+
+    let text = prompt
+    if (context?.length) {
+      const anchor = messages.getSessionMessage(this.input.sessionId, branchHead)
+      text = buildAgentUserContent({
+        ...anchor,
+        delivery: undefined,
+        data: { parts: [...context, { type: 'text', text: prompt }] }
+      })
+    }
+    this.sending = true
+    this.autonomous = true
+    this.failure = undefined
+    this.turnUsage.reset()
+    this.eventQueue.push({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'native-turn' },
+      interactive: true
+    })
+    try {
+      const result = await send({ inputId: skillCommandInputId(requestId), text })
+      if (result.status !== 'acknowledged') throw new Error(result.error.message)
+    } catch (error) {
+      this.failure = error
+      this.finishTurn()
+      throw error
+    }
+  }
+
   readonly compactWithInstructions = true as const
 
   get compact(): CompactThread | undefined {
@@ -568,7 +605,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
           if (event.type === 'snapshot' && event.contextUsage)
             this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
-          if (event.type === 'input.changed' && hasProductInputId(event.input)) {
+          if (
+            event.type === 'input.changed' &&
+            hasProductInputId(event.input) &&
+            !isSkillCommandInput(event.input.inputId)
+          ) {
             const input = event.input
             this.eventQueue.push({ type: 'input-state', contextId: this.context!.id, input })
             if (input.facts.includes('placed') && this.pendingSteers.delete(input.inputId))

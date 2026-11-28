@@ -52,6 +52,24 @@ export interface PiConnectionSnapshot {
 
 export class PiInvalidConnectionSnapshotError extends Error {}
 
+export async function listPiSessionSkillSources(
+  agent: AgentEntity,
+  session: AgentSessionEntity,
+  channelLinked: boolean
+) {
+  const [skills, workspaceSkillPaths] = await Promise.all([
+    skillService.list({ agentId: agent.id }),
+    skillService.listLocalSkillPaths(session.workspace.path)
+  ])
+  const access = resolveAutomationAccess(agent, {
+    channelLinked,
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
+  })
+  const enabledSkills = skills.filter((skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access))
+  return { enabledSkills, workspaceSkillPaths }
+}
+
 /**
  * Capture every reconcilable fact consumed while constructing a Pi connection.
  * Workspace prompt files remain connection-lifetime snapshots. Agent identity
@@ -82,17 +100,8 @@ export async function capturePiConnectionSnapshot(
   const parsed = parseUniqueModelId(modelId)
   const provider = providerService.getByProviderId(parsed.providerId)
   const model = modelService.getByKey(parsed.providerId, parsed.modelId)
-  const [skills, workspaceSkillPaths] = await Promise.all([
-    skillService.list({ agentId: agent.id }),
-    skillService.listLocalSkillPaths(session.workspace.path)
-  ])
   const linkedChannel = resolveLinkedNotifyChannel(sessionId, agent.id)
-  const access = resolveAutomationAccess(agent, {
-    channelLinked: linkedChannel !== null,
-    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
-    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
-  })
-  const enabledSkills = skills.filter((skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access))
+  const { enabledSkills, workspaceSkillPaths } = await listPiSessionSkillSources(agent, session, linkedChannel !== null)
   const mcpServerSnapshots = new Map<string, ReturnType<typeof mcpServerService.findByIdOrName>>()
   const mcpServers = (agent.mcps ?? []).map((idOrName) => {
     const server = mcpServerService.findByIdOrName(idOrName)

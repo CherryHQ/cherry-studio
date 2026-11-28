@@ -332,6 +332,9 @@ The session command catalog supplies command-name completion in the Agent compos
 Runtimes can declare `subcommands` for first-argument completion. Pi and Pi Durable
 publish their Goal actions through runtime capabilities, and Codex advertises its
 Goal controls and `/plan off` when the corresponding native command is available.
+Pi and Pi Durable also offer `/skill:<name>` for the managed and workspace Skills
+available to the session. Cherry uses the same eligibility rules as the runtime
+and rereads the descriptor for the candidate's name and description.
 
 The Agent composer sends recognized slash commands through `ai.agent.session.run_slash_command`
 before ordinary conversation admission. Main resolves the current branch and command catalog.

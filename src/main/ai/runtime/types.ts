@@ -364,6 +364,7 @@ export interface AgentRuntimeConnection {
    */
   getSupportedCommands?(refresh?: boolean): Promise<AgentSessionSlashCommand[] | null>
   runSlashCommand?(name: string, args: string, requestId: string, branchHead: string): Promise<LocalAgentNotice | void>
+  runSkillCommand?(prompt: string, requestId: string, branchHead: string): Promise<void>
   stopTask?(taskId: string): Promise<boolean>
   messageChild?(contextId: string, text: string): Promise<void>
   /** Wait for admitted child execution and its archive writes; does not close the owner. */

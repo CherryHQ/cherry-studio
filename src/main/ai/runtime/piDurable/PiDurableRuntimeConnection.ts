@@ -46,6 +46,7 @@ import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import { PiTurnUsage } from '../pi/PiTurnUsage'
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
+import { isSkillCommandInput, skillCommandInputId } from '../skillCommands'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -235,6 +236,38 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       return { severity: notice.level, title: notice.text }
     } finally {
       this.slashCommands.delete(requestId)
+    }
+  }
+
+  async runSkillCommand(prompt: string, requestId: string, branchHead: string) {
+    const context = await readSessionHistory(this.input.sessionId, branchHead, this.context?.id, true)
+    const handle = this.handle
+    const send = handle?.input.submit
+    if (!handle || !send || !this.context || this.sending || this.active || this.compacting || this.closing)
+      throw new Error('Durable session is unavailable or busy')
+
+    const inputId = skillCommandInputId(requestId)
+    this.beginAutonomous(undefined, inputId, true)
+    const stopGeneration = this.stopGeneration
+    try {
+      if (context?.length) {
+        const anchor = messages.getSessionMessage(this.input.sessionId, branchHead)
+        await handle.durable.initializeContext(
+          buildAgentUserContent({ ...anchor, delivery: undefined, data: { parts: context } })
+        )
+      }
+      if (this.stopGeneration !== stopGeneration || this.closing) {
+        this.finishTurn(undefined, true)
+        return
+      }
+      const submitted = send({ inputId, text: prompt })
+      this.admission = submitted.catch(() => undefined)
+      const result = await submitted
+      if (result.status !== 'acknowledged') throw new Error(result.error.message)
+    } catch (error) {
+      this.failure = error
+      this.finishTurn()
+      throw error
     }
   }
 
@@ -521,7 +554,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             if (nowActive && !this.sending && !this.closing) {
               // After reopen, Durable resumes a placed input that has no outcome yet; the started event names it.
               const recoveredInputId = batch.resumedInput
-              if (recoveredInputId) this.placed.add(recoveredInputId)
+              if (recoveredInputId && !isSkillCommandInput(recoveredInputId)) this.placed.add(recoveredInputId)
               this.beginAutonomous(
                 batch.backgroundResults.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined,
                 recoveredInputId
@@ -554,6 +587,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         this.events.push({ type: 'run-started', inputIds: placements })
       }
       for (const answer of batch.answers ?? []) {
+        if (isSkillCommandInput(answer.inputId)) continue
         this.events.push({
           type: 'run-checkpoint',
           contextId: this.context!.id,
@@ -595,7 +629,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private beginAutonomous(sourceToolCallIds?: readonly string[], recoveredInputId?: string) {
+  private beginAutonomous(sourceToolCallIds?: readonly string[], recoveredInputId?: string, interactive = false) {
     this.sending = true
     this.autonomous = true
     this.failure = undefined
@@ -605,15 +639,17 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.events.push({
       type: 'autonomous-turn-state',
       state: 'started',
-      origin: this.nextOrigin,
+      origin: isSkillCommandInput(recoveredInputId) ? { kind: 'native-turn' } : this.nextOrigin,
       sourceToolCallIds,
-      recoveredInputId
+      ...(isSkillCommandInput(recoveredInputId)
+        ? { interactive: interactive ? true : undefined }
+        : { recoveredInputId })
     })
     this.nextOrigin = { kind: 'background-work' }
   }
 
   private captureInput(input: InputState, placements?: string[]) {
-    if (!hasProductInputId(input)) return
+    if (!hasProductInputId(input) || isSkillCommandInput(input.inputId)) return
     this.events.push({ type: 'input-state', contextId: this.context!.id, input })
     const messageId = input.inputId
     if (input.facts.includes('placed')) this.announcePlacement(messageId, input, placements)
