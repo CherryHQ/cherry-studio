@@ -4,7 +4,7 @@ import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { SlashCommand } from '@shared/ai/slashCommands'
 
-type NormalizedSessionCommand = SlashCommand & { builtin?: boolean }
+type NormalizedSessionCommand = SlashCommand & { builtin?: boolean; aliases?: readonly string[] }
 
 const EMPTY_SESSION_ID = '__none__'
 
@@ -28,7 +28,8 @@ export function useAgentSessionSlashCommands(sessionId: string | undefined): Nor
     return cached.map((command) => ({
       command: `/${command.name}`,
       description: command.description,
-      builtin: command.builtin
+      builtin: command.builtin,
+      ...(command.aliases && { aliases: command.aliases })
     }))
   }, [sessionId, cached])
 }

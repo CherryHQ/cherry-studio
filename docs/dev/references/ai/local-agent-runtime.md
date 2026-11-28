@@ -172,10 +172,12 @@ order of its private turn events and standard ACP content.
 Composer holds unsent drafts and sends native follow-ups directly when the current
 connection offers a durable queue.
 
-The Composer routes `/compact` to the connected runtime's standalone compaction
-operation when available. Claude, built-in Pi and Pi Durable also accept instructions.
-The operation reserves the session until it receives a matching native outcome.
-Successful compaction refreshes context usage without creating a chat input.
+The Composer checks the active runtime's slash-command catalog before sending.
+Codex can execute a control or open a native turn. Claude and ACP can receive
+commands through native input. Cherry stores replies that arrive through the
+runtime turn and omits the original command from conversation messages and input recall.
+When available, `/compact` uses standalone native compaction and refreshes context
+usage after the matching receipt. Claude, built-in Pi and Pi Durable accept compaction instructions.
 
 ### Models and configuration
 

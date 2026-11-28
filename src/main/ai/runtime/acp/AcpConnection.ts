@@ -136,6 +136,7 @@ export class AcpConnection extends LocalConnection {
   private browserLease?: LocalAgentBrowserLease
   private readonly process = new AcpProcess()
   private promptCapabilities: AcpPromptCapabilities = {}
+  private commandReply?: { opened: boolean }
   private messageId?: string
   private session?: AcpThreadHandle<true>
   private shutdownRuntime?: () => Promise<void>
@@ -409,6 +410,7 @@ export class AcpConnection extends LocalConnection {
           this.abort.signal.aborted
         )
           return { action: 'cancel' }
+        this.openCommandReply()
         try {
           return await this.elicit(
             params.message,
@@ -429,6 +431,7 @@ export class AcpConnection extends LocalConnection {
           this.abort.signal.aborted
         )
           return { outcome: { outcome: 'cancelled' } }
+        this.openCommandReply()
         if (this.headless) {
           this.denyUnattendedRequest()
           const rejection = params.options.find((option) => option.kind === 'reject_once')
@@ -1131,6 +1134,7 @@ export class AcpConnection extends LocalConnection {
       })
     },
     content: (kind, content, messageId) => {
+      this.openCommandReply()
       if (messageId !== this.messageId) this.endContent()
       this.messageId = messageId
       if (content.type === 'text') {
@@ -1145,11 +1149,13 @@ export class AcpConnection extends LocalConnection {
       }
     },
     plan: (entries) => {
+      this.openCommandReply()
       this.endContent()
       this.planId ??= randomUUID()
       this.planPart = this.putData({ type: 'data-agent-plan', id: this.planId, data: { entries } }, this.planPart)
     },
     tool: (id, patch) => {
+      this.openCommandReply()
       const owner = this.tools.get(id)?.name
       if (owner === 'AskUserQuestion' || owner === 'ExitPlanMode') return
       this.endContent()
@@ -1260,6 +1266,38 @@ export class AcpConnection extends LocalConnection {
 
   async send(input: AgentRuntimeUserInput) {
     const prompt = await acpContent(input, this.promptCapabilities)
+    await this.runPrompt(input.message.id, prompt, input)
+  }
+
+  async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {
+    if (this.active || this.commandReply) throw new Error('ACP session is busy')
+    const reply = { opened: false }
+    this.commandReply = reply
+    try {
+      await this.runPrompt(requestId, [{ type: 'text', text: args ? `/${name} ${args}` : `/${name}` }], branchHead)
+    } finally {
+      this.commandReply = undefined
+      if (reply.opened) this.events.push({ type: 'autonomous-turn-state', state: 'finished' })
+    }
+  }
+
+  private openCommandReply() {
+    if (!this.commandReply || this.commandReply.opened || !this.active) return
+    this.commandReply.opened = true
+    this.events.push({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'native-turn' },
+      interactive: true
+    })
+    this.continueSource()
+  }
+
+  private async runPrompt(
+    requestId: string,
+    prompt: Awaited<ReturnType<typeof acpContent>>,
+    input: string | AgentRuntimeUserInput
+  ) {
     await this.configChange?.catch(() => {})
     this.begin(input)
     this.planPart = undefined
@@ -1269,7 +1307,7 @@ export class AcpConnection extends LocalConnection {
       this.publishSessionResumeToken()
       const model = this.localSessionInfo.activeModel?.id ?? null
       const { stopReason, usage, context } = await this.session.acp.runPrompt({
-        inputId: runtimeId<'input'>(input.message.id),
+        inputId: runtimeId<'input'>(requestId),
         content: prompt
       })
       if (context) {
@@ -1311,10 +1349,13 @@ export class AcpConnection extends LocalConnection {
               ? 'length'
               : stopReason === 'end_turn'
                 ? 'stop'
-                : 'other'
+                : 'other',
+        this.commandReply?.opened ?? true
       )
     } catch (error) {
-      this.finish(error)
+      const publish = this.commandReply?.opened ?? true
+      this.finish(error, 'stop', publish)
+      if (!publish) throw error
     } finally {
       this.session?.acp.drainNativeTurn()
     }
@@ -1341,7 +1382,7 @@ export class AcpConnection extends LocalConnection {
     if (summary.success) this.events.push({ type: 'local-turn-usage', summary: summary.data })
   }
 
-  protected override finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
+  protected override finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop', publish = true) {
     this.approvedWrites.length = 0
     if (this.active) {
       for (const [id, tool] of this.toolInputs) {
@@ -1364,7 +1405,7 @@ export class AcpConnection extends LocalConnection {
       }
       this.toolInputs.clear()
     }
-    super.finish(acpError(error, this.process.stderr), finishReason)
+    super.finish(acpError(error, this.process.stderr), finishReason, publish)
   }
   protected override dispose() {
     void this.browserLease?.dispose().catch(() => {})

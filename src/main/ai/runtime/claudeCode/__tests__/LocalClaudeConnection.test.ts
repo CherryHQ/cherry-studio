@@ -15,6 +15,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentProviderService } from '@data/services/AgentProviderService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { LocalPermissionOptionsSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 
@@ -92,6 +93,12 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
         value: { content: [], legacy: {}, retracted: [] }
       }),
       stopTask: async () => ({ status: 'confirmed', value: undefined }),
+      input: {
+        followUp: {
+          persistence: 'volatile',
+          submit: async ({ inputId }) => ({ status: 'acknowledged', inputId, facts: ['dispatch-started'] })
+        }
+      },
       observe: async (sink) => {
         observationSink = sink
         return {
@@ -155,6 +162,7 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
 
   return {
     connection,
+    sessionId,
     events,
     createdConfig,
     emitObservation: (obs: Partial<ClaudeObservation>) =>
@@ -168,6 +176,33 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
 }
 
 describe('LocalClaudeConnection', () => {
+  it('settles a native local command as feedback without opening a reply', async () => {
+    const { connection, sessionId, events, emitObservation } = await startLocalClaude()
+    const head = agentSessionMessageService.captureHead(sessionId)
+    const requestId = randomUUID()
+    const submitted = connection.runSlashCommand('usage', '', requestId, head)
+    await emitObservation({
+      native: [
+        {
+          source: 'live',
+          message: {
+            type: 'result',
+            subtype: 'success',
+            uuid: randomUUID(),
+            session_id: 'claude-native-1',
+            user_message_uuid: requestId,
+            local_command: 'usage',
+            is_error: false,
+            result: 'Usage details'
+          } as any
+        }
+      ]
+    })
+    await expect(submitted).resolves.toEqual({ severity: 'info', title: 'Usage details' })
+    expect(agentSessionMessageService.captureHead(sessionId)).toBe(head)
+    expect(events.some(({ type }) => type === 'autonomous-turn-state')).toBe(false)
+  })
+
   it('emits unified decision options in canUseTool and caches session grants', async () => {
     const { events, createdConfig } = await startLocalClaude()
     const canUseTool = createdConfig.canUseTool

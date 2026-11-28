@@ -63,7 +63,8 @@ import {
 } from '@shared/ai/agentSessionRuntimeControls'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
-  type AgentSessionSlashCommand
+  type AgentSessionSlashCommand,
+  parseAgentSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_STREAM_TOPIC_CACHE_KEY } from '@shared/ai/agentSessionStreamTopic'
 import {
@@ -90,6 +91,7 @@ import {
   isAcpHostPermissionMode,
   usesPresetAcpLaunch,
   type LocalAgentRuntime,
+  type LocalAgentNotice,
   type LocalAgentSessionInfo,
   type LocalAgentSessionOverrides,
   type LocalAgentSessionView
@@ -381,6 +383,7 @@ type AgentSessionRuntimeEntry = {
   connectionLoop?: Promise<void>
   nativeTitleReceived?: boolean
   connectionGeneration?: string
+  slashCommandRequestId?: string
   /** Pending product handoffs outlive the connection that attempted native admission. */
   pendingInputs?: Map<
     string,
@@ -499,7 +502,9 @@ export class AgentSessionRuntimeService extends BaseService {
       toolApprovalRegistry.hasSession(sessionId) ||
       [...this.pendingEditInputs.values()].some(({ counts }) => counts.has(sessionId)) ||
       (entry &&
-        (isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)))
+        (entry.slashCommandRequestId ||
+          isAgentSessionRuntimeBusy(entry.runtimeState) ||
+          hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)))
     ) {
       throw new AgentSessionEditError('busy')
     }
@@ -1876,7 +1881,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.forks.edits.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
     if (!entry) return false
-    return entry.closing === true || isAgentSessionRuntimeBusy(entry.runtimeState)
+    return entry.closing === true || !!entry.slashCommandRequestId || isAgentSessionRuntimeBusy(entry.runtimeState)
+  }
+
+  isSlashCommandPending(sessionId: string): boolean {
+    return !!this.entries.get(sessionId)?.slashCommandRequestId
   }
 
   isSessionBusyForArchive(sessionId: string): boolean {
@@ -1887,6 +1896,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private entryCanWrite(entry: AgentSessionRuntimeEntry): boolean {
     return (
       !!entry.closing ||
+      !!entry.slashCommandRequestId ||
       isAgentSessionRuntimeBusy(entry.runtimeState) ||
       hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
     )
@@ -3010,6 +3020,10 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry)
         break
+      case 'context-boundary':
+        entry.branchHead = event.anchor
+        this.invalidateContextUsage(entry)
+        break
       case 'message-metadata':
       case 'tool-input-available':
       case 'data-retry':
@@ -3167,6 +3181,7 @@ export class AgentSessionRuntimeService extends BaseService {
           this.handleAutonomousGenerationFinished(entry, connection)
           break
         }
+        if (event.interactive) delete entry.slashCommandRequestId
         const source = this.currentTurn(entry)
         const background = event.origin.kind === 'background-work'
         const projection = background
@@ -3218,11 +3233,17 @@ export class AgentSessionRuntimeService extends BaseService {
         )
           break
         const recoveredInput = event.recoveredInputId
+        const interactiveGoal =
+          event.origin.kind === 'goal-round' &&
+          entry.interactionWindowId &&
+          application.get('WindowManager').getWindow(entry.interactionWindowId)
         const headless =
           !!entry.secondaryContextId ||
           (recoveredInput
             ? entry.recoveryHeadless !== false
-            : this.getInteractionState(entry.sessionId).userResponse === 'unavailable')
+            : !event.interactive &&
+              !interactiveGoal &&
+              this.getInteractionState(entry.sessionId).userResponse === 'unavailable')
         const saved =
           assistantMessageId && assistantMessageId !== source?.runId
             ? agentSessionMessageService.getSessionMessage(entry.sessionId, assistantMessageId)
@@ -3304,6 +3325,65 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       default:
         event satisfies never
+    }
+  }
+
+  async runSlashCommand(
+    sessionId: string,
+    text: string,
+    expectedConnection?: string,
+    senderId?: WindowId
+  ): Promise<{ completed: boolean; notice?: LocalAgentNotice }> {
+    this.assertSessionWritable(sessionId)
+    const invocation = parseAgentSlashCommand(text)
+    if (!invocation) return { completed: false }
+    const branchHead = agentSessionMessageService.captureHead(sessionId)
+    const connection = await this.ensureSessionConnection(sessionId)
+    const entry = this.entries.get(sessionId)
+    const generation = entry?.connectionGeneration
+    if (!entry || !connection || !generation || (expectedConnection && generation !== expectedConnection))
+      return { completed: false }
+
+    const agentType = agentService.getAgent(entry.agentId)?.type
+    const catalog =
+      (await connection.getSupportedCommands?.()) ??
+      (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].slashCommands : [])
+    const command = catalog.find((item) =>
+      'name' in item
+        ? item.name === invocation.name || item.aliases?.includes(invocation.name)
+        : item.command === `/${invocation.name}`
+    )
+    if (
+      !this.isCurrentGeneration(entry, generation) ||
+      this.currentConnection(entry) !== connection ||
+      entry.closing ||
+      entry.stopping ||
+      entry.slashCommandRequestId ||
+      agentSessionMessageService.captureHead(sessionId) !== branchHead
+    )
+      return { completed: false }
+
+    if (
+      invocation.name === 'compact' &&
+      connection.compact &&
+      (!invocation.args || connection.compactWithInstructions) &&
+      !(command && 'builtin' in command && command.builtin === false)
+    )
+      return { completed: await this.compactSession(sessionId, generation, invocation.args || undefined) }
+    if (!command || !connection.runSlashCommand) return { completed: false }
+    if (senderId) entry.interactionWindowId = senderId
+    const requestId = uuidv7()
+    entry.slashCommandRequestId = requestId
+    this.clearIdleTimer(entry)
+    try {
+      const notice = await connection.runSlashCommand(invocation.name, invocation.args, requestId, branchHead)
+      return { completed: notice?.severity !== 'error', ...(notice && { notice }) }
+    } finally {
+      if (entry.slashCommandRequestId === requestId) delete entry.slashCommandRequestId
+      if (this.isCurrentGeneration(entry, generation)) {
+        this.refreshIdleTimer(entry)
+        if (!this.isSessionBusy(sessionId)) this._onRuntimeIdle.fire({ sessionId })
+      }
     }
   }
 

@@ -32,14 +32,18 @@ function historyToolOutput(output: unknown): unknown {
 export async function readSessionHistory(
   sessionId: string,
   beforeMessageId: string,
-  contextId?: string
+  contextId?: string,
+  includeBoundary = false
 ): Promise<CherryMessagePart[] | undefined> {
   if (contextId && messages.hasContextModelInput(sessionId, contextId)) return
   const path = readAgentSessionPath(application.get('DbService').getDb(), sessionId, beforeMessageId)
   const before = path.findIndex((row) => row.id === beforeMessageId)
   if (before < 0) return
   let locallyHandled = false
-  const prefix = path.slice(0, before).filter((row) => {
+  const boundary = path.findLastIndex(
+    (row, index) => index <= before && row.data.parts?.some((part) => part.type === 'data-clear')
+  )
+  const prefix = path.slice(boundary + 1, before + Number(includeBoundary)).filter((row) => {
     if (row.role === 'user') locallyHandled = row.data.locallyHandled === true
     return !locallyHandled
   })

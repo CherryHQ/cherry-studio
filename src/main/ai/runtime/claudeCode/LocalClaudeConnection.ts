@@ -15,6 +15,7 @@ import {
 import { CLAUDE_PERMISSION_MODES } from '@cherrystudio/agent-runtime-claude-code/cli'
 import { selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
+import type { DbOrTx } from '@data/db/types'
 import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -155,7 +156,13 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
     super(input, 'claude')
   }
 
-  protected override prepareContext(_env: Options['env'], nativeId?: string, anchor?: string): AgentSessionContextRow {
+  protected override prepareContext(
+    _env: Options['env'],
+    nativeId?: string,
+    anchor?: string,
+    _opening?: boolean,
+    db?: DbOrTx
+  ): AgentSessionContextRow {
     const { sessionId } = this.input
     if (!this.context && this.target.kind === 'resume') return this.target.context
     if (this.target.kind === 'new') {
@@ -178,7 +185,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
         updatedAt: Date.now()
       }
     }
-    const context = this.reserveContext(anchor ?? agentSessionMessageService.captureHead(sessionId), nativeId)
+    const context = this.reserveContext(anchor ?? agentSessionMessageService.captureHead(sessionId), nativeId, db)
     if (!context) throw new Error('Local agent binding changed before its native context was claimed')
     return context
   }
@@ -189,7 +196,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
       : super.bindNativeContext(context, nativeId)
   }
 
-  private reserveContext(anchor: string, nativeId?: string) {
+  private reserveContext(anchor: string, nativeId?: string, db?: DbOrTx) {
     return localContext(
       this.input.sessionId,
       this.input.agentId,
@@ -199,7 +206,8 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
       nativeId,
       this.target.kind === 'new' && this.context
         ? { id: this.context.id, nativeConfirmed: this.context.bindingState === 'bound' }
-        : undefined
+        : undefined,
+      db
     )
   }
 
@@ -346,6 +354,11 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
     if (this.target.kind === 'new' && !this.claimLocalContext(input.message.id))
       throw new Error('Local agent binding changed before input was admitted')
     return super.send(input)
+  }
+
+  override runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {
+    if (!this.claimLocalContext(branchHead)) throw new Error('Local agent binding changed before command admission')
+    return super.runSlashCommand(name, args, requestId, branchHead)
   }
 
   protected override commandAllowed(command: AgentSessionSlashCommand) {

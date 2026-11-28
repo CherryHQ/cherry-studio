@@ -38,7 +38,7 @@ export type CodexSessionEvent =
   | { type: 'text'; text: string }
   | (ItemText & ({ type: 'text-open' } | { type: 'text-append' | 'text-finish'; text: string }))
   | { type: 'plan'; turnId: string; steps: { step: string; status: 'pending' | 'inProgress' | 'completed' }[] }
-  | { type: 'native-start'; threadId: string }
+  | { type: 'native-start'; threadId: string; interactive?: true }
   | { type: 'native-finish' }
   | { type: 'steer-boundary'; inputIds: string[] }
   | { type: 'tool'; itemId: string; name: string; input: unknown }
@@ -64,11 +64,13 @@ interface SessionHost extends InteractionHost {
   emit(event: CodexSessionEvent): void
 }
 type Content = { type: 'text'; text: string } | { type: 'image'; mimeType: string; data: string }
+type CommandFeedback = { text?: string }
 type ActiveTurn = {
   id?: string
   controller: AbortController
   nativeStarted?: boolean
   expectsStart?: boolean
+  commandFeedback?: CommandFeedback
   interruptRequested?: boolean
   steers?: Map<InputId, { dispatched: boolean; settle(result: SubmitResult): void }>
   manualCompaction?: {
@@ -486,7 +488,8 @@ export class CodexSession {
     this.controlDiscovery = undefined
     this.lastUsage = undefined
     this.host.emit({ type: 'thread-changed', threadId })
-    this.host.emit({ type: 'text', text })
+    if (turn.commandFeedback) turn.commandFeedback.text = text
+    else this.host.emit({ type: 'text', text })
     this.finish()
   }
 
@@ -502,6 +505,10 @@ export class CodexSession {
   private bindTurn(turn: ActiveTurn, id: string) {
     if (this.turn !== turn || turn.id) return
     turn.id = id
+    if (turn.commandFeedback) {
+      turn.nativeStarted = true
+      this.host.emit({ type: 'native-start', threadId: this.id, interactive: true })
+    }
     if (turn.interruptRequested) void this.interrupt().catch(() => {})
   }
 
@@ -639,9 +646,24 @@ export class CodexSession {
     }
   }
 
+  async executeCommand(name: string, args: string, inputId: string): Promise<string | undefined> {
+    const feedback: CommandFeedback = {}
+    await this.dispatch([{ type: 'text', text: args ? `/${name} ${args}` : `/${name}` }], inputId, feedback)
+    return feedback.text
+  }
+
   async send(content: readonly Content[], inputId?: string) {
+    await this.dispatch(content, inputId)
+  }
+
+  private async dispatch(content: readonly Content[], inputId?: string, commandFeedback?: CommandFeedback) {
     this.requireIdle()
-    const turn: ActiveTurn = { controller: new AbortController(), compacting: false, approvalItems: new Map() }
+    const turn: ActiveTurn = {
+      controller: new AbortController(),
+      compacting: false,
+      approvalItems: new Map(),
+      commandFeedback
+    }
     this.turn = turn
     const text =
       !this.options.headless && content.length === 1 && content[0]?.type === 'text' ? content[0].text.trim() : undefined
@@ -661,7 +683,8 @@ export class CodexSession {
           const result = await command.run(this, turn, args)
           if (this.turn !== turn) return
           if (typeof result === 'string') {
-            this.host.emit({ type: 'text', text: result })
+            if (commandFeedback) commandFeedback.text = result
+            else this.host.emit({ type: 'text', text: result })
             this.finish()
             return
           }
@@ -674,12 +697,14 @@ export class CodexSession {
             skillInput = { type: 'skill', name: skill.name, path: skill.path }
             promptText = args || `Use the ${skill.name} skill.`
           } else if (definition?.available) {
+            if (commandFeedback) throw new Error(`/${name} is unavailable in this Codex session.`)
             this.host.emit({ type: 'text', text: `/${name} is unavailable in this Codex session.` })
             this.finish()
             return
           }
         }
       }
+      if (commandFeedback && promptText === undefined) throw new Error('Codex slash command is unavailable')
       const input =
         promptText === undefined ? content.map(toNativeInput) : [toNativeInput({ type: 'text', text: promptText })]
       if (skillInput) input.unshift(skillInput)
@@ -707,6 +732,7 @@ export class CodexSession {
       )
     } catch (error) {
       if (this.turn === turn) this.finish(error instanceof Error ? error : new Error(String(error)))
+      if (commandFeedback && !turn.nativeStarted) throw error
     }
   }
 

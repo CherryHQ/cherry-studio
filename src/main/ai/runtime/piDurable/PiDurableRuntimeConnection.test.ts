@@ -1930,6 +1930,18 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
+  it('returns goal status without opening a reply or requiring a saved user input', async () => {
+    const { connection, events } = await connect()
+    const head = messages.captureHead(input.sessionId)
+    const requestId = 'goal-status-request'
+    await expect(connection.runSlashCommand('goal', '', requestId, head)).resolves.toMatchObject({
+      title: 'No goal is set. Use /goal <objective> to create one.'
+    })
+    expect(messages.captureHead(input.sessionId)).toBe(head)
+    expect(text(events)).toBe('')
+    expect(script.calls).toHaveLength(0)
+  })
+
   it.each(['/goal', '/goal Recall the imported conversation'])(
     'routes %s locally and retains imported history for the next model input after reopening',
     async (command) => {

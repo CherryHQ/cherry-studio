@@ -2754,27 +2754,56 @@ describe('AgentComposer', () => {
     expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'hello', tokens: [] })
   })
 
-  it('saves input history after a successful agent send', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined)
+  it.each(['agent says hi', '/tmp/example.txt'])(
+    'saves ordinary input %s after a successful agent send',
+    async (text) => {
+      mocks.sendMessage.mockResolvedValue(undefined)
 
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      )
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+      })
+
+      await waitFor(() => {
+        expect(mocks.sendMessage).toHaveBeenCalled()
+        expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([text])
+      })
+    }
+  )
+
+  it('runs a catalog command outside the message queue and input history', async () => {
+    seedInputHistory(['previous message'])
+    mocks.ipcApiRequest.mockResolvedValue({ completed: true })
     render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
+        resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        isStreaming={false}
+        isStreaming={true}
       />
     )
 
     await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'agent says hi', tokens: [] })
+      await mocks.surfaceProps?.onSendDraft({ text: '/goal pause', tokens: [] })
     })
 
-    await waitFor(() => {
-      expect(mocks.sendMessage).toHaveBeenCalled()
-      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['agent says hi'])
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.run_slash_command', {
+      sessionId: 'session-1',
+      text: '/goal pause'
     })
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['previous message'])
   })
 
   it('strips the knowledge sentence from input history but keeps a skill sentence', async () => {

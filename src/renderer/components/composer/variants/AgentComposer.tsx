@@ -84,6 +84,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
+import { parseAgentSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { getLocalAgentProtocol, getLocalSessionPermission } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -375,14 +376,14 @@ const AgentComposerRoot = ({
   const sessionSlashCommands = useMemo(() => {
     if (!compact || commands?.some(({ command }) => command === '/compact')) return commands
     return [
-      ...(commands ?? []),
+      ...(commands ?? (agent ? AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands : [])),
       {
         command: '/compact',
         description: t('chat.input.slash_commands.commands.compact'),
         builtin: true
       }
     ]
-  }, [commands, compact, t])
+  }, [agent, commands, compact, t])
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
     const accessiblePaths = toAccessiblePaths(session.workspace?.type === 'user' ? session.workspace.path : undefined)
@@ -1728,25 +1729,27 @@ const AgentComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
-      const compact = /^\/compact(?:\s+([\s\S]+))?$/.exec(payload.text.trim())
-      if (
-        runtimeControls?.compact &&
-        compact &&
-        (!compact[1] || runtimeControls.compactWithInstructions) &&
-        !payload.attachments?.length &&
-        !launchOptions?.editing
-      ) {
+      const command = parseAgentSlashCommand(payload.text)
+      const knownCommand =
+        command &&
+        (sessionData?.slashCommands ?? capabilities?.slashCommands)?.some(
+          (item) => item.command === `/${command.name}` || ('aliases' in item && item.aliases?.includes(command.name))
+        )
+      if (knownCommand && !payload.attachments?.length && !launchOptions?.editing) {
         directSendInFlightRef.current = true
         setIsDirectSending(true)
         try {
-          if (
-            await ipcApi.request('ai.agent.session.compact', {
-              sessionId,
-              generation: runtimeControls.generation,
-              ...(compact[1] && { instructions: compact[1] })
-            })
-          )
-            clearCurrentDraft()
+          const result = await ipcApi.request('ai.agent.session.run_slash_command', {
+            sessionId,
+            text: payload.text,
+            generation: runtimeControls?.generation
+          })
+          if (result.notice) {
+            const { severity, title, description } = result.notice
+            toast[severity]({ title, description })
+          }
+          if (result.completed) clearCurrentDraft()
+          else if (!result.notice) toast.error(t('error.unknown'))
         } catch (error) {
           toast.errorFromException(error)
         } finally {
@@ -1780,6 +1783,7 @@ const AgentComposerInner = ({
     [
       agent,
       buildQueuedPayload,
+      capabilities,
       clearCurrentDraft,
       enqueueFollowup,
       isStreaming,
@@ -1788,6 +1792,7 @@ const AgentComposerInner = ({
       runtimeControls,
       launchOptions?.editing,
       sessionId,
+      sessionData,
       sendDisabled,
       sendQueuedPayload,
       steerWhileBusy,

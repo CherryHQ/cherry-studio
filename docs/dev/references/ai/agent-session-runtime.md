@@ -94,7 +94,7 @@ and history opening do not generate host predictions; a resident result can be r
 | `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
 | `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
 | `AgentSessionRuntimeService` | Owns the selected runtime entry and any other Pi Durable roots recovering in the same session. Each entry owns its connection, event consumer, turns, input contexts, persistence and idle timeout. |
-| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `threadInput` for native admission and `compact()` for manual compaction, `close`, and an event stream. |
+| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional native input and slash-command operations, `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | Runtime packages | Interpret native input, task, completion, content and invocation evidence once, and publish captured typed batches. |
@@ -327,6 +327,12 @@ original context and input ID. Connection generations fence stale callbacks.
 
 Standalone compaction holds the connected thread idle for the duration of the native operation.
 Matching completion refreshes the context reading. No new chat input or reply is created.
+
+The Agent composer sends recognized slash commands through `ai.agent.session.run_slash_command`
+before ordinary conversation admission. Main resolves the current branch and command catalog.
+Local results return as feedback. Native work with an assistant reply uses the receive-only
+runtime turn, while a confirmed context switch saves a boundary and its native binding together.
+Cherry skips the command text in conversation messages and composer input recall.
 
 Background notification generations whose native source calls belong to an unfinished reply resume
 that reply and keep its assistant message ID. Main records intermediate native success but holds

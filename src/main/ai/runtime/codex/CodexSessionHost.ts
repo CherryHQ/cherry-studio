@@ -29,6 +29,7 @@ export class CodexSessionHost extends LocalConnection {
   >()
   private callbacks?: Pick<AgentRuntimeConnectInput, 'onSteerInjected'>
   private branchHead?: string
+  private commandHead?: string
   private planPart?: number
   private session?: CodexSession
   private browser?: LocalAgentBrowserLease
@@ -125,11 +126,25 @@ export class CodexSessionHost extends LocalConnection {
         if (this.session) this.events.push({ type: 'local-session-info', info: this.session.info })
         return
       case 'thread-changed':
+        if (this.commandHead) {
+          try {
+            this.branchHead = this.switchLocalContext(this.commandHead, event.threadId)
+          } catch (error) {
+            void this.close()
+            throw error
+          }
+          return
+        }
         return this.publishResumeToken(event.threadId)
       case 'native-start': {
         const anchor = this.branchHead ?? agentSessionMessageService.captureHead(this.sessionId)
         if (!this.claimLocalContext(anchor, event.threadId)) return
-        this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'native-turn' } })
+        this.events.push({
+          type: 'autonomous-turn-state',
+          state: 'started',
+          origin: { kind: 'native-turn' },
+          interactive: event.interactive
+        })
         this.begin(anchor, event.threadId)
         return
       }
@@ -300,6 +315,18 @@ export class CodexSessionHost extends LocalConnection {
       await session.send(content, input.message.id)
     } catch (error) {
       this.finish(error)
+    }
+  }
+
+  async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {
+    if (this.commandHead) throw new Error('Codex is running another slash command')
+    this.branchHead = branchHead
+    this.commandHead = branchHead
+    try {
+      const text = await this.connected.executeCommand(name, args, requestId)
+      return text ? { severity: 'info' as const, title: text } : undefined
+    } finally {
+      this.commandHead = undefined
     }
   }
   protected async stop() {

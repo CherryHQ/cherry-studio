@@ -68,7 +68,7 @@ export function decideGoalCommand(
     ],
     effects: [
       ...effects,
-      { type: 'emit', event: { type: 'goal-notice', thread: facts.thread, notice: { text: value, level } } }
+      { type: 'emit', event: { type: 'goal-notice', thread: facts.thread, requestKey, notice: { text: value, level } } }
     ],
     result: { text: value, level }
   })

@@ -776,6 +776,23 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session runtime queries & commands ──
+  'ai.agent.session.run_slash_command': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      text: z.string().min(1),
+      generation: z.string().min(1).optional()
+    }),
+    output: z.strictObject({
+      completed: z.boolean(),
+      notice: z
+        .strictObject({
+          severity: z.enum(['info', 'warning', 'error']),
+          title: z.string(),
+          description: z.string().optional()
+        })
+        .optional()
+    })
+  }),
   'ai.agent.session.compact': defineRoute({
     input: z.strictObject({
       sessionId: z.string().min(1),

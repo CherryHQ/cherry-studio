@@ -30,6 +30,7 @@ import {
   applyNativeSubmissionResult,
   nativeOutcomeTerminal
 } from '@main/ai/agentSession/nativeSubmission'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -101,6 +102,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
   private runtime?: PiDurableRuntime
   private handle?: PiDurableThreadHandle
+  private readonly slashCommands = new Set<string>()
   private observation?: Observation
   private context?: ReturnType<typeof prepareDurableBranch>
   private desktop?: DurableRoot['desktop']
@@ -215,6 +217,25 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   async predictPrompt(signal: AbortSignal): Promise<string> {
     if (!this.handle || this.closing) return ''
     return this.handle.durable.predictPrompt(PROMPT_SUGGESTION_INSTRUCTION, signal)
+  }
+
+  async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {
+    const handle = this.handle
+    if (name !== 'goal' || !handle || this.closing) throw new Error('Durable slash command is unavailable')
+    this.slashCommands.add(requestId)
+    try {
+      const context = await readSessionHistory(this.input.sessionId, branchHead, this.context?.id, true)
+      if (context?.length) {
+        const anchor = messages.getSessionMessage(this.input.sessionId, branchHead)
+        await handle.durable.initializeContext(
+          buildAgentUserContent({ ...anchor, delivery: undefined, data: { parts: context } })
+        )
+      }
+      const notice = await handle.durable.goalCommand(args, requestId)
+      return { severity: notice.level, title: notice.text }
+    } finally {
+      this.slashCommands.delete(requestId)
+    }
   }
 
   async send(input: AgentRuntimeCommand): Promise<void> {
@@ -653,7 +674,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     } else if (!this.handle || event.thread === this.handle.thread.id) {
       if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
       if (event.type === 'goal-notice') {
-        this.projection?.notice(event.notice.text)
+        if (!this.slashCommands.has(event.requestKey)) this.projection?.notice(event.notice.text)
       }
     }
   }

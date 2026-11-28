@@ -110,6 +110,27 @@ describe('AgentSessionMessageService', () => {
     await seedSession({ id: SESSION_ID, name: 'Session', orderKey: 'a0' })
   })
 
+  it('keeps consecutive native resets on the active branch without a user message', () => {
+    const messages = agentSessionMessageService
+    const initial = messages.captureHead(SESSION_ID)
+    const first = messages.persistContextBoundary(SESSION_ID, initial, (tx, anchor) =>
+      prepareClaudeBranch(SESSION_ID, '/test/context', 'first-native', anchor, false, tx)
+    )
+    const second = messages.persistContextBoundary(SESSION_ID, first.anchor, (tx, anchor) =>
+      prepareClaudeBranch(SESSION_ID, '/test/context', 'second-native', anchor, false, tx)
+    )
+    expect(second.anchor).not.toBe(first.anchor)
+    expect(messages.captureHead(SESSION_ID)).toBe(second.anchor)
+    expect(prepareClaudeBranch(SESSION_ID, '/test/context', undefined, undefined, true)).toMatchObject({
+      bindingState: 'bound',
+      nativeThreadId: 'second-native'
+    })
+    expect(messages.getSessionMessage(SESSION_ID, second.anchor)).toMatchObject({
+      role: 'system',
+      data: { parts: [{ type: 'data-clear', data: {} }] }
+    })
+  })
+
   afterEach(() => {
     runtimeDriverRegistry.clearForTest()
     vi.restoreAllMocks()

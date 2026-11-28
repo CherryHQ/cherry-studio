@@ -270,6 +270,7 @@ export type AgentRuntimeEvent =
       type: 'autonomous-turn-state'
       state: 'started'
       origin: AutonomousTurnOrigin
+      interactive?: true
       sourceToolCallIds?: readonly string[]
       /** A placed product input that native recovery resumed; its existing reply continues. */
       recoveredInputId?: string
@@ -277,6 +278,7 @@ export type AgentRuntimeEvent =
   | { type: 'autonomous-turn-state'; state: 'finished' }
   /** A `retainOnStop` connection finished the requested stop; later input may start. */
   | { type: 'stop-confirmed' }
+  | { type: 'context-boundary'; anchor: string }
   | { type: 'error'; error: unknown }
 
 /**
@@ -361,6 +363,7 @@ export interface AgentRuntimeConnection {
    * static builtin list.
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
+  runSlashCommand?(name: string, args: string, requestId: string, branchHead: string): Promise<LocalAgentNotice | void>
   stopTask?(taskId: string): Promise<boolean>
   messageChild?(contextId: string, text: string): Promise<void>
   /** Wait for admitted child execution and its archive writes; does not close the owner. */

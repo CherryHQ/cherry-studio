@@ -33,6 +33,7 @@ import {
 import {
   install,
   type HostPorts,
+  type GoalNotice,
   type Entries,
   type CallRef,
   type ConversationFacts,
@@ -132,6 +133,7 @@ export interface PiDurableThreadHandle extends ThreadHandle {
     /** Admit reference text once without starting a run or displaying a product message. */
     initializeContext(text: string): Promise<void>
     compact(instructions?: string): Promise<OperationResult<{ compacted: boolean }>>
+    goalCommand(args: string, requestId: string): Promise<GoalNotice>
     permissionModeChanged(): Promise<OperationResult<void>>
   }
   /** Committed conversation-owned history, including entries before reset/compaction. Does not resume work. */
@@ -791,6 +793,14 @@ export async function createPiDurableRuntime(
     let released = false
     const observations = new Set<Observation>()
     const unavailable = () => released || closing
+    const goalCommand = async (args: string, requestId: string) => {
+      if (!behavior || !behaviorEntries) throw new Error('Durable goal command is unavailable')
+      const notice = await behavior.withCall(entry.ref.id, (ports) =>
+        behaviorEntries.goalCommand(ports, entry.ref.id, args, requestId)
+      )
+      native.resume()
+      return notice
+    }
     const observeCaptured = async (subscribe: () => Observation): Promise<OperationResult<Observation>> => {
       if (unavailable()) return rejected('observe', 'closed')
       try {
@@ -856,15 +866,7 @@ export async function createPiDurableRuntime(
               }
             }
             if (/^\/goal(?:\s|$)/.test(input.text)) {
-              await behavior.withCall(entry.ref.id, (ports) =>
-                behaviorEntries!.goalCommand(
-                  ports,
-                  entry.ref.id,
-                  input.text.slice('/goal'.length).trim(),
-                  input.inputId
-                )
-              )
-              native.resume()
+              await goalCommand(input.text.slice('/goal'.length).trim(), input.inputId)
               const state: InputState = { inputId: input.inputId, facts: ['locally-handled'], outcome: 'completed' }
               entry.projection.input(state)
               return { status: 'acknowledged', inputId: input.inputId, facts: state.facts }
@@ -1100,6 +1102,14 @@ export async function createPiDurableRuntime(
           )
         },
         compact,
+        goalCommand(args, requestId) {
+          const work = entry.admission.then(() => {
+            if (unavailable() || entry.managedChild) throw new Error('Durable goal command is unavailable')
+            return goalCommand(args, requestId)
+          })
+          entry.admission = work.then(() => {}, report)
+          return track(work)
+        },
         async permissionModeChanged() {
           if (unavailable()) return rejected('permission-mode-changed', 'closed')
           if (behavior)

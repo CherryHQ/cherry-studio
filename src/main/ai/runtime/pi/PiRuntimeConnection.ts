@@ -107,6 +107,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   readonly events = this.eventQueue
   private runtime?: PiRuntime
   private handle?: PiThreadHandle
+  private readonly slashCommands = new Set<string>()
   private observation?: Observation
   private context?: ReturnType<typeof preparePiBranch>
   private closing = false
@@ -492,6 +493,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  async runSlashCommand(name: string, args: string, requestId: string) {
+    const handle = this.handle
+    if (name !== 'goal' || !handle || this.closing) throw new Error('Pi slash command is unavailable')
+    this.slashCommands.add(requestId)
+    try {
+      const notice = await handle.pi.goalCommand(args, requestId)
+      return { severity: notice.level, title: notice.text }
+    } finally {
+      this.slashCommands.delete(requestId)
+    }
+  }
+
   readonly compactWithInstructions = true as const
 
   get compact(): CompactThread | undefined {
@@ -647,7 +660,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.handle && event.thread !== this.handle.thread.id) return
     if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
     else if (event.type === 'goal-notice') {
-      this.projection?.notice(event.notice.text)
+      if (!this.slashCommands.has(event.requestKey)) this.projection?.notice(event.notice.text)
     } else if (event.type === 'subagents') this.childTasks.showSubagents(event.views, true)
   }
 

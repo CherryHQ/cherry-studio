@@ -47,7 +47,12 @@ export type SubagentView = {
 /** [plan choice] Display-only events for `Observation.emit`. */
 export type BehaviorEvent =
   | { readonly type: 'subagents'; readonly thread: ThreadId; readonly views: readonly SubagentView[] }
-  | { readonly type: 'goal-notice'; readonly thread: ThreadId; readonly notice: GoalNotice }
+  | {
+      readonly type: 'goal-notice'
+      readonly thread: ThreadId
+      readonly requestKey: string
+      readonly notice: GoalNotice
+    }
   | { readonly type: 'goal-round'; readonly thread: ThreadId; readonly round: RoundDetails }
 export type TxOp =
   | { readonly type: 'append-record'; readonly thread: ThreadId; readonly record: PolicyRecord; readonly key: Key }
