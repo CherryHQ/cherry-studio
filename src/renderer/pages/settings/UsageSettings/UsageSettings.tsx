@@ -15,6 +15,7 @@ import {
   Skeleton
 } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
+import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
@@ -26,6 +27,7 @@ import type {
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 
+import { LocalAgentUsage } from './LocalAgentUsage'
 import {
   type BoundedTimeRange,
   CHART_TYPE_KEYS,
@@ -34,7 +36,6 @@ import {
   getCacheUsageMetrics,
   getLongestStreak,
   getMetricValue,
-  getPreviousWindowRange,
   getRatioChange,
   getTimelineSeries,
   getWindowRange,
@@ -159,8 +160,12 @@ function UsageSettings() {
   const chartType: UsageChartType =
     selectedChartType === 'pie' ? 'pie' : selectedChartType === 'line' && rollup !== 'total' ? 'line' : 'bar'
 
-  const windowRange = useMemo(() => getWindowRange(windowKey), [windowKey])
-  const previousWindowRange = useMemo(() => getPreviousWindowRange(windowKey), [windowKey])
+  const today = useCurrentDayStart()
+  const windowRange = useMemo(() => getWindowRange(windowKey, today), [windowKey, today])
+  const previousWindowRange = useMemo(
+    () => getWindowRange(windowKey, windowRange.from - 1),
+    [windowKey, windowRange.from]
+  )
 
   const { providers } = useProviders()
   const providerMap = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
@@ -713,6 +718,7 @@ function UsageSettings() {
             />
           </div>
         </UsageSection>
+        <LocalAgentUsage range={windowRange} />
       </UsageResponsiveShell>
     </div>
   )

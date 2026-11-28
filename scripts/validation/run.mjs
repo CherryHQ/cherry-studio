@@ -17,6 +17,7 @@ const { values } = parseArgs({
     committed: { type: 'boolean' },
     group: { type: 'string' },
     shard: { type: 'string' },
+    'format-checked': { type: 'boolean' },
     'no-tests': { type: 'boolean' },
     'github-output': { type: 'boolean' }
   }
@@ -69,7 +70,9 @@ else {
 if (values.plan || values['github-output']) process.exit(0)
 
 const tasks = plan.tasks.filter(
-  (task) => !values.group || values.group === 'checks' || checkTasks[task].group === values.group
+  (task) =>
+    !(task === 'format' && values['format-checked']) &&
+    (!values.group || values.group === 'checks' || checkTasks[task].group === values.group)
 )
 const projects =
   values.group === 'platform' && plan.platform

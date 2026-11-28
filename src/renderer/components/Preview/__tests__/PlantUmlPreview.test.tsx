@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PlantUmlRenderResponse } from '@renderer/workers/plantUml.worker'
@@ -59,6 +60,18 @@ describe('PlantUmlPreview', () => {
     expect(diagram?.querySelector('image, style')).toBeNull()
   })
 
+  it('preserves the rendered diagram background when mounting the preview', async () => {
+    const { container } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
+    await advance()
+    await reply({
+      svg: svg('<text fill="#FFF">Alice to Bob</text>').replace('<svg ', '<svg style="background:#000000;" ')
+    })
+
+    const diagram = getHost(container).shadowRoot?.querySelector('svg')
+    expect(diagram?.style.backgroundColor).toBe('rgb(0, 0, 0)')
+    expect(diagram?.querySelector('text')).toHaveAttribute('fill', '#FFF')
+  })
+
   it('shows the reported PlantUML error and line when the source cannot render', async () => {
     render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()
@@ -107,5 +120,32 @@ describe('PlantUmlPreview', () => {
     expect(FakeWorker.current).not.toBe(timedOutWorker)
     await reply({ svg: svg('<text>Bob to Carol</text>') })
     expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('Bob to Carol')
+  })
+
+  it('re-renders on the reused worker after Activity hide and show', async () => {
+    const { rerender } = render(
+      <Activity mode="visible">
+        <PlantUmlPreview>{source}</PlantUmlPreview>
+      </Activity>
+    )
+    await advance()
+    const firstWorker = FakeWorker.current
+    await reply({ error: 'cannot include <C4/C4_Context>', line: 2 })
+    expect(screen.getByText('2: cannot include <C4/C4_Context>')).toBeInTheDocument()
+
+    rerender(
+      <Activity mode="hidden">
+        <PlantUmlPreview>{source}</PlantUmlPreview>
+      </Activity>
+    )
+    rerender(
+      <Activity mode="visible">
+        <PlantUmlPreview>{source}</PlantUmlPreview>
+      </Activity>
+    )
+    await advance()
+    expect(FakeWorker.current).toBe(firstWorker)
+    await reply({ error: 'cannot include <C4/C4_Context>', line: 2 })
+    expect(screen.getByText('2: cannot include <C4/C4_Context>')).toBeInTheDocument()
   })
 })

@@ -46,17 +46,22 @@
       },
       {
         "id": "code_tools",
-        "path": "/app/code"
+        "path": "/settings/local-agents"
       },
       {
         "id": "notes",
         "path": "/app/notes"
+      },
+      {
+        "id": "api_gateway",
+        "path": "/app/api-gateway"
       }
     ],
     "all": [
       "/app",
       "/settings",
       "/app/agents",
+      "/app/api-gateway",
       "/app/browser",
       "/app/chat",
       "/app/code",
@@ -82,6 +87,7 @@
       "/settings/device-connections",
       "/settings/file-processing",
       "/settings/general",
+      "/settings/local-agents",
       "/settings/local-models",
       "/settings/mcp",
       "/settings/model",
@@ -1277,14 +1283,13 @@
       "once"
     ],
     "codeCli": {
-      "route": "/app/code",
+      "route": "/settings/local-agents",
       "tools": [
         "claude-code",
         "openai-codex",
         "opencode",
         "openclaw",
         "deepseek-harness",
-        "gemini-cli",
         "antigravity-cli",
         "qwen-code",
         "kimi-code",

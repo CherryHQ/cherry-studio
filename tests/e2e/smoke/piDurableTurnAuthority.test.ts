@@ -303,89 +303,122 @@ test.describe('Pi Durable turn authority in Electron', () => {
     }
   })
 
-  test('queues a message sent during a turn in Durable and answers it in its own reply', async ({
-    mainWindow: page
-  }, testInfo) => {
-    test.setTimeout(180_000)
-    const server = await startMockChatServer()
-    const route = routeRequests(server)
-    try {
-      const session = await createSession(page, server)
-      const chat = await openSession(page, session)
-      await chat.send('FIRST_QUESTION')
-      const first = await route.next('FIRST_QUESTION')
-      first.sendText('FIRST_PARTIAL ')
-      await expect(chat.message('FIRST_PARTIAL')).toBeVisible()
+  for (const delivery of ['queue', 'late steer'] as const) {
+    test(`answers a waiting ${delivery} in its own reply when the original turn finishes`, async ({
+      mainWindow: page
+    }, testInfo) => {
+      test.setTimeout(180_000)
+      const server = await startMockChatServer()
+      const route = routeRequests(server)
+      try {
+        const session = await createSession(page, server)
+        const chat = await openSession(page, session)
+        await chat.send('FIRST_QUESTION')
+        const first = await route.next('FIRST_QUESTION')
+        first.sendText('FIRST_PARTIAL ')
+        await expect(chat.message('FIRST_PARTIAL')).toBeVisible()
 
-      await chat.send('QUEUED_QUESTION')
-      const queuedPanel = chat.view.getByRole('button', { name: 'Queued (1)', exact: true })
-      await expect(queuedPanel).toBeVisible()
-      await expect(chat.message('QUEUED_QUESTION')).toBeVisible()
-      first.complete('FIRST_ANSWER')
-      const queued = await route.next('QUEUED_QUESTION')
-      await expect(queuedPanel).toBeHidden()
-      queued.complete('QUEUED_ANSWER')
+        await chat.send('QUEUED_QUESTION')
+        const queuedPanel = chat.view.getByRole('button', { name: 'Queued (1)', exact: true })
+        await expect(queuedPanel).toBeVisible()
+        await queuedPanel.click()
+        await expect(chat.view.getByText('QUEUED_QUESTION', { exact: true })).toBeVisible()
+        await expect(chat.message('QUEUED_QUESTION')).toHaveCount(0)
+        await capture(page, testInfo, 'queued-waiting')
+        if (delivery === 'late steer') {
+          const insert = chat.view.getByRole('button', { name: 'steer', exact: true })
+          await insert.hover()
+          await capture(page, testInfo, 'steer-button')
+          await insert.click()
+          await expect(chat.message('QUEUED_QUESTION').getByRole('status')).toContainText('Waiting for the model…')
+        }
+        first.complete('FIRST_ANSWER')
+        const queued = await route.next('QUEUED_QUESTION')
+        await expect(queuedPanel).toBeHidden()
+        await expect(chat.message('QUEUED_QUESTION')).toHaveCount(1)
+        queued.complete('QUEUED_ANSWER')
 
-      await expect(chat.message('QUEUED_ANSWER')).toBeVisible()
-      await expect
-        .poll(async () =>
-          (await rows(page, session.sessionId)).map(({ role, status, text }) => ({ role, status, text }))
-        )
-        .toMatchObject([
-          { role: 'user', text: has('FIRST_QUESTION') },
-          { role: 'assistant', status: 'success', text: has('FIRST_ANSWER') },
-          { role: 'user', text: has('QUEUED_QUESTION') },
-          { role: 'assistant', status: 'success', text: has('QUEUED_ANSWER') }
-        ])
-      expect((await rows(page, session.sessionId))[1].text).not.toContain('QUEUED_ANSWER')
-      await expectNoErrorCard(page, session.sessionId)
-      expect(route.unclaimed()).toEqual([])
-      await capture(page, testInfo, 'queued-follow-up')
-    } finally {
-      route.close()
-      await server.close()
-    }
-  })
+        await expect(chat.message('QUEUED_ANSWER')).toBeVisible()
+        await expect
+          .poll(async () =>
+            (await rows(page, session.sessionId)).map(({ role, status, text }) => ({ role, status, text }))
+          )
+          .toMatchObject([
+            { role: 'user', text: has('FIRST_QUESTION') },
+            { role: 'assistant', status: 'success', text: has('FIRST_ANSWER') },
+            { role: 'user', text: has('QUEUED_QUESTION') },
+            { role: 'assistant', status: 'success', text: has('QUEUED_ANSWER') }
+          ])
+        expect((await rows(page, session.sessionId))[1].text).not.toContain('QUEUED_ANSWER')
+        await expectNoErrorCard(page, session.sessionId)
+        expect(route.unclaimed()).toEqual([])
+        await capture(page, testInfo, 'queued-follow-up')
+      } finally {
+        route.close()
+        await server.close()
+      }
+    })
+  }
 
-  test('steers a running turn while preserving the original reply owner', async ({ mainWindow: page }, testInfo) => {
-    test.setTimeout(180_000)
-    const server = await startMockChatServer()
-    const route = routeRequests(server)
-    try {
-      const session = await createSession(page, server)
-      const chat = await openSession(page, session)
-      await chat.send('STEER_SOURCE')
-      const source = await route.next('STEER_SOURCE')
-      source.sendText('SOURCE_PARTIAL ')
-      await expect(chat.message('SOURCE_PARTIAL')).toBeVisible()
+  for (const source of ['composer', 'queue'] as const) {
+    test(`steers a running turn from the ${source} while preserving the original reply owner`, async ({
+      mainWindow: page
+    }, testInfo) => {
+      test.setTimeout(180_000)
+      const server = await startMockChatServer()
+      const route = routeRequests(server)
+      try {
+        const session = await createSession(page, server)
+        const chat = await openSession(page, session)
+        await chat.send('STEER_SOURCE')
+        const active = await route.next('STEER_SOURCE')
+        active.sendText('SOURCE_PARTIAL ')
+        await expect(chat.message('SOURCE_PARTIAL')).toBeVisible()
 
-      await chat.steer('STEER_INPUT')
-      await expect(chat.message('STEER_INPUT')).toBeVisible()
-      // Durable places a steer before the next model call, so the run needs one more step.
-      source.completeToolCall({ id: 'call-read', name: 'read', arguments: { path: 'steer-probe.txt' } })
-      // The steer must wait through the approval and land on the call after it.
-      await page.getByRole('button', { name: /^Allow/ }).click()
-      const steered = await route.next('STEER_INPUT')
-      steered.complete('STEER_ANSWER')
+        if (source === 'queue') {
+          await chat.send('STEER_INPUT')
+          const panel = chat.view.getByRole('button', { name: 'Queued (1)', exact: true })
+          await expect(panel).toBeVisible()
+          await panel.click()
+          await expect(chat.message('STEER_INPUT')).toHaveCount(0)
+          await chat.view.getByRole('button', { name: 'steer', exact: true }).click()
+          await expect(panel).toHaveCount(0)
+        } else {
+          await chat.steer('STEER_INPUT')
+        }
+        const waiting = chat.message('STEER_INPUT').getByRole('status').filter({ hasText: 'Waiting for the model…' })
+        await expect(waiting).toBeVisible()
+        // Durable places a steer before the next model call, so the run needs one more step.
+        active.completeToolCall({ id: 'call-read', name: 'read', arguments: { path: 'steer-probe.txt' } })
+        // The steer must wait through the approval and land on the call after it.
+        const allow = page.getByRole('button', { name: /^Allow/ })
+        await expect(allow).toBeVisible()
+        await expect(waiting).toBeVisible()
+        await capture(page, testInfo, 'steer-waiting')
+        await allow.click()
+        const steered = await route.next('STEER_INPUT')
+        await expect(waiting).toHaveCount(0)
+        steered.complete('STEER_ANSWER')
 
-      await expect(chat.message('STEER_ANSWER')).toBeVisible()
-      await expect
-        .poll(async () =>
-          (await rows(page, session.sessionId)).map(({ role, status, text }) => ({ role, status, text }))
-        )
-        .toMatchObject([
-          { role: 'user', text: has('STEER_SOURCE') },
-          { role: 'assistant', status: 'success', text: expect.stringMatching(/SOURCE_PARTIAL.*STEER_ANSWER/) },
-          { role: 'user', text: has('STEER_INPUT') }
-        ])
-      await expectNoErrorCard(page, session.sessionId)
-      expect(route.unclaimed()).toEqual([])
-      await capture(page, testInfo, 'steer')
-    } finally {
-      route.close()
-      await server.close()
-    }
-  })
+        await expect(chat.message('STEER_ANSWER')).toBeVisible()
+        await expect
+          .poll(async () =>
+            (await rows(page, session.sessionId)).map(({ role, status, text }) => ({ role, status, text }))
+          )
+          .toMatchObject([
+            { role: 'user', text: has('STEER_SOURCE') },
+            { role: 'assistant', status: 'success', text: expect.stringMatching(/SOURCE_PARTIAL.*STEER_ANSWER/) },
+            { role: 'user', text: has('STEER_INPUT') }
+          ])
+        await expectNoErrorCard(page, session.sessionId)
+        expect(route.unclaimed()).toEqual([])
+        await capture(page, testInfo, 'steer')
+      } finally {
+        route.close()
+        await server.close()
+      }
+    })
+  }
 
   test('stops a turn without losing subagent content and answers the next message', async ({
     mainWindow: page
@@ -469,11 +502,8 @@ test.describe('Pi Durable turn authority in Electron', () => {
       held.sendText('CRASH_PARTIAL ')
       await expect(chat.message('CRASH_PARTIAL')).toBeVisible()
       await chat.send('CRASH_QUEUED')
-      await expect
-        .poll(async () => (await rows(first.page, session.sessionId)).some((row) => row.text.includes('CRASH_QUEUED')))
-        .toBe(true)
-      // Main saves the user row, then submits it; give the native submission time to commit.
-      await first.page.waitForTimeout(2_000)
+      await expect(chat.view.getByRole('button', { name: 'Queued (1)', exact: true })).toBeVisible()
+      await expect(chat.message('CRASH_QUEUED')).toHaveCount(0)
 
       await test.step('Crash the owned Electron application', async () => {
         const child = first.app.process()
@@ -500,8 +530,11 @@ test.describe('Pi Durable turn authority in Electron', () => {
       running = second.app
       const reopened = await openSession(second.page, session)
       const resumed = await route.next('CRASH_QUESTION')
+      await expect(reopened.view.getByRole('button', { name: 'Queued (1)', exact: true })).toBeVisible()
+      await expect(reopened.message('CRASH_QUEUED')).toHaveCount(0)
       resumed.complete('CRASH_ANSWER')
       const queued = await route.next('CRASH_QUEUED')
+      await expect(reopened.message('CRASH_QUEUED')).toHaveCount(1)
       queued.complete('CRASH_QUEUED_ANSWER')
 
       await expect(reopened.message('CRASH_QUEUED_ANSWER')).toBeVisible()

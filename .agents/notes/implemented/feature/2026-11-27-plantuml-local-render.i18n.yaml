@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-27-plantuml-local-render.md
-2026-11-27-plantuml-local-render.md: f326c5e668feb4e1e77297f9c53b5362b63c1585
-2026-11-27-plantuml-local-render.zh.md: 3daeb70bc9a8c6a76488ed68201befa850ccb7e5
+2026-11-27-plantuml-local-render.md: 811863e1707c9c5f728cde9a1a0d6029f44dab81
+2026-11-27-plantuml-local-render.zh.md: f596116af0a2dca9c57bd50b6d80a94f3953f304

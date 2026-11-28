@@ -6,6 +6,13 @@
 
 - Declare the MIT license and include a package-local license file.
 
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [[`3cc092f`](https://github.com/CherryHQ/cherry-studio/commit/3cc092fea6b9e53a52823aee7af2e0b4a3a3b7d5)]:
+  - @cherrystudio/remote-protocol@0.10.0
+
 ## 0.2.7
 
 ### Patch Changes

@@ -76,7 +76,7 @@ const CopyButton: FC<CopyButtonProps> = ({
       aria-label={ariaLabel}
       {...props}>
       {copied ? (
-        <Check size={size} className="copy-icon shrink-0 text-success transition-colors" />
+        <Check size={size} className="lucide-custom copy-icon shrink-0 text-success transition-colors" />
       ) : (
         <Copy size={size} className="copy-icon shrink-0 text-current transition-colors" />
       )}

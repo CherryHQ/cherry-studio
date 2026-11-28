@@ -22,8 +22,9 @@ import { usesAnthropicMessagesSdk } from '../../messages/anthropicThinking'
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
+import { getTerminalModelError } from '../../utils/retryError'
 import { serializeError } from '../../utils/serializeError'
-import { classifyAiSdkFailure } from './failureFacts'
+import { classifyAiSdkFailure, isMissingFinishReason, MissingFinishReasonError } from './failureFacts'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
 import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
@@ -32,23 +33,8 @@ import { composeHooks } from './params/composeHooks'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
-const MISSING_FINISH_REASON_MESSAGE = 'Response stream ended without a finish reason.'
-
-class MissingFinishReasonError extends Error {
-  readonly i18nKey = 'missing_finish_reason'
-
-  constructor(
-    cause: Error,
-    readonly providerId: string,
-    readonly modelId: string
-  ) {
-    super(cause.message, { cause })
-    this.name = 'MissingFinishReasonError'
-  }
-}
-
 function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
-  if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
+  if (isMissingFinishReason(error)) {
     return new MissingFinishReasonError(error, providerId, modelId)
   }
   return error
@@ -261,9 +247,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
 
       logAiFailure(logger, 'agent generate error', err, 'agent.ai_sdk.generate', classifyAiSdkFailure(err))
+      const terminalError = getTerminalModelError(err)
       if (hooks.onError) {
         try {
-          await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
+          await hooks.onError({
+            error: terminalError instanceof Error ? terminalError : new Error(String(terminalError))
+          })
         } catch (hookErr) {
           logAiFailure(logger, 'hooks.onError threw; rethrowing original', hookErr, 'agent.ai_sdk.hook', {
             source: 'application',
@@ -274,7 +263,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           })
         }
       }
-      throw err
+      throw terminalError
     }
   }
 
@@ -504,7 +493,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
 
         const streamError = normalizeStreamError(
-          err,
+          getTerminalModelError(err),
           params.errorContext?.providerId ?? params.providerId,
           params.errorContext?.modelId ?? params.modelId
         )

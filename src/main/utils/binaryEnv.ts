@@ -3,6 +3,8 @@ import path from 'path'
 import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
 
+import { getBundledGitDir } from './bundledGit'
+
 /**
  * Layout and environment primitives for Cherry-managed binaries — where the
  * binaries live and what Cherry injects into a child process's env, independent
@@ -47,7 +49,8 @@ export function dedupePathSegments(segments: string[]): string[] {
  * drive root, and on POSIX an empty result would mean `/`.
  */
 function canonicalPathSegment(segment: string): string {
-  const normalized = isWin ? path.normalize(segment).toLowerCase() : path.normalize(segment)
+  const unquoted = isWin ? segment.trim().replace(/^"(.*)"$/u, '$1') : segment.trim()
+  const normalized = isWin ? path.normalize(unquoted).toLowerCase() : path.normalize(unquoted)
   // Strip only the platform's own trailing separator. On POSIX a backslash is an
   // ordinary filename character, so `/usr/bin\` must stay distinct from `/usr/bin`
   // rather than being collapsed into it by the trailing-separator rule.
@@ -154,11 +157,7 @@ function mergePathEntries(
   // shadow the merged value when the child process spawns.
   const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
-  const normalize = (value: string) => {
-    const normalized = path.normalize(value)
-    return isWin ? normalized.toLowerCase() : normalized
-  }
-  const excluded = new Set(excludedEntries.map(normalize))
+  const excluded = new Set(excludedEntries.map(canonicalPathSegment))
   // Prefixes, retained caller PATH, then suffixes — deduped with first occurrence
   // winning. Explicit exclusions are removed from the caller PATH as well as from
   // either injected side.
@@ -167,7 +166,7 @@ function mergePathEntries(
     ...pathLikeKeys.flatMap((key) => (env[key] || '').split(pathSeparator)),
     ...suffixes
   ])
-    .filter((entry) => !excluded.has(normalize(entry)))
+    .filter((entry) => !excluded.has(canonicalPathSegment(entry)))
     .join(pathSeparator)
   const merged = { ...env }
   for (const key of pathLikeKeys) delete merged[key]
@@ -202,4 +201,20 @@ export function mergeBinaryExecutionEnv(
     ...mergePathPrefixes(env, [binaryEnv.MISE_SHIMS_DIR, ...extraPathPrefixes]),
     ...binaryEnv
   }
+}
+
+/**
+ * Append the bundled MinGit dir (Windows-only; null elsewhere) to the tail of
+ * every PATH-cased key so a launched CLI resolves a bare `git` as a last resort
+ * while any git already on PATH keeps winning (#16402).
+ */
+export function appendBundledGitPathTail(env: Record<string, string>): void {
+  const gitDir = getBundledGitDir()
+  if (!gitDir) return
+  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  const canonicalKey = pathKeys[0] ?? 'Path'
+  const segments = pathKeys.flatMap((key) => (env[key] ?? '').split(';'))
+  const updated = dedupePathSegments([...segments, gitDir]).join(';')
+  for (const key of pathKeys) env[key] = updated
+  if (pathKeys.length === 0) env[canonicalKey] = updated
 }
