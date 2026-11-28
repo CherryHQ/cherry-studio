@@ -10,9 +10,9 @@ Status: implemented
 
 ## 决策
 
-`buildPiModelConfig` 仅对 `openai-completions` 将 `resolveEndpointDialect(provider, endpointType).streamOptions` 映射为 Pi 的 `compat.supportsUsageInStreaming`；Responses 及其他协议本来就不携带 `stream_options`。默认值保持 `true`（缺省即 `true`），在支持的服务上保留用量统计。
+Pi 的网关绑定将 Chat Completions 方言的 `streamOptions` 映射到 `compat.supportsUsageInStreaming`。端点显式关闭流式用量时，首次请求即省略 `stream_options`，也覆盖 OpenAI SDK 默认发送该字段的情况。
 
-提供商执行层在 `resolveProviderAiSdkConfig` 中对聊天补全请求的最外层封装 fetch：当方言显式关闭时直接去掉 `stream_options` 单次发送；否则首次请求保留用量统计，仅在匹配的 400 错误后去掉该字段重试一次。重试仅匹配状态码 400 且正文同时提及 `stream_options`/`include_usage` 并带有错误信号的响应，只删除顶层字段，且最多重试一次。非聊天端点不封装。
+Chat 和受信的桌面网关调用由模型重试层观察实际序列化的请求。服务端以 400 明确拒绝已发送的 `stream_options` 字段时，去掉该顶层字段重试一次。修复计入模型尝试预算，并且只在输出内容前生效。公开 Gateway 遵循自身的重试策略。
 
 ## 考虑过的替代方案
 
@@ -22,10 +22,10 @@ Status: implemented
 
 ## 影响
 
-支持 `stream_options` 的服务在首次请求即保留用量上报。不兼容的服务在去掉字段后重试成功，显式关闭时单次请求即可成功。无条件发送该字段的 `openai` 系列聊天路径同样被上述封装覆盖。无正文或非 400 的拒绝仍直接返回，不做重试。
+支持该字段的服务保留用量上报。省略字段后的响应可能缺少流式 token 用量。省略只作用于当前模型调用，后续调用恢复发送，端点显式关闭该字段的情况除外。
 
 ## 验证
 
-- Regression — `src/main/ai/provider/__tests__/streamOptionsFallback.test.ts`：匹配的 400 会去掉字段重试一次；无关 400、缺少字段和非 400 直接透传；提前省略模式单次调用即去掉字段。
-- Regression — `src/main/ai/provider/__tests__/config.test.ts`：DashScope 保持 `includeUsage:true` 且 fetch 已封装；`openai` 系列聊天已封装；显式 `streamOptions:false` 经一次 `net.fetch` 调用即省略字段；Responses 保持未封装。
-- Regression — `src/main/ai/runtime/pi/modelInjection.test.ts`：`streamOptions:false` 映射为 `supportsUsageInStreaming:false` 且实际请求无 `stream_options`；true/缺省保持启用；非补全协议不设置该键。
+- Regression — `src/main/ai/runtime/pi/gatewayIntegration.test.ts` 覆盖两种 Chat SDK 适配器、Pi Work 单次恢复、独立调用隔离和公开 Gateway 错误透传。
+- Regression — `src/main/ai/provider/__tests__/config.test.ts` 覆盖端点关闭流式用量时从首次请求省略字段。
+- Regression — `src/main/ai/runtime/pi/gatewayModelBinding.test.ts` 覆盖 Chat Completions 和其他 Pi 协议的流式用量兼容配置。

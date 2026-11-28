@@ -10,9 +10,9 @@ Custom OpenAI-compatible chat endpoints may reject `stream_options.include_usage
 
 ## Decision
 
-`buildPiModelConfig` maps `resolveEndpointDialect(provider, endpointType).streamOptions` to Pi `compat.supportsUsageInStreaming` for `openai-completions` only; Responses and other protocols never carry `stream_options`. Defaults stay `true` (`Absent ⇒ true`), preserving usage telemetry where supported.
+Pi's gateway binding maps the Chat Completions dialect's `streamOptions` value to `compat.supportsUsageInStreaming`. An endpoint that explicitly disables stream usage omits `stream_options` from the first request, including when the OpenAI SDK would otherwise send it.
 
-Provider execution wraps the chat-completions fetch outermost in `resolveProviderAiSdkConfig`: an explicit `streamOptions: false` dialect strips `stream_options` upfront in one request; otherwise the first attempt keeps usage telemetry and a matching 400 retries once stripped. The retry matches only status 400 bodies mentioning `stream_options`/`include_usage` with an error signal, strips only the top-level field, and never loops. Non-chat endpoints are unwrapped.
+For Chat and trusted desktop gateway calls, model retry observes the serialized request. On a 400 explicitly rejecting a `stream_options` field that was sent, it retries once without the top-level field. The repair participates in the model attempt budget and can run before any content is emitted. Public Gateway calls follow their own retry policy.
 
 ## Alternatives considered
 
@@ -22,10 +22,10 @@ Provider execution wraps the chat-completions fetch outermost in `resolveProvide
 
 ## Consequences
 
-Hosts that support `stream_options` keep usage reporting on the first attempt. Incompatible hosts succeed after one stripped retry, or in one request when explicitly disabled. `openai`-family chat paths that send the field unconditionally are covered by the same wrappers. Message-less or non-400 rejections still surface without retry.
+Providers that support the field retain usage reporting. A compatible response after omitting the field may lack streaming token usage. The omission applies to one model call and use of the field resumes on the next call unless the dialect explicitly disables it.
 
 ## Verification
 
-- Regression — `src/main/ai/provider/__tests__/streamOptionsFallback.test.ts`: matching 400 retries once stripped; unrelated 400s, missing field, and non-400s pass through; upfront omission strips in one call.
-- Regression — `src/main/ai/provider/__tests__/config.test.ts`: DashScope keeps `includeUsage:true` with wrapped fetch; `openai`-family chat is wrapped; explicit `streamOptions:false` omits upfront in one `net.fetch` call; Responses stays unwrapped.
-- Regression — `src/main/ai/runtime/pi/modelInjection.test.ts`: `streamOptions:false` maps to `supportsUsageInStreaming:false` with no `stream_options` on the wire; true/absent stays enabled; non-completions protocols set no such key.
+- Regression — `src/main/ai/runtime/pi/gatewayIntegration.test.ts` covers both Chat SDK adapters, one-time recovery for Pi work, subsequent call isolation, and public Gateway error propagation.
+- Regression — `src/main/ai/provider/__tests__/config.test.ts` covers upfront omission when the endpoint disables stream usage.
+- Regression — `src/main/ai/runtime/pi/gatewayModelBinding.test.ts` covers stream usage compatibility for Chat Completions and other Pi protocols.

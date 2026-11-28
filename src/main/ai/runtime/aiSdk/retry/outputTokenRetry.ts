@@ -4,7 +4,6 @@ import { isPlainObject } from 'es-toolkit'
 
 import { getTerminalModelError } from '../../../utils/retryError'
 
-export const MAX_OUTPUT_TOKEN_RETRIES = 3
 const MAX_ERROR_LENGTH = 16 * 1024
 const OUTPUT_TOKEN_KEYS = ['max_tokens', 'max_completion_tokens', 'max_output_tokens', 'maxOutputTokens']
 const OUTPUT_TOKEN_NAME = /\b(?:max_(?:completion_|output_)?tokens|MaxTokens|maxOutputTokens|max output tokens)\b/i

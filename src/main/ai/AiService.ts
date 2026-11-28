@@ -189,15 +189,15 @@ function sourceSnapshotForAssistant(assistant: Assistant | undefined): SourceSna
 
 function createCallerRetryWrap(
   maxRetries: number | undefined,
-  recoverOutputTokens: boolean | undefined,
+  repairRejectedRequest: boolean | undefined,
   onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent'],
   handlesTransportRetry?: boolean
 ): ReturnType<typeof createRetryableWrap> {
-  if (!(maxRetries !== undefined && maxRetries > 0) && !recoverOutputTokens) return undefined
+  if (!(maxRetries !== undefined && maxRetries > 0) && !repairRejectedRequest) return undefined
   const policy = resolveModelRetryPolicy(readRetryPolicy(), {
     owner: 'caller',
     maxRetries,
-    recoverOutputTokens,
+    repairRejectedRequest,
     handlesTransportRetry
   })
   return createRetryableWrap({ ...policy, fallbacks: [], onRetryEvent })
@@ -752,7 +752,7 @@ export class AiService extends BaseService {
       request.contextOwner === 'caller'
         ? createCallerRetryWrap(
             request.requestOptions?.maxRetries,
-            request.retryOutputTokenLimit,
+            request.repairRejectedRequest,
             (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event }),
             !!reportTransportFailure
           )
@@ -773,7 +773,7 @@ export class AiService extends BaseService {
             request.usageContext?.recordInvocation
           )
       })
-      const { retryPolicy, outputTokenRetries } = resolveModelRetryPolicy(readRetryPolicy(), {
+      const { retryPolicy, requestRepairRetries } = resolveModelRetryPolicy(readRetryPolicy(), {
         owner: 'chat',
         maxRetries: request.requestOptions?.maxRetries,
         hasApiKeyFallbacks: apiKeyFallbacks.length > 0
@@ -783,7 +783,7 @@ export class AiService extends BaseService {
         primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
-        outputTokenRetries,
+        requestRepairRetries,
         diagnosticContext: {
           chatId: request.conversation.topicId,
           messageId: request.messageId,
@@ -987,7 +987,7 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel =
       request.contextOwner === 'caller'
-        ? createCallerRetryWrap(request.requestOptions?.maxRetries, request.retryOutputTokenLimit)
+        ? createCallerRetryWrap(request.requestOptions?.maxRetries, request.repairRejectedRequest)
         : undefined
     let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
@@ -1004,7 +1004,7 @@ export class AiService extends BaseService {
             createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
           )
       })
-      const { retryPolicy, outputTokenRetries } = resolveModelRetryPolicy(readRetryPolicy(), {
+      const { retryPolicy, requestRepairRetries } = resolveModelRetryPolicy(readRetryPolicy(), {
         owner: 'chat',
         maxRetries: request.requestOptions?.maxRetries,
         hasApiKeyFallbacks: apiKeyFallbacks.length > 0
@@ -1014,7 +1014,7 @@ export class AiService extends BaseService {
         primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
-        outputTokenRetries,
+        requestRepairRetries,
         diagnosticContext: { assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
           request,

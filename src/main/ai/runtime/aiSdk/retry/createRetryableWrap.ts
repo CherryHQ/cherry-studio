@@ -31,7 +31,7 @@ import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { getPendingReplayRoute, ToolContinuationRouteError } from '../../../provider/replayRoute'
 import { getTerminalModelError } from '../../../utils/retryError'
-import { chatTokenFieldRetry } from './chatTokenFieldRetry'
+import { chatStreamOptionsRetry, chatTokenFieldRetry } from './chatRequestRepair'
 import { outputTokenRetry } from './outputTokenRetry'
 import { createModelRetryEvents } from './retryEvents'
 import type { RetryPolicy } from './retryPolicy'
@@ -73,7 +73,7 @@ export interface CreateRetryableWrapOptions {
    */
   fallbacks: FallbackResolver[]
   retryPolicy: RetryPolicy
-  outputTokenRetries?: number
+  requestRepairRetries?: number
   /** Stable request identifiers attached to retry diagnostics. */
   diagnosticContext?: Readonly<Record<string, unknown>>
   /** Invoked when retry starts or settles (e.g. to reconcile a live UI status part). */
@@ -122,13 +122,17 @@ function withActivation(model: LanguageModelV3, activate?: () => void): Language
  */
 export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLanguageModel | undefined {
   const apiKeyFallbacks = options.apiKeyFallbacks ?? []
-  const outputRetries = options.outputTokenRetries
-    ? [chatTokenFieldRetry(options.outputTokenRetries), outputTokenRetry(options.outputTokenRetries)]
+  const requestRepairs = options.requestRepairRetries
+    ? [
+        chatTokenFieldRetry(options.requestRepairRetries),
+        chatStreamOptionsRetry(options.requestRepairRetries),
+        outputTokenRetry(options.requestRepairRetries)
+      ]
     : []
   if (
     !options.primaryReplayRouteId &&
     !options.retryPolicy.enabled &&
-    !outputRetries.length &&
+    !requestRepairs.length &&
     !apiKeyFallbacks.length
   ) {
     return undefined
@@ -157,12 +161,12 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       retry && {
         ...retry,
         model: context.current.model,
-        options: outputRetries.length ? context.current.options : retry.options
+        options: requestRepairs.length ? context.current.options : retry.options
       }
     )
   }
   const sameModelRetries: Retryable<LanguageModel>[] = [
-    ...outputRetries,
+    ...requestRepairs,
     ...(options.retryPolicy.enabled ? [retryTransient] : [])
   ]
   const canSwitchModel = error((_cause, { current }) => !getPendingReplayRoute(current.options.prompt))
@@ -221,7 +225,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
           if (fallback?.replayRouteId === route) {
             const model = withActivation(fallback.model, () => options.onFallbackActivated?.(fallback))
             return {
-              model: outputRetries.length ? wrapWithRetries(model, outputRetries) : model,
+              model: requestRepairs.length ? wrapWithRetries(model, requestRepairs) : model,
               params: { ...params, ...fallback.options }
             }
           }
