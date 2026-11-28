@@ -7,6 +7,7 @@ import {
   resolveGeminiBaseUrl,
   resolveHermesProviderInfo,
   resolveMinimaxProviderInfo,
+  resolveOmpProviderInfo,
   resolvePiProviderInfo
 } from '../resolvers'
 
@@ -232,6 +233,42 @@ describe('resolveMinimaxProviderInfo', () => {
       api: 'anthropic-messages',
       baseUrl: 'https://anthropic.example',
       endpointType: 'anthropic-messages'
+    })
+  })
+})
+
+describe('resolveOmpProviderInfo', () => {
+  it('prefers a model-supported endpoint and maps it to OMP API names', () => {
+    expect(
+      resolveOmpProviderInfo(
+        provider({
+          defaultChatEndpoint: 'anthropic-messages',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'https://anthropic.example' },
+            'openai-responses': { baseUrl: 'https://openai.example' }
+          }
+        }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: 'https://openai.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('normalizes the Google endpoint to the v1beta API required by OMP', () => {
+    expect(
+      resolveOmpProviderInfo(
+        provider({
+          defaultChatEndpoint: 'google-generate-content',
+          endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
+        })
+      )
+    ).toEqual({
+      api: 'google-generative-ai',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      endpointType: 'google-generate-content'
     })
   })
 })

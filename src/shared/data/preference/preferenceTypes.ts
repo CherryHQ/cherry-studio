@@ -388,6 +388,7 @@ export const CODE_CLI_IDS = [...Object.values(CodeCli), 'gemini-cli'] as unknown
   'qoder-cli',
   'github-copilot-cli',
   'pi',
+  'omp',
   'hermes',
   'minimax-code'
 ]

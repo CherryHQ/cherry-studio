@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildCodexConfig,
   buildHermesEnvConfig,
+  buildOmpModelsConfig,
   buildOpenCodeConfig,
   buildPiModelsConfig,
   buildPiSettingsConfig,
@@ -207,6 +208,56 @@ describe('Pi config builders', () => {
       theme: 'light',
       defaultProvider: 'cherry-example',
       defaultModel: 'model-id'
+    })
+  })
+})
+
+describe('OMP config builders', () => {
+  it('writes one Cherry-managed provider and preserves user providers', () => {
+    const result = buildOmpModelsConfig(
+      {
+        userTop: 'keep',
+        providers: {
+          'cherry-old': { baseUrl: 'https://old.example' },
+          user: { baseUrl: 'https://user.example' }
+        }
+      },
+      {
+        api: 'openai-completions',
+        apiKey: 'sk-test',
+        baseUrl: 'https://api.example.com/v1',
+        contextWindow: 128000,
+        headers: { 'X-Title': 'Cherry Studio' },
+        input: ['text', 'image'],
+        maxTokens: 8192,
+        model: 'model-id',
+        modelLabel: 'Model Label',
+        providerKey: 'cherry-example',
+        reasoning: true
+      }
+    )
+
+    expect(result).toEqual({
+      userTop: 'keep',
+      providers: {
+        user: { baseUrl: 'https://user.example' },
+        'cherry-example': {
+          baseUrl: 'https://api.example.com/v1',
+          api: 'openai-completions',
+          apiKey: 'sk-test',
+          headers: { 'X-Title': 'Cherry Studio' },
+          models: [
+            {
+              id: 'model-id',
+              name: 'Model Label',
+              reasoning: true,
+              input: ['text', 'image'],
+              contextWindow: 128000,
+              maxTokens: 8192
+            }
+          ]
+        }
+      }
     })
   })
 })
