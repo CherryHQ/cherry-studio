@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as CherryUi from '@cherrystudio/ui'
 import { TabIdContext } from '@renderer/hooks/tab'
 import { getCachedMessageUiState, updateCachedMessageUiState } from '@renderer/services/messageUiStateCache'
+import { PartOverrides } from '@renderer/utils/message/messagePartRows'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -53,7 +54,10 @@ const mocks = vi.hoisted(() => ({
     <div
       data-testid="message-parts-content"
       data-message-id={messageId}
-      data-part-text={parts[0]?.type === 'text' ? parts[0].text : ''}
+      data-part-text={parts.find((part) => part.type === 'text')?.text ?? ''}
+      data-tool-outputs={JSON.stringify(
+        parts.filter((part) => part.type === 'dynamic-tool').map((part) => part.output)
+      )}
       style={{ minHeight: 600 }}>
       Long message content
     </div>
@@ -333,6 +337,62 @@ describe('MessageGroup', () => {
     mocks.messageListEditingId.mockReturnValue(null)
     mocks.messageListUiSelectors.mockReturnValue({})
     mocks.scrollByWheel.mockReturnValue(false)
+  })
+
+  it('renders one process body while preserving member lookup, multi-selection and capture', () => {
+    const messages = ['call', 'result'].map((id, index) => ({
+      ...createMessage(id, index, 'vertical'),
+      historicalProcessGroupId: 'result'
+    }))
+    const parts = Object.fromEntries(
+      messages.map((message) => [
+        message.id,
+        [
+          {
+            type: 'dynamic-tool' as const,
+            toolName: 'historical_tool',
+            toolCallId: message.id,
+            state: 'output-available' as const,
+            input: {},
+            output: message.id
+          }
+        ]
+      ])
+    )
+    const elements = new Map<string, HTMLElement | null>()
+    const sparse = new PartOverrides(
+      parts,
+      new Map([['result', [...parts.result, { type: 'text', text: 'Final answer' }]]])
+    )
+    const registerMessageElement = (id: string, element: HTMLElement | null) => {
+      elements.set(id, element)
+    }
+    const { rerender } = render(
+      <MessageGroup
+        messages={messages.map((message) => ({ ...message }))}
+        partsByMessageId={sparse}
+        registerMessageElement={registerMessageElement}
+      />
+    )
+    expect(screen.getAllByTestId('message-parts-content')).toHaveLength(1)
+    expect(screen.getByTestId('message-parts-content')).toHaveAttribute('data-tool-outputs', '["call","result"]')
+    expect(screen.getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'Final answer')
+    expect(elements.get('call')).toBeInstanceOf(HTMLElement)
+    expect(elements.get('result')).toBe(elements.get('call'))
+    expect(screen.queryByText('menu')).toBeNull()
+    mocks.messageListSelection.mockReturnValue({ isMultiSelectMode: true, selectedMessageIds: [] })
+    rerender(
+      <MessageGroup
+        messages={messages.map((message) => ({ ...message }))}
+        partsByMessageId={parts}
+        registerMessageElement={registerMessageElement}
+      />
+    )
+    expect(screen.getAllByTestId('message-parts-content')).toHaveLength(2)
+    expect(elements.get('result')).not.toBe(elements.get('call'))
+    mocks.messageListSelection.mockReturnValue(undefined)
+    rerender(<MessageGroup messages={messages} partsByMessageId={parts} captureMode />)
+    expect(screen.getAllByTestId('message-parts-content')).toHaveLength(2)
   })
 
   it('renders a clear-context divider and routes clicks through the injected action', () => {
@@ -890,6 +950,45 @@ describe('MessageGroup', () => {
     expect(wheelEvent.defaultPrevented).toBe(true)
     expect(horizontalGroup.scrollLeft).toBe(160)
   })
+
+  it.each([
+    { wheel: { deltaX: 120 }, direction: 'ltr', start: 0, edge: 200, rowAfter: 280, manual: false },
+    { wheel: { deltaY: 120, shiftKey: true }, direction: 'ltr', start: 0, edge: 200, rowAfter: 280, manual: true },
+    { wheel: { deltaX: -120 }, direction: 'rtl', start: 0, edge: -200, rowAfter: 40, manual: false }
+  ])(
+    'scrolls overflowing math first for $direction wheel $wheel',
+    ({ wheel, direction, start, edge, rowAfter, manual }) => {
+      const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+      const { container } = render(<MessageGroup messages={messages} />)
+      const column = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+      const row = container.querySelector('#message-msg-1')?.closest('[data-slot=scroll-area-viewport]') as HTMLElement
+      const viewport = column.querySelector('[data-slot=scroll-area-viewport]') as HTMLElement
+      setElementSize(viewport, { clientHeight: 300, scrollHeight: 600, scrollTop: 140 })
+      viewport.style.overflowY = 'auto'
+      const formula = document.createElement('span')
+      formula.style.overflowX = 'auto'
+      formula.style.direction = direction
+      const formulaBody = document.createElement('span')
+      formula.append(formulaBody)
+      viewport.append(formula)
+      setElementSize(row, { clientWidth: 500, scrollLeft: 160, scrollWidth: 1000 })
+      setElementSize(formula, { clientWidth: 200, scrollLeft: start, scrollWidth: 400 })
+
+      const innerWheel = createEvent.wheel(formulaBody, wheel)
+      fireEvent(formulaBody, innerWheel)
+
+      expect(innerWheel.defaultPrevented).toBe(manual)
+      expect(row.scrollLeft).toBe(160)
+      expect(formula.scrollLeft).toBe(manual ? 120 : start)
+
+      formula.scrollLeft = edge
+      const boundaryWheel = createEvent.wheel(formulaBody, wheel)
+      fireEvent(formulaBody, boundaryWheel)
+
+      expect(boundaryWheel.defaultPrevented).toBe(true)
+      expect(row.scrollLeft).toBe(rowAfter)
+    }
+  )
 
   it('keeps upward wheel inside a message column while that column can still scroll', () => {
     const parentWheel = vi.fn()

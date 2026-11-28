@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/provider-registry",
-  "version": "0.8.2",
+  "version": "0.8.4",
   "description": "Cross-platform AI provider and model catalogs, schemas, and lookup utilities",
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "bugs": {
@@ -141,7 +141,7 @@
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^5.0.1",
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   },
   "peerDependencies": {
     "zod": "^4.4.3"

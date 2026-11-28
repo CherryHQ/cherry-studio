@@ -6,8 +6,9 @@ import { EmojiIcon } from '@cherrystudio/ui'
 import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ActionDescriptor, ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -82,12 +83,16 @@ export function renderAssistantEntityIcon(
 export function renderAgentEntityIcon(
   iconType: AssistantIconType,
   agent:
-    | { avatarSrc?: string; configuration?: AgentConfiguration; model?: string | null; modelName?: string | null }
+    | (Partial<Pick<AgentEntity, 'avatarSrc' | 'configuration' | 'localRuntime' | 'modelName'>> & {
+        model?: string | null
+      })
     | undefined,
   fallbackModelId?: string | null,
   size: number = RESOURCE_ICON_SIZE
 ) {
   if (iconType === 'none') return undefined
+
+  if (agent?.localRuntime) return <LocalAgentIcon presetId={agent.localRuntime.presetId} size={size} />
 
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={size} />

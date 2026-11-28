@@ -3,14 +3,52 @@ import { resolve } from 'node:path'
 
 import { normalizeContext } from '@earendil-works/pi-ai'
 import type { Message } from '@earendil-works/pi-ai'
+import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { ENDPOINT_TYPE, ModelSchema } from '@shared/data/types/model'
-import { ProviderSchema } from '@shared/data/types/provider'
+import { ENDPOINT_TYPE, type Model, ModelSchema } from '@shared/data/types/model'
+import { type AuthConfig, type Provider, ProviderSchema } from '@shared/data/types/provider'
+import { getRawModelId } from '@shared/utils/model'
 
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
+import type { ReplayAssistantMessage } from './replayHistory'
+
+const dbh = setupTestDatabase()
+
+function registerGatewayModels(provider: Provider, models: Model[], authConfig?: AuthConfig) {
+  dbh.db
+    .insert(userProviderTable)
+    .values({
+      providerId: provider.id,
+      name: provider.name,
+      isEnabled: true,
+      authConfig,
+      defaultChatEndpoint: provider.defaultChatEndpoint,
+      endpointConfigs: provider.endpointConfigs,
+      orderKey: 'a0'
+    })
+    .run()
+  dbh.db
+    .insert(userModelTable)
+    .values(
+      models.map((model, index) => ({
+        id: model.id,
+        providerId: provider.id,
+        modelId: getRawModelId(model),
+        name: model.name,
+        capabilities: model.capabilities,
+        endpointTypes: model.endpointTypes,
+        supportsStreaming: model.supportsStreaming,
+        isEnabled: true,
+        orderKey: `a${index}`
+      }))
+    )
+    .run()
+}
 
 const gateway = vi.hoisted(() => ({
   baseUrl: '',
@@ -119,12 +157,19 @@ it.each([
     apiModelId: 'wire-model',
     capabilities: []
   })
+  registerGatewayModels(
+    provider,
+    [model],
+    adapterFamily.startsWith('google-vertex')
+      ? { type: 'iam-gcp', project: 'fixture-project', location: 'global' }
+      : undefined
+  )
   const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
-  await binding.modelRuntime.completeSimple(
+  const reply = await binding.modelRuntime.completeSimple(
     binding.model,
     normalizeContext({ messages: [{ role: 'user', content: 'fixture', timestamp: 1 }] })
   )
-  expect(gateway.requests).toHaveLength(1)
+  expect(gateway.requests, reply.errorMessage).toHaveLength(1)
   expect(gateway.requests[0].api).toBe(
     path.includes('messages')
       ? 'anthropic-messages'
@@ -302,6 +347,7 @@ it('preserves a per-call output cap when native reasoning disagrees with the gat
     isHidden: false,
     supportsStreaming: true
   })
+  registerGatewayModels(provider, [model])
   const binding = await createPiGatewayModelBinding(
     { sessionId: 'session-1', reasoningEffort: 'ultra' },
     provider,
@@ -378,6 +424,7 @@ it.each(['same', 'provider', 'model', 'api'])(
       isHidden: false,
       supportsStreaming: true
     })
+    registerGatewayModels(provider, [model])
     const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
     const history: Message[] = [{ role: 'user', content: 'Read fixtures.', timestamp: 1 }]
     for (let step = 0; step < 3; step++) {
@@ -404,6 +451,7 @@ it.each(['same', 'provider', 'model', 'api'])(
     const restored: Message[] = JSON.parse(JSON.stringify(history))
     for (const message of restored) {
       if (message.role !== 'assistant') continue
+      if (ownership !== 'same') delete (message as ReplayAssistantMessage).cherryReplayRouteId
       if (ownership === 'provider') message.provider = 'foreign-provider'
       if (ownership === 'model') message.model = 'google-fixture:other-model'
       if (ownership === 'api') message.api = 'openai-completions'
@@ -473,6 +521,8 @@ it('preserves each model route and usage owner when a child shares the native ga
     isHidden: false,
     supportsStreaming: true
   })
+  const childModel = ModelSchema.parse({ ...model, id: 'local::child', apiModelId: 'child-wire' })
+  registerGatewayModels(provider, [model, childModel])
   const usages: Array<{ sessionId: string | undefined; responseId: string | undefined; tokens: number }> = []
   const binding = await createPiGatewayModelBinding(
     { sessionId: 'session-1', reasoningEffort: 'high', serviceTier: 'flex', fastMode: true },
@@ -483,7 +533,7 @@ it('preserves each model route and usage owner when a child shares the native ga
   const child = await createPiGatewayModelBinding(
     { sessionId: 'session-1', reasoningEffort: 'low' },
     provider,
-    ModelSchema.parse({ ...model, id: 'local::child', apiModelId: 'child-wire' }),
+    childModel,
     undefined,
     binding.modelRuntime
   )
@@ -581,6 +631,7 @@ it.each([false, true])('replays CherryIN thinking only when present (empty signa
     isHidden: false,
     supportsStreaming: true
   })
+  registerGatewayModels(provider, [model])
   const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
   const answer = await binding.modelRuntime
     .streamSimple(

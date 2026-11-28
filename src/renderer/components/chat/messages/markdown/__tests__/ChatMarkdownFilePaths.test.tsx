@@ -19,7 +19,7 @@ vi.mock('@renderer/utils/platform', () => ({
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
+  useOptionalMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
   useOptionalMessageListActions: () => ({ navigateToRoute: mocks.navigateToRoute })
 }))
 
@@ -190,13 +190,26 @@ describe('ChatMarkdown code entries', () => {
     }
   )
 
-  it('preserves the preformatted surface for file fences on Windows', async () => {
+  it('preserves the preformatted surface for POSIX file fences on Windows', async () => {
     mocks.isWin = true
     render(
-      <ChatMarkdownRuntime block={{ id: 'windows-fence', content: '```text\n' + path + '\n```', status: 'success' }} />
+      <ChatMarkdownRuntime
+        block={{ id: 'windows-fence', content: '```text\n/home/user/file.ts\n```', status: 'success' }}
+      />
     )
     expect((await screen.findByRole('code')).closest('pre')).not.toBeNull()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['C:\\Users\\Alice\\file.ts', '`C:\\Users\\Alice\\file.ts`'],
+    ['.\\src\\index.ts', '`.\\src\\index.ts`'],
+    ['src\\main.ts:12', '```text\nsrc\\main.ts:12\n```']
+  ])('promotes Windows path %s to ClickableFilePath on Windows', async (expectedPath, content) => {
+    mocks.isWin = true
+    render(<ChatMarkdownRuntime block={{ id: `windows-${expectedPath}`, content, status: 'success' }} />)
+    const link = await screen.findByRole('link', { name: expectedPath })
+    expect(link).toHaveAttribute('data-file-path', expectedPath)
   })
 
   it('promotes a path only when its fence closes, even while the message is streaming', async () => {

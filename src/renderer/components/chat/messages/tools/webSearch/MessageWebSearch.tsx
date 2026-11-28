@@ -7,6 +7,7 @@ import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema } from '@shared/ai/builtinTools'
 
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import { useToolResponsePreview } from '../useToolResponsePreview'
 
 /** Split a result URL into the favicon hostname (keeps `www.`) and the display domain (drops it). */
 function parseResultUrl(url: string): { hostname: string; domain: string } {
@@ -86,7 +87,8 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
   )
 }
 
-export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
+export const MessageWebSearchToolTitle = ({ toolResponse: originalResponse }: { toolResponse: NormalToolResponse }) => {
+  const { toolResponse } = useToolResponsePreview(originalResponse)
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
   const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
   const label = <MessageWebSearchToolLabel toolResponse={toolResponse} />

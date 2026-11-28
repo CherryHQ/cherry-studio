@@ -18,6 +18,8 @@ Status: implemented
 
 本决策更新了 [SDK 转发](../architecture/2026-11-09-gateway-sdk-forwarding.md)和[对象传输](../architecture/2026-11-18-agent-object-transport.md)中的重试边界。公开 HTTP 网关请求保留不重试策略；原生调度、工具、上下文和恢复仍由 harness 拥有。
 
+[模型重试](../../../../docs/dev/references/ai/model-retry.md#output-token-limits)也处理 Chat 和可信 Work 请求的输出预算超限。模型目录记录的上限可能与服务端实际上限不同。重试先根据失败请求确认调整 SDK 参数可以降低预算，再以较小的值重发同一次模型调用，复用现有提供商中间件和重试状态。实际报错见 [Work 汇总](https://github.com/CherryHQ/cherry-studio/issues/20240)和 [Chat 汇总](https://github.com/CherryHQ/cherry-studio/issues/22197)。
+
 ## Alternatives considered
 
 - 保留原生重试：无法复用模型重试与状态路径，若同时启用网关重试，还会放大尝试次数。
@@ -33,6 +35,8 @@ Status: implemented
 
 - Regression — `ChildThreadProjection.test.ts` 和原生 Durable `projection.test.ts` 保留空内容／部分内容的失败原因，覆盖实时投影、归档和重开，且不覆盖后续成功的原生结果。
 - Regression — `gatewayIntegration.test.ts` 使用真实网关执行和本地回环 provider，验证重试恢复、四次尝试耗尽后保留最后的 429 响应体、取消、部分流不重放以及 retry/settled 事件。
+- Regression — `gatewayIntegration.test.ts` 覆盖 Chat、Pi 和可信 Anthropic 网关的预算降额。 `createRetryableWrap.test.ts` 覆盖服务端上限、逐次减额、重试耗尽、取消，以及遇到暂时性错误后继续使用降低的预算。
+- Regression — ai-retry 1.11.1 补丁使用打开失败流时的实际参数。包装器测试覆盖降额后流内返回 503 或再次报告上限的情况，OpenAI 请求抓取验证提供商参数优先级和换密钥后的共享重试计数。
 - Regression — `singleStep.test.ts` 证明 caller 模型包装器执行重试，且不叠加 SDK 重试或本地工具执行；`PiDurableRuntimeConnection.test.ts` 证明原生主任务和子任务重试已关闭。
 - Regression — Pi 和 Pi Durable 连接测试分别路由主任务及两个并发子任务的重试状态；子任务投影测试仅保留最新实时状态，并确保其不进入归档。
 - Regression — 隔离 Electron 配合 aimock 1.48.0 运行了 20 个原生子任务：15 个完成，五个耗尽重试。主任务和子任务的重试提示出现、更新并消失；重开后保留原始并发错误且没有重试提示。只读 SQLite 检查确认主任务及 20 个子任务归档中均无 `data-retry` part。这是本地模拟提供商的验证，不代表生产发布结果。

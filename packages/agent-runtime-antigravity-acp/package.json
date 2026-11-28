@@ -1,0 +1,36 @@
+{
+  "name": "@cherrystudio/agent-runtime-antigravity-acp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "antigravity ACP integration for Cherry Studio.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/adapter.d.mts",
+      "default": "./dist/adapter.mjs"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.mts",
+      "default": "./dist/cli.mjs"
+    },
+    "./terminal": {
+      "types": "./dist/terminal.d.mts",
+      "default": "./dist/terminal.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/adapter.ts src/cli.ts src/terminal.ts --format esm --dts --clean",
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-antigravity-acp/tsconfig.json"
+  },
+  "dependencies": {
+    "@cherrystudio/agent-runtime": "workspace:*",
+    "@cherrystudio/agent-runtime-acp": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.4",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}

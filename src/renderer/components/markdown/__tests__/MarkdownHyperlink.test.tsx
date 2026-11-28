@@ -1,4 +1,4 @@
-import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,6 +26,7 @@ describe('Hyperlink context menu', () => {
 
   it('opens a website preview through its conversation while preserving modified clicks', async () => {
     vi.useRealTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     const user = userEvent.setup()
     const href = 'https://example.com/a%20b'
     render(
@@ -34,7 +35,8 @@ describe('Hyperlink context menu', () => {
       </Link>
     )
     await user.hover(screen.getByRole('link', { name: 'Website' }))
-    const preview = await screen.findByRole('link', { name: /Website preview/ })
+    await act(() => vi.advanceTimersByTimeAsync(500))
+    const preview = screen.getByRole('link', { name: /Website preview/ })
     for (const modifier of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
       const event = createEvent.click(preview, { [modifier]: true })
       fireEvent(preview, event)
@@ -82,6 +84,7 @@ describe('Hyperlink context menu', () => {
 
   it('restores keyboard preview after tabbing away without reopening on menu focus restoration', async () => {
     vi.useRealTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     const user = userEvent.setup()
     render(
       <>
@@ -93,18 +96,20 @@ describe('Hyperlink context menu', () => {
     )
     const link = screen.getByRole('link', { name: 'Website' })
     await user.tab()
-    await waitFor(() => expect(screen.getByText('Website preview')).toBeVisible())
+    await act(() => vi.advanceTimersByTimeAsync(500))
+    expect(screen.getByText('Website preview')).toBeVisible()
     fireEvent.contextMenu(link)
     // Model the menu taking focus and returning it on Escape.
     act(() => link.blur())
     act(() => link.focus())
-    await act(() => new Promise((resolve) => setTimeout(resolve, 600)))
+    await act(() => vi.advanceTimersByTimeAsync(600))
     expect(screen.queryByText('Website preview')).not.toBeInTheDocument()
     await user.tab()
     expect(screen.getByRole('button', { name: 'Next' })).toHaveFocus()
     await user.tab({ shift: true })
     expect(link).toHaveFocus()
-    await waitFor(() => expect(screen.getByText('Website preview')).toBeVisible())
+    await act(() => vi.advanceTimersByTimeAsync(500))
+    expect(screen.getByText('Website preview')).toBeVisible()
   })
 
   it.each([100, 600])('suppresses pending and visible previews after right-click at %i ms', async (delay) => {

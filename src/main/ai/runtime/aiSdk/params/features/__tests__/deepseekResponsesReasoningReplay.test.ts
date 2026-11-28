@@ -81,6 +81,18 @@ describe('deepseekResponsesReasoningReplay', () => {
       })
     })
 
+    it('leaves an explicit Responses summary in summary form', async () => {
+      const prompt: LanguageModelV3Prompt = [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'reasoning', text: 'Only the summary', providerOptions: { openai: { rawReasoningContent: false } } }
+          ]
+        }
+      ]
+      expect(await transform(prompt)).toEqual(prompt)
+    })
+
     it('does not touch user messages', async () => {
       const prompt: LanguageModelV3Prompt = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
       expect(await transform(prompt)).toEqual(prompt)

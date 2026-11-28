@@ -11,6 +11,8 @@ import {
   interactionResponseSchema,
   workspaceSelectionSchema,
   messageListItemSchema,
+  modelOptionSchema,
+  modelSelectionSchema,
   modelSummarySchema,
   partSchema,
   sessionSchema
@@ -46,6 +48,10 @@ export const agentMethods = {
       })
     )
   ),
+  'agent.models.list': method(
+    z.strictObject({ agentId: opaqueId, search: unicodeText.max(256).optional(), ...pageParams }),
+    pageOf(modelOptionSchema)
+  ),
   'agent.workspaces.list': method(
     z.strictObject({ agentId: opaqueId, ...pageParams }),
     pageOf(z.looseObject({ workspaceId: opaqueId, name: unicodeText.max(4096) })).extend({
@@ -68,12 +74,14 @@ export const agentMethods = {
         commandId: opaqueId,
         agentId: opaqueId,
         workspace: workspaceSelectionSchema,
+        model: modelSelectionSchema.optional(),
         title: unicodeText.max(4096).optional()
       }),
       z.strictObject({
         commandId: opaqueId,
         agentId: opaqueId,
         workspaceId: opaqueId,
+        model: modelSelectionSchema.optional(),
         title: unicodeText.max(4096).optional()
       })
     ]),

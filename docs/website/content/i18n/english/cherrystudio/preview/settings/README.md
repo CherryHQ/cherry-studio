@@ -13,7 +13,7 @@ Cherry Studio's settings panel covers everything from **model configuration and 
 | Model Provider | [Model Service Configuration](../../../pre-basic/providers/README.md) | Adding providers, API keys, API host, rotating multiple keys |
 | Default Model | [Default Model Settings](default-models.md) | Global default models for chat, naming, translation and more |
 | Local Models | [Local Models](../../../pre-basic/settings/local-models.md) | Built-in embedding and OCR models that run offline |
-| API Gateway | [API Gateway](../../../advanced-basic/developer-tools/api-gateway.md) | Exposes a local OpenAI-compatible API |
+| Unified Gateway | [Unified Gateway](../../../advanced-basic/developer-tools/api-gateway.md) | Exposes a local OpenAI-compatible API |
 
 ### Tools
 

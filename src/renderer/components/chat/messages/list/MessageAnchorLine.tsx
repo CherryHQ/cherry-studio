@@ -13,6 +13,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { classNames } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -35,7 +36,7 @@ interface MessageLineProps {
   /** Parts for every message outside the mutable streaming tail. Passing this
    * snapshot instead of reading PartsContext here keeps the rail out of the
    * streaming render path — only the live preview leaf subscribes to chunks. */
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: MessagePartRows
   /** Messages that must read their current parts from PartsContext. */
   liveMessageIds: readonly string[]
   scrollToMessageId?: (messageId: string) => void
@@ -283,7 +284,9 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     []
   )
 
-  const hasRail = turns.length > 0
+  const turnCount = turns.length
+  const firstTurnId = turns[0]?.anchorId ?? null
+  const hasRail = turnCount > 0
 
   // Keep the strip's reading anchor stable across async page loads and
   // viewport changes:
@@ -303,28 +306,29 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   useLayoutEffect(() => {
     const el = railScrollRef.current
     const anchor = scrollAnchorRef.current
-    const firstId = turns[0]?.anchorId ?? null
     if (el) {
       const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
-      const added = turns.length - anchor.count
+      const currentScrollTop = el.scrollTop
+      let target = currentScrollTop
+      const added = turnCount - anchor.count
       if (!anchor.entered) {
-        el.scrollTop = maxScroll
         anchor.entered = true
         anchor.pinned = true
-      } else if (added > 0 && firstId !== anchor.firstId) {
-        el.scrollTop += added * RAIL_TICK_PITCH_PX
-      } else if (added > 0 && maxScroll - el.scrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
-        el.scrollTop = maxScroll
+      } else if (added > 0 && firstTurnId !== anchor.firstId) {
+        target += added * RAIL_TICK_PITCH_PX
+      } else if (added > 0 && maxScroll - currentScrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
         anchor.pinned = true
       }
-      if (anchor.pinned) {
-        el.scrollTop = maxScroll
+      if (anchor.pinned) target = maxScroll
+      if (target !== currentScrollTop) {
+        el.scrollTop = target
+        target = el.scrollTop
       }
-      setScrollTop(el.scrollTop)
+      setScrollTop(target)
     }
-    anchor.firstId = firstId
-    anchor.count = turns.length
-  }, [turns, railHeight, bottomInset])
+    anchor.firstId = firstTurnId
+    anchor.count = turnCount
+  }, [firstTurnId, turnCount, railHeight, bottomInset])
 
   // Track the rail height so tick geometry stays exact across window/composer
   // resizes, and hide the rail once it is too short to be usable. Layout effect
@@ -463,7 +467,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 })
 
 interface AnchorPreviewProps {
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: MessagePartRows
   liveMessageIdSet: ReadonlySet<string>
 }
 
@@ -502,7 +506,12 @@ const AnchorPreviewLine: FC<AnchorPreviewLineProps> = ({
 }) => {
   if (!messageId) return null
   if (liveMessageIdSet.has(messageId)) return <LiveMessagePreview messageId={messageId} className={className} />
-  return <MessagePreview parts={historyPartsByMessageId[messageId] ?? EMPTY_MESSAGE_PARTS} className={className} />
+  return (
+    <MessagePreview
+      parts={messagePartsAt(historyPartsByMessageId, messageId) ?? EMPTY_MESSAGE_PARTS}
+      className={className}
+    />
+  )
 }
 
 const LiveMessagePreview: FC<{ messageId: string; className: string }> = ({ messageId, className }) => {

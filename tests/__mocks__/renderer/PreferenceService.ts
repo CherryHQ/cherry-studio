@@ -29,6 +29,7 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'ai.max_tokens': 2000,
 
   // Feature flags
+  'feature.code_cli.agent_order': [],
   'feature.web_search': true,
   'feature.reasoning': false,
   'feature.tool_calling': true,
@@ -41,6 +42,7 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'app.language': 'zh-CN',
   'app.browser.start_page.mode': getDefaultValue('app.browser.start_page.mode'),
   'app.browser.start_page.custom_url': getDefaultValue('app.browser.start_page.custom_url'),
+  'feature.code_cli.workspace': getDefaultValue('feature.code_cli.workspace'),
 
   // Mirrors the generated schema defaults — without them the hook returns
   // null and UI gated on the master switch renders its disabled state.
