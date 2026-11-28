@@ -3855,6 +3855,7 @@
   "preview.image": "預覽圖片 {{url}}",
   "preview.label": "預覽",
   "preview.next": "下一張圖片",
+  "preview.page_indicator": "第 {{current}} 頁，共 {{total}} 頁",
   "preview.pan_down": "下移",
   "preview.pan_left": "左移",
   "preview.pan_right": "右移",

@@ -3855,6 +3855,7 @@
   "preview.image": "이미지 {{url}} 미리보기",
   "preview.label": "미리보기",
   "preview.next": "다음 이미지",
+  "preview.page_indicator": "{{total}}페이지 중 {{current}}페이지",
   "preview.pan_down": "아래로 이동",
   "preview.pan_left": "왼쪽으로 이동",
   "preview.pan_right": "오른쪽으로 이동",

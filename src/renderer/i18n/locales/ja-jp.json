@@ -3855,6 +3855,7 @@
   "preview.image": "{{url}} のプレビュー",
   "preview.label": "プレビュー",
   "preview.next": "次の画像",
+  "preview.page_indicator": "{{total}} ページ中 {{current}} ページ",
   "preview.pan_down": "下にパン",
   "preview.pan_left": "左にパン",
   "preview.pan_right": "右にパン",

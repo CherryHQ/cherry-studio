@@ -3899,6 +3899,7 @@
   "preview.image": "Podgląd obrazu {{url}}",
   "preview.label": "Podgląd",
   "preview.next": "Następny obraz",
+  "preview.page_indicator": "Strona {{current}} z {{total}}",
   "preview.pan_down": "Przesuń w dół",
   "preview.pan_left": "Przesuń w lewo",
   "preview.pan_right": "Przesuń w prawo",

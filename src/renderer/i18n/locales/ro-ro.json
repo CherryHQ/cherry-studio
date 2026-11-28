@@ -3859,6 +3859,7 @@
   "preview.image": "Previzualizare imagine {{url}}",
   "preview.label": "Previzualizare",
   "preview.next": "Imaginea următoare",
+  "preview.page_indicator": "Pagina {{current}} din {{total}}",
   "preview.pan_down": "Deplasează jos",
   "preview.pan_left": "Deplasează stânga",
   "preview.pan_right": "Deplasează dreapta",
