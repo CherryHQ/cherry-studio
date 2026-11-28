@@ -1,6 +1,6 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 import { CancellationError, HttpError } from 'builder-util-runtime'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 const {
   appEditionState,
@@ -966,6 +966,12 @@ describe('AppUpdaterService', () => {
         await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2))
         // Squirrel.Mac fetches the staged ZIP after quitAndInstall returns and fails later.
         vi.mocked(autoUpdater.quitAndInstall).mockImplementationOnce(() => undefined)
+        // Like MacUpdater's constructor, re-emit Squirrel's native error on the updater's error stream.
+        const reemit = (error: Error) => listeners.get('error')?.(error)
+        nativeUpdater.on('error', reemit)
+        onTestFinished(() => {
+          nativeUpdater.removeListener('error', reemit)
+        })
         vi.mocked(ipc.broadcastToType).mockClear()
 
         const install = appUpdater.quitAndInstall('1.3.0')
@@ -975,7 +981,7 @@ describe('AppUpdaterService', () => {
         )
         await vi.waitFor(() => expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce())
         await new Promise((resolve) => setImmediate(resolve))
-        listeners.get('error')?.(new Error('Code signature did not pass validation'))
+        nativeUpdater.emit('error', new Error('Code signature did not pass validation'))
 
         await expect(outcome).resolves.toBe('INTERNAL')
         expect(ipc.broadcastToType).not.toHaveBeenCalledWith('main', 'app.updater.error', expect.anything())
@@ -993,6 +999,41 @@ describe('AppUpdaterService', () => {
         listeners.get('update-downloaded')?.(release('1.3.1'))
         await expect(appUpdater.quitAndInstall('1.3.1')).rejects.toMatchObject({ code: 'INTERNAL' })
         expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
+      })
+
+      it('leaves a scheduled lookup failure with the lookup while Squirrel.Mac is still handing off', async () => {
+        platformState.mac = true
+        const ipc = application.get('IpcApiService')
+        let failLookup: (error: Error) => void = () => undefined
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              failLookup = reject
+            }) as never
+        )
+        const lookup = (
+          appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+        ).performUpdateCheck(false)
+        await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2))
+        // Squirrel.Mac fetches the staged ZIP after quitAndInstall returns and hands off later.
+        vi.mocked(autoUpdater.quitAndInstall).mockImplementationOnce(() => undefined)
+        vi.mocked(ipc.broadcastToType).mockClear()
+
+        const install = appUpdater.quitAndInstall('1.3.0')
+        const outcome = install.then(
+          () => 'resolved',
+          (error: { code?: string }) => error.code
+        )
+        await vi.waitFor(() => expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce())
+        // AppUpdater dispatches a lookup failure on the shared error stream before rejecting the check.
+        const lookupError = new Error('net::ERR_INTERNET_DISCONNECTED')
+        listeners.get('error')?.(lookupError)
+        failLookup(lookupError)
+        await expect(lookup).rejects.toBe(lookupError)
+
+        expect(ipc.broadcastToType).toHaveBeenCalledWith('main', 'app.updater.error', lookupError)
+        nativeUpdater.emit('before-quit-for-update')
+        await expect(outcome).resolves.toBe('resolved')
       })
     })
 

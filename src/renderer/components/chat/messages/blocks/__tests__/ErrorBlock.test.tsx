@@ -1038,6 +1038,34 @@ required service tier.`
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/general')
   })
 
+  it('identifies a deleted provider in a streamed turn and opens the provider list', () => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('error.diagnosis.provider_unavailable', enUS['error.diagnosis.provider_unavailable'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: "Provider with id 'removed-provider' not found",
+          streamStage: 'response-stream',
+          stack: null
+        }}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Provider removed-provider no longer exists in this app. Choose a model from another provider in this conversation.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.stream')).toBeNull()
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider')
+  })
+
   // #22571: the stale assistant-bound model is gone from the install, so the headline must name
   // that layer instead of the generic "no permission" text, and detail must not fall back to a
   // guessed provider/model.

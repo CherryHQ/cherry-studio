@@ -162,8 +162,10 @@ export class AppUpdaterService extends BaseService {
   private retirements = 0
   // electron-updater installs whatever it cached last, so installation names the version it confirmed.
   private downloadedVersion: string | null = null
-  // A native install failure belongs to its attempt until the quit handoff, even when Squirrel.Mac reports it later.
+  // BaseUpdater reports install failures inside quitAndInstall; Squirrel.Mac reports them later on the native updater.
   private failInstall: ((error: Error) => void) | null = null
+  // MacUpdater re-emits that native failure on the shared error stream, where it is not a lookup error.
+  private nativeInstallError: Error | null = null
   private pendingInstall: Promise<void> | null = null
   // MacUpdater keeps a failed attempt claimed and ignores later installs until the app restarts.
   private installClaimed = false
@@ -350,6 +352,7 @@ export class AppUpdaterService extends BaseService {
         this.failInstall(error)
         return
       }
+      if (error === this.nativeInstallError) return
       if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
       if (!this.acceptedRelease) this.failedGeneration = this.checkGeneration
       logFailure(logger, 'update error', error, 'update.run', classifyUpdateFailure(error))
@@ -735,18 +738,28 @@ export class AppUpdaterService extends BaseService {
   private async runInstall(): Promise<void> {
     application.markQuitting()
     await new Promise((resolve) => setImmediate(resolve))
-    let handedOff: () => void = () => undefined
+    let settle: (failure: Error | null) => void = () => undefined
+    const handedOff = () => settle(null)
+    const nativeFailed = (error: Error) => {
+      this.nativeInstallError = error
+      settle(error)
+    }
     let failure: Error | null
     try {
       failure = await new Promise<Error | null>((resolve) => {
-        this.failInstall = resolve
-        handedOff = () => resolve(null)
+        settle = resolve
         nativeUpdater.once('before-quit-for-update', handedOff)
+        // Prepended so the attempt claims the error before MacUpdater re-emits it.
+        nativeUpdater.prependListener('error', nativeFailed)
+        this.failInstall = resolve
         autoUpdater.quitAndInstall(true, true)
+        this.failInstall = null
       })
     } finally {
       this.failInstall = null
+      this.nativeInstallError = null
       nativeUpdater.removeListener('before-quit-for-update', handedOff)
+      nativeUpdater.removeListener('error', nativeFailed)
     }
     if (!failure) return
     if (isMac) this.installClaimed = true

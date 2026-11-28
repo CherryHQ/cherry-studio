@@ -1685,6 +1685,7 @@
   "error.diagnosis.payload": "Request content too large, please reduce file or text size",
   "error.diagnosis.permission": "The provider refused this request. Check the error details, your account plan, API key permissions, or access to this resource",
   "error.diagnosis.prefill_memory": "Not enough memory to process this prompt. Shorten the conversation or use a smaller model.",
+  "error.diagnosis.provider_unavailable": "Provider {{provider}} no longer exists in this app. Choose a model from another provider in this conversation.",
   "error.diagnosis.proxy": "Proxy or SSL certificate error, check proxy and network settings",
   "error.diagnosis.quota": "Account quota exhausted, please recharge or switch provider",
   "error.diagnosis.rate_limit": "Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",

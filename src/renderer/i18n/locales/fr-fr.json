@@ -1685,6 +1685,7 @@
   "error.diagnosis.payload": "Contenu de la requête trop volumineux, veuillez réduire la taille du fichier ou du texte",
   "error.diagnosis.permission": "Le fournisseur a refusé cette demande. Vérifiez les détails de l'erreur, votre plan de compte, les autorisations de clé API ou l'accès à cette ressource.",
   "error.diagnosis.prefill_memory": "Mémoire insuffisante pour traiter cette requête. Raccourcissez la conversation ou utilisez un modèle plus petit.",
+  "error.diagnosis.provider_unavailable": "Le fournisseur {{provider}} n’existe plus dans cette application. Choisissez un modèle d’un autre fournisseur pour cette conversation.",
   "error.diagnosis.proxy": "Erreur de proxy ou de certificat SSL, vérifiez les paramètres proxy et réseau",
   "error.diagnosis.quota": "Quota du compte épuisé, veuillez recharger ou changer de fournisseur",
   "error.diagnosis.rate_limit": "Trop de requêtes en peu de temps. Patientez un instant et réessayez, ou passez à un modèle avec une limite de débit plus élevée",

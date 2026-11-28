@@ -755,6 +755,7 @@ not promise strict control latency over a blocked socket.
 | `UNAUTHENTICATED`, `TOKEN_EXPIRED`, `GRANT_REVOKED` | Authenticate/refresh or require new desktop approval |
 | `FORBIDDEN`, `NOT_FOUND` | Operation outside the remote API boundary, or resource/handle unavailable; no per-action permission tiers |
 | `CONFLICT`, `IDEMPOTENCY_CONFLICT` | Refresh authoritative state; do not alter an existing command's body |
+| `MODEL_UNAVAILABLE` | The Session model chosen for creation is no longer selectable; choose again under a new command ID |
 | `RESET_REQUIRED`, `CHECKPOINT_EXPIRED`, `REVISION_EXPIRED` | Restart the corresponding subscription/checkpoint/read traversal |
 | `RATE_LIMITED`, `RESOURCE_EXHAUSTED` | Respect `retryAfterMs`; retain the original command ID |
 

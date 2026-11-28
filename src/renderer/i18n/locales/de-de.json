@@ -1685,6 +1685,7 @@
   "error.diagnosis.payload": "Anfrageinhalt zu groß, bitte verringern Sie die Datei- oder Textgröße",
   "error.diagnosis.permission": "Der Anbieter hat diese Anfrage abgelehnt. Überprüfen Sie die Fehlerdetails, Ihren Account-Plan, die API-Schlüsselberechtigungen oder den Zugriff auf diese Ressource.",
   "error.diagnosis.prefill_memory": "Nicht genug Speicher für diese Anfrage. Kürzen Sie den Gesprächsverlauf oder verwenden Sie ein kleineres Modell.",
+  "error.diagnosis.provider_unavailable": "Der Anbieter {{provider}} ist in dieser App nicht mehr vorhanden. Wählen Sie für diese Unterhaltung ein Modell eines anderen Anbieters.",
   "error.diagnosis.proxy": "Proxy- oder SSL-Zertifikatsfehler, überprüfen Sie die Proxy- und Netzwerkeinstellungen",
   "error.diagnosis.quota": "Kontoguthaben aufgebraucht, bitte aufladen oder Anbieter wechseln",
   "error.diagnosis.rate_limit": "Zu viele Anfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen, oder zu einem Modell mit höherer Ratenbegrenzung wechseln",
