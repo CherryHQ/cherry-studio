@@ -2,6 +2,8 @@ import { isEqual } from 'es-toolkit/compat'
 
 import { loggerService } from '@logger'
 import type {
+  FileProcessorId,
+  FileProcessorOptionEdit,
   PreferenceUpdateOptions,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
@@ -239,6 +241,14 @@ export class PreferenceService {
       logger.error(`Pessimistic update failed for ${key}:`, error as Error)
       throw error
     }
+  }
+
+  public async editFileProcessorOption(processorId: FileProcessorId, edit: FileProcessorOptionEdit): Promise<void> {
+    await window.api.preference.editFileProcessorOption(processorId, edit)
+  }
+
+  public async resetFileProcessorOptions(processorId: FileProcessorId): Promise<void> {
+    await window.api.preference.resetFileProcessorOptions(processorId)
   }
 
   // Read the source of truth without changing the cache or subscriptions.

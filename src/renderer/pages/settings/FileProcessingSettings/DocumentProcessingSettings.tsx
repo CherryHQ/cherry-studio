@@ -23,6 +23,8 @@ const DocumentProcessingSettings: FC = () => {
   const {
     defaultDocumentProcessor,
     processors,
+    hasProcessorOptions,
+    resetProcessorOptions,
     setApiKeys,
     setCapabilityField,
     setDefaultProcessor,
@@ -68,6 +70,8 @@ const DocumentProcessingSettings: FC = () => {
           onSetCapabilityField={setCapabilityField}
           onSetDefaultProcessor={setDefaultProcessor}
           onSetLanguageOptions={setLanguageOptions}
+          optionsResettable={hasProcessorOptions(activeEntry.processor.id)}
+          onResetOptions={resetProcessorOptions}
         />
       ) : availableProcessors.status === 'error' ? (
         <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">

@@ -1,11 +1,8 @@
 import { useCallback, useMemo } from 'react'
 
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
-import type {
-  FileProcessorFeature,
-  FileProcessorId,
-  FileProcessorOverride
-} from '@shared/data/preference/preferenceTypes'
+import { preferenceService } from '@data/PreferenceService'
+import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 
 const FILE_PROCESSING_KEYS = {
@@ -20,7 +17,7 @@ const DEFAULT_KEY_BY_FEATURE = {
 
 export function useFileProcessingPreferences() {
   const [preferences, setPreferences] = useMultiplePreferences(FILE_PROCESSING_KEYS)
-  const [overrides, setOverrides] = usePreference('feature.file_processing.overrides')
+  const [overrides] = usePreference('feature.file_processing.overrides')
 
   const processors = useMemo<FileProcessorMerged[]>(() => {
     return PRESETS_FILE_PROCESSORS.map((preset) => {
@@ -46,22 +43,11 @@ export function useFileProcessingPreferences() {
     [setPreferences]
   )
 
-  const updateProcessor = useCallback(
-    async (processorId: FileProcessorId, patch: FileProcessorOverride) => {
-      await setOverrides({
-        ...overrides,
-        [processorId]: { ...overrides[processorId], ...patch }
-      })
-    },
-    [overrides, setOverrides]
-  )
-
-  const setApiKeys = useCallback(
-    async (processorId: FileProcessorId, apiKeys: string[]) => {
-      await updateProcessor(processorId, { apiKeys })
-    },
-    [updateProcessor]
-  )
+  // Single-field edits are applied in the main process against its current value, so a save
+  // never writes back a stale whole-map snapshot (for example after a reset).
+  const setApiKeys = useCallback(async (processorId: FileProcessorId, apiKeys: string[]) => {
+    await preferenceService.editFileProcessorOption(processorId, { type: 'apiKeys', apiKeys })
+  }, [])
 
   const setCapabilityField = useCallback(
     async (
@@ -70,33 +56,49 @@ export function useFileProcessingPreferences() {
       field: 'apiHost' | 'modelId' | 'formulaLevel' | 'mergeCrossPageForms',
       value: string | number | boolean
     ) => {
-      await updateProcessor(processorId, {
-        capabilities: {
-          ...overrides[processorId]?.capabilities,
-          [feature]: {
-            ...overrides[processorId]?.capabilities?.[feature],
-            [field]: value
-          }
-        }
-      })
+      await preferenceService.editFileProcessorOption(processorId, { type: 'capability', feature, field, value })
     },
-    [overrides, updateProcessor]
+    []
   )
 
   const setLanguageOptions = useCallback(
     async (processorId: Extract<FileProcessorId, 'system' | 'tesseract'>, langs: string[]) => {
-      await updateProcessor(processorId, {
-        options: { ...overrides[processorId]?.options, langs }
-      })
+      await preferenceService.editFileProcessorOption(processorId, { type: 'langs', langs })
     },
-    [overrides, updateProcessor]
+    []
   )
+
+  /** Whether the processor carries user-set recognition options (capability fields or language options). */
+  const hasProcessorOptions = useCallback(
+    (processorId: FileProcessorId) => {
+      const override = overrides[processorId]
+      return Boolean(
+        (override?.capabilities &&
+          Object.values(override.capabilities).some((capability) =>
+            Object.keys(capability ?? {}).some((field) => field !== 'apiHost' || !override.apiKeys?.length)
+          )) ||
+        (override?.options?.langs && override.options.langs.length > 0)
+      )
+    },
+    [overrides]
+  )
+
+  /**
+   * Reset a processor's recognition options (capability fields and language
+   * options) to the preset defaults. Saved credentials and their configured
+   * API destinations stay together until the user explicitly edits them.
+   */
+  const resetProcessorOptions = useCallback(async (processorId: FileProcessorId) => {
+    await preferenceService.resetFileProcessorOptions(processorId)
+  }, [])
 
   return {
     defaultDocumentProcessor: preferences.defaultDocumentProcessor,
     defaultImageProcessor: preferences.defaultImageProcessor,
     overrides,
     processors,
+    hasProcessorOptions,
+    resetProcessorOptions,
     setApiKeys,
     setCapabilityField,
     setDefaultProcessor,

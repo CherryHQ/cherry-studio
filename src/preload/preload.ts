@@ -6,6 +6,8 @@ import type { CreateDirectoryOptions } from 'webdav'
 import type { DataApiDataChangeEffect, DataRequest, DataResponse } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
+  FileProcessorId,
+  FileProcessorOptionEdit,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType
@@ -229,6 +231,10 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Preference_Get, key),
     set: <K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
+    resetFileProcessorOptions: (processorId: FileProcessorId): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Preference_ResetFileProcessorOptions, processorId),
+    editFileProcessorOption: (processorId: FileProcessorId, edit: FileProcessorOptionEdit): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Preference_EditFileProcessorOption, processorId, edit),
     getMultipleRaw: <K extends UnifiedPreferenceKeyType>(keys: K[]): Promise<UnifiedPreferenceMultipleResultType<K>> =>
       ipcRenderer.invoke(IpcChannel.Preference_GetMultipleRaw, keys),
     setMultiple: (updates: Partial<UnifiedPreferenceType>) =>

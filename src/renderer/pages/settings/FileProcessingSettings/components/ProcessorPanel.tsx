@@ -1,4 +1,4 @@
-import { List, SquareCheckBig } from 'lucide-react'
+import { List, RotateCcw, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,6 +17,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FileProcessorIcon } from '@renderer/components/icons/FileProcessorIcon'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import {
   SettingGroup,
   SettingHelpLink,
@@ -67,6 +68,9 @@ type ProcessorPanelProps = {
     processorId: Extract<FileProcessorId, 'system' | 'tesseract'>,
     langs: string[]
   ) => Promise<void>
+  /** Whether the active processor carries user-set recognition options that can be reset. */
+  optionsResettable: boolean
+  onResetOptions: (processorId: FileProcessorId) => Promise<void>
 }
 
 export function ProcessorPanel({
@@ -77,7 +81,9 @@ export function ProcessorPanel({
   onSetApiKeys,
   onSetCapabilityField,
   onSetDefaultProcessor,
-  onSetLanguageOptions
+  onSetLanguageOptions,
+  optionsResettable,
+  onResetOptions
 }: ProcessorPanelProps) {
   const { t } = useTranslation()
   const { languages } = useLanguages()
@@ -107,16 +113,23 @@ export function ProcessorPanel({
     Boolean(requiredLocalModel) ||
     showLanguageOptions
 
-  const [apiKeysInput, setApiKeysInput] = useState(() => joinApiKeyString(processor.apiKeys ?? []))
+  const savedApiKeysText = joinApiKeyString(processor.apiKeys ?? [])
+  const [apiKeysInput, setApiKeysInput] = useState(savedApiKeysText)
   const [apiHostInput, setApiHostInput] = useState(entry.capability.apiHost ?? '')
   const [modelIdInput, setModelIdInput] = useState(entry.capability.modelId ?? '')
   const pendingDefaultKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    setApiKeysInput(joinApiKeyString(processor.apiKeys ?? []))
+    setApiKeysInput(savedApiKeysText)
+  }, [entry.key, savedApiKeysText])
+
+  useEffect(() => {
     setApiHostInput(entry.capability.apiHost ?? '')
+  }, [entry.key, entry.capability.apiHost])
+
+  useEffect(() => {
     setModelIdInput(entry.capability.modelId ?? '')
-  }, [entry.key])
+  }, [entry.key, entry.capability.modelId])
 
   const languageOptions = useMemo(() => {
     if (!languages) {
@@ -185,8 +198,10 @@ export function ProcessorPanel({
       toast.warning(t('settings.tool.file_processing.errors.invalid_api_host'))
       return
     }
+    // Leaving an untouched field must not turn the effective preset URL into an explicit override.
+    if (trimmedApiHost === (entry.capability.apiHost ?? '')) return
     await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', trimmedApiHost), 'save API host')
-  }, [apiHostInput, entry.feature, onSetCapabilityField, persist, processor.id, t])
+  }, [apiHostInput, entry.capability.apiHost, entry.feature, onSetCapabilityField, persist, processor.id, t])
 
   const setModelIdInputAndPersist = useCallback(
     async (value: string) => {
@@ -262,6 +277,20 @@ export function ProcessorPanel({
     [onSetLanguageOptions, persist, processor.id]
   )
 
+  const handleResetOptions = useCallback(() => {
+    const processorId = processor.id
+    void ConfirmActionPopup.show({
+      title: t('settings.tool.file_processing.reset_options'),
+      content: t('settings.tool.file_processing.reset_options_confirm'),
+      okText: t('common.reset'),
+      cancelText: t('common.cancel'),
+      danger: true,
+      action: async () => {
+        await onResetOptions(processorId)
+      }
+    })
+  }, [onResetOptions, processor.id, t])
+
   return (
     <SettingGroup className="flex w-full flex-col gap-2">
       <div className={cn('flex min-h-8 flex-wrap items-center justify-between gap-3', hasProcessorDetails && 'mb-2')}>
@@ -273,21 +302,36 @@ export function ProcessorPanel({
             iconProps={{ size: 13, color: 'currentColor', className: 'shrink-0 opacity-80' }}
           />
         </SettingTitle>
-        <Select value={processor.id} disabled={selectionDisabled} onValueChange={handleProcessorChange}>
-          <SelectTrigger size="sm" className="h-8 w-56 text-sm" aria-label={featureTitle}>
-            <SelectValue placeholder={t('common.select')} />
-          </SelectTrigger>
-          <SelectContent>
-            {entries.map((item) => (
-              <SelectItem key={item.key} value={item.processor.id}>
-                <div className="flex items-center gap-2">
-                  <FileProcessorIcon processorId={item.processor.id} />
-                  <span>{t(getProcessorNameKey(item.processor.id))}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-1.5">
+          <Select value={processor.id} disabled={selectionDisabled} onValueChange={handleProcessorChange}>
+            <SelectTrigger size="sm" className="h-8 w-56 text-sm" aria-label={featureTitle}>
+              <SelectValue placeholder={t('common.select')} />
+            </SelectTrigger>
+            <SelectContent>
+              {entries.map((item) => (
+                <SelectItem key={item.key} value={item.processor.id}>
+                  <div className="flex items-center gap-2">
+                    <FileProcessorIcon processorId={item.processor.id} />
+                    <span>{t(getProcessorNameKey(item.processor.id))}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {optionsResettable ? (
+            <Tooltip content={t('settings.tool.file_processing.reset_options')} delay={500}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
+                aria-label={t('settings.tool.file_processing.reset_options')}
+                onClick={handleResetOptions}>
+                <RotateCcw size={14} />
+              </Button>
+            </Tooltip>
+          ) : null}
+        </div>
       </div>
 
       {showApiSettings ? (

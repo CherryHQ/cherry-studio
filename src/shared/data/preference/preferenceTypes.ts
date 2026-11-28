@@ -484,6 +484,17 @@ export type FileProcessorOverride = {
   options?: FileProcessorOptions
 }
 
+/** One user edit to a processor override, applied by the main process against its current value. */
+export type FileProcessorOptionEdit =
+  | { type: 'apiKeys'; apiKeys: string[] }
+  | {
+      type: 'capability'
+      feature: FileProcessorFeature
+      field: 'apiHost' | 'modelId' | 'formulaLevel' | 'mergeCrossPageForms'
+      value: string | number | boolean
+    }
+  | { type: 'langs'; langs: string[] }
+
 export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcessorOverride>>
 
 /** Region types for miniApps visibility */

@@ -121,6 +121,8 @@ export const createMockPreferenceService = (
     }),
 
     getAuthoritative,
+    resetFileProcessorOptions: vi.fn(async () => {}),
+    editFileProcessorOption: vi.fn(async () => {}),
     ensureSubscription,
     ensureFreshSubscription,
 

@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import { PopupHost } from '@renderer/components/PopupHost'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type * as RendererConstantModule from '@renderer/utils/platform'
@@ -268,6 +270,7 @@ describe('processing settings pages', () => {
 
   beforeEach(() => {
     MockCacheUtils.resetMocks()
+    vi.mocked(preferenceService.getAuthoritative).mockImplementation(async () => overridesMock.value)
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
     overridesMock.value = {}
@@ -300,6 +303,41 @@ describe('processing settings pages', () => {
     }
     vi.advanceTimersByTime(POPUP_EXIT_MS)
     vi.useRealTimers()
+  })
+
+  it('refreshes the host field after reset and does not restore it on unchanged blur', async () => {
+    preferencesMock.defaultImageProcessor = 'mistral'
+    overridesMock.value = { mistral: { capabilities: { image_to_text: { apiHost: 'https://old.example' } } } }
+    const user = userEvent.setup()
+    const { rerender } = render(<OcrSettings />)
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    const host = await screen.findByPlaceholderText('settings.provider.api_host')
+    expect(host).toHaveValue('https://old.example')
+    overridesMock.value = {}
+    rerender(<OcrSettings />)
+    await waitFor(() => expect(host).not.toHaveValue('https://old.example'))
+    const saves = setOverridesMock.mock.calls.length
+    await user.click(host)
+    await user.tab()
+    expect(setOverridesMock.mock.calls).toHaveLength(saves)
+  })
+
+  it('rejects a failed reset action so the confirmation can offer retry', async () => {
+    overridesMock.value = { mistral: { capabilities: { image_to_text: { modelId: 'custom' } } } }
+    const show = vi.spyOn(ConfirmActionPopup, 'show').mockResolvedValueOnce(false)
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    await user.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.reset_options' }))
+    const params = show.mock.calls.at(-1)?.[0]
+    expect(params).toBeDefined()
+    vi.mocked(preferenceService.resetFileProcessorOptions).mockRejectedValueOnce(new Error('reset write failed'))
+    await expect(params!.action()).rejects.toThrow('reset write failed')
+    show.mockRestore()
   })
 
   it('selects an image processor and makes it the image-to-text default', async () => {
@@ -555,12 +593,28 @@ describe('processing settings pages', () => {
     await user.tab()
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        mistral: {
-          apiKeys: ['key-1', 'key-2']
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('mistral', {
+        type: 'apiKeys',
+        apiKeys: ['key-1', 'key-2']
       })
     })
+  })
+
+  it('keeps an unsaved API key draft when unchanged saved keys arrive as a new array', async () => {
+    preferencesMock.defaultImageProcessor = 'mistral'
+    overridesMock.value = { mistral: { apiKeys: ['saved-key'] } }
+    const user = userEvent.setup()
+    const { rerender } = render(<OcrSettings />)
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    )
+    const input = await screen.findByDisplayValue('saved-key')
+    fireEvent.change(input, { target: { value: 'unsaved-draft' } })
+    overridesMock.value = {
+      mistral: { apiKeys: ['saved-key'], capabilities: { image_to_text: { modelId: 'updated' } } }
+    }
+    rerender(<OcrSettings />)
+    expect(input).toHaveValue('unsaved-draft')
   })
 
   it('keeps API host drafts when another field save rerenders the same processor', async () => {
@@ -581,14 +635,13 @@ describe('processing settings pages', () => {
     fireEvent.blur(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        mistral: {
-          apiKeys: ['key-1']
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('mistral', {
+        type: 'apiKeys',
+        apiKeys: ['key-1']
       })
     })
 
-    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    overridesMock.value = { mistral: { apiKeys: ['key-1'] } }
     preferencesMock.defaultImageProcessor = 'mistral'
     rerender(<OcrSettings />)
 
@@ -598,7 +651,7 @@ describe('processing settings pages', () => {
   it('reports API host save failures', async () => {
     const user = userEvent.setup()
     const error = new Error('persist failed')
-    setOverridesMock.mockRejectedValueOnce(error)
+    vi.mocked(preferenceService.editFileProcessorOption).mockRejectedValueOnce(error)
     render(<OcrSettings />)
 
     await user.click(
@@ -629,14 +682,11 @@ describe('processing settings pages', () => {
     await user.tab()
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        mistral: {
-          capabilities: {
-            image_to_text: {
-              apiHost: 'https://draft.example.com'
-            }
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('mistral', {
+        type: 'capability',
+        feature: 'image_to_text',
+        field: 'apiHost',
+        value: 'https://draft.example.com'
       })
     })
     expect(apiHostInput).toHaveValue('https://draft.example.com')
@@ -757,12 +807,9 @@ describe('processing settings pages', () => {
     fireEvent.click(await screen.findByRole('button', { name: /English \(en-us\)/ }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        system: {
-          options: {
-            langs: ['en-us']
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('system', {
+        type: 'langs',
+        langs: ['en-us']
       })
     })
   })
@@ -777,34 +824,25 @@ describe('processing settings pages', () => {
     await user.click(await screen.findByRole('button', { name: 'PP-OCRv5' }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        paddleocr: {
-          capabilities: {
-            image_to_text: {
-              modelId: 'PP-OCRv5'
-            }
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('paddleocr', {
+        type: 'capability',
+        feature: 'image_to_text',
+        field: 'modelId',
+        value: 'PP-OCRv5'
       })
     })
 
-    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    overridesMock.value = { paddleocr: { capabilities: { image_to_text: { modelId: 'PP-OCRv5' } } } }
     rerender(<DocumentProcessingSettings />)
 
     await user.click(await screen.findByRole('button', { name: 'PP-StructureV3' }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        paddleocr: {
-          capabilities: {
-            image_to_text: {
-              modelId: 'PP-OCRv5'
-            },
-            document_to_markdown: {
-              modelId: 'PP-StructureV3'
-            }
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('paddleocr', {
+        type: 'capability',
+        feature: 'document_to_markdown',
+        field: 'modelId',
+        value: 'PP-StructureV3'
       })
     })
   })
@@ -863,25 +901,16 @@ describe('processing settings pages', () => {
     await user.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        tesseract: {
-          options: {
-            langs: ['eng', 'chi_sim']
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('tesseract', {
+        type: 'langs',
+        langs: ['eng', 'chi_sim']
       })
     })
 
     await user.click(screen.getByRole('button', { name: /English \(eng\)/ }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        tesseract: {
-          options: {
-            langs: []
-          }
-        }
-      })
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('tesseract', { type: 'langs', langs: [] })
     })
   })
 })
