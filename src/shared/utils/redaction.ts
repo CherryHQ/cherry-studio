@@ -195,10 +195,10 @@ export function redactSecretTokens(text: string, replacement: string = REDACTED)
 }
 
 // The look-behind skips URL paths such as example.com/home/x; only the Windows branch ignores case.
-// Separators may be JSON-escaped (`\\`); later username words count only before a separator, and never
-// when the last is a bare number, so prose such as `code 5/6` survives.
+// Separators may be JSON-escaped (`\\`); later username words count only before a separator, and not
+// when a bare-number last word starts a ratio such as `code 5/6`, so that prose survives.
 const HOME_DIRECTORY_PATTERN =
-  /(?<![\w.-])(?:\/(?:Users|home)\/[^/\\\s'"`]+|[A-Za-z]:[\\/]+[Uu][Ss][Ee][Rr][Ss][\\/]+[^\\/:;|=,+*?<>"'`[\]\s]+(?:(?: [^\\/:;|=,+*?<>"'`[\]\s]+)+(?<! \d+)(?=[\\/]))?)/g
+  /(?<![\w.-])(?:\/(?:Users|home)\/[^/\\\s'"`]+|[A-Za-z]:[\\/]+[Uu][Ss][Ee][Rr][Ss][\\/]+[^\\/:;|=,+*?<>"'`[\]\s]+(?:(?: [^\\/:;|=,+*?<>"'`[\]\s]+)+(?=[\\/])(?!(?<= \d+)[\\/]\d+(?![\w\\/]|\.\w)))?)/g
 
 /** Local home directories (`/Users/x`, `/home/x`, `C:\Users\x`) replaced by `~`. */
 export function redactHomeDirectories(text: string): string {
