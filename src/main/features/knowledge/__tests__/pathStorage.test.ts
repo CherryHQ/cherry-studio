@@ -187,8 +187,8 @@ describe('pathStorage relative-path safety', () => {
       }
     )
 
-    it('returns false without a file processor regardless of extension', () => {
-      expect(needsProcessedArtifactReservation(null, 'report.pdf')).toBe(false)
+    it('reserves future PDF conversion without a file processor', () => {
+      expect(needsProcessedArtifactReservation(null, 'report.pdf')).toBe(true)
       expect(needsProcessedArtifactReservation(undefined, 'report.xls')).toBe(false)
     })
 

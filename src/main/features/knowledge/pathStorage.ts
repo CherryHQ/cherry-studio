@@ -27,11 +27,9 @@ import {
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
 
-// A processed `.md` artifact is emitted iff the source actually runs through the file
-// processor, so reservation keys off the same processing-ext source of truth that
-// `needsFileProcessing` (sourcePlanning) uses. Sharing it keeps import-time name
-// selection and scheduling in agreement — were they to diverge, a name chosen at
-// import could collide with the artifact a later processing job writes.
+// Reserve future document-processor outputs even while processing is disabled.
+// Otherwise enabling a processor later can collide with a sibling image's OCR
+// output after leaf reindex has already removed the document's previous index.
 const KNOWLEDGE_IMAGE_EXT_SET = new Set<string>(imageExts)
 const KNOWLEDGE_FILE_PROCESSING_EXT_SET = new Set<string>(knowledgeFileProcessingExts)
 
@@ -232,15 +230,15 @@ export async function writeFileIntoKnowledgeBaseAt(
 }
 
 /**
- * Whether a source file, given the base's processor, will produce a processed
- * markdown artifact whose `.md` sibling slot must be reserved alongside it.
+ * Whether a source can produce processed Markdown now or after a processor
+ * setting change. Reserve its sibling slot for the full lifetime of the source.
  */
 export function needsProcessedArtifactReservation(
-  fileProcessorId: string | null | undefined,
+  _fileProcessorId: string | null | undefined,
   relativePath: string
 ): boolean {
   const ext = getFileExt(relativePath).toLowerCase()
-  return KNOWLEDGE_IMAGE_EXT_SET.has(ext) || Boolean(fileProcessorId && KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(ext))
+  return KNOWLEDGE_IMAGE_EXT_SET.has(ext) || KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(ext)
 }
 
 /**

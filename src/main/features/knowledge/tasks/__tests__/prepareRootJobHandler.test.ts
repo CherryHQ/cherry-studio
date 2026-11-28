@@ -46,7 +46,8 @@ describe('prepare-root job handler', () => {
       'kb-1',
       'dir-1',
       expect.any(AbortSignal),
-      expect.any(Function)
+      expect.any(Function),
+      null
     )
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
   })

@@ -196,12 +196,39 @@ describe('expandDirectoryOwnerToTree', () => {
       expect(leaves).toContain('reports/report_1.md/child.txt')
       expect(leaves).not.toContain('reports/report_1.pdf')
       expect(leaves).not.toContain('reports/report_1.md')
-      if (!processor) {
-        expect(leaves).toContain('reports/report.pdf')
-        expect(leaves).toContain('reports/report.md')
-      }
+      const pdf = leaves.find((name) => name.endsWith('.pdf'))!
+      expect(leaves).not.toContain(getProcessedMarkdownRelativePath(pdf))
     }
   )
+
+  it('keeps a PDF future output separate from image OCR when a processor is enabled later', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'photos')
+    realFs.mkdirSync(rootDir)
+    realFs.writeFileSync(path.join(rootDir, 'photo.pdf'), 'pdf')
+    realFs.writeFileSync(path.join(rootDir, 'photo.png'), 'image')
+    const result = await expandDirectoryOwnerToTree(
+      createDirectoryOwner(rootDir),
+      'kb-1',
+      'photos',
+      createSignal(),
+      ignoreCopyProgress,
+      null
+    )
+    const files = result.filter((node) => node.type === 'file')
+    const pdf = files.find((node) => node.data.source.endsWith('.pdf'))!
+    const image = files.find((node) => node.data.source.endsWith('.png'))!
+    const pdfOutput = getProcessedMarkdownRelativePath(pdf.data.relativePath)
+    const imageOutput = getProcessedMarkdownRelativePath(image.data.relativePath)
+    expect(pdfOutput).not.toBe(imageOutput)
+    const { collectKnowledgeReservedRelativePaths } = await import('../../../pathStorage')
+    const imageItem = { id: 'image', type: 'file', data: { ...image.data, indexedRelativePath: imageOutput } }
+    const reserved = collectKnowledgeReservedRelativePaths([imageItem], {
+      fileProcessorId: 'new-processor',
+      excludeItemId: 'pdf'
+    })
+    expect(reserved.has(pdfOutput)).toBe(false)
+  })
 
   it('imports all supported image formats from directories', async () => {
     tempRoot = createTempRoot()
