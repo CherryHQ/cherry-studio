@@ -9,7 +9,7 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import { getAppEdition } from '@main/utils/appEdition'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import type { ProductAnalyticsEvent } from '@shared/ipc/schemas/analytics'
+import { BEHAVIOR_ANALYTICS_EVENTS, type ProductAnalyticsEvent } from '@shared/ipc/schemas/analytics'
 import { APP_NAME } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('AnalyticsService')
@@ -28,6 +28,17 @@ function resolvePostHogKey(): string {
   if (override) return override
   return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEY
 }
+
+// Development builds and builds pointed at another PostHog project or Cloud backend send test traffic.
+function isProductTestTraffic(): boolean {
+  return (
+    import.meta.env.DEV ||
+    !!import.meta.env.MAIN_VITE_POSTHOG_KEY?.trim() ||
+    !!import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+  )
+}
+
+const behaviorEvents: ReadonlySet<string> = new Set(BEHAVIOR_ANALYTICS_EVENTS)
 
 // Distinct name so the SDK retry classifier treats it as non-retriable.
 class ConsentRevokedError extends Error {
@@ -61,8 +72,8 @@ export class AnalyticsService extends BaseService implements Activatable {
   private identifiedProductAccountId: string | null = null
   private revokeController: AbortController | null = null
   private hasTrackedAppLaunch = false
-  /** Consented product events raised while the clients are still starting, with the account they were raised under. */
-  private pendingProductEvents: { event: ProductAnalyticsEvent; accountId: string | null }[] = []
+  /** Consented product events raised while the clients are still starting, with the account and time they were raised. */
+  private pendingProductEvents: { event: ProductAnalyticsEvent; accountId: string | null; at: Date }[] = []
   private productEventsReady = false
   /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
@@ -175,7 +186,9 @@ export class AnalyticsService extends BaseService implements Activatable {
     }
 
     this.productEventsReady = true
-    for (const { event, accountId } of this.pendingProductEvents.splice(0)) this.captureProductEvent(event, accountId)
+    for (const { event, accountId, at } of this.pendingProductEvents.splice(0)) {
+      this.captureProductEvent(event, accountId, at)
+    }
 
     logger.info('Analytics service activated')
   }
@@ -228,12 +241,13 @@ export class AnalyticsService extends BaseService implements Activatable {
   /** Captures a catalogued product event anonymously; events raised before start-up are replayed. */
   public trackProductEvent(event: ProductAnalyticsEvent): void {
     if (!this.desiredEnabled) return
+    if (behaviorEvents.has(event.event) && import.meta.env.MAIN_VITE_ANALYTICS_BEHAVIOR_EVENTS !== 'true') return
     if (this.productEventsReady) {
       this.captureProductEvent(event)
       return
     }
     if (this.pendingProductEvents.length >= MAX_PENDING_PRODUCT_EVENTS) this.pendingProductEvents.shift()
-    this.pendingProductEvents.push({ event, accountId: this.productAccountId })
+    this.pendingProductEvents.push({ event, accountId: this.productAccountId, at: new Date() })
   }
 
   /** Binds later product events to the signed-in Cherry AI account; null returns them to a fresh anonymous id. */
@@ -276,8 +290,18 @@ export class AnalyticsService extends BaseService implements Activatable {
     )
   }
 
-  private captureProductEvent({ event, ...fields }: ProductAnalyticsEvent, accountId = this.productAccountId): void {
-    const properties: Record<string, string | number | boolean> = { schema_version: PRODUCT_EVENT_SCHEMA_VERSION }
+  private captureProductEvent(
+    { event, ...fields }: ProductAnalyticsEvent,
+    accountId = this.productAccountId,
+    now = new Date()
+  ): void {
+    // Local clock only (no time zone name), so activity can be read in users' local time.
+    const properties: Record<string, string | number | boolean> = {
+      schema_version: PRODUCT_EVENT_SCHEMA_VERSION,
+      test: isProductTestTraffic(),
+      local_hour: now.getHours(),
+      local_weekday: ((now.getDay() + 6) % 7) + 1
+    }
     for (const [key, value] of Object.entries(fields)) {
       if (value !== undefined) properties[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] = value
     }
