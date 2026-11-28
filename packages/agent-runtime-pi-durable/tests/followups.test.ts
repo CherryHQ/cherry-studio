@@ -150,7 +150,7 @@ it.each([false, true])(
     confirmed(await runtime.resume())
     await driver.input.submit!({ inputId: runtimeId('Active'), text: 'Active' })
     await started
-    const next = { inputId: runtimeId('Next'), text: 'Next' }
+    const next = { inputId: runtimeId<'input'>('Next'), text: 'Next' }
     const submitted = staged ? driver.durable.submitStagedFollowup(next) : driver.input.followUp!.submit(next)
     await expect(submitted).resolves.toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
     expect(queuedCommitDocuments).toHaveLength(1)
