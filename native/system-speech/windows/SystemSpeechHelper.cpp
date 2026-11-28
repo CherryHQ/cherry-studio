@@ -3,27 +3,31 @@
 #endif
 
 #include <windows.h>
+#include <objbase.h>
 #include <sapi.h>
 #include <sphelper.h>
 #include <wrl/client.h>
-#include <winrt/Windows.Foundation.Collections.h>
-#include <winrt/Windows.Data.Json.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cwchar>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <variant>
 #include <vector>
 
 using Microsoft::WRL::ComPtr;
-using namespace winrt::Windows::Data::Json;
 
 namespace {
 
@@ -31,59 +35,424 @@ struct HelperError : std::runtime_error {
     explicit HelperError(const char* code) : std::runtime_error(code) {}
 };
 
+struct ComApartment {
+    HRESULT hr;
+    ComApartment() : hr(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED)) {}
+    ~ComApartment() {
+        if (SUCCEEDED(hr)) CoUninitialize();
+    }
+    ComApartment(const ComApartment&) = delete;
+    ComApartment& operator=(const ComApartment&) = delete;
+};
+
+struct JsonValue;
+using JsonArray = std::vector<JsonValue>;
+using JsonObject = std::map<std::string, JsonValue>;
+
+struct JsonValue {
+    std::variant<std::nullptr_t, bool, double, int64_t, std::string, JsonArray, JsonObject> data;
+
+    JsonValue() : data(nullptr) {}
+    JsonValue(std::nullptr_t) : data(nullptr) {}
+    JsonValue(bool value) : data(value) {}
+    JsonValue(double value) : data(value) {}
+    JsonValue(int value) : data(static_cast<int64_t>(value)) {}
+    JsonValue(int64_t value) : data(value) {}
+    JsonValue(const char* value) : data(std::string(value)) {}
+    JsonValue(std::string value) : data(std::move(value)) {}
+    JsonValue(JsonArray value) : data(std::move(value)) {}
+    JsonValue(JsonObject value) : data(std::move(value)) {}
+
+    bool isNull() const { return std::holds_alternative<std::nullptr_t>(data); }
+    bool isString() const { return std::holds_alternative<std::string>(data); }
+    bool isNumber() const { return std::holds_alternative<double>(data) || std::holds_alternative<int64_t>(data); }
+    bool isObject() const { return std::holds_alternative<JsonObject>(data); }
+
+    const std::string& asString() const { return std::get<std::string>(data); }
+    const JsonObject& asObject() const { return std::get<JsonObject>(data); }
+    double asNumber() const {
+        if (const auto* integer = std::get_if<int64_t>(&data)) return static_cast<double>(*integer);
+        return std::get<double>(data);
+    }
+};
+
+namespace simple_json {
+
+constexpr size_t kMaxNestingDepth = 64;
+
+void appendUtf8CodePoint(std::string& out, uint32_t cp) {
+    if (cp <= 0x7Fu) {
+        out.push_back(static_cast<char>(cp));
+    } else if (cp <= 0x7FFu) {
+        out.push_back(static_cast<char>(0xC0u | (cp >> 6)));
+        out.push_back(static_cast<char>(0x80u | (cp & 0x3Fu)));
+    } else if (cp <= 0xFFFFu) {
+        out.push_back(static_cast<char>(0xE0u | (cp >> 12)));
+        out.push_back(static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu)));
+        out.push_back(static_cast<char>(0x80u | (cp & 0x3Fu)));
+    } else {
+        out.push_back(static_cast<char>(0xF0u | (cp >> 18)));
+        out.push_back(static_cast<char>(0x80u | ((cp >> 12) & 0x3Fu)));
+        out.push_back(static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu)));
+        out.push_back(static_cast<char>(0x80u | (cp & 0x3Fu)));
+    }
+}
+
+class Parser {
+public:
+    explicit Parser(const std::string& input) : src_(input) {}
+
+    JsonObject parseRootObject() {
+        skipWhitespace();
+        JsonValue root = parseValue(0);
+        skipWhitespace();
+        if (pos_ != src_.size() || !root.isObject()) throw HelperError("invalid_request");
+        return std::move(std::get<JsonObject>(root.data));
+    }
+
+private:
+    const std::string& src_;
+    size_t pos_ = 0;
+
+    void skipWhitespace() {
+        while (pos_ < src_.size()) {
+            const char ch = src_[pos_];
+            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') ++pos_;
+            else break;
+        }
+    }
+
+    char peek() const {
+        if (pos_ >= src_.size()) throw HelperError("invalid_request");
+        return src_[pos_];
+    }
+
+    char take() {
+        const char ch = peek();
+        ++pos_;
+        return ch;
+    }
+
+    uint32_t parseHex4() {
+        if (pos_ + 4 > src_.size()) throw HelperError("invalid_request");
+        uint32_t value = 0;
+        for (size_t i = 0; i < 4; ++i) {
+            const char ch = src_[pos_++];
+            value <<= 4;
+            if (ch >= '0' && ch <= '9') value |= static_cast<uint32_t>(ch - '0');
+            else if (ch >= 'a' && ch <= 'f') value |= static_cast<uint32_t>(ch - 'a' + 10);
+            else if (ch >= 'A' && ch <= 'F') value |= static_cast<uint32_t>(ch - 'A' + 10);
+            else throw HelperError("invalid_request");
+        }
+        return value;
+    }
+
+    std::string parseString() {
+        if (take() != '"') throw HelperError("invalid_request");
+        std::string out;
+        while (pos_ < src_.size()) {
+            const unsigned char ch = static_cast<unsigned char>(src_[pos_++]);
+            if (ch == '"') return out;
+            if (ch < 0x20u) throw HelperError("invalid_request");
+            if (ch != '\\') {
+                out.push_back(static_cast<char>(ch));
+                continue;
+            }
+            const char esc = take();
+            switch (esc) {
+                case '"': out.push_back('"'); break;
+                case '\\': out.push_back('\\'); break;
+                case '/': out.push_back('/'); break;
+                case 'b': out.push_back('\b'); break;
+                case 'f': out.push_back('\f'); break;
+                case 'n': out.push_back('\n'); break;
+                case 'r': out.push_back('\r'); break;
+                case 't': out.push_back('\t'); break;
+                case 'u': {
+                    const uint32_t cp = parseHex4();
+                    if (cp >= 0xDC00u && cp <= 0xDFFFu) throw HelperError("invalid_request");
+                    if (cp >= 0xD800u && cp <= 0xDBFFu) {
+                        if (pos_ + 2 > src_.size() || src_[pos_] != '\\' || src_[pos_ + 1] != 'u') {
+                            throw HelperError("invalid_request");
+                        }
+                        pos_ += 2;
+                        const uint32_t low = parseHex4();
+                        if (low < 0xDC00u || low > 0xDFFFu) throw HelperError("invalid_request");
+                        const uint32_t combined = 0x10000u + (((cp - 0xD800u) << 10) | (low - 0xDC00u));
+                        appendUtf8CodePoint(out, combined);
+                    } else {
+                        appendUtf8CodePoint(out, cp);
+                    }
+                    break;
+                }
+                default:
+                    throw HelperError("invalid_request");
+            }
+        }
+        throw HelperError("invalid_request");
+    }
+
+    JsonValue parseNumber() {
+        const size_t start = pos_;
+        if (src_[pos_] == '-') ++pos_;
+        if (pos_ >= src_.size()) throw HelperError("invalid_request");
+        if (src_[pos_] == '0') {
+            ++pos_;
+        } else if (src_[pos_] >= '1' && src_[pos_] <= '9') {
+            while (pos_ < src_.size() && src_[pos_] >= '0' && src_[pos_] <= '9') ++pos_;
+        } else {
+            throw HelperError("invalid_request");
+        }
+        if (pos_ < src_.size() && src_[pos_] == '.') {
+            ++pos_;
+            if (pos_ >= src_.size() || src_[pos_] < '0' || src_[pos_] > '9') throw HelperError("invalid_request");
+            while (pos_ < src_.size() && src_[pos_] >= '0' && src_[pos_] <= '9') ++pos_;
+        }
+        if (pos_ < src_.size() && (src_[pos_] == 'e' || src_[pos_] == 'E')) {
+            ++pos_;
+            if (pos_ < src_.size() && (src_[pos_] == '+' || src_[pos_] == '-')) ++pos_;
+            if (pos_ >= src_.size() || src_[pos_] < '0' || src_[pos_] > '9') throw HelperError("invalid_request");
+            while (pos_ < src_.size() && src_[pos_] >= '0' && src_[pos_] <= '9') ++pos_;
+        }
+        const std::string token = src_.substr(start, pos_ - start);
+        errno = 0;
+        char* end = nullptr;
+        const double number = std::strtod(token.c_str(), &end);
+        if (errno == ERANGE || end != token.c_str() + token.size() || !std::isfinite(number)) {
+            throw HelperError("invalid_request");
+        }
+        return JsonValue(number);
+    }
+
+    JsonValue parseLiteral(const char* literal, JsonValue result) {
+        const std::string view(literal);
+        if (src_.compare(pos_, view.size(), view) != 0) throw HelperError("invalid_request");
+        pos_ += view.size();
+        return result;
+    }
+
+    JsonValue parseArray(size_t depth) {
+        if (depth >= kMaxNestingDepth) throw HelperError("invalid_request");
+        take();
+        skipWhitespace();
+        JsonArray arr;
+        if (pos_ < src_.size() && src_[pos_] == ']') {
+            ++pos_;
+            return JsonValue(std::move(arr));
+        }
+        for (;;) {
+            skipWhitespace();
+            arr.push_back(parseValue(depth + 1));
+            skipWhitespace();
+            const char next = take();
+            if (next == ']') break;
+            if (next != ',') throw HelperError("invalid_request");
+        }
+        return JsonValue(std::move(arr));
+    }
+
+    JsonValue parseObject(size_t depth) {
+        if (depth >= kMaxNestingDepth) throw HelperError("invalid_request");
+        take();
+        skipWhitespace();
+        JsonObject obj;
+        if (pos_ < src_.size() && src_[pos_] == '}') {
+            ++pos_;
+            return JsonValue(std::move(obj));
+        }
+        for (;;) {
+            skipWhitespace();
+            if (peek() != '"') throw HelperError("invalid_request");
+            std::string key = parseString();
+            skipWhitespace();
+            if (take() != ':') throw HelperError("invalid_request");
+            skipWhitespace();
+            obj[std::move(key)] = parseValue(depth + 1);
+            skipWhitespace();
+            const char next = take();
+            if (next == '}') break;
+            if (next != ',') throw HelperError("invalid_request");
+        }
+        return JsonValue(std::move(obj));
+    }
+
+    JsonValue parseValue(size_t depth) {
+        const char ch = peek();
+        if (ch == '"') return JsonValue(parseString());
+        if (ch == '{') return parseObject(depth);
+        if (ch == '[') return parseArray(depth);
+        if (ch == 't') return parseLiteral("true", JsonValue(true));
+        if (ch == 'f') return parseLiteral("false", JsonValue(false));
+        if (ch == 'n') return parseLiteral("null", JsonValue(nullptr));
+        if (ch == '-' || (ch >= '0' && ch <= '9')) return parseNumber();
+        throw HelperError("invalid_request");
+    }
+};
+
+void writeEscapedString(std::string& out, const std::string& text) {
+    out.push_back('"');
+    for (const char rawCh : text) {
+        const unsigned char ch = static_cast<unsigned char>(rawCh);
+        switch (ch) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\b': out += "\\b"; break;
+            case '\f': out += "\\f"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if (ch < 0x20u) {
+                    static constexpr char kHex[] = "0123456789abcdef";
+                    out += "\\u00";
+                    out.push_back(kHex[(ch >> 4) & 0x0Fu]);
+                    out.push_back(kHex[ch & 0x0Fu]);
+                } else {
+                    out.push_back(static_cast<char>(ch));
+                }
+                break;
+        }
+    }
+    out.push_back('"');
+}
+
+void writeValue(std::string& out, const JsonValue& value) {
+    if (value.isNull()) {
+        out += "null";
+    } else if (const auto* b = std::get_if<bool>(&value.data)) {
+        out += (*b ? "true" : "false");
+    } else if (const auto* i = std::get_if<int64_t>(&value.data)) {
+        out += std::to_string(*i);
+    } else if (const auto* d = std::get_if<double>(&value.data)) {
+        if (!std::isfinite(*d)) {
+            out += "null";
+        } else {
+            char buf[64]{};
+            std::snprintf(buf, sizeof(buf), "%.17g", *d);
+            out += buf;
+        }
+    } else if (const auto* s = std::get_if<std::string>(&value.data)) {
+        writeEscapedString(out, *s);
+    } else if (const auto* arr = std::get_if<JsonArray>(&value.data)) {
+        out.push_back('[');
+        for (size_t idx = 0; idx < arr->size(); ++idx) {
+            if (idx > 0) out.push_back(',');
+            writeValue(out, (*arr)[idx]);
+        }
+        out.push_back(']');
+    } else if (const auto* obj = std::get_if<JsonObject>(&value.data)) {
+        out.push_back('{');
+        bool first = true;
+        for (const auto& [key, member] : *obj) {
+            if (!first) out.push_back(',');
+            first = false;
+            writeEscapedString(out, key);
+            out.push_back(':');
+            writeValue(out, member);
+        }
+        out.push_back('}');
+    }
+}
+
+JsonObject parseObject(const std::string& input) {
+    return Parser(input).parseRootObject();
+}
+
+std::string stringify(const JsonObject& objectValue) {
+    std::string out;
+    writeValue(out, JsonValue(objectValue));
+    return out;
+}
+
+}  // namespace simple_json
+
+std::wstring wideFromUtf8(const std::string& utf8) {
+    if (utf8.empty()) return {};
+    if (utf8.size() > static_cast<size_t>(INT_MAX)) throw HelperError("invalid_request");
+    const int utf8Len = static_cast<int>(utf8.size());
+    const int wideLen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.data(), utf8Len, nullptr, 0);
+    if (wideLen <= 0) throw HelperError("invalid_request");
+    std::wstring wide(static_cast<size_t>(wideLen), L'\0');
+    const int written =
+        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.data(), utf8Len, wide.data(), wideLen);
+    if (written != wideLen) throw HelperError("invalid_request");
+    return wide;
+}
+
+std::string utf8FromWide(const std::wstring& wide) {
+    if (wide.empty()) return {};
+    if (wide.size() > static_cast<size_t>(INT_MAX / 4)) throw HelperError("native_helper_failed");
+    const int wideLen = static_cast<int>(wide.size());
+    const int utf8Len =
+        WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(), wideLen, nullptr, 0, nullptr, nullptr);
+    if (utf8Len <= 0) throw HelperError("native_helper_failed");
+    std::string utf8(static_cast<size_t>(utf8Len), '\0');
+    const int written = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, wide.data(), wideLen, utf8.data(), utf8Len, nullptr, nullptr);
+    if (written != utf8Len) throw HelperError("native_helper_failed");
+    return utf8;
+}
+
 void require(HRESULT result, const char* code) {
     if (FAILED(result)) throw HelperError(code);
 }
 
-std::wstring requiredString(const JsonObject& request, const wchar_t* key) {
-    if (!request.HasKey(key) || request.Lookup(key).ValueType() != JsonValueType::String)
-        throw HelperError("invalid_request");
-    const auto value = request.GetNamedString(key);
-    const std::wstring result(value.begin(), value.end());
+const JsonValue* findKey(const JsonObject& obj, const char* key) {
+    const auto it = obj.find(key);
+    return it == obj.end() ? nullptr : &it->second;
+}
+
+std::wstring requiredString(const JsonObject& request, const char* key) {
+    const auto* value = findKey(request, key);
+    if (!value || !value->isString()) throw HelperError("invalid_request");
+    const auto result = wideFromUtf8(value->asString());
     if (result.empty() || result.find(L'\0') != std::wstring::npos) throw HelperError("invalid_request");
     return result;
 }
 
 JsonObject object() { return JsonObject{}; }
 
-void put(JsonObject& target, const wchar_t* key, const std::wstring& value) {
-    target.SetNamedValue(key, JsonValue::CreateStringValue(winrt::hstring(value)));
+void put(JsonObject& target, const char* key, const std::wstring& value) {
+    target[key] = JsonValue(utf8FromWide(value));
 }
 
-void put(JsonObject& target, const wchar_t* key, const wchar_t* value) {
-    target.SetNamedValue(key, JsonValue::CreateStringValue(winrt::hstring(value)));
+void put(JsonObject& target, const char* key, const wchar_t* value) {
+    target[key] = JsonValue(utf8FromWide(std::wstring(value)));
 }
 
-void put(JsonObject& target, const wchar_t* key, int value) {
-    target.SetNamedValue(key, JsonValue::CreateNumberValue(value));
+void put(JsonObject& target, const char* key, const char* value) {
+    target[key] = JsonValue(std::string(value));
 }
 
-void put(JsonObject& target, const wchar_t* key, JsonObject value) {
-    target.SetNamedValue(key, value);
+void put(JsonObject& target, const char* key, int value) {
+    target[key] = JsonValue(value);
 }
 
-void put(JsonObject& target, const wchar_t* key, JsonArray value) {
-    target.SetNamedValue(key, value);
+void put(JsonObject& target, const char* key, JsonObject value) {
+    target[key] = JsonValue(std::move(value));
 }
 
-JsonObject success(const wchar_t* operation, JsonObject result) {
+void put(JsonObject& target, const char* key, JsonArray value) {
+    target[key] = JsonValue(std::move(value));
+}
+
+JsonObject success(const char* operation, JsonObject result) {
     auto value = object();
-    put(value, L"operation", operation);
-    put(value, L"result", result);
+    put(value, "operation", operation);
+    put(value, "result", std::move(result));
     auto envelope = object();
-    envelope.SetNamedValue(L"ok", JsonValue::CreateBooleanValue(true));
-    put(envelope, L"value", value);
+    envelope["ok"] = JsonValue(true);
+    put(envelope, "value", std::move(value));
     return envelope;
 }
 
 JsonObject failure(const char* code) {
     auto error = object();
-    const auto name = winrt::to_hstring(code);
-    put(error, L"code", std::wstring(name.c_str()));
-    put(error, L"message", std::wstring(name.c_str()));
+    put(error, "code", code);
+    put(error, "message", code);
     auto envelope = object();
-    envelope.SetNamedValue(L"ok", JsonValue::CreateBooleanValue(false));
-    put(envelope, L"error", error);
+    envelope["ok"] = JsonValue(false);
+    put(envelope, "error", std::move(error));
     return envelope;
 }
 
@@ -165,7 +534,7 @@ JsonArray installedLocales() {
         }
     }
     JsonArray result;
-    for (const auto& name : names) result.Append(JsonValue::CreateStringValue(winrt::hstring(name)));
+    for (const auto& name : names) result.push_back(JsonValue(utf8FromWide(name)));
     return result;
 }
 
@@ -177,21 +546,21 @@ JsonArray installedVoices() {
         const auto locale = localeName(languages.front());
         if (locale.empty()) continue;
         auto voice = object();
-        put(voice, L"id", tokenId(token.Get()));
-        put(voice, L"name", tokenName(token.Get()));
-        put(voice, L"locale", locale);
-        put(voice, L"quality", 0);
-        result.Append(voice);
+        put(voice, "id", tokenId(token.Get()));
+        put(voice, "name", tokenName(token.Get()));
+        put(voice, "locale", locale);
+        put(voice, "quality", 0);
+        result.push_back(JsonValue(std::move(voice)));
     }
     return result;
 }
 
 JsonObject resolveVoice(const JsonObject& request) {
     auto result = object();
-    result.SetNamedValue(L"voice", JsonValue::CreateNullValue());
-    const auto locale = request.HasKey(L"locale") ? requiredString(request, L"locale") : L"";
+    result["voice"] = JsonValue(nullptr);
+    const auto locale = findKey(request, "locale") ? requiredString(request, "locale") : L"";
     const auto requested = locale.empty() ? 0 : LocaleNameToLCID(locale.c_str(), 0);
-    if (!locale.empty() && !requested) return success(L"resolve_voice", result);
+    if (!locale.empty() && !requested) return success("resolve_voice", std::move(result));
 
     ComPtr<ISpObjectToken> token;
     const auto defaultResult = SpGetDefaultTokenFromCategoryId(SPCAT_VOICES, token.GetAddressOf(), FALSE);
@@ -212,19 +581,19 @@ JsonObject resolveVoice(const JsonObject& request) {
             const auto resolvedLocale = localeName(requested ? requested : languages.front());
             if (!resolvedLocale.empty()) {
                 auto voice = object();
-                put(voice, L"id", tokenId(token.Get()));
-                put(voice, L"name", tokenName(token.Get()));
-                put(voice, L"locale", resolvedLocale);
-                put(voice, L"quality", 0);
-                put(result, L"voice", voice);
+                put(voice, "id", tokenId(token.Get()));
+                put(voice, "name", tokenName(token.Get()));
+                put(voice, "locale", resolvedLocale);
+                put(voice, "quality", 0);
+                put(result, "voice", std::move(voice));
             }
         }
     }
-    return success(L"resolve_voice", result);
+    return success("resolve_voice", std::move(result));
 }
 
 JsonObject capabilities(const JsonObject& request) {
-    const auto locale = requiredString(request, L"locale");
+    const auto locale = requiredString(request, "locale");
     std::wstring supported;
     try {
         recognizerFor(locale);
@@ -233,21 +602,21 @@ JsonObject capabilities(const JsonObject& request) {
         if (std::string(error.what()) != "unsupported_locale") throw;
     }
     auto result = object();
-    put(result, L"osVersion", L"Windows");
-    put(result, L"requestedLocale", locale);
-    if (supported.empty()) result.SetNamedValue(L"supportedLocale", JsonValue::CreateNullValue());
-    else put(result, L"supportedLocale", supported);
-    put(result, L"appleAssetStatus", supported.empty() ? L"unsupported" : L"installed");
-    put(result, L"voices", installedVoices());
-    return success(L"capabilities", result);
+    put(result, "osVersion", L"Windows");
+    put(result, "requestedLocale", locale);
+    if (supported.empty()) result["supportedLocale"] = JsonValue(nullptr);
+    else put(result, "supportedLocale", supported);
+    put(result, "appleAssetStatus", supported.empty() ? L"unsupported" : L"installed");
+    put(result, "voices", installedVoices());
+    return success("capabilities", std::move(result));
 }
 
 JsonObject listAsrLocales() {
     auto result = object();
     const auto installed = installedLocales();
-    put(result, L"supported", installed);
-    put(result, L"installed", installed);
-    return success(L"list_asr_locales", result);
+    put(result, "supported", installed);
+    put(result, "installed", installed);
+    return success("list_asr_locales", std::move(result));
 }
 
 ComPtr<ISpRecognizer> createRecognizer(const std::wstring& locale) {
@@ -267,20 +636,20 @@ ComPtr<ISpRecoGrammar> loadDictation(ISpRecoContext* context) {
 }
 
 JsonObject probeAsr(const JsonObject& request) {
-    const auto locale = requiredString(request, L"locale");
+    const auto locale = requiredString(request, "locale");
     const auto recognizer = createRecognizer(locale);
     // An in-process recognizer has no default audio input. Do not set input or activate dictation here.
     ComPtr<ISpRecoContext> context;
     require(recognizer->CreateRecoContext(context.GetAddressOf()), "transcription_failed");
     loadDictation(context.Get());
     auto result = object();
-    put(result, L"locale", localeName(requestedLcid(locale)));
-    return success(L"probe_asr", result);
+    put(result, "locale", localeName(requestedLcid(locale)));
+    return success("probe_asr", std::move(result));
 }
 
 JsonObject transcribe(const JsonObject& request) {
-    const auto locale = requiredString(request, L"locale");
-    const auto inputPath = requiredString(request, L"inputPath");
+    const auto locale = requiredString(request, "locale");
+    const auto inputPath = requiredString(request, "inputPath");
     const auto recognizer = createRecognizer(locale);
     ComPtr<ISpStream> input;
     require(SPBindToFile(inputPath.c_str(), SPFM_OPEN_READONLY, input.GetAddressOf()), "transcription_failed");
@@ -320,9 +689,9 @@ JsonObject transcribe(const JsonObject& request) {
     }
     require(recognitionResult, "transcription_failed");
     auto result = object();
-    put(result, L"locale", localeName(requestedLcid(locale)));
-    put(result, L"text", transcript);
-    return success(L"transcribe", result);
+    put(result, "locale", localeName(requestedLcid(locale)));
+    put(result, "text", transcript);
+    return success("transcribe", std::move(result));
 }
 
 uint32_t read32(std::istream& input) {
@@ -351,12 +720,12 @@ int wavFrames(const std::wstring& path) {
 }
 
 JsonObject synthesize(const JsonObject& request) {
-    const auto voiceId = requiredString(request, L"voiceId");
-    const auto text = requiredString(request, L"text");
-    const auto outputPath = requiredString(request, L"outputPath");
-    if (!request.HasKey(L"speed") || request.Lookup(L"speed").ValueType() != JsonValueType::Number)
-        throw HelperError("invalid_request");
-    const auto speed = request.GetNamedNumber(L"speed");
+    const auto voiceId = requiredString(request, "voiceId");
+    const auto text = requiredString(request, "text");
+    const auto outputPath = requiredString(request, "outputPath");
+    const auto* speedValue = findKey(request, "speed");
+    if (!speedValue || !speedValue->isNumber()) throw HelperError("invalid_request");
+    const auto speed = speedValue->asNumber();
     if (!std::isfinite(speed) || speed < 0.5 || speed > 2.0) throw HelperError("invalid_request");
 
     ComPtr<ISpObjectToken> selected;
@@ -390,12 +759,12 @@ JsonObject synthesize(const JsonObject& request) {
         require(output->Close(), "synthesis_failed");
         const auto frames = wavFrames(outputPath);
         auto result = object();
-        put(result, L"voiceId", voiceId);
-        put(result, L"outputPath", outputPath);
-        put(result, L"sampleRate", 16000);
-        put(result, L"channels", 1);
-        put(result, L"frameCount", frames);
-        return success(L"synthesize", result);
+        put(result, "voiceId", voiceId);
+        put(result, "outputPath", outputPath);
+        put(result, "sampleRate", 16000);
+        put(result, "channels", 1);
+        put(result, "frameCount", frames);
+        return success("synthesize", std::move(result));
     } catch (...) {
         std::error_code ignored;
         std::filesystem::remove(outputPath, ignored);
@@ -404,7 +773,7 @@ JsonObject synthesize(const JsonObject& request) {
 }
 
 JsonObject execute(const JsonObject& request) {
-    const auto operation = requiredString(request, L"operation");
+    const auto operation = requiredString(request, "operation");
     if (operation == L"resolve_voice") return resolveVoice(request);
     if (operation == L"capabilities") return capabilities(request);
     if (operation == L"list_asr_locales") return listAsrLocales();
@@ -418,26 +787,25 @@ JsonObject execute(const JsonObject& request) {
 
 int main() {
     try {
-        winrt::init_apartment(winrt::apartment_type::single_threaded);
+        ComApartment com;
+        if (FAILED(com.hr)) {
+            std::cout << "{\"ok\":false,\"error\":{\"code\":\"native_helper_failed\",\"message\":\"native_helper_failed\"}}\n";
+            return 0;
+        }
         JsonObject response;
         try {
             std::string input(1024 * 1024 + 1, '\0');
             std::cin.read(input.data(), static_cast<std::streamsize>(input.size()));
             input.resize(static_cast<size_t>(std::cin.gcount()));
             if (input.empty() || input.size() > 1024 * 1024) throw HelperError("invalid_request");
-            JsonObject request;
-            try {
-                request = JsonObject::Parse(winrt::to_hstring(input));
-            } catch (const winrt::hresult_error&) {
-                throw HelperError("invalid_request");
-            }
+            const JsonObject request = simple_json::parseObject(input);
             response = execute(request);
         } catch (const HelperError& error) {
             response = failure(error.what());
         } catch (...) {
             response = failure("native_helper_failed");
         }
-        std::cout << winrt::to_string(response.Stringify()) << '\n';
+        std::cout << simple_json::stringify(response) << '\n';
     } catch (...) {
         std::cout << "{\"ok\":false,\"error\":{\"code\":\"native_helper_failed\",\"message\":\"native_helper_failed\"}}\n";
     }
