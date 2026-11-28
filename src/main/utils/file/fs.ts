@@ -24,7 +24,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'node:fs'
+import { createReadStream, createWriteStream as nodeCreateWriteStream, fsync } from 'node:fs'
 import {
   access,
   constants,
@@ -432,14 +432,8 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
   private async commitOnce(): Promise<PathVersion> {
     let version: PathVersion
     try {
-      const fd = await fsOpen(this.tmp, 'r+')
-      try {
-        await fd.sync()
-        const s = await fd.stat()
-        version = { mtime: Math.floor(s.mtimeMs), size: s.size }
-      } finally {
-        await fd.close()
-      }
+      const s = await fsStat(this.tmp)
+      version = { mtime: Math.floor(s.mtimeMs), size: s.size }
       await rename(this.tmp, this.target)
     } catch (err) {
       await bestEffortUnlinkTmp(this.tmp)
@@ -472,6 +466,7 @@ export async function prepareAtomicWrite(
   try {
     try {
       await tmpHandle.writeFile(bytes)
+      await tmpHandle.sync()
     } catch (err) {
       await tmpHandle.close().catch(() => undefined)
       await bestEffortUnlinkTmp(tmp)
@@ -501,6 +496,8 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   private aborted = false
   private finalized = false
   private enteredCommit = false
+  private descriptor: number | undefined
+  private pendingSync: Promise<void> | undefined
 
   constructor(
     target: AbsoluteFilePath,
@@ -511,10 +508,10 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
     this.target = target
     this.tmp = tmpNameFor(target)
     this.onPrepared = onPrepared
-    this.underlying =
-      options?.mode !== undefined
-        ? nodeCreateWriteStream(this.tmp, { mode: options.mode })
-        : nodeCreateWriteStream(this.tmp)
+    this.underlying = nodeCreateWriteStream(this.tmp, { mode: options?.mode, autoClose: false })
+    this.underlying.once('open', (fd) => {
+      this.descriptor = fd
+    })
     this.underlying.on('error', (err) => this.destroy(err))
   }
 
@@ -535,15 +532,31 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   }
 
   override _final(callback: (err?: Error | null) => void): void {
-    this.underlying.end(async () => {
+    void (async () => {
       try {
+        await new Promise<void>((resolve, reject) => {
+          this.underlying.once('error', reject)
+          this.underlying.end(() => {
+            this.underlying.off('error', reject)
+            resolve()
+          })
+        })
+        if (this.aborted || this.destroyed) return
+        const descriptor = this.descriptor
+        if (descriptor === undefined) throw new Error('Atomic write stream has no open descriptor')
+        this.pendingSync = new Promise<void>((resolve, reject) => {
+          fsync(descriptor, (error) => (error ? reject(error) : resolve()))
+        })
+        await this.pendingSync
+        if (this.aborted || this.destroyed) return
+        await this.closeUnderlying()
         const prepared = new PreparedAtomicWriteImpl(
           AbsoluteFilePathSchema.parse(this.target),
           this.tmp,
           this.size,
           this.hasher.digest()
         )
-        if (this.aborted) {
+        if (this.aborted || this.destroyed) {
           await prepared.abort()
           callback()
           return
@@ -553,6 +566,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
         this.finalized = true
         callback()
       } catch (err) {
+        await this.closeUnderlying()
         // Mirror the atomicWriteFile contract: tmp cleanup is best-effort
         // and warn-logs non-ENOENT errors so a stranded `.tmp-<uuid>` is
         // observable. A bare `.catch(() => undefined)` here would silently
@@ -561,7 +575,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
         await bestEffortUnlinkTmp(this.tmp)
         callback(err as Error)
       }
-    })
+    })()
   }
 
   override _destroy(err: Error | null, callback: (err: Error | null) => void): void {
@@ -569,22 +583,27 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
       callback(err)
       return
     }
+    if (!this.enteredCommit) this.aborted = true
     const cleanup = () => {
       // Same rationale as _final: surface non-ENOENT cleanup failures so
       // operators can find the leaked tmp blob; never block destroy on
       // cleanup outcome.
       void bestEffortUnlinkTmp(this.tmp).finally(() => callback(err))
     }
-    if (this.underlying.destroyed) {
-      cleanup()
-    } else {
-      this.underlying.once('close', cleanup)
-      this.underlying.destroy()
-    }
+    void this.closeUnderlying().then(cleanup)
+  }
+
+  private async closeUnderlying(): Promise<void> {
+    await this.pendingSync?.catch(() => undefined)
+    if (this.underlying.closed) return
+    await new Promise<void>((resolve) => {
+      this.underlying.once('close', resolve)
+      if (!this.underlying.destroyed) this.underlying.destroy()
+    })
   }
 
   async abort(): Promise<void> {
-    if (this.aborted || this.finalized) return
+    if (this.closed || this.finalized) return
     if (this.enteredCommit) {
       await finished(this).catch(() => undefined)
       return
