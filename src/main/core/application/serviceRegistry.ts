@@ -21,6 +21,7 @@ import { McpAppViewService } from '@main/ai/mcp/McpAppViewService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
+import { MemoryService } from '@main/ai/memory/MemoryService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import {
   ClaudeCodeBinaryService,
@@ -208,6 +209,7 @@ export const services = {
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,
+  MemoryService,
   McpCatalogService,
   McpAppViewService,
   BinaryManager,
