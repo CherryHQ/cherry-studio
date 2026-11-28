@@ -27,6 +27,7 @@ import {
   findVerticalWheelConsumer,
   ScrollOwnershipProvider
 } from './ScrollOwnershipContext'
+import { MessageEntranceContext, useMessageEntrance } from './useMessageEntrance'
 
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
@@ -120,6 +121,7 @@ export interface MessageVirtualListProps<T> {
    * across remounts (topic / agent-session switches).
    */
   topicId?: string
+  animateEntrance?: boolean
 }
 
 export function MessageVirtualList<T>({
@@ -139,9 +141,14 @@ export function MessageVirtualList<T>({
   keepMountedKeys,
   showScrollToBottomButton = false,
   scrollToBottomButtonBottomOffset = MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX,
-  topicId
+  topicId,
+  animateEntrance = false
 }: MessageVirtualListProps<T>): React.ReactElement {
   const { t } = useTranslation()
+  const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
+  const [initialScrollSettled, setInitialScrollSettled] = useState(false)
+  const { entrance, stopEntrance } = useMessageEntrance(animateEntrance, scrollerElement, initialScrollSettled)
+  const onInitialScrollSettled = useCallback(() => setInitialScrollSettled(true), [])
   const runtime = useChatVirtualizerRuntime({
     items,
     getItemKey,
@@ -152,10 +159,11 @@ export function MessageVirtualList<T>({
     topReachOverscanItems: overscan,
     topPadding,
     topicId,
+    onInitialScrollSettled,
+    onReadingNavigation: stopEntrance,
     bottomPadding,
     keepMountedKeys
   })
-  const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const { beginScrollbarDrag, endScrollbarDrag, scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
   const { armAutoscrollCandidate, confirmAutoscroll, dismissAutoscroll } = runtime
@@ -371,20 +379,22 @@ export function MessageVirtualList<T>({
             )}
             {/* Virtua reads the external scroll ref on mount, so wait for the viewport. */}
             {scrollerElement && (
-              <Virtualizer
-                as={MessageVirtualListContainer}
-                ref={runtime.vlistHandleRef}
-                scrollRef={runtime.scrollerRef}
-                data={runtime.wrappedItems}
-                itemSize={estimateSize}
-                bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
-                shift={runtime.shift}
-                keepMounted={runtime.keepMounted}
-                startMargin={topPadding}
-                onScroll={runtime.scrollerProps.onScroll}
-                onScrollEnd={runtime.scrollerProps.onScrollEnd}>
-                {runtime.wrappedRenderItem}
-              </Virtualizer>
+              <MessageEntranceContext value={entrance}>
+                <Virtualizer
+                  as={MessageVirtualListContainer}
+                  ref={runtime.vlistHandleRef}
+                  scrollRef={runtime.scrollerRef}
+                  data={runtime.wrappedItems}
+                  itemSize={estimateSize}
+                  bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
+                  shift={runtime.shift}
+                  keepMounted={runtime.keepMounted}
+                  startMargin={topPadding}
+                  onScroll={runtime.scrollerProps.onScroll}
+                  onScrollEnd={runtime.scrollerProps.onScrollEnd}>
+                  {runtime.wrappedRenderItem}
+                </Virtualizer>
+              </MessageEntranceContext>
             )}
           </ScrollOwnershipProvider>
         </div>

@@ -151,7 +151,7 @@ function McpAppResultCard(props: ResultCardProps) {
   }, [])
 
   return (
-    <div ref={slot} className="my-2 min-h-8 min-w-0">
+    <div ref={slot} className="my-2 min-h-8 min-w-0" data-message-entrance-unit={props.toolCallId}>
       {hasEnteredView && <McpAppResultView {...props} />}
     </div>
   )

@@ -1,5 +1,5 @@
 import { isEmpty } from 'es-toolkit/compat'
-import { type FC, useCallback, useMemo } from 'react'
+import { type FC, use, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Pluggable } from 'unified'
 
@@ -15,6 +15,7 @@ import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
 
+import { MessageEntranceContext } from '../list/useMessageEntrance'
 import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS } from './ChatMarkdownRenderers'
@@ -37,6 +38,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useOptionalMessageRenderConfig()
   const actions = useOptionalMessageListActions()
+  const entrance = use(MessageEntranceContext)
   const isStreaming = block.status === 'streaming'
   const content =
     block.status === 'paused' && isEmpty(block.content) ? t('message.chat.completion.paused') : block.content
@@ -133,6 +135,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
         <AppMarkdown
           id={block.id}
           isStreaming={isStreaming}
+          onStaticBlocksMounted={entrance?.registerMarkdownBlocks}
           singleDollarMath={mathEnableSingleDollar}
           components={mergedComponents}
           remarkPlugins={remarkPlugins}

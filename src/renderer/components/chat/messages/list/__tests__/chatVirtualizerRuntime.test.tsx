@@ -16,6 +16,7 @@ interface RuntimeProbeProps {
   hasMoreTop?: boolean
   handleRef?: Ref<MessageVirtualListHandle>
   keepMountedKeys?: readonly string[]
+  onReadingNavigation?: () => void
   onReachTop?: () => void
   onRuntime(runtime: ChatVirtualizerRuntime<string>): void
   topicId?: string
@@ -61,6 +62,7 @@ function RuntimeDomProbe({
   hasMoreTop = false,
   keepMountedKeys,
   nonce,
+  onReadingNavigation,
   onReachTop,
   onRuntime,
   topicId,
@@ -74,6 +76,7 @@ function RuntimeDomProbe({
     hasMoreTop,
     handleRef,
     keepMountedKeys,
+    onReadingNavigation,
     onReachTop,
     topicId,
     topPadding,
@@ -888,17 +891,19 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('measures an exact range once and completes its navigation immediately', () => {
+  it('cancels the entrance before measuring an exact range and completes its navigation immediately', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     let handle: MessageVirtualListHandle | null = null
     const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
       handle = nextHandle
     }
     let scrollTop = 1000
+    let entranceOffset = -4
     render(
       <RuntimeDomProbe
         items={['message-a']}
         handleRef={handleRef}
+        onReadingNavigation={() => (entranceOffset = 0)}
         onRuntime={(nextRuntime) => (runtime = nextRuntime)}
       />
     )
@@ -924,16 +929,16 @@ describe('useChatVirtualizerRuntime', () => {
     runtime!.contentRef.current!.prepend(message)
     const range = document.createRange()
     range.selectNodeContents(text)
-    const getRangeRect = vi.fn(() => ({
-      top: 90,
-      bottom: 110,
+    const getRangeRect = () => ({
+      top: 90 + entranceOffset,
+      bottom: 110 + entranceOffset,
       left: 0,
       right: 100,
       width: 100,
       height: 20,
       x: 0,
-      y: 90
-    }))
+      y: 90 + entranceOffset
+    })
     Object.defineProperty(range, 'getBoundingClientRect', {
       configurable: true,
       value: getRangeRect

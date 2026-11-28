@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { LoaderCircle } from 'lucide-react'
 import type { FC } from 'react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, use, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, ScrollArea } from '@cherrystudio/ui'
@@ -20,6 +20,7 @@ import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import MessageTimelineMarker from '../blocks/MessageTimelineMarker'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
+import { MessageEntranceContext } from '../list/useMessageEntrance'
 import {
   useMessageListActions,
   useMessageListEditingId,
@@ -117,6 +118,10 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
 
   const activityState = useMessageListItemActivityState(message)
   const isProcessing = activityState.isProcessing
+  const entrance = use(MessageEntranceContext)
+  useLayoutEffect(() => {
+    if (isProcessing || activityState.isStreamLive) entrance?.excludeMessage(message.id, messageContainerRef.current)
+  }, [activityState.isStreamLive, entrance, isProcessing, message.id])
   const isStreamTarget = activityState.isStreamTarget
   const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
@@ -419,7 +424,7 @@ const UserBubbleMessage = ({
           </div>
         )}
         {(attachments.images.length > 0 || attachments.files.length > 0) && (
-          <div className="flex max-w-full flex-col items-end">
+          <div className="flex max-w-full flex-col items-end" data-message-entrance-unit="">
             {attachments.images.length > 0 && (
               <MessageImageBlock sources={attachments.images} thumbnail className="mb-2 justify-end" />
             )}

@@ -70,6 +70,8 @@ export interface ChatVirtualizerRuntimeOptions<T> {
    * across remounts (topic / agent-session switches). Omit to disable.
    */
   topicId?: string
+  onInitialScrollSettled?(): void
+  onReadingNavigation?(): void
   /** Padding reserved below the last message; used to restore to the bottom. */
   bottomPadding: number
   /** Stable item keys that must survive virtualization while they own live UI state. */
@@ -195,6 +197,8 @@ export function useChatVirtualizerRuntime<T>({
   topReachOverscanItems,
   topPadding = 0,
   topicId,
+  onInitialScrollSettled,
+  onReadingNavigation,
   bottomPadding,
   keepMountedKeys = []
 }: ChatVirtualizerRuntimeOptions<T>): ChatVirtualizerRuntime<T> {
@@ -741,6 +745,7 @@ export function useChatVirtualizerRuntime<T>({
     enterFollowingAfterRestore,
     enterReadingForRestore,
     settleReadingRestore,
+    onInitialScrollSettled,
     isAnimating: smoothScroll.isAnimating
   })
 
@@ -1043,6 +1048,7 @@ export function useChatVirtualizerRuntime<T>({
       const el = scrollerRef.current
       if (!el) return
 
+      onReadingNavigation?.()
       readNavigationActiveRef.current = false
       smoothScroll.cancel()
       prepareReadingNavigation()
@@ -1070,7 +1076,14 @@ export function useChatVirtualizerRuntime<T>({
         takeUserControl('navigation', getPreferredAnchor?.() ?? null)
       }
     },
-    [clampToReachable, prepareReadingNavigation, smoothScroll, suppressNextAutoscrollConfirm, takeUserControl]
+    [
+      clampToReachable,
+      onReadingNavigation,
+      prepareReadingNavigation,
+      smoothScroll,
+      suppressNextAutoscrollConfirm,
+      takeUserControl
+    ]
   )
 
   const scrollToBottom = useCallback(() => {

@@ -44,6 +44,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 
 import { createActionRegistry } from '../../actions/actionRegistry'
 import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'
+import { suppressMessageEntrance } from '../list/useMessageEntrance'
 import { messageExportTargets } from '../messageExportTargets'
 import type { MessageListActions, MessageListItem, MessageListSelectionState } from '../types'
 import type { MessageMenuConfig } from '../types'
@@ -173,26 +174,31 @@ function registerToolbarAction(
   })
 }
 
-function getMessageCaptureRef(context: MessageMenuBarActionContext): RefObject<HTMLElement | null> {
+async function withMessageCaptureLease<T>(
+  context: MessageMenuBarActionContext,
+  capture: (ref: RefObject<HTMLElement | null>) => Promise<T>
+): Promise<T> {
+  const release = context.acquireMessageCaptureLease?.(context.message.id)
   const getRenderedMessageElement = context.getRenderedMessageElement
-  if (!getRenderedMessageElement) return context.messageContainerRef
+  const suppressions = new Map<HTMLElement, () => void>()
 
-  return {
+  const ref: RefObject<HTMLElement | null> = {
     get current() {
-      const element = getRenderedMessageElement(context.message.id)
-      if (!element) {
+      const element = getRenderedMessageElement
+        ? getRenderedMessageElement(context.message.id)
+        : context.messageContainerRef.current
+      if (!element && getRenderedMessageElement) {
         throw new Error('Message is no longer available for image capture')
       }
+      if (element && !suppressions.has(element)) suppressions.set(element, suppressMessageEntrance(element))
       return element
     }
   }
-}
 
-async function withMessageCaptureLease<T>(context: MessageMenuBarActionContext, capture: () => Promise<T>): Promise<T> {
-  const release = context.acquireMessageCaptureLease?.(context.message.id)
   try {
-    return await capture()
+    return await capture(ref)
   } finally {
+    for (const resumeEntrance of suppressions.values()) resumeEntrance()
     release?.()
   }
 }
@@ -325,9 +331,8 @@ registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }
 })
 
 registerCommand('message.copyImage', async (context) => {
-  await withMessageCaptureLease(context, async () => {
+  await withMessageCaptureLease(context, async (messageContainerRef) => {
     const { exportService } = await import('@renderer/services/ExportService')
-    const messageContainerRef = getMessageCaptureRef(context)
     await exportService.captureScrollableAsBlob(
       messageContainerRef,
       async (blob) => {
@@ -341,10 +346,10 @@ registerCommand('message.copyImage', async (context) => {
 })
 
 registerCommand('message.exportImage', async (context) => {
-  await withMessageCaptureLease(context, async () => {
+  await withMessageCaptureLease(context, async (messageContainerRef) => {
     const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
     const imageData = await exportService.captureScrollableAsDataUrl(
-      getMessageCaptureRef(context),
+      messageContainerRef,
       CHAT_CAPTURE_BACKDROP_VARIABLE
     )
     const title = await getMessageTitle(context.messageForExport)

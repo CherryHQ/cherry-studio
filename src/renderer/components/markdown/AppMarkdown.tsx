@@ -35,6 +35,7 @@ export interface AppMarkdownProps {
   rehypePlugins?: Pluggable[]
   /** Replaces default source cleanup when the host protects embedded content. */
   transformSource?: (source: string) => string
+  onStaticBlocksMounted?: (blocks: HTMLCollection) => void
 }
 
 const REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkLatexMath]
@@ -56,7 +57,8 @@ function MarkdownContent({
   components,
   remarkPlugins,
   rehypePlugins,
-  transformSource = removeSvgEmptyLines
+  transformSource = removeSvgEmptyLines,
+  onStaticBlocksMounted
 }: AppMarkdownProps & { id: string }) {
   const { t } = useTranslation()
   const { openFilePath, resolveImageSrc } = useMarkdownHost()
@@ -106,7 +108,10 @@ function MarkdownContent({
           {content}
         </StreamingMarkdown>
       ) : (
-        <Markdown {...commonProps} preserveRelativeImageSrcs={Boolean(resolveImageSrc)}>
+        <Markdown
+          {...commonProps}
+          preserveRelativeImageSrcs={Boolean(resolveImageSrc)}
+          onBlocksMounted={onStaticBlocksMounted}>
           {content}
         </Markdown>
       )}

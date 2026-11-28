@@ -120,7 +120,7 @@ describe('remarkLatexMath', () => {
         id: 'split-line-equation',
         plugins: { ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) },
         remarkPlugins: [remarkLatexMath],
-        parseMarkdownIntoBlocksFn: createLatexMarkdownBlockParser(),
+        ...(Renderer === StreamingMarkdown ? { parseMarkdownIntoBlocksFn: createLatexMarkdownBlockParser() } : {}),
         children: `## Before formula\n\n\\[${value}\\]\n\n## Next section`.replaceAll('\n', eol)
       })
     )

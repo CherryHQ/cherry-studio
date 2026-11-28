@@ -27,7 +27,7 @@ const MessageImageCaptureHost = ({
       inert
       {...{ [captureHostAttribute]: '' }}>
       <MessageListProvider value={messageList}>
-        <MessageList />
+        <MessageList captureMode />
       </MessageListProvider>
     </div>
   )

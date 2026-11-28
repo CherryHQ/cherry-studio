@@ -83,14 +83,15 @@ describe('resolveRestoreTarget', () => {
 describe('useScrollPositionMemory', () => {
   let rafQueue: Array<() => void>
 
+  const tickRaf = () => {
+    const batch = rafQueue
+    rafQueue = []
+    act(() => batch.forEach((fn) => fn()))
+  }
+
   const flushRaf = () => {
     let guard = 0
-    // Restore schedules a frame which itself schedules a settle frame.
-    while (rafQueue.length && guard++ < 20) {
-      const batch = rafQueue
-      rafQueue = []
-      act(() => batch.forEach((fn) => fn()))
-    }
+    while (rafQueue.length && guard++ < 20) tickRaf()
   }
 
   let scroller: { scrollTop: number; scrollHeight: number; clientHeight: number }
@@ -189,6 +190,73 @@ describe('useScrollPositionMemory', () => {
     rerender(buildInputs({ itemCount: 3 }))
     flushRaf()
     expect(enterFollowingAfterRestore).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports the restored viewport only after delayed items have reached the bottom', () => {
+    const settledOffsets: number[] = []
+    const inputs = buildInputs({
+      itemCount: 0,
+      vlistHandleRef: { current: null },
+      onInitialScrollSettled: () => settledOffsets.push(scroller.scrollTop)
+    })
+    const { rerender } = renderHook((props: ScrollPositionMemoryInputs) => useScrollPositionMemory(props), {
+      initialProps: inputs,
+      reactStrictMode: true
+    })
+    flushRaf()
+    expect(settledOffsets).toEqual([])
+
+    rerender({ ...inputs, itemCount: 3 })
+    act(() => rafQueue.shift()?.())
+    expect(scroller.scrollTop).toBe(600)
+    expect(settledOffsets).toEqual([])
+
+    flushRaf()
+    expect(settledOffsets).toEqual([600])
+  })
+
+  it('opens the entrance only after Virtua corrects the initial offset and it stabilizes', () => {
+    const entranceOffsets: number[] = []
+    handle.scrollToIndex.mockImplementation(() => {
+      scroller.scrollTop = 400
+      requestAnimationFrame(() => requestAnimationFrame(() => (scroller.scrollTop = 600)))
+    })
+    renderHook(() =>
+      useScrollPositionMemory(buildInputs({ onInitialScrollSettled: () => entranceOffsets.push(scroller.scrollTop) }))
+    )
+
+    tickRaf()
+    tickRaf()
+    expect(scroller.scrollTop).toBe(400)
+    expect(entranceOffsets).toEqual([])
+    tickRaf()
+    expect(scroller.scrollTop).toBe(600)
+    expect(entranceOffsets).toEqual([])
+
+    flushRaf()
+    expect(entranceOffsets).toEqual([600])
+  })
+
+  it('opens the entrance once when the scroll offset keeps changing until timeout', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const entranceOffsets: number[] = []
+      renderHook(() =>
+        useScrollPositionMemory(buildInputs({ onInitialScrollSettled: () => entranceOffsets.push(scroller.scrollTop) }))
+      )
+
+      for (let frame = 0; frame < 20; frame++) {
+        scroller.scrollTop += 10
+        tickRaf()
+        vi.advanceTimersByTime(16)
+      }
+      expect(entranceOffsets).toEqual([])
+
+      vi.advanceTimersByTime(700)
+      expect(entranceOffsets).toEqual([200])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('suppresses saves until the initial restore has settled', () => {
