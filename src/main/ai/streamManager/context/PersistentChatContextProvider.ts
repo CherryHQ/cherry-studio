@@ -42,7 +42,7 @@ import {
   toContentRole
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import { type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 import { applyMaxMessagesWindow, resolveMaxMessages } from '@shared/utils/contextSettings'
 import { isFunctionCallingModel } from '@shared/utils/model'
