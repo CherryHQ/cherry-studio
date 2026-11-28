@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/process/2026-11-13-release-artifacts-in-cos.md
+2026-11-13-release-artifacts-in-cos.md: 84dbd3622d43d5de57de474d1c9735b13181d646
+2026-11-13-release-artifacts-in-cos.zh.md: e9332349627b766c2c4a1b4402582d293225a85e
