@@ -8,7 +8,7 @@ import { and, eq, or } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
+import { REASONING_FORMAT_PROFILES, type ReasoningControl } from '@cherrystudio/provider-registry'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -1249,7 +1249,7 @@ describe('ModelService — manual reasoning capability projects effort controls'
   it('preserves and reprojects persisted intrinsic controls on uncataloged custom models', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
     const budgetControls = [{ kind: 'toggle' as const }, { kind: 'budget' as const, min: 1024, max: 32000 }]
-    const ultraControls = [{ kind: 'effort' as const, values: ['low', 'medium', 'high', 'ultra'] as const }]
+    const ultraControls: ReasoningControl[] = [{ kind: 'effort', values: ['low', 'medium', 'high', 'ultra'] }]
 
     await dbh.db.insert(userModelTable).values([
       modelRow('acme', 'kimi-k2.6-preview', {
