@@ -218,7 +218,10 @@ async function runCommand(
     signal.addEventListener('abort', onAbort, { once: true })
     if (signal.aborted) onAbort()
 
-    child.on('error', finish)
+    child.on('error', (error) => {
+      // After a kill request this is a failed kill: the child may still run, so the grace timer settles.
+      if (killReason === undefined) finish(error)
+    })
     child.on('close', (code) => {
       if (killReason !== undefined) return finish(killReason)
       if (code === 0) return finish()

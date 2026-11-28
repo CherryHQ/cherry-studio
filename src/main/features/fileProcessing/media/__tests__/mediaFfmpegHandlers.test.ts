@@ -946,6 +946,43 @@ describe('mediaFfmpegHandlers Windows kill failure', () => {
       rmSync(outputDir, { recursive: true, force: true })
     }
   })
+
+  it('keeps a child registered when its kill fallback reports an error', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-kill-error-'))
+    const pidRegistryPath = join(outputDir, 'active-child.pid')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    const stuckChild = Object.assign(new EventEmitter(), {
+      pid: 424242,
+      kill: vi.fn(() => {
+        queueMicrotask(() => stuckChild.emit('error', Object.assign(new Error('kill EPERM'), { code: 'EPERM' })))
+        return false
+      }),
+      stdout: Object.assign(new EventEmitter(), { setEncoding: () => {} }),
+      stderr: Object.assign(new EventEmitter(), { setEncoding: () => {} })
+    })
+    spawnControl.replacement = (binary) => {
+      if (binary !== 'taskkill') return stuckChild
+      const killer = new EventEmitter()
+      queueMicrotask(() => killer.emit('close', 1))
+      return killer
+    }
+
+    try {
+      const result = expect(
+        mediaFfmpegHandlers.extractFrames(
+          { filePath: '/video.mp4', outputDir, timestampsMs: [0], maxEdgePx: 120, jpegQuality: 70, pidRegistryPath },
+          context()
+        )
+      ).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(120_000 + 5_000)
+      await result
+      expect(stuckChild.kill).toHaveBeenCalled()
+      // The failed kill leaves the child running, so main must still find its pid.
+      expect(readFileSync(pidRegistryPath, 'utf8').trim()).toBe('424242')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
 })
 
 async function waitForFile(filePath: string): Promise<void> {
