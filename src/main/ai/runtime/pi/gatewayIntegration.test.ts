@@ -2174,7 +2174,17 @@ describe('native Pi through the production gateway', () => {
         const root = await harness.createConversation({ ownership: { kind: 'ownerless' }, agent: { model } }, ctx)
         const submission = await root.submit({ type: 'input', content: 'Keep this run.', whenBusy: 'reject' }, ctx)
         harness.resume()
-        await expect.poll(() => failedRequests).toBe(4)
+        let retryAt = 0
+        await expect
+          .poll(
+            () => {
+              const wake = harness.wake()
+              if (failedRequests >= 4 && !wake.active && wake.at !== undefined) retryAt = wake.at
+              return retryAt
+            },
+            { timeout: 5_000 }
+          )
+          .toBeGreaterThan(0)
         const placed = await submission.status(ctx)
         expect(placed).toMatchObject({ status: 'placed', runId: expect.any(Number) })
         await harness.close(ctx)
@@ -2187,7 +2197,7 @@ describe('native Pi through the production gateway', () => {
           harness.resume()
           expect(await restored.wait(ctx)).toMatchObject({ status: 'unanswered', reason: 'aborted' })
           // Give the restored task's native backoff a chance to fire after cancellation.
-          await new Promise((resolve) => setTimeout(resolve, 850))
+          await new Promise((resolve) => setTimeout(resolve, Math.max(0, retryAt - Date.now()) + 50))
           expect(requests).toHaveLength(0)
         } else {
           harness.resume()
