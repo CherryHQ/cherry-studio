@@ -14,6 +14,7 @@ import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver, OrphanSession
 import { classifyPiFailure } from './failureFacts'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { ensureImportedSessionHistory } from './importedSessionHistory'
+import { piCommandCapabilities } from './piCommandCatalog'
 import { forkPiSession } from './piFork'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
@@ -24,6 +25,7 @@ const logger = loggerService.withContext('PiRuntimeDriver')
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = piWorkspaceRelocation
   readonly type = 'pi'
+  readonly commands = piCommandCapabilities
   readonly fork = forkPiSession
   isForkCheckpoint(value: unknown): boolean {
     return PiForkCheckpointSchema.safeParse(value).success

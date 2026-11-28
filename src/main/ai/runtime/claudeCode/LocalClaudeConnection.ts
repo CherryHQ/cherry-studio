@@ -13,8 +13,10 @@ import {
   type ClaudeObservation
 } from '@cherrystudio/agent-runtime-claude-code'
 import { CLAUDE_PERMISSION_MODES } from '@cherrystudio/agent-runtime-claude-code/cli'
+import { localClaudeBuiltinCommands } from '@cherrystudio/agent-runtime-claude-code/commands'
 import { selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
+import type { DbOrTx } from '@data/db/types'
 import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -39,34 +41,6 @@ import type {
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import { ClaudeSdkConnection } from './ClaudeSdkConnection'
 import { resolveClaudeLaunch } from './localClaudeLaunch'
-
-const CLAUDE_DEFAULT_COMMANDS: AgentSessionSlashCommand[] = [
-  { name: 'clear', description: 'Start a new conversation with empty context', argumentHint: '', builtin: true },
-  {
-    name: 'compact',
-    description: 'Free up context by summarizing the conversation so far',
-    argumentHint: '',
-    builtin: true
-  },
-  {
-    name: 'context',
-    description: 'Visualize current context usage as a colored grid',
-    argumentHint: '',
-    builtin: true
-  },
-  {
-    name: 'usage',
-    description: 'Show session cost, plan usage limits, and activity stats',
-    argumentHint: '',
-    builtin: true
-  },
-  {
-    name: 'goal',
-    description: 'Set a goal to work toward until it is completed',
-    argumentHint: '<goal>',
-    builtin: true
-  }
-]
 
 const UNSUPPORTED_CLAUDE_SLASH_COMMANDS = new Set([
   '__remote-workflow',
@@ -155,7 +129,13 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
     super(input, 'claude')
   }
 
-  protected override prepareContext(_env: Options['env'], nativeId?: string, anchor?: string): AgentSessionContextRow {
+  protected override prepareContext(
+    _env: Options['env'],
+    nativeId?: string,
+    anchor?: string,
+    _opening?: boolean,
+    db?: DbOrTx
+  ): AgentSessionContextRow {
     const { sessionId } = this.input
     if (!this.context && this.target.kind === 'resume') return this.target.context
     if (this.target.kind === 'new') {
@@ -178,7 +158,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
         updatedAt: Date.now()
       }
     }
-    const context = this.reserveContext(anchor ?? agentSessionMessageService.captureHead(sessionId), nativeId)
+    const context = this.reserveContext(anchor ?? agentSessionMessageService.captureHead(sessionId), nativeId, db)
     if (!context) throw new Error('Local agent binding changed before its native context was claimed')
     return context
   }
@@ -189,7 +169,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
       : super.bindNativeContext(context, nativeId)
   }
 
-  private reserveContext(anchor: string, nativeId?: string) {
+  private reserveContext(anchor: string, nativeId?: string, db?: DbOrTx) {
     return localContext(
       this.input.sessionId,
       this.input.agentId,
@@ -199,7 +179,8 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
       nativeId,
       this.target.kind === 'new' && this.context
         ? { id: this.context.id, nativeConfirmed: this.context.bindingState === 'bound' }
-        : undefined
+        : undefined,
+      db
     )
   }
 
@@ -348,13 +329,18 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
     return super.send(input)
   }
 
+  override runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {
+    if (!this.claimLocalContext(branchHead)) throw new Error('Local agent binding changed before command admission')
+    return super.runSlashCommand(name, args, requestId, branchHead)
+  }
+
   protected override commandAllowed(command: AgentSessionSlashCommand) {
     return !UNSUPPORTED_CLAUDE_SLASH_COMMANDS.has(command.name)
   }
 
   override async getSupportedCommands() {
     const commands = await super.getSupportedCommands()
-    return commands?.length ? commands : CLAUDE_DEFAULT_COMMANDS
+    return commands?.length ? commands : [...localClaudeBuiltinCommands]
   }
 
   private approve(

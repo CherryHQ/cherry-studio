@@ -2322,6 +2322,35 @@ describe('local protocol processes', () => {
     )
   })
 
+  it('returns Codex control feedback and opens a reply only for native work', async () => {
+    const { connection, events, text } = create('codex')
+    await connection.start(cwd)
+    await expect(connection.runSlashCommand('usage', '', 'usage-id', 'head')).resolves.toMatchObject({
+      title: expect.stringContaining('totalTokens')
+    })
+    expect(events.some((event) => event.type === 'autonomous-turn-state')).toBe(false)
+    expect(text()).toBe('')
+
+    await connection.runSlashCommand('review', 'check the changes', 'review-id', 'head')
+    await vi.waitFor(() => expect(text()).toContain('check the changes'))
+    expect(events).toContainEqual({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'native-turn' },
+      interactive: true
+    })
+  })
+
+  it('delivers an ACP command through native prompt and projects the agent answer', async () => {
+    const { connection, events, text } = create('acp')
+    await connection.start(cwd)
+    await connection.runSlashCommand('review', 'check the changes', 'review-id', 'head')
+    const prompt = (await readWire()).find(({ method }) => method === 'session/prompt')
+    expect(prompt.params.prompt).toEqual([{ type: 'text', text: '/review check the changes' }])
+    await vi.waitFor(() => expect(text()).toBe('turn 1: hello'))
+    expect(events.map(({ type }) => type)).toContain('turn-complete')
+  })
+
   it('keeps adjacent Codex items in separate parts and writes terminal-only text exactly once', async () => {
     const { connection, events, closeAndDrain } = create('codex', 'codex-text-items')
     await connection.start(cwd)

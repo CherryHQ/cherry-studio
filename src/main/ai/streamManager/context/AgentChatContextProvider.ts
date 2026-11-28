@@ -457,6 +457,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     await runtime.prepareBranch(validated.sessionId, validated.deliveryMessage?.id ?? validated.parentMessageId)
+    if (runtime.isSlashCommandPending(validated.sessionId))
+      throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'a pending slash command')
 
     // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
     // are gated by AgentSessionDeliveryService and never enter this branch.

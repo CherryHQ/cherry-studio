@@ -5,6 +5,7 @@ import type { EntryId } from '@earendil-works/pi-durable'
 
 import type { BehaviorEvent } from '@cherrystudio/agent-behavior'
 import {
+  buildSkillCommandPrompt,
   hasProductInputId,
   isPartBatch,
   runtimeId,
@@ -31,6 +32,7 @@ import {
   lookupNativeInput,
   applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -49,6 +51,8 @@ import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import { PiTurnUsage } from '../pi/PiTurnUsage'
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
+import { isSkillCommandInput, skillCommandInputId } from '../skillCommands'
+import type { RuntimeSlashCommand } from '../types'
 import type {
   NativeRunCompletion,
   AgentRuntimeConnectInput,
@@ -107,6 +111,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
   private runtime?: PiDurableRuntime
   private handle?: PiDurableThreadHandle
+  private readonly slashCommands = new Set<string>()
   private observation?: Observation
   private context?: ReturnType<typeof prepareDurableBranch>
   private desktop?: DurableRoot['desktop']
@@ -226,6 +231,63 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   async predictPrompt(signal: AbortSignal): Promise<string> {
     if (!this.handle || this.closing) return ''
     return this.handle.durable.predictPrompt(PROMPT_SUGGESTION_INSTRUCTION, signal)
+  }
+
+  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+    if (command.skillPath)
+      return this.runSkillCommand(buildSkillCommandPrompt(command.skillPath, args), requestId, branchHead)
+    return this.runSlashCommand(command.name, args, requestId, branchHead)
+  }
+
+  async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {
+    const handle = this.handle
+    if (!handle || this.closing) throw new Error('Durable slash command is unavailable')
+    this.slashCommands.add(requestId)
+    try {
+      const context = await readSessionHistory(this.input.sessionId, branchHead, this.context?.id, true)
+      if (context?.length) {
+        const anchor = messages.getSessionMessage(this.input.sessionId, branchHead)
+        await handle.durable.initializeContext(
+          buildAgentUserContent({ ...anchor, delivery: undefined, data: { parts: context } })
+        )
+      }
+      const notice = await handle.durable.executeCommand({ name, args, inputId: runtimeId(requestId) })
+      return { severity: notice.level, title: notice.text }
+    } finally {
+      this.slashCommands.delete(requestId)
+    }
+  }
+
+  async runSkillCommand(prompt: string, requestId: string, branchHead: string) {
+    const context = await readSessionHistory(this.input.sessionId, branchHead, this.context?.id, true)
+    const handle = this.handle
+    const send = handle?.input.submit
+    if (!handle || !send || !this.context || this.sending || this.active || this.compacting || this.closing)
+      throw new Error('Durable session is unavailable or busy')
+
+    const inputId = skillCommandInputId(requestId)
+    this.beginAutonomous(undefined, inputId, true)
+    const stopGeneration = this.stopGeneration
+    try {
+      if (context?.length) {
+        const anchor = messages.getSessionMessage(this.input.sessionId, branchHead)
+        await handle.durable.initializeContext(
+          buildAgentUserContent({ ...anchor, delivery: undefined, data: { parts: context } })
+        )
+      }
+      if (this.stopGeneration !== stopGeneration || this.closing) {
+        this.finishTurn(undefined, true)
+        return
+      }
+      const submitted = send({ inputId, text: prompt })
+      this.admission = submitted.catch(() => undefined)
+      const result = await submitted
+      if (result.status !== 'acknowledged') throw new Error(result.error.message)
+    } catch (error) {
+      this.failure = error
+      this.finishTurn()
+      throw error
+    }
   }
 
   async send(input: AgentRuntimeCommand): Promise<void> {
@@ -569,11 +631,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             if (nowActive && !this.sending && !this.closing) {
               // After reopen, Durable resumes a placed input that has no outcome yet; the started event names it.
               const recoveredInputId = batch.resumedInput
-              if (recoveredInputId) this.placed.add(recoveredInputId)
-              else
+              if (recoveredInputId) {
+                if (!isSkillCommandInput(recoveredInputId)) this.placed.add(recoveredInputId)
+              } else {
                 for (const input of event.inputs)
                   if (hasProductInputId(input) && input.facts.includes('placed') && !input.outcome)
                     this.captureInput(input, placements)
+              }
               if (!placements.length)
                 this.beginAutonomous(
                   batch.backgroundResults.status === 'confirmed'
@@ -603,7 +667,14 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       }
       if (!parts) this.projection.accept({ ...batch, events })
       const completion = batch.completion
-      const nativeRun = completion && { contextId: this.context!.id, inputs: completion.inputs }
+      const nativeRun = completion && {
+        contextId: this.context!.id,
+        inputs: completion.inputs.map((input): InputState => {
+          const { inputId, nativeInput, ...state } = input
+          // A Skill submission has a native identity but no saved user message.
+          return nativeInput && isSkillCommandInput(inputId) ? { ...state, nativeInput } : input
+        })
+      }
       if (nativeRun && completion?.nextRunId !== undefined) this.events.push({ type: 'native-run-complete', nativeRun })
       // The answer before a placed input arrives in the same batch, so the boundary follows its projection.
       if (placements.length) {
@@ -615,6 +686,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         this.events.push({ type: 'run-started', inputIds: placements })
       }
       for (const answer of batch.answers ?? []) {
+        if (isSkillCommandInput(answer.inputId)) continue
         this.events.push({
           type: 'run-checkpoint',
           contextId: this.context!.id,
@@ -650,7 +722,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private beginAutonomous(sourceToolCallIds?: readonly string[], recoveredInputId?: string) {
+  private beginAutonomous(sourceToolCallIds?: readonly string[], recoveredInputId?: string, interactive = false) {
     this.sending = true
     this.autonomous = true
     this.failure = undefined
@@ -658,15 +730,17 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.events.push({
       type: 'autonomous-turn-state',
       state: 'started',
-      origin: this.nextOrigin,
+      origin: isSkillCommandInput(recoveredInputId) ? { kind: 'native-turn' } : this.nextOrigin,
       sourceToolCallIds,
-      recoveredInputId
+      ...(isSkillCommandInput(recoveredInputId)
+        ? { interactive: interactive ? true : undefined }
+        : { recoveredInputId })
     })
     this.nextOrigin = { kind: 'background-work' }
   }
 
   private captureInput(input: InputState, placements?: string[]) {
-    if (!hasProductInputId(input)) return
+    if (!hasProductInputId(input) || isSkillCommandInput(input.inputId)) return
     const messageId = input.inputId
     const promotion = this.followupPromotions.get(messageId)
     this.events.push({ type: 'input-state', contextId: this.context!.id, input, ...(promotion && { promotion }) })
@@ -731,7 +805,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     } else if (!this.handle || event.thread === this.handle.thread.id) {
       if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
       if (event.type === 'goal-notice') {
-        this.projection?.notice(event.notice.text)
+        if (!this.slashCommands.has(event.requestKey)) this.projection?.notice(event.notice.text)
       }
     }
   }

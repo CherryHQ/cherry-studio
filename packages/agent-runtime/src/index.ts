@@ -7,6 +7,8 @@ export type {
   SubscriptionUsageResult,
   SubscriptionUsageWindow
 } from './account'
+export { buildSkillCommandPrompt, formatRuntimeCommand, skillCommand } from './commands'
+export type { RuntimeCommand, RuntimeCommandCatalog, RuntimeCommandInvocation, RuntimeSkillCommand } from './commands'
 export type {
   RuntimeId,
   BackendId,

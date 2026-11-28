@@ -4,7 +4,6 @@ import type { McpServer, Server, Transport } from '@modelcontextprotocol/server'
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
 
 import { application } from '@application'
-import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
@@ -21,13 +20,14 @@ import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
-import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
+
+import { resolveLinkedNotifyChannel, type LinkedChannelSnapshot, type NotifyChannel } from './linkedNotifyChannel'
 
 const logger = loggerService.withContext('AgentMcpServers')
 
@@ -44,8 +44,7 @@ function serveAgentMcpServer(createServer: () => McpServer | Server): AgentMcpSe
 }
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
-export type NotifyChannel = Pick<AgentChannelEntity, 'id' | 'type'>
-export type LinkedChannelSnapshot = NotifyChannel | null
+export { resolveLinkedNotifyChannel, type LinkedChannelSnapshot, type NotifyChannel } from './linkedNotifyChannel'
 
 export interface AgentNotificationContext {
   /**
@@ -216,15 +215,6 @@ export function resolveAgentNotificationContext(
     channels,
     allowAnyOwnedChannel: turnChannels === undefined && sourceChannel !== null
   }
-}
-
-/**
- * The Session's linked channel, or null unless it belongs to `agentId`. The ownership check is the
- * boundary that keeps one Agent's task output out of another's channel — never project without it.
- */
-export function resolveLinkedNotifyChannel(sessionId: string, agentId: string): LinkedChannelSnapshot {
-  const channel = channelService.findBySessionId(sessionId)
-  return channel?.agentId === agentId ? { id: channel.id, type: channel.type } : null
 }
 
 function resolveSourceChannelSafely(sessionId: string, agentId: string): LinkedChannelSnapshot {

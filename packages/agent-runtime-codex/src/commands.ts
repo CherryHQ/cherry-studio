@@ -1,14 +1,18 @@
-export interface CodexCommand {
-  name: string
-  description: string
-  argumentHint: string
+import type { RuntimeCommand, RuntimeCommandCatalog } from '@cherrystudio/agent-runtime'
+
+export const codexCommandCatalog = { liveCatalog: 'query' } as const satisfies RuntimeCommandCatalog
+
+export interface CodexCommand extends RuntimeCommand {
   aliases?: string[]
   builtin: boolean
 }
 
 type CommandResult = string | { prompt: string } | { running: true }
 
-export interface CommandDefinition<Session, Turn> extends Pick<CodexCommand, 'name' | 'description' | 'aliases'> {
+export interface CommandDefinition<Session, Turn> extends Pick<
+  CodexCommand,
+  'name' | 'description' | 'aliases' | 'subcommands'
+> {
   /** Omit for exact, argument-free commands such as /clear. */
   available?(session: Session): boolean
   argumentHint?: string

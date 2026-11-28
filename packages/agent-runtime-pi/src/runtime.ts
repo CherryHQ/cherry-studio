@@ -9,7 +9,15 @@ import {
   SettingsManager
 } from '@earendil-works/pi-coding-agent'
 
-import { install, ENTRY_KINDS, type CallRef, type Entries, type HostPorts } from '@cherrystudio/agent-behavior'
+import {
+  goalCommandDescriptor,
+  install,
+  ENTRY_KINDS,
+  type CallRef,
+  type Entries,
+  type GoalNotice,
+  type HostPorts
+} from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
   type AgentRuntime,
@@ -20,6 +28,7 @@ import {
   type Observation,
   type OperationResult,
   type RuntimeError,
+  type RuntimeCommandInvocation,
   type ThreadHandle,
   type ThreadInput,
   type InputDraft,
@@ -85,6 +94,7 @@ export interface PiThreadHandle extends ThreadHandle {
     toolDefinition(name: string): ToolDefinition | undefined
     toolCallId(ref: CallRef): string | undefined
     cancelQueuedInputs(): OperationResult<readonly InputId[]>
+    executeCommand(command: RuntimeCommandInvocation): Promise<GoalNotice>
     permissionModeChanged(): Promise<OperationResult<void>>
   }
 }
@@ -283,6 +293,10 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
     let released = false
     const observations = new Set<Observation>()
     const unavailable = () => released || closing
+    const goalCommand = (args: string, requestId: string) => {
+      const { harness, entries } = entry.behavior
+      return harness.withCall(entry.ref.id, (ports) => entries.goalCommand(ports, entry.ref.id, args, requestId))
+    }
     const observeCaptured = async (subscribe: () => Observation): Promise<OperationResult<Observation>> => {
       if (unavailable()) return rejected('observe', 'closed')
       const observed = subscribe()
@@ -347,18 +361,15 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           release = done
         })
         const prompt = async (text: string, promptOptions: Parameters<AgentRuntimeSession['prompt']>[1]) => {
-          const { harness, entries } = entry.behavior
           if (/^\/goal(?:\s|$)/.test(text)) {
-            await harness.withCall(entry.ref.id, (ports) =>
-              entries.goalCommand(ports, entry.ref.id, text.slice('/goal'.length).trim(), input.inputId)
-            )
+            await goalCommand(text.slice('/goal'.length).trim(), input.inputId)
             promptOptions?.preflightResult?.('handled')
             return
           }
           const controller = new AbortController()
           entry.messages.add(controller)
           try {
-            await harness.prompt(
+            await entry.behavior.harness.prompt(
               entry.ref.id,
               text,
               {
@@ -559,6 +570,15 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             report(cause)
             return { status: 'unknown', error: error('permission-mode-changed', 'native-error') }
           }
+        },
+        executeCommand({ name, args, inputId }) {
+          const work = entry.admission.then(() => {
+            if (name !== goalCommandDescriptor.name || unavailable() || !entry.owner)
+              throw new Error('Pi command is unavailable')
+            return goalCommand(args, inputId)
+          })
+          entry.admission = work.then(() => {}, report)
+          return work
         }
       },
       input: !entry.owner

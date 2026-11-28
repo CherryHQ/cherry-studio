@@ -130,6 +130,24 @@ describe('agentDraftCache', () => {
     })
   })
 
+  it('retains command intent when reopening a draft after a workspace change', () => {
+    const cacheKey = getAgentDraftCacheKey('session-1')
+    const commandIntent = { name: 'skill:review', textName: 'skill:review', generation: 'previous-runtime' }
+    writeAgentDraftCache(cacheKey, {
+      text: '/skill:review changes',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: [],
+      commandIntent,
+      ...scope
+    })
+    vi.mocked(cacheService.get).mockReturnValue(vi.mocked(cacheService.set).mock.calls[0][1])
+
+    expect(readAgentDraftCache(cacheKey, { ...scope, workspaceKey: 'workspace-2\0/next' }).commandIntent).toEqual(
+      commandIntent
+    )
+  })
+
   it('preserves absolute-path files and resource tokens while deferring skill validation after a workspace change', () => {
     const skillPrompt = skillToken.promptText!
     const folderPrompt = folderToken.promptText!

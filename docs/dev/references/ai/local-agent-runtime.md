@@ -100,7 +100,10 @@ are preserved.
   its production connection in the background once its workspace is known. Read-only
   history uses Cherry’s saved messages. The permission menu displays connection status
   until the formal connection reports its choices. A send or command request joins
-  the same opening or restore.
+  the same opening or restore. Activation reads the command catalog from that
+  connection, and retiring the connection drops its cached command descriptions.
+  The active view also refreshes Claude and Codex command catalogs through the
+  session connection. Codex re-reads Skill metadata when the view becomes active.
   After the last interactive view leaves, a resumable idle connection is eligible for
   the normal idle timeout. Active execution retains its connection.
 - CLI-backed adapters share executable and environment resolution in `runtime/cli`.
@@ -172,10 +175,17 @@ order of its private turn events and standard ACP content.
 Composer holds unsent drafts and sends native follow-ups directly when the current
 connection offers a durable queue.
 
-The Composer routes `/compact` to the connected runtime's standalone compaction
-operation when available. Claude, built-in Pi and Pi Durable also accept instructions.
-The operation reserves the session until it receives a matching native outcome.
-Successful compaction refreshes context usage without creating a chat input.
+The Composer checks the active runtime's slash-command catalog before sending.
+Codex can execute a control or open a native turn. Claude and ACP can receive
+commands through native input. Cherry stores replies that arrive through the
+runtime turn and omits the original command from conversation messages and input recall.
+When available, `/compact` uses standalone native compaction and refreshes context
+usage after the matching receipt. Claude, built-in Pi and Pi Durable accept compaction instructions.
+
+For Cursor, Cherry completes `/skill:<name>` from `.cursor/skills` and
+`.agents/skills` in the workspace and user home. On send, Cherry resolves the
+current descriptor and asks the Cursor SDK agent to read it using its existing
+tool permissions. ACP sessions get Skill commands from the harness catalog.
 
 ### Models and configuration
 

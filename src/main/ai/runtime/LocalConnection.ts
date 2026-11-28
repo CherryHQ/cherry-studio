@@ -8,6 +8,7 @@ import { runtimeId, type ItemRef, type RuntimePartEdit } from '@cherrystudio/age
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import {
@@ -120,6 +121,32 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     if (this.context && !this.context.nativeThreadId) this.context = bindLocalContext(this.context.id, token)
     this.events.push({ type: 'resume-token', token })
   }
+
+  protected switchLocalContext(parentId: string, nativeId: string): string {
+    const { anchor, context } = agentSessionMessageService.persistContextBoundary(
+      this.sessionId,
+      parentId,
+      (tx, anchor) => {
+        const context = localContext(
+          this.sessionId,
+          this.agentId,
+          anchor,
+          this.target,
+          this.config.browserControl,
+          nativeId,
+          undefined,
+          tx
+        )
+        if (!context) throw new Error('Local agent binding changed during the context switch')
+        return context
+      }
+    )
+    this.context = context
+    this.target = { ...this.target, kind: 'resume', context }
+    this.events.push({ type: 'context-boundary', anchor })
+    this.publishResumeToken(nativeId)
+    return anchor
+  }
   protected attachLocalContext(nativeId: string): boolean {
     if (this.context?.nativeThreadId === nativeId) return true
     const context = agentSessionContextService.localRootForThread(this.sessionId, this.config.providerId, nativeId)
@@ -217,7 +244,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     }
     this.editPart({ type: 'append', part: this.contentPart.part, text: delta })
   }
-  protected finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
+  protected finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop', publish = true) {
     if (!this.active) return
     this.active = false
     this.turnAbort.abort()
@@ -225,6 +252,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     this.endContent()
     this.tools.clear()
     this.activeSource = undefined
+    if (!publish) return
     if (!error && finishReason !== 'cancelled' && this.unattendedDenial) error = new Error(this.unattendedDenial)
     if (error) this.events.push({ type: 'error', error })
     else {

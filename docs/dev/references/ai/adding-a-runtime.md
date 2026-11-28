@@ -140,6 +140,11 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        so the next input gets its own reply.
      - `compact()` runs a standalone idle-thread operation. Report success from the matching
        native outcome without creating a chat turn.
+     - The runtime package exports its `RuntimeCommandCatalog`. The driver binds host inputs
+       to offline lookup. Explicit activation refreshes a live catalog.
+     - `executeCommand()` dispatches a catalog command before ordinary input admission.
+       Return native acceptance or local feedback. Publish model output and completion through
+       the receive-only reply's runtime events.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` — retain the connection while native background work exists.

@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { isComposerClipboardTokenKind, isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
+import { parseAgentSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { CacheAgentComposerDraft } from '@shared/data/cache/cacheValueTypes'
 import type { ConversationDraft } from '@shared/types/navigation'
 import type { LocalSkill } from '@shared/types/skill'
@@ -107,8 +108,22 @@ export function readAgentDraftCache(
   const shouldValidateSkills =
     (cached.shouldValidateSkills === true || !workspaceMatches) && getCachedSkillTokens(draft.tokens).length > 0
 
+  const intent = cached.commandIntent
+  const commandIntent =
+    isRecord(intent) &&
+    typeof intent.name === 'string' &&
+    typeof intent.textName === 'string' &&
+    parseAgentSlashCommand(draft.text)?.name === intent.textName
+      ? {
+          name: intent.name,
+          textName: intent.textName,
+          ...(typeof intent.generation === 'string' && { generation: intent.generation })
+        }
+      : undefined
+
   return {
     ...draft,
+    ...(commandIntent && { commandIntent }),
     files: Array.isArray(cached.files) ? cached.files : [],
     knowledgeBaseIds: Array.isArray(cached.knowledgeBaseIds)
       ? cached.knowledgeBaseIds.filter((id): id is string => typeof id === 'string')
@@ -125,6 +140,10 @@ export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft
     cacheKey,
     {
       ...cacheableDraft,
+      ...(draft.commandIntent &&
+        parseAgentSlashCommand(draft.text)?.name === draft.commandIntent.textName && {
+          commandIntent: draft.commandIntent
+        }),
       files: [...draft.files],
       knowledgeBaseIds: [...draft.knowledgeBaseIds],
       workspaceKey: draft.workspaceKey,

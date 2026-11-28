@@ -14,6 +14,7 @@ import { SequencerByKey } from '@shared/utils/async'
 
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import { AgentSessionForkError, type RuntimeForkInput } from '../fork'
+import { piCommandCapabilities } from '../pi/piCommandCatalog'
 import { type AgentRuntimeConnectInput, type AgentSessionRuntimeDriver, unavailableNativeContext } from '../types'
 import { DurableBackend, type DurableRoot } from './DurableBackend'
 import { prepareDurableBranch } from './durableContext'
@@ -28,6 +29,7 @@ type Adopt = (root: DurableRoot, connection: PiDurableRuntimeConnection) => void
 
 export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi-durable'
+  readonly commands = piCommandCapabilities
   private readonly backends = new Map<string, Slot>()
 
   constructor(

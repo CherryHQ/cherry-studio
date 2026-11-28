@@ -23,14 +23,15 @@ it('preserves private native turn boundaries when the preceding prompt and its c
   const stdout = new PassThrough()
   const emit = (...frames: object[]) =>
     stdout.write(frames.map((frame) => JSON.stringify({ jsonrpc: '2.0', ...frame })).join('\n') + '\n')
-  const request = z.object({ id: z.union([z.string(), z.number()]), method: z.string() })
-  const prompt = Promise.withResolvers<string | number>()
+  const request = z.object({ id: z.union([z.string(), z.number()]), method: z.string(), params: z.unknown() })
+  const prompt = Promise.withResolvers<z.infer<typeof request>>()
   stdin.on('data', (chunk: Buffer) => {
     for (const line of chunk.toString().trim().split('\n')) {
-      const { id, method } = request.parse(JSON.parse(line))
+      const frame = request.parse(JSON.parse(line))
+      const { id, method } = frame
       if (method === 'initialize') emit({ id, result: { protocolVersion: 1, agentCapabilities: {} } })
       if (method === 'session/new') emit({ id, result: { sessionId: 'session' } })
-      if (method === 'session/prompt') prompt.resolve(id)
+      if (method === 'session/prompt') prompt.resolve(frame)
     }
   })
 
@@ -82,11 +83,13 @@ it('preserves private native turn boundaries when the preceding prompt and its c
   try {
     const agent = await client.initialize()
     const session = await agent.create({ cwd: '/fixture', mcpServers: [] }, async () => {})
-    const original = session.acp.runPrompt({
+    const original = session.acp.executeCommand({
       inputId: runtimeId<'input'>('revision'),
-      content: [{ type: 'text', text: 'prompt' }]
+      name: 'review',
+      args: 'changes'
     })
-    const id = await prompt.promise
+    const { id, params } = await prompt.promise
+    expect(params).toMatchObject({ sessionId: 'session', prompt: [{ type: 'text', text: '/review changes' }] })
     emit(content('original reply'), native('started'), content('native reply'), native('finished'), {
       id,
       result: { stopReason: 'end_turn' }

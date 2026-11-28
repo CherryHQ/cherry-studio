@@ -1,12 +1,14 @@
-import { mkdtemp, mkdir, readFile, realpath, rm, stat } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+import { piCommandCatalog } from '@cherrystudio/agent-runtime-pi'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -20,6 +22,8 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type * as ShellEnv from '@main/utils/shellEnv'
+import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
@@ -118,6 +122,7 @@ function setup(protocol: 'acp' | 'codex', pauseFirst = false, scenario = 'worksp
     return connection
   })
   runtimeDriverRegistry.register(driver)
+  return driver
 }
 
 async function assertFirstInputUsesB(protocol: 'acp' | 'codex') {
@@ -146,7 +151,7 @@ async function assertFirstInputUsesB(protocol: 'acp' | 'codex') {
     wire.filter((message) => ['session/load', 'session/resume', 'thread/resume'].includes(message.method))
   ).toEqual([])
   expect(connections).toHaveLength(2)
-  await service.listSessionCommands('session')
+  await service.refreshSessionCommands('session')
   expect(connections).toHaveLength(2)
 }
 
@@ -276,7 +281,7 @@ it('applies the Agent permission change to open ACP sessions and uses it again a
   expect(connections).toHaveLength(2)
 
   await service.closeSession(second.id)
-  await service.listSessionCommands(second.id)
+  await service.refreshSessionCommands(second.id)
   expect(service.getLocalSessionView(second.id).info?.hostPermission?.currentValue).toBe('acceptEdits')
 })
 
@@ -324,9 +329,145 @@ it('reclaims an idle ACP connection after the last interactive view leaves and r
   )
 })
 
+it('does not open a cold ACP session to peek at the command catalog', async () => {
+  setup('acp')
+  await expect(service.listSessionCommands('session')).resolves.toEqual([])
+  expect(connections).toHaveLength(0)
+})
+
+it('rejects a missing command without submitting a prompt to ACP', async () => {
+  setup('acp', false, 'initial-updates')
+  await service.refreshSessionCommands('session')
+
+  await expect(
+    service.runSlashCommand('session', '/removed-command', undefined, undefined, 'removed-command')
+  ).resolves.toEqual({ accepted: false })
+  await expect(service.runSlashCommand('session', '/plain-text')).resolves.toEqual({
+    accepted: false,
+    unrecognized: true
+  })
+  expect((await readAcpRequests()).some(({ method }) => method === 'session/prompt')).toBe(false)
+})
+
+it('dispatches a Skill added after the offline command catalog was published', async () => {
+  const driver = setup('acp')
+  const workspace = path.join(directory, 'A')
+  const folder = path.join(workspace, 'review')
+  vi.spyOn(driver, 'commands').mockResolvedValue({
+    listOffline: () => piCommandCatalog.listOffline({ cwd: workspace, agentDir: directory, skillPaths: [folder] })
+  })
+  await expect(service.refreshSessionCommands('session')).resolves.toEqual([])
+  await expect(service.runSlashCommand('session', '/unknown')).resolves.toEqual({
+    accepted: false,
+    unrecognized: true
+  })
+  expect(connections).toHaveLength(0)
+
+  await mkdir(folder, { recursive: true })
+  await writeFile(path.join(folder, 'SKILL.md'), '---\nname: review\ndescription: Review changes.\n---\nRead the diff.')
+
+  await expect(service.runSlashCommand('session', '/skill:review changes')).resolves.toMatchObject({
+    accepted: true,
+    commandName: 'skill:review',
+    generation: expect.any(String)
+  })
+  expect((await readAcpRequests()).find(({ method }) => method === 'session/prompt')?.params.prompt).toEqual([
+    { type: 'text', text: '/skill:review changes' }
+  ])
+  expect(agentSessionMessageService.listSessionMessages('session').items.filter(({ role }) => role === 'user')).toEqual(
+    []
+  )
+})
+
+it('rejects a command selected on a sibling branch without prompting either ACP connection', async () => {
+  setup('acp', false, 'initial-updates')
+  const root = agentSessionMessageService.captureHead('session')
+  const saveBranch = (text: string) =>
+    agentSessionMessageService.saveMessage({
+      sessionId: 'session',
+      parentId: root,
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
+    })
+  const left = saveBranch('left branch')
+  agentSessionMessageService.selectBranch('session', left.id)
+  await expect(service.refreshSessionCommands('session')).resolves.toEqual([
+    { name: 'review', description: 'Review code', argumentHint: '' }
+  ])
+  const controls = MockMainCacheServiceUtils.getSharedCacheValue(AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY('session'))
+  expect(controls?.generation).toBeTruthy()
+
+  const right = saveBranch('right branch')
+  agentSessionMessageService.selectBranch('session', right.id)
+  await expect(
+    service.runSlashCommand('session', '/review', controls?.generation, undefined, 'review')
+  ).resolves.toEqual({ accepted: false })
+  expect((await readAcpRequests()).some(({ method }) => method === 'session/prompt')).toBe(false)
+})
+
+it('refreshes the ACP command catalog when its conversation becomes interactive', async () => {
+  setup('acp')
+  await service.refreshSessionCommands('session')
+
+  const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session')
+  const review = { name: 'review', description: 'Review changes in this workspace', argumentHint: '' }
+  vi.spyOn(connections[0], 'getSupportedCommands').mockResolvedValue([review])
+  MockMainCacheServiceUtils.setSharedCacheValue(key, [{ ...review, description: 'Previous review description' }])
+
+  await service.setLocalSessionInteractive('window', 'session', true)
+
+  expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toEqual([review])
+  expect((await readAcpRequests()).filter(({ method }) => method === 'session/new')).toHaveLength(1)
+})
+
+it('keeps retired ACP command results out of the replacement connection catalog', async () => {
+  setup('acp', false, 'initial-updates')
+  await service.setLocalSessionInteractive('window', 'session', true)
+  const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session')
+  const review = { name: 'review', description: 'Review code', argumentHint: '' }
+  await vi.waitFor(() => expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toEqual([review]))
+
+  const lookupStarted = Promise.withResolvers<void>()
+  const oldCatalog = Promise.withResolvers<(typeof review)[]>()
+  vi.spyOn(connections[0], 'getSupportedCommands').mockImplementation(async () => {
+    lookupStarted.resolve()
+    return oldCatalog.promise
+  })
+  const lookup = service.refreshSessionCommands('session')
+  await lookupStarted.promise
+
+  try {
+    await connections[0].close()
+    await vi.waitFor(() => expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toBeUndefined())
+    await service.setLocalSessionInteractive('window', 'session', true)
+    await vi.waitFor(() => expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toEqual([review]))
+  } finally {
+    oldCatalog.resolve([{ ...review, description: 'Retired connection description' }])
+  }
+
+  await expect(lookup).resolves.toEqual([])
+  expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toEqual([review])
+})
+
+it('refreshes the Codex Skill catalog over the existing session connection', async () => {
+  setup('codex')
+  await service.refreshSessionCommands('session')
+  const commands = await service.refreshSessionCommands('session')
+
+  expect(commands).toContainEqual(
+    expect.objectContaining({ name: 'repo-skill', description: 'Repository skill from Codex' })
+  )
+  const requests = await readAcpRequests()
+  expect(requests.filter(({ method }) => method === 'skills/list').map(({ params }) => params)).toEqual([
+    { cwds: [path.join(directory, 'A')] },
+    { cwds: [path.join(directory, 'A')], forceReload: true }
+  ])
+  expect(requests.filter(({ method }) => method === 'thread/start')).toHaveLength(1)
+  expect(requests.some(({ method }) => method === 'turn/start')).toBe(false)
+})
+
 it('rechecks the directory if it changes while reconciliation is awaiting', async () => {
   setup('acp')
-  await service.listSessionCommands('session')
+  await service.refreshSessionCommands('session')
   const entered = Promise.withResolvers<void>()
   const gate = Promise.withResolvers<void>()
   release = gate.resolve
@@ -336,7 +477,7 @@ it('rechecks the directory if it changes while reconciliation is awaiting', asyn
     await gate.promise
     return current(input)
   })
-  const primed = service.listSessionCommands('session')
+  const primed = service.refreshSessionCommands('session')
   await entered.promise
   agentSessionService.setWorkspace('session', { type: 'user', workspaceId: 'B' })
   gate.resolve()
@@ -352,7 +493,7 @@ it('opens the first native session after failed dispatches have already written 
       message: { role, status: role === 'assistant' ? 'error' : 'success', data: { parts: [] } }
     })
   }
-  await service.listSessionCommands('session')
+  await service.refreshSessionCommands('session')
   const wire = (await readFile(path.join(directory, 'wire.jsonl'), 'utf8'))
     .trim()
     .split('\n')
@@ -375,9 +516,9 @@ it('keeps a started conversation bound to its existing workspace', async () => {
 
 it.each(['acp', 'codex'] as const)('rebuilds a warmed %s session in B without resuming A', async (protocol) => {
   setup(protocol)
-  await service.listSessionCommands('session')
+  await service.refreshSessionCommands('session')
   agentSessionService.setWorkspace('session', { type: 'user', workspaceId: 'B' })
-  await service.listSessionCommands('session')
+  await service.refreshSessionCommands('session')
   await assertFirstInputUsesB(protocol)
 })
 
@@ -385,7 +526,7 @@ it.each(['acp', 'codex'] as const)(
   'discards an in-flight %s connection to A after switching to B',
   async (protocol) => {
     setup(protocol, true)
-    const primed = service.listSessionCommands('session')
+    const primed = service.refreshSessionCommands('session')
     await vi.waitFor(() => expect(connections).toHaveLength(1))
     agentSessionService.setWorkspace('session', { type: 'user', workspaceId: 'B' })
     release!()
@@ -396,7 +537,7 @@ it.each(['acp', 'codex'] as const)(
 
 it('reconnects a claimed ACP context to its original provider after its Agent switches providers', async () => {
   setup('acp')
-  await service.listSessionCommands('session')
+  await service.refreshSessionCommands('session')
   expect(resolveLocalContext('session')).toBeUndefined()
   const message = agentSessionMessageService.saveMessage({
     sessionId: 'session',
@@ -410,7 +551,7 @@ it('reconnects a claimed ACP context to its original provider after its Agent sw
   const next = agentProviderService.setBindingTx(dbh.db, 'agent', {
     env: { FIXTURE_LOG: path.join(directory, 'new-provider.jsonl') }
   })
-  await service.listSessionCommands('session')
+  await service.refreshSessionCommands('session')
   expect(service.getLocalSessionView('session').providerId).toBe(original.providerId)
   expect(
     (await readAcpRequests()).filter(({ method }) => method === 'session/load').map(({ params }) => params.sessionId)
@@ -422,7 +563,7 @@ it('reconnects a claimed ACP context to its original provider after its Agent sw
     name: 'New',
     workspace: { type: 'user', workspaceId: 'A' }
   })
-  await service.listSessionCommands(fresh.id)
+  await service.refreshSessionCommands(fresh.id)
   expect(service.getLocalSessionView(fresh.id).providerId).toBe(next.providerId)
   expect((await readAcpRequests('new-provider.jsonl')).filter(({ method }) => method === 'session/new')).toHaveLength(1)
   await service.closeSession(fresh.id)
@@ -430,7 +571,7 @@ it('reconnects a claimed ACP context to its original provider after its Agent sw
 
 it('replaces an unclaimed ACP warmup when the Agent provider changes during startup', async () => {
   setup('acp', true)
-  const opening = service.listSessionCommands('session')
+  const opening = service.refreshSessionCommands('session')
   await vi.waitFor(() => expect(connections).toHaveLength(1))
   const next = agentProviderService.setBindingTx(dbh.db, 'agent', {
     env: { FIXTURE_LOG: path.join(directory, 'new-provider.jsonl') }
@@ -461,13 +602,13 @@ it('reopens the original native thread when the provider login changes', async (
   const launch = resolveLocalLaunch('session', 'agent')!
   localContext('session', 'agent', message.id, launch.target, undefined, 'native-session')
   const original = resolveLocalContext('session')!
-  await service.listSessionCommands('session')
+  await service.refreshSessionCommands('session')
 
   const updated = agentProviderService.setBindingTx(dbh.db, 'agent', {
     account: { methodId: 'oauth', accountId: 'second' }
   })
   expect(updated.providerId).toBe(original.providerId)
-  await service.listSessionCommands('session')
+  await service.refreshSessionCommands('session')
 
   const requests = await readAcpRequests()
   expect(requests.filter(({ method }) => method === 'session/new')).toHaveLength(0)
@@ -497,7 +638,7 @@ it.each([
       runtimeResumeToken: 'lost-thread',
       message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Notebook saved' }] } }
     })
-    await service.listSessionCommands('session')
+    await service.refreshSessionCommands('session')
     expect(resolveLocalContext('session')?.context.id).toBe(original.id)
     expect((await readAcpRequests()).some(({ method }) => method === promptMethod)).toBe(false)
 
@@ -553,7 +694,7 @@ it('keeps an unchanged ACP warmup and rejects changed model or credentials at fi
   setup('acp', true)
   const account = { methodId: 'native', accountId: 'test-account' }
   agentProviderService.setBindingTx(dbh.db, 'agent', { account })
-  const opening = service.listSessionCommands('session')
+  const opening = service.refreshSessionCommands('session')
   await vi.waitFor(() => expect(connections).toHaveLength(1))
   const unchanged = agentProviderService.setBindingTx(dbh.db, 'agent', { enabled: true })
   release!()

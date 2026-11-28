@@ -700,7 +700,7 @@ export const aiRequestSchemas = {
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.session.commands': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1) }),
+    input: z.strictObject({ sessionId: z.string().min(1), refresh: z.boolean().optional() }),
     output: z.void()
   }),
   'ai.agent.session.fork': defineRoute({
@@ -787,6 +787,27 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session runtime queries & commands ──
+  'ai.agent.session.run_slash_command': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      text: z.string().min(1),
+      generation: z.string().min(1).optional(),
+      commandName: z.string().min(1).optional()
+    }),
+    output: z.strictObject({
+      accepted: z.boolean(),
+      unrecognized: z.literal(true).optional(),
+      commandName: z.string().optional(),
+      generation: z.string().optional(),
+      notice: z
+        .strictObject({
+          severity: z.enum(['info', 'warning', 'error']),
+          title: z.string(),
+          description: z.string().optional()
+        })
+        .optional()
+    })
+  }),
   'ai.agent.session.compact': defineRoute({
     input: z.strictObject({
       sessionId: z.string().min(1),

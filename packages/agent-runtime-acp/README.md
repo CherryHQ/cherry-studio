@@ -20,6 +20,9 @@ The package pins the TypeScript SDK to 2.4.0. Its default import selects stable 
 
 The desktop handle’s `acp.runPrompt` returns the stop reason, validated token usage and any harness-reported context reading for the submitted revision. Some v1 agents include a top-level `usage` extension. The Grok Build adapter can also read its native response metadata or a live completion for that exact prompt. Custom ACP presets use the generic path.
 
+`acpCommandCatalog` declares native command pushes. `acp.executeCommand(invocation)` sends the
+command through the live ACP session and returns its prompt outcome.
+
 Chat adapters can register typed reverse requests through `AcpHarnessAdapter.registerRequests`. The SDK routes each reply to the incoming JSON-RPC request and supplies its cancellation signal. The Grok Build adapter owns the question and plan wire formats. The desktop host checks the active session and turn before presenting either request.
 
 Create one runtime per backend connection. `create` starts a native session; `open` reuses a live owner or loads native history using the host's saved configuration. Observing and releasing handles never prompt, reload, cancel, or close sessions. `shutdown` joins the host transport lease and drains published observations. A failed join returns `unknown` and may be retried.

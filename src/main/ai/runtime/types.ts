@@ -9,6 +9,8 @@ import type {
   ProductInputState,
   LivePartInput,
   OperationResult,
+  RuntimeCommand,
+  RuntimeCommandCatalog,
   ThreadContextUsage,
   ThreadInput
 } from '@cherrystudio/agent-runtime'
@@ -279,6 +281,7 @@ export type AgentRuntimeEvent =
       type: 'autonomous-turn-state'
       state: 'started'
       origin: AutonomousTurnOrigin
+      interactive?: true
       sourceToolCallIds?: readonly string[]
       /** A placed product input that native recovery resumed; its existing reply continues. */
       recoveredInputId?: string
@@ -286,6 +289,7 @@ export type AgentRuntimeEvent =
   | { type: 'autonomous-turn-state'; state: 'finished' }
   /** A `retainOnStop` connection finished the requested stop; later input may start. */
   | { type: 'stop-confirmed' }
+  | { type: 'context-boundary'; anchor: string }
   | { type: 'error'; error: unknown }
 
 /**
@@ -372,13 +376,10 @@ export interface AgentRuntimeConnection {
   getContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
   /** Explicit inspection for connections that push live readings and need native history for an exact refresh. */
   inspectContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
-  /**
-   * Read this session's available slash command catalog (`query.supportedCommands()`), including
-   * any custom project/user commands the SDK discovered. Returns null when the runtime can't report
-   * it (no query yet, or a driver that doesn't support it). Optional ⇒ the host falls back to the
-   * static builtin list.
-   */
-  getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
+  /** Read the live catalog. Query drivers can request a native reload with `refresh`. */
+  getSupportedCommands?(refresh?: boolean): Promise<AgentSessionSlashCommand[] | null>
+  /** Acknowledge local handling or runtime admission. Model replies arrive through `events`. */
+  executeCommand?(command: RuntimeSlashCommand): Promise<LocalAgentNotice | void>
   stopTask?(taskId: string): Promise<boolean>
   messageChild?(contextId: string, text: string): Promise<void>
   /** Wait for admitted child execution and its archive writes; does not close the owner. */
@@ -398,8 +399,26 @@ export interface AgentRuntimeConnection {
   closeForEdit?(): Promise<void>
 }
 
+export type RuntimeCatalogCommand = RuntimeCommand & { skillPath?: string }
+
+export interface RuntimeSlashCommand {
+  command: RuntimeCatalogCommand
+  args: string
+  requestId: string
+  branchHead: string
+}
+
+export type RuntimeCommandCapabilities = RuntimeCommandCatalog<void>
+
+export interface RuntimeCommandContext {
+  agent: AgentEntity
+  session: AgentSessionEntity
+  branchHead?: string
+}
+
 export interface AgentSessionRuntimeDriver {
   readonly type: string
+  commands?(context: RuntimeCommandContext): RuntimeCommandCapabilities | Promise<RuntimeCommandCapabilities>
   /** Local CLI runtimes key execution identity by agent rather than by a spawned process. */
   getExecutionId?(agent: AgentEntity): ExecutionId | undefined
   /** Native artifact ownership and checkpoint remapping before session recovery. */

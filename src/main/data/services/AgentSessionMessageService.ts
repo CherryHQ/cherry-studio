@@ -1437,6 +1437,21 @@ export class AgentSessionMessageService {
     })
   }
 
+  persistContextBoundary<T>(sessionId: string, parentId: string, bind: (tx: DbOrTx, anchor: string) => T) {
+    const { context, saved } = application.get('DbService').withWriteTx((tx) => {
+      const head = getAgentSessionHead(tx, sessionId) ?? ensureAgentSessionRootTx(tx, sessionId)
+      if (head !== parentId) throw new Error('The selected conversation changed before the context switch')
+      const saved = this.saveMessageTx(tx, {
+        sessionId,
+        parentId,
+        message: { role: 'system', status: 'success', data: { parts: [{ type: 'data-clear', data: {} }] } }
+      })
+      return { context: bind(tx, saved.entity.id), saved }
+    })
+    this.publishSavedMessage(sessionId, saved, true)
+    return { context, anchor: saved.entity.id }
+  }
+
   sharesBranch(sessionId: string, left: string, right: string): boolean {
     const db = application.get('DbService').getDb()
     return (

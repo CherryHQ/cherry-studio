@@ -93,7 +93,10 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { subagentCall, gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type * as AgentMcpServers from '../agentMcpServers'
+import { listCursorSkillCommands } from '../cursor/cursorSkillCommands'
 import type * as GatewayBinding from '../pi/gatewayModelBinding'
+import { listPiSkillCommands } from '../pi/piCommandCatalog'
+import type * as PiConnectionSources from '../pi/piConnectionSignature'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
@@ -150,7 +153,8 @@ vi.mock('@application', async () => {
   }
   return mockApplicationFactory(overrides)
 })
-vi.mock('../pi/piConnectionSignature', () => ({
+vi.mock('../pi/piConnectionSignature', async (importOriginal) => ({
+  ...(await importOriginal<typeof PiConnectionSources>()),
   capturePiConnectionSnapshot: mocks.capture,
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
@@ -175,7 +179,8 @@ vi.mock('@cherrystudio/agent-runtime-pi-durable', async (importOriginal) => {
 })
 vi.mock('../pi/gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.binding }))
 vi.mock('@main/ai/agents/prompt/buildAgentPrompt', () => ({ buildAgentPrompt: mocks.prompt }))
-vi.mock('@main/ai/runtime/agentMcpServers', () => ({
+vi.mock('@main/ai/runtime/agentMcpServers', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentMcpServers>()),
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: mocks.mcpServers
 }))
@@ -1947,6 +1952,127 @@ describe('desktop Pi Durable connection', () => {
     expect(script.calls).toHaveLength(0)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
+
+  it('returns goal status without opening a reply or requiring a saved user input', async () => {
+    const { connection, events } = await connect()
+    const head = messages.captureHead(input.sessionId)
+    const requestId = 'goal-status-request'
+    await expect(connection.runSlashCommand('goal', '', requestId, head)).resolves.toMatchObject({
+      title: 'No goal is set. Use /goal <objective> to create one.'
+    })
+    expect(messages.captureHead(input.sessionId)).toBe(head)
+    expect(text(events)).toBe('')
+    expect(script.calls).toHaveLength(0)
+  })
+
+  it('executes a Skill as an interactive native turn without an ordinary input or placement', async () => {
+    const { connection, events } = await connect()
+    const head = messages.captureHead(input.sessionId)
+    await connection.runSkillCommand('Use the selected Skill to review the report.', uuid(), head)
+
+    await expect.poll(() => text(events)).toContain('Hello world')
+    expect(JSON.stringify(script.calls[0].messages)).toContain('Use the selected Skill to review the report.')
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'autonomous-turn-state', state: 'started', interactive: true })
+    )
+    expect(events.some(({ type }) => type === 'input-state' || type === 'run-started')).toBe(false)
+    expect(messages.captureHead(input.sessionId)).toBe(head)
+  })
+
+  it('preserves native output truncation on a saved Skill reply', async () => {
+    const { sessionId } = input
+    const skillDir = join(directory, '.agents', 'skills', 'review')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(join(skillDir, 'SKILL.md'), '---\nname: review\ndescription: Review changes\n---\nReview changes.\n')
+    const partialReply = 'Partial reply before the output limit.'
+    setScript([assistantReply(partialReply, 'length')])
+    BaseService.resetInstances()
+    const service = new AgentSessionRuntimeService()
+    let started: StartRuntimeTurnInput | undefined
+    MockApplicationUtils.setService('AiStreamManager', {
+      startRuntimeTurn: (start: StartRuntimeTurnInput) => {
+        started = start
+      },
+      drainRuntimeReply: async () => {},
+      pauseRuntimeTurn: () => {}
+    })
+    try {
+      await service._doInit()
+      sharedHosts()
+      await expect(
+        service.runSlashCommand(sessionId, '/skill:review', undefined, undefined, 'skill:review')
+      ).resolves.toMatchObject({ accepted: true })
+      const { request, abortController, listeners } = await vi.waitFor(
+        () => {
+          expect(started).toBeDefined()
+          return started!
+        },
+        { timeout: 10_000 }
+      )
+      const signal = abortController!.signal
+      const assistantId = request.messageId!
+      const source = service.openTurnStream({ sessionId, turnId: request.runtime!.turnId, signal })
+      const result = await pipeMessageStream(
+        source,
+        signal,
+        { id: assistantId, role: 'assistant' },
+        () => {},
+        () => {},
+        () => {}
+      )
+      if (result.threw) {
+        const error = result.threw.error
+        for (const listener of listeners)
+          await listener.onError(
+            { status: 'error', finalMessage: result.finalMessage, error: serializeError(error) },
+            error
+          )
+      } else {
+        for (const listener of listeners)
+          await listener.onDone({ status: 'success', isTopicDone: true, finalMessage: result.finalMessage })
+      }
+      const { items } = messages.listSessionMessages(sessionId)
+      expect(items).toHaveLength(1)
+      expect(items[0]).toMatchObject({
+        role: 'assistant',
+        status: 'error',
+        data: {
+          parts: expect.arrayContaining([
+            expect.objectContaining({ type: 'text', text: partialReply }),
+            expect.objectContaining({
+              type: 'data-error',
+              data: expect.objectContaining({ i18nKey: 'output_token_limit_reached', finishReason: 'length' })
+            })
+          ])
+        }
+      })
+    } finally {
+      await service._doDestroy()
+      MockApplicationUtils.resetServices()
+    }
+  }, 20_000)
+
+  it.each([false, true])(
+    'reads the current workspace Skill descriptor for slash completion (Cursor=%s)',
+    async (cursor) => {
+      const skillDir = join(directory, cursor ? '.cursor' : '.agents', 'skills', 'review')
+      mkdirSync(skillDir, { recursive: true })
+      const descriptorPath = join(skillDir, 'SKILL.md')
+      const writeDescriptor = (description: string) =>
+        writeFileSync(descriptorPath, `---\nname: review\ndescription: ${description}\n---\nReview changes.\n`)
+      const catalog = () =>
+        cursor ? listCursorSkillCommands(snapshot.session.workspace.path) : listPiSkillCommands(snapshot)
+
+      writeDescriptor('Review this workspace')
+      await expect(catalog()).resolves.toMatchObject([
+        { name: 'skill:review', description: 'Review this workspace', skillPath: descriptorPath }
+      ])
+      writeDescriptor('Review the current changes')
+      await expect(catalog()).resolves.toMatchObject([{ description: 'Review the current changes' }])
+      unlinkSync(descriptorPath)
+      await expect(catalog()).resolves.toEqual([])
+    }
+  )
 
   it.each(['/goal', '/goal Recall the imported conversation'])(
     'routes %s locally and retains imported history for the next model input after reopening',

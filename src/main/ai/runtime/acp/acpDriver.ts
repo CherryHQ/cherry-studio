@@ -20,6 +20,8 @@ import { resolveAcpLaunch } from './acpLaunch'
 import { AcpManagement, authenticateLocalAcp } from './AcpManagement'
 import { acpPreset } from './acpPresets'
 
+export const commands = async () => (await import('@cherrystudio/agent-runtime-acp/v1')).acpCommandCatalog
+
 export async function connect(input: LocalRuntimeConnectInput, config: LocalAgentRuntime, cwd: string) {
   const { AcpConnection } = await import('./AcpConnection')
   const start = (bypass = false) => {

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { claudeCommandCatalog } from '@cherrystudio/agent-runtime-claude-code/commands'
 import { loggerService } from '@logger'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -29,6 +30,9 @@ const logger = loggerService.withContext('LazyClaudeCodeRuntimeDriver')
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly type = 'claude-code'
+  commands() {
+    return application.get('ClaudeCodeBinaryService').getStatus().phase === 'ready' ? claudeCommandCatalog : {}
+  }
 
   isForkCheckpoint(value: unknown): boolean {
     return ClaudeForkCheckpointSchema.safeParse(value).success

@@ -720,28 +720,33 @@ const AgentChatSessionCenter = ({
   const isActiveTab = useIsActiveTab()
   const sessionId = session.id
   const workspacePath = session.workspace?.path
+  const usesAcpLease = localRuntime?.enabled === true && protocol === 'acp'
   const canActivateRuntime =
     (!tabId || isActiveTab) &&
     !onStartNewTaskConversation &&
     !session.deletedAt &&
     !!workspacePath &&
     activeAgent?.id === session.agentId &&
-    localRuntime?.enabled === true &&
-    protocol === 'acp'
+    (activeAgent?.type !== 'local' || localRuntime?.enabled === true)
 
   useEffect(() => {
     if (!canActivateRuntime || !agentId || !workspacePath) return
     let active = true
-    void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: true }).catch((error) => {
-      if (active) logger.warn('Failed to prepare active ACP session', { sessionId, error })
+    const activate = usesAcpLease
+      ? ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: true })
+      : ipcApi.request('ai.agent.session.commands', { sessionId, refresh: true })
+    void activate.catch((error) => {
+      if (active) logger.warn('Failed to prepare active agent session', { sessionId, error })
     })
     return () => {
       active = false
-      void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: false }).catch((error) => {
-        logger.warn('Failed to leave active ACP session', { sessionId, error })
-      })
+      if (usesAcpLease) {
+        void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: false }).catch((error) => {
+          logger.warn('Failed to leave active ACP session', { sessionId, error })
+        })
+      }
     }
-  }, [agentId, canActivateRuntime, sessionId, workspacePath])
+  }, [agentId, canActivateRuntime, sessionId, usesAcpLease, workspacePath])
 
   const composer = (
     <div className="flex w-full flex-col">

@@ -1,3 +1,6 @@
+import type { RuntimeCommand } from '@cherrystudio/agent-runtime'
+import { claudeCommandCatalog } from '@cherrystudio/agent-runtime-claude-code/commands'
+import { piBuiltinCommands } from '@cherrystudio/agent-runtime-pi/commands'
 import { claudeUserFacingTools } from '@shared/ai/claudecode/toolRegistry'
 import { PI_BUILTIN_TOOLS, PI_TOOL_RECALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
@@ -54,20 +57,20 @@ const ALL_PERMISSION_MODES = [
   'bypassPermissions'
 ] as const satisfies readonly AgentPermissionMode[]
 
-// Fallback shown only until the runtime reports the session's real catalog via
-// `query.supportedCommands()`. Keep it to current Claude Code built-ins (see
-// https://code.claude.com/docs/en/commands).
-const CLAUDE_CODE_BUILTIN_COMMANDS = [
-  { command: '/clear', description: 'Start a new conversation with empty context' },
-  { command: '/compact', description: 'Free up context by summarizing the conversation so far' },
-  { command: '/context', description: 'Visualize current context usage as a colored grid' },
-  { command: '/usage', description: 'Show session cost, plan usage limits, and activity stats' }
-] as const satisfies readonly SlashCommand[]
+export const AGENT_RUNTIME_BUILTIN_COMMANDS = {
+  local: [],
+  'claude-code': claudeCommandCatalog.builtinCommands,
+  pi: piBuiltinCommands,
+  'pi-durable': piBuiltinCommands
+} satisfies Record<AgentType, readonly RuntimeCommand[]>
 
-const PI_BUILTIN_COMMANDS = [
-  { command: '/compact', description: 'Compact conversation with optional focus instructions' },
-  { command: '/goal', description: 'Set a goal to work toward until it is completed' }
-] as const satisfies readonly SlashCommand[]
+function toSlashCommands(commands: readonly RuntimeCommand[]): SlashCommand[] {
+  return commands.map(({ name, description, subcommands }) => ({
+    command: `/${name}`,
+    description,
+    ...(subcommands && { subcommands })
+  }))
+}
 
 const PI_CAPABILITIES = {
   labelKey: 'library.config.agent.field.runtime.option.pi',
@@ -82,7 +85,7 @@ const PI_CAPABILITIES = {
   mcp: true,
   skills: true,
   claudeRegistryTools: false,
-  slashCommands: PI_BUILTIN_COMMANDS,
+  slashCommands: toSlashCommands(piBuiltinCommands),
   createDefaults: { permissionMode: 'auto' },
   // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint
   // config to resolve a wire protocol, so no provider ⇒ not drivable. The managed CherryAI
@@ -130,7 +133,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     mcp: true,
     skills: true,
     claudeRegistryTools: true,
-    slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
+    slashCommands: toSlashCommands(claudeCommandCatalog.builtinCommands),
     createDefaults: { permissionMode: 'auto' },
     // Claude Code reaches non-native providers through the local API Gateway, so its picker must use
     // the same routability rule as the gateway model catalog.

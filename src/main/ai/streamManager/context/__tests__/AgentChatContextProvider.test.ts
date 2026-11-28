@@ -160,6 +160,7 @@ describe('AgentChatContextProvider', () => {
       if (name === 'AgentSessionRuntimeService') {
         return {
           prepareBranch: async () => {},
+          isSlashCommandPending: () => false,
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,

@@ -120,11 +120,12 @@ it('executes the exported clear alias and publishes the new thread identity', as
 it('invokes a skill before opening the menu and refreshes the observed catalog while idle', async () => {
   const { peer, session, events, complete } = await openSession()
   const skill = { name: 'design', path: '/workspace/design/SKILL.md' }
+  const description = 'Review a design against the project guidelines'
   try {
     const sent = session.send([{ type: 'text', text: '/design review this' }])
     const discovery = await peer.read()
     expect(discovery).toMatchObject({ method: 'skills/list', params: { cwds: ['/workspace'] } })
-    peer.send({ id: discovery.id, result: { data: [{ skills: [skill] }] } })
+    peer.send({ id: discovery.id, result: { data: [{ skills: [{ ...skill, description, shortDescription: ' ' }] }] } })
     const turn = await peer.read()
     expect(turn).toMatchObject({
       method: 'turn/start',
@@ -138,7 +139,9 @@ it('invokes a skill before opening the menu and refreshes the observed catalog w
     peer.send({ id: turn.id, result: { turn: { id: 'one' } } })
     await sent
     complete('one')
-    expect(await session.listCommands()).toContainEqual(expect.objectContaining({ name: 'design', builtin: false }))
+    expect(await session.listCommands()).toContainEqual(
+      expect.objectContaining({ name: 'design', description, builtin: false })
+    )
 
     peer.send({ method: 'skills/changed' })
     const refresh = await peer.read()
@@ -162,6 +165,31 @@ it('invokes a skill before opening the menu and refreshes the observed catalog w
       expect(change?.commands.filter((command) => !command.builtin).map((command) => command.name)).toEqual(['goal'])
       expect(change?.commands).not.toContainEqual(expect.objectContaining({ name: 'goal', builtin: true }))
     })
+  } finally {
+    peer.close()
+  }
+})
+
+it('refreshes Skill descriptions from the native catalog while keeping the same thread', async () => {
+  const { peer, session } = await openSession()
+  const skill = { name: 'design', path: '/workspace/design/SKILL.md' }
+  try {
+    const initial = session.listCommands()
+    const first = await peer.read()
+    expect(first).toMatchObject({ method: 'skills/list', params: { cwds: ['/workspace'] } })
+    peer.send({ id: first.id, result: { data: [{ skills: [{ ...skill, description: 'Previous guidelines' }] }] } })
+    expect(await initial).toContainEqual(
+      expect.objectContaining({ name: 'design', description: 'Previous guidelines' })
+    )
+
+    const lookups = [session.listCommands(true), session.listCommands(true)]
+    const refresh = await peer.read()
+    expect(refresh).toMatchObject({ method: 'skills/list', params: { cwds: ['/workspace'], forceReload: true } })
+    peer.send({ id: refresh.id, result: { data: [{ skills: [{ ...skill, description: 'Current guidelines' }] }] } })
+    for (const commands of await Promise.all(lookups)) {
+      expect(commands).toContainEqual(expect.objectContaining({ name: 'design', description: 'Current guidelines' }))
+    }
+    expect(session.id).toBe('thread')
   } finally {
     peer.close()
   }
@@ -331,6 +359,9 @@ it('keeps Goal in slash commands and uses native Plan and steer settings', async
     expect(goal.method).toBe('thread/goal/get')
     peer.send({ id: goal.id, result: { goal: null } })
     const session = await opened
+    const commands = CodexSession.listBuiltinCommands(session)
+    expect(commands.find(({ name }) => name === 'goal')?.subcommands).toEqual(['pause', 'resume', 'clear'])
+    expect(commands.find(({ name }) => name === 'plan')?.subcommands).toEqual(['off'])
     const setting = session.send([{ type: 'text', text: '/goal ship' }])
     const setGoal = await peer.read()
     expect(setGoal).toMatchObject({
@@ -344,14 +375,14 @@ it('keeps Goal in slash commands and uses native Plan and steer settings', async
       ['pause', 'paused'],
       ['resume', 'active']
     ] as const) {
-      const updated = session.send([{ type: 'text', text: `/goal ${command}` }])
+      const updated = session.executeCommand({ name: 'goal', args: command, inputId: runtimeId(command) })
       const request = await peer.read()
       expect(request).toMatchObject({
         method: 'thread/goal/set',
         params: { threadId: 'thread', origin: 'user', status }
       })
       peer.send({ id: request.id, result: { goal: { threadId: 'thread', objective: 'ship', status } } })
-      await updated
+      await expect(updated).resolves.toBe(`ship (${status})`)
     }
     session.setMode('codex-mode', 'readOnly')
     const planned = session.send([{ type: 'text', text: 'review' }], 'first')

@@ -12,10 +12,11 @@ export function prepareClaudeBranch(
   configDir: string,
   nativeId?: string,
   messageId?: string,
-  opening = false
+  opening = false,
+  db?: DbOrTx
 ) {
   agentSessionService.assertIndependentSession(sessionId)
-  return application.get('DbService').withWriteTx((tx) => {
+  const reserve = (tx: DbOrTx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
     const anchor = messageId ?? getAgentSessionHead(tx, sessionId) ?? root
     const existing = contexts.branchTx(tx, sessionId, anchor)
@@ -29,9 +30,11 @@ export function prepareClaudeBranch(
       backendId: backend.id,
       nativeThreadId: nativeId ?? uuid(),
       anchorMessageId: anchor,
+      ...(db && nativeId && { bindingState: 'bound' as const }),
       checkpointMapping: opening && !nativeId ? { referenceHistory: true } : undefined
     })
-  })
+  }
+  return db ? reserve(db) : application.get('DbService').withWriteTx(reserve)
 }
 
 export function claudeBranchQueryIdentity(context: AgentSessionContextRow, requestedResume?: string) {

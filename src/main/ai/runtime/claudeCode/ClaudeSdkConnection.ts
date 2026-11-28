@@ -19,7 +19,9 @@ import type {
   ClaudeObservation,
   ClaudeThreadHandle
 } from '@cherrystudio/agent-runtime-claude-code'
+import type { DbOrTx } from '@data/db/types'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
@@ -42,6 +44,7 @@ import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import type { LocalAgentNotice } from '@shared/ai/localAgent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -56,6 +59,7 @@ import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
+  RuntimeSlashCommand,
   AgentRuntimeInput,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
@@ -126,6 +130,13 @@ export abstract class ClaudeSdkConnection<
     | { state: 'attached' | 'closing'; resource: ClaudeChildResource }
   >()
   private runActive = false
+  private slashCommand?: {
+    requestId: string
+    branchHead: string
+    opened: boolean
+    output?: string
+    receipt: PromiseWithResolvers<LocalAgentNotice | void>
+  }
   protected closing = false
   private closePromise?: Promise<void>
   /** Keep the effective child environment for native checkpoint capture. */
@@ -156,8 +167,8 @@ export abstract class ClaudeSdkConnection<
 
   abstract reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult>
 
-  protected prepareContext(env: Options['env'], nativeId?: string, anchor?: string, opening = false) {
-    return prepareClaudeBranch(this.input.sessionId, resolveClaudeConfigDirectory(env), nativeId, anchor, opening)
+  protected prepareContext(env: Options['env'], nativeId?: string, anchor?: string, opening = false, db?: DbOrTx) {
+    return prepareClaudeBranch(this.input.sessionId, resolveClaudeConfigDirectory(env), nativeId, anchor, opening, db)
   }
 
   protected bindNativeContext(context: NonNullable<typeof this.context>, nativeId: string) {
@@ -252,6 +263,31 @@ export abstract class ClaudeSdkConnection<
     const result = await operation.submit({ inputId: draft.inputId, content: sdkMessage.message.content })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+  }
+
+  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+    return this.runSlashCommand(command.name, args, requestId, branchHead)
+  }
+
+  async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {
+    const executeCommand = this.handle?.claude.executeCommand
+    if (!executeCommand || this.closing || this.runActive || this.slashCommand)
+      throw new Error('Claude session is unavailable or busy')
+    this.promptSuggestion.clear()
+    this.currentSources.clear()
+    const receipt = Promise.withResolvers<LocalAgentNotice | void>()
+    const command = { requestId, branchHead, opened: false, receipt }
+    this.slashCommand = command
+    this.runActive = true
+    try {
+      void executeCommand({ inputId: runtimeId(requestId), name, args }).then((result) => {
+        if (result.status !== 'acknowledged') receipt.reject(new Error(result.error?.message ?? result.status))
+      }, receipt.reject)
+      return await receipt.promise
+    } finally {
+      if (this.slashCommand === command) this.slashCommand = undefined
+      this.runActive = false
+    }
   }
 
   lookupInput(contextId: string, inputId: string) {
@@ -395,6 +431,7 @@ export abstract class ClaudeSdkConnection<
   private async closeQuery(): Promise<void> {
     this.promptSuggestion.clear()
     this.closing = true
+    this.slashCommand?.receipt.reject(new Error('Claude closed before confirming the command'))
     if (this.parkedQuery) {
       await this.parkedQuery.warmQuery[Symbol.asyncDispose]()
       await this.parkedQuery.processDiagnostics.exited
@@ -444,6 +481,20 @@ export abstract class ClaudeSdkConnection<
         try {
           const refresh = metadata.accept(batch)
           const terminal: AgentRuntimeEvent[] = []
+          const command = this.slashCommand
+          const nativeResult =
+            command &&
+            batch.native
+              .map(({ message }) => message)
+              .find(
+                (message) =>
+                  message.type === 'result' &&
+                  (message.user_message_uuid === command.requestId ||
+                    ('user_message_uuids' in message &&
+                      Array.isArray(message.user_message_uuids) &&
+                      message.user_message_uuids.includes(command.requestId)))
+              )
+          if (command) this.observeSlashCommand(command, batch)
           const opensTurn = (control: ClaudeControl) =>
             control.type === 'input-boundary' ||
             (control.type === 'autonomous-turn-state' && control.state === 'started')
@@ -485,7 +536,11 @@ export abstract class ClaudeSdkConnection<
           if (recovery) publishSources(recovery.messages, batch.retracted, true)
           let removed = !!recovery
           for (const event of batch.events) {
-            if (event.type === 'input.changed' && hasProductInputId(event.input))
+            if (
+              event.type === 'input.changed' &&
+              event.input.inputId !== command?.requestId &&
+              hasProductInputId(event.input)
+            )
               this.eventQueue.push({ type: 'input-state', contextId, input: event.input })
             if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
             if (this.contextId && event.type === 'subagent.upsert') this.discoverChild(event.subagent)
@@ -513,13 +568,26 @@ export abstract class ClaudeSdkConnection<
           if (batch.retracted.length && !removed) publishSources([], batch.retracted, false)
           for (const control of batch.controls ?? []) {
             if (opensTurn(control)) continue
+            if (control.type === 'result' && nativeResult && !command?.opened) continue
             const result = await this.handleControl(control, contextId)
             if (result) terminal.push(result)
           }
           for (const event of terminal) this.eventQueue.push(event)
+          if (command && nativeResult?.type === 'result') {
+            if (command.opened) this.eventQueue.push({ type: 'autonomous-turn-state', state: 'finished' })
+            if (nativeResult.subtype !== 'success' || nativeResult.is_error) {
+              command.receipt.reject(new Error('Claude could not execute the command'))
+            } else {
+              const output = !command.opened && (command.output?.trim() || nativeResult.result?.trim())
+              command.receipt.resolve(output ? { severity: 'info', title: output } : undefined)
+            }
+          }
+          if (batch.events.some((event) => event.type === 'closed'))
+            command?.receipt.reject(new Error('Claude closed before confirming the command'))
           if (batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') && !this.closing)
             this.eventQueue.close()
         } catch (error) {
+          this.slashCommand?.receipt.reject(error)
           logAiFailure(logger, 'Claude projection failed', error, 'agent.claude.adapt', {
             source: 'application',
             kind: 'defect',
@@ -540,6 +608,31 @@ export abstract class ClaudeSdkConnection<
     }
     this.observations.push(observation.value)
     this.restoreChildren(this.context!)
+  }
+
+  private observeSlashCommand(command: NonNullable<typeof this.slashCommand>, batch: ClaudeObservation) {
+    for (const { source, message } of batch.native) {
+      if (source === 'live' && message.type === 'system' && message.subtype === 'local_command_output')
+        command.output = message.content
+    }
+    if (command.opened) return
+    for (const event of batch.events) {
+      if (event.type !== 'input.changed' || event.input.inputId !== command.requestId) continue
+      if (event.input.outcome === 'aborted' || event.input.outcome === 'failed') {
+        command.receipt.reject(new Error(event.input.error?.message ?? 'Claude command was interrupted'))
+        return
+      }
+      if (event.input.facts.includes('placed') && !event.input.facts.includes('locally-handled')) {
+        command.opened = true
+        this.eventQueue.push({
+          type: 'autonomous-turn-state',
+          state: 'started',
+          origin: { kind: 'native-turn' },
+          interactive: true
+        })
+        return
+      }
+    }
   }
 
   private unexpectedClose(
@@ -600,16 +693,27 @@ export abstract class ClaudeSdkConnection<
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
         let context: NonNullable<typeof this.context>
         try {
-          context = this.prepareContext(this.spawnOptions?.env, control.sessionId)
+          if (this.slashCommand) {
+            const boundary = agentSessionMessageService.persistContextBoundary(
+              this.input.sessionId,
+              this.slashCommand.branchHead,
+              (tx, anchor) => this.prepareContext(this.spawnOptions?.env, control.sessionId, anchor, false, tx)
+            )
+            context = boundary.context
+            this.eventQueue.push({ type: 'context-boundary', anchor: boundary.anchor })
+          } else context = this.prepareContext(this.spawnOptions?.env, control.sessionId)
         } catch (error) {
           await opened.value.release()
+          if (this.slashCommand)
+            void this.close().catch((cause) => logger.warn('Could not retire Claude after a context switch', { cause }))
           throw error
         }
         this.context = context
         this.handle = opened.value
         await this.observeRoot(this.handle)
       }
-      this.context = this.bindNativeContext(this.context, control.sessionId)
+      if (this.context.bindingState !== 'bound' || this.context.nativeThreadId !== control.sessionId)
+        this.context = this.bindNativeContext(this.context, control.sessionId)
       this.updateResumeToken(control.sessionId)
     } else if (control.type === 'diagnostic') {
       logger.warn(control.message, { detail: control.detail })

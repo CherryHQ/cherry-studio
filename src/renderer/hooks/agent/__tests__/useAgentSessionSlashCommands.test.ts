@@ -18,12 +18,20 @@ describe('useAgentSessionSlashCommands', () => {
 
   it("normalises Main's published catalog to the composer's command shape", () => {
     MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1'), [
-      { name: 'deploy', description: 'Deploy the app' }
-    ] as any)
+      {
+        name: 'deploy',
+        description: 'Deploy the app',
+        argumentHint: '<task>',
+        aliases: ['ship'],
+        subcommands: ['abort']
+      }
+    ])
 
     const { result } = renderHook(() => useAgentSessionSlashCommands('session-1'))
 
-    expect(result.current).toEqual([{ command: '/deploy', description: 'Deploy the app' }])
+    expect(result.current).toEqual([
+      { command: '/deploy', description: 'Deploy the app', aliases: ['ship'], subcommands: ['abort'] }
+    ])
   })
 
   it('preserves builtin ownership without promoting custom commands', () => {

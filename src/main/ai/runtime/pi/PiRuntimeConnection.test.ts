@@ -273,6 +273,23 @@ describe('desktop Pi root connection', () => {
     return existsSync(directory) ? readdirSync(directory) : []
   }
 
+  it('projects a Skill reply without a saved command input', async () => {
+    const { connection, events } = await connect()
+    const head = messages.captureHead(input.sessionId)
+    await connection.runSkillCommand('Use the selected Skill to review the report.', uuid(), head)
+    await done(events)
+
+    expect(JSON.stringify(script.calls[0].messages)).toContain('Use the selected Skill to review the report.')
+    expect(text(events)).toContain('Hello world')
+    expect(events).toContainEqual({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'native-turn' },
+      interactive: true
+    })
+    expect(messages.captureHead(input.sessionId)).toBe(head)
+  })
+
   it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
     snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []
     const { connection, events } = await connect()

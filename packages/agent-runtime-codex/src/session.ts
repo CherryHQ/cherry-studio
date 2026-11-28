@@ -1,6 +1,13 @@
 import * as z from 'zod'
 
-import { runtimeId, type InputId, type OperationResult, type SubmitResult } from '@cherrystudio/agent-runtime'
+import {
+  formatRuntimeCommand,
+  runtimeId,
+  type InputId,
+  type OperationResult,
+  type RuntimeCommandInvocation,
+  type SubmitResult
+} from '@cherrystudio/agent-runtime'
 
 import { codexRequestHandlers, type RequestScope, type InteractionHost } from './approvals'
 import {
@@ -32,13 +39,15 @@ import {
 import { CodexSkills } from './skills'
 import { subtractTokens, tokenUsageUpdate, turnUsage, type TokenCounts } from './usage'
 
+export { codexCommandCatalog } from './commands'
+
 type ItemText = { itemId: string; phase?: string; kind: 'agentMessage' | 'plan' }
 export type CodexSessionEvent =
   | { type: 'thread-changed'; threadId: string }
   | { type: 'text'; text: string }
   | (ItemText & ({ type: 'text-open' } | { type: 'text-append' | 'text-finish'; text: string }))
   | { type: 'plan'; turnId: string; steps: { step: string; status: 'pending' | 'inProgress' | 'completed' }[] }
-  | { type: 'native-start'; threadId: string }
+  | { type: 'native-start'; threadId: string; interactive?: true }
   | { type: 'native-finish' }
   | { type: 'steer-boundary'; inputIds: string[] }
   | { type: 'tool'; itemId: string; name: string; input: unknown }
@@ -64,11 +73,13 @@ interface SessionHost extends InteractionHost {
   emit(event: CodexSessionEvent): void
 }
 type Content = { type: 'text'; text: string } | { type: 'image'; mimeType: string; data: string }
+type CommandFeedback = { text?: string }
 type ActiveTurn = {
   id?: string
   controller: AbortController
   nativeStarted?: boolean
   expectsStart?: boolean
+  commandFeedback?: CommandFeedback
   interruptRequested?: boolean
   steers?: Map<InputId, { dispatched: boolean; settle(result: SubmitResult): void }>
   manualCompaction?: {
@@ -198,15 +209,15 @@ export class CodexSession {
     this.host.emit({ type: 'options-changed' })
   }
 
-  async listCommands(): Promise<CodexCommand[]> {
+  async listCommands(refresh?: boolean): Promise<CodexCommand[]> {
     if (this.options.headless) return []
     this.commandsObserved = true
     await this.loadControls()
-    return [...CodexSession.listBuiltinCommands(this), ...(await this.listSkillCommands())]
+    return [...CodexSession.listBuiltinCommands(this), ...(await this.listSkillCommands(refresh))]
   }
 
-  private async listSkillCommands(): Promise<CodexCommand[]> {
-    const skills = await this.skills.list()
+  private async listSkillCommands(refresh?: boolean): Promise<CodexCommand[]> {
+    const skills = await this.skills.list(refresh)
     const commands: CodexCommand[] = []
     for (const { name, description } of skills.values()) {
       if (!this.command(name)) commands.push({ name, description, argumentHint: '', builtin: false })
@@ -486,7 +497,8 @@ export class CodexSession {
     this.controlDiscovery = undefined
     this.lastUsage = undefined
     this.host.emit({ type: 'thread-changed', threadId })
-    this.host.emit({ type: 'text', text })
+    if (turn.commandFeedback) turn.commandFeedback.text = text
+    else this.host.emit({ type: 'text', text })
     this.finish()
   }
 
@@ -502,6 +514,10 @@ export class CodexSession {
   private bindTurn(turn: ActiveTurn, id: string) {
     if (this.turn !== turn || turn.id) return
     turn.id = id
+    if (turn.commandFeedback) {
+      turn.nativeStarted = true
+      this.host.emit({ type: 'native-start', threadId: this.id, interactive: true })
+    }
     if (turn.interruptRequested) void this.interrupt().catch(() => {})
   }
 
@@ -639,9 +655,24 @@ export class CodexSession {
     }
   }
 
+  async executeCommand(command: RuntimeCommandInvocation): Promise<string | undefined> {
+    const feedback: CommandFeedback = {}
+    await this.dispatch([{ type: 'text', text: formatRuntimeCommand(command) }], command.inputId, feedback)
+    return feedback.text
+  }
+
   async send(content: readonly Content[], inputId?: string) {
+    await this.dispatch(content, inputId)
+  }
+
+  private async dispatch(content: readonly Content[], inputId?: string, commandFeedback?: CommandFeedback) {
     this.requireIdle()
-    const turn: ActiveTurn = { controller: new AbortController(), compacting: false, approvalItems: new Map() }
+    const turn: ActiveTurn = {
+      controller: new AbortController(),
+      compacting: false,
+      approvalItems: new Map(),
+      commandFeedback
+    }
     this.turn = turn
     const text =
       !this.options.headless && content.length === 1 && content[0]?.type === 'text' ? content[0].text.trim() : undefined
@@ -661,7 +692,8 @@ export class CodexSession {
           const result = await command.run(this, turn, args)
           if (this.turn !== turn) return
           if (typeof result === 'string') {
-            this.host.emit({ type: 'text', text: result })
+            if (commandFeedback) commandFeedback.text = result
+            else this.host.emit({ type: 'text', text: result })
             this.finish()
             return
           }
@@ -674,12 +706,14 @@ export class CodexSession {
             skillInput = { type: 'skill', name: skill.name, path: skill.path }
             promptText = args || `Use the ${skill.name} skill.`
           } else if (definition?.available) {
+            if (commandFeedback) throw new Error(`/${name} is unavailable in this Codex session.`)
             this.host.emit({ type: 'text', text: `/${name} is unavailable in this Codex session.` })
             this.finish()
             return
           }
         }
       }
+      if (commandFeedback && promptText === undefined) throw new Error('Codex slash command is unavailable')
       const input =
         promptText === undefined ? content.map(toNativeInput) : [toNativeInput({ type: 'text', text: promptText })]
       if (skillInput) input.unshift(skillInput)
@@ -707,6 +741,7 @@ export class CodexSession {
       )
     } catch (error) {
       if (this.turn === turn) this.finish(error instanceof Error ? error : new Error(String(error)))
+      if (commandFeedback && !turn.nativeStarted) throw error
     }
   }
 
@@ -819,6 +854,7 @@ export class CodexSession {
       name: 'plan',
       description: 'Enter Plan mode, or leave it with /plan off',
       argumentHint: '[task | off]',
+      subcommands: ['off'],
       available: (session) => session.controls.plan,
       run(session, _turn, task) {
         const mode = session.thread.info.mode.currentValue
@@ -831,6 +867,7 @@ export class CodexSession {
       name: 'goal',
       description: 'Read, set, pause, resume or clear the thread goal',
       argumentHint: '[objective | pause | resume | clear]',
+      subcommands: ['pause', 'resume', 'clear'],
       available: (session) => session.controls.goals,
       run(session, _turn, args) {
         return session.controls.goalCommand(session.client, session.id, args)
@@ -901,11 +938,12 @@ export class CodexSession {
   static listBuiltinCommands(session?: CodexSession): CodexCommand[] {
     return CodexSession.registry
       .filter((cmd) => !cmd.available || (session && cmd.available(session)))
-      .map(({ name, aliases, description, argumentHint }) => ({
+      .map(({ name, aliases, description, argumentHint, subcommands }) => ({
         name,
         description,
         argumentHint: argumentHint ?? '',
         ...(aliases && { aliases: [...aliases] }),
+        ...(subcommands && { subcommands: [...subcommands] }),
         builtin: true
       }))
   }

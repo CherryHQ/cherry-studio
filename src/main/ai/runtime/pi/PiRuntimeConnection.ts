@@ -7,6 +7,7 @@ import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
 import {
+  buildSkillCommandPrompt,
   hasProductInputId,
   isPartBatch,
   runtimeId,
@@ -32,6 +33,7 @@ import {
   lookupNativeInput,
   applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
@@ -56,6 +58,8 @@ import { AsyncEventQueue } from '@shared/utils/async'
 import { markReportingHandled } from '@shared/utils/errorReporting'
 
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
+import { isSkillCommandInput, skillCommandInputId } from '../skillCommands'
+import type { RuntimeSlashCommand } from '../types'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -107,6 +111,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   readonly events = this.eventQueue
   private runtime?: PiRuntime
   private handle?: PiThreadHandle
+  private readonly slashCommands = new Set<string>()
   private observation?: Observation
   private context?: ReturnType<typeof preparePiBranch>
   private closing = false
@@ -492,6 +497,59 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+    if (command.skillPath)
+      return this.runSkillCommand(buildSkillCommandPrompt(command.skillPath, args), requestId, branchHead)
+    return this.runSlashCommand(command.name, args, requestId)
+  }
+
+  async runSlashCommand(name: string, args: string, requestId: string) {
+    const handle = this.handle
+    if (!handle || this.closing) throw new Error('Pi slash command is unavailable')
+    this.slashCommands.add(requestId)
+    try {
+      const notice = await handle.pi.executeCommand({ name, args, inputId: runtimeId(requestId) })
+      return { severity: notice.level, title: notice.text }
+    } finally {
+      this.slashCommands.delete(requestId)
+    }
+  }
+
+  async runSkillCommand(prompt: string, requestId: string, branchHead: string) {
+    const context = await readSessionHistory(this.input.sessionId, branchHead, this.context?.id, true)
+    const send = this.handle?.input.submit
+    if (!send || !this.context || this.sending || this.active || this.closing || this.manualCompactInFlight)
+      throw new Error('Pi session is unavailable or busy')
+
+    let text = prompt
+    if (context?.length) {
+      const anchor = messages.getSessionMessage(this.input.sessionId, branchHead)
+      text = buildAgentUserContent({
+        ...anchor,
+        delivery: undefined,
+        data: { parts: [...context, { type: 'text', text: prompt }] }
+      })
+    }
+    this.sending = true
+    this.autonomous = true
+    this.failure = undefined
+    this.turnUsage.reset()
+    this.eventQueue.push({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'native-turn' },
+      interactive: true
+    })
+    try {
+      const result = await send({ inputId: skillCommandInputId(requestId), text })
+      if (result.status !== 'acknowledged') throw new Error(result.error.message)
+    } catch (error) {
+      this.failure = error
+      this.finishTurn()
+      throw error
+    }
+  }
+
   readonly compactWithInstructions = true as const
 
   get compact(): CompactThread | undefined {
@@ -555,7 +613,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
           if (event.type === 'snapshot' && event.contextUsage)
             this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
-          if (event.type === 'input.changed' && hasProductInputId(event.input)) {
+          if (
+            event.type === 'input.changed' &&
+            hasProductInputId(event.input) &&
+            !isSkillCommandInput(event.input.inputId)
+          ) {
             const input = event.input
             this.eventQueue.push({ type: 'input-state', contextId: this.context!.id, input })
             if (input.facts.includes('placed') && this.pendingSteers.delete(input.inputId))
@@ -647,7 +709,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.handle && event.thread !== this.handle.thread.id) return
     if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
     else if (event.type === 'goal-notice') {
-      this.projection?.notice(event.notice.text)
+      if (!this.slashCommands.has(event.requestKey)) this.projection?.notice(event.notice.text)
     } else if (event.type === 'subagents') this.childTasks.showSubagents(event.views, true)
   }
 

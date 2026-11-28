@@ -104,9 +104,10 @@ export function localContext(
   target: LocalLaunchTarget,
   browserControl: LocalAgentConfiguration['browserControl'],
   nativeId?: string,
-  provisional?: { id: string; nativeConfirmed: boolean }
+  provisional?: { id: string; nativeConfirmed: boolean },
+  db?: DbOrTx
 ) {
-  return application.get('DbService').withWriteTx((tx) => {
+  const reserve = (tx: DbOrTx) => {
     const binding = agentProviderService.getBindingTx(tx, agentId)
     if (!localBindingMatches(target, binding, browserControl, tx)) return
     const existing = contexts.branchTx(tx, sessionId, anchorMessageId)
@@ -133,7 +134,8 @@ export function localContext(
       localModel: target.model,
       ...(replaces && { checkpointMapping: { referenceHistory: true } })
     })
-  })
+  }
+  return db ? reserve(db) : application.get('DbService').withWriteTx(reserve)
 }
 
 export function bindLocalContext(contextId: string, nativeId: string) {

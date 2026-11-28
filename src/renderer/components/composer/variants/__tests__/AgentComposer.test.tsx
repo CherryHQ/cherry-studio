@@ -25,6 +25,7 @@ import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { getAcpHostPermissionModeSelection, type LocalAgentSelection } from '@shared/ai/localAgent'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -2757,27 +2758,149 @@ describe('AgentComposer', () => {
     expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'hello', tokens: [] })
   })
 
-  it('saves input history after a successful agent send', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined)
+  it.each(['agent says hi', '/tmp/example.txt'])(
+    'saves ordinary input %s after a successful agent send',
+    async (text) => {
+      mocks.sendMessage.mockResolvedValue(undefined)
+      mocks.ipcApiRequest.mockResolvedValue({ accepted: false, unrecognized: true })
 
-    render(
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      )
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+      })
+
+      await waitFor(() => {
+        expect(mocks.sendMessage).toHaveBeenCalled()
+        expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([text])
+      })
+    }
+  )
+
+  it.each([true, false])(
+    'keeps a newly discovered Skill out of chat when command acceptance is %s',
+    async (accepted) => {
+      seedInputHistory(['previous message'])
+      mocks.ipcApiRequest.mockResolvedValue({ accepted, commandName: 'skill:review' })
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      )
+      const text = '/skill:review changes'
+      act(() => mocks.surfaceProps?.onTextChange(text))
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+      })
+
+      expect(mocks.surfaceProps?.text).toBe(accepted ? '' : text)
+      expect(mocks.sendMessage).not.toHaveBeenCalled()
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['previous message'])
+
+      if (!accepted) {
+        mocks.ipcApiRequest.mockResolvedValue({ accepted: false, unrecognized: true })
+        await act(async () => {
+          await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+        })
+        expect(mocks.surfaceProps?.text).toBe(text)
+        expect(mocks.sendMessage).not.toHaveBeenCalled()
+      }
+    }
+  )
+
+  it.each([
+    { runtime: 'pi-durable', command: '/goal pause', streaming: true },
+    { runtime: 'pi', command: '/skill:review changes', streaming: false },
+    { runtime: 'pi-durable', command: '/skill:review changes', streaming: false },
+    { runtime: 'local', command: '/skill:review changes', streaming: false }
+  ] as const)(
+    'runs $runtime command $command outside the message queue and input history',
+    async ({ runtime, command, streaming }) => {
+      seedInputHistory(['previous message'])
+      mocks.ipcApiRequest.mockResolvedValue({ accepted: true })
+      if (command.startsWith('/skill:')) {
+        MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1'), [
+          { name: 'skill:review', description: 'Review changed files', argumentHint: '' }
+        ])
+      }
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          resolvedAgent={{
+            ...createControlledAgent(),
+            type: runtime,
+            ...(runtime === 'local' && {
+              localRuntime: { presetId: 'cursor', enabled: true, args: [], env: {}, providerId: 'cursor' }
+            })
+          }}
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={streaming}
+        />
+      )
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: command, tokens: [] })
+      })
+
+      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.run_slash_command', {
+        sessionId: 'session-1',
+        text: command,
+        commandName: command.split(' ')[0].slice(1)
+      })
+      expect(mocks.sendMessage).not.toHaveBeenCalled()
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['previous message'])
+    }
+  )
+
+  it('keeps a recognized Skill draft on the command route after its catalog entry disappears', async () => {
+    seedInputHistory(['previous message'])
+    const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1')
+    MockUseCacheUtils.setSharedCacheValue(key, [
+      { name: 'skill:review', description: 'Review changes', argumentHint: '' }
+    ])
+    mocks.ipcApiRequest.mockResolvedValue({ accepted: false })
+    const composer = () => (
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
+        resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
         isStreaming={false}
       />
     )
-
+    const { rerender } = render(composer())
+    const text = '/skill:review changes'
+    act(() => mocks.surfaceProps?.onTextChange(text))
+    MockUseCacheUtils.setSharedCacheValue(key, [])
+    rerender(composer())
     await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'agent says hi', tokens: [] })
+      await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
     })
 
-    await waitFor(() => {
-      expect(mocks.sendMessage).toHaveBeenCalled()
-      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['agent says hi'])
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.run_slash_command', {
+      sessionId: 'session-1',
+      text,
+      commandName: 'skill:review'
     })
+    expect(mocks.surfaceProps?.text).toBe(text)
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['previous message'])
   })
 
   it('strips the knowledge sentence from input history but keeps a skill sentence', async () => {

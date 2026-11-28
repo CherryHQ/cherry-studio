@@ -24,6 +24,11 @@ semantics and when a selection applies. A selection can take effect on the curre
 next turn or across a reconnect. A catalog describes available choices. A live connection confirms
 the policy it has applied.
 
+`RuntimeCommandCatalog` declares builtin metadata, offline discovery with host-supplied sources,
+and how a live catalog is delivered. `RuntimeCommandInvocation` carries the selected name,
+arguments and correlated input ID. The native entry point returns the outcome its harness can
+confirm. Turn state and model output remain observable through the runtime.
+
 `Thread` is the stable native context identity within a backend. `ThreadHandle` is a live access
 with observation and release operations. A writable handle exposes its supported operations under
 `input`. `submit` rejects busy work, `steer.submit` declares what happens when idle, and

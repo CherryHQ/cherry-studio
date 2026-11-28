@@ -14,7 +14,7 @@ import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeServic
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { localContent } from '../localContent'
-import type { AgentRuntimeInput, AgentRuntimeUserInput } from '../types'
+import type { AgentRuntimeInput, AgentRuntimeUserInput, RuntimeSlashCommand } from '../types'
 import { cursorCredentialSelection } from './cursorDriver'
 
 export class CursorConnection extends LocalConnection {
@@ -121,14 +121,41 @@ export class CursorConnection extends LocalConnection {
   }
 
   async send(input: AgentRuntimeUserInput) {
+    const parts = await localContent(input, true)
+    await this.sendPrompt(
+      {
+        text: parts.flatMap((p) => (p.type === 'text' ? [p.text] : [])).join('\n'),
+        images: parts.flatMap((p) => (p.type === 'image' ? [{ data: p.data, mimeType: p.mimeType }] : []))
+      },
+      input
+    )
+  }
+
+  async executeCommand({ command, args, branchHead }: RuntimeSlashCommand) {
+    if (!command.skillPath) throw new Error('Cursor Skill is unavailable')
+    const receipt = Promise.withResolvers<void>()
+    void this.sendPrompt({ skillPath: command.skillPath, args }, branchHead, receipt.resolve).catch(receipt.reject)
+    await receipt.promise
+  }
+
+  private async sendPrompt(
+    prompt: Parameters<typeof sendCursorTurn>[1],
+    input: AgentRuntimeUserInput | string,
+    acknowledge?: () => void
+  ) {
     const agent = this.agent
     if (!agent) throw new Error('Cursor SDK session is unavailable')
-    const parts = await localContent(input, true)
-    const prompt = {
-      text: parts.flatMap((p) => (p.type === 'text' ? [p.text] : [])).join('\n'),
-      images: parts.flatMap((p) => (p.type === 'image' ? [{ data: p.data, mimeType: p.mimeType }] : []))
-    }
+    const command = typeof input === 'string'
     this.begin(input)
+    if (command) {
+      this.events.push({
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'native-turn' },
+        interactive: true
+      })
+      this.continueSource()
+    }
     const signal = AbortSignal.any([this.abort.signal, this.turnAbort.signal])
     let lastModelCall: { id: string; inputTokens: number } | undefined
     try {
@@ -157,6 +184,7 @@ export class CursorConnection extends LocalConnection {
         effort && this.modelForEffort?.(effort.currentValue)
       )
       const run = await this.pendingRun
+      acknowledge?.()
       const steer = bindCursorSteer(run, (inputId) => {
         const contextId = this.contextId
         if (!this.active || signal.aborted || !contextId) return false
@@ -232,9 +260,11 @@ export class CursorConnection extends LocalConnection {
     } catch (error) {
       if (signal.aborted) this.finish(undefined, 'cancelled')
       else this.finish(error)
+      if (command) throw error
     } finally {
       this.steerInput = undefined
       this.pendingRun = undefined
+      if (command) this.events.push({ type: 'autonomous-turn-state', state: 'finished' })
     }
   }
 

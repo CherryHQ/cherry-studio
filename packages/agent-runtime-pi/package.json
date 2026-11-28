@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
+    },
+    "./commands": {
+      "types": "./dist/commandMetadata.d.mts",
+      "default": "./dist/commandMetadata.mjs"
     }
   },
   "scripts": {

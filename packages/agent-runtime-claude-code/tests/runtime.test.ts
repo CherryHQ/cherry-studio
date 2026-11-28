@@ -688,7 +688,10 @@ it('closes stale admission on clear and binds the new native session to the same
     request.reply.finish()
     await view.event((event) => event.type === 'result')
     const clearId = inputId()
-    await root.input!.followUp!.submit({ inputId: clearId, text: '/clear' })
+    await expect(root.claude.executeCommand?.({ inputId: clearId, name: 'clear', args: '' })).resolves.toMatchObject({
+      status: 'acknowledged',
+      inputId: clearId
+    })
     const reset = await view.event((event) => event.type === 'conversation_reset')
     const result = await view.event((event) => event.type === 'result' && event.user_message_uuid === clearId)
     if (result.type !== 'result' || reset.type !== 'conversation_reset') throw new Error('Missing clear result')

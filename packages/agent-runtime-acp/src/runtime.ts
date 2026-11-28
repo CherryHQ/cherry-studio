@@ -9,6 +9,7 @@ import {
 } from '@agentclientprotocol/sdk'
 
 import {
+  formatRuntimeCommand,
   runtimeId,
   type InputState,
   type Observation,
@@ -536,6 +537,11 @@ export function buildAcpRuntime(options: AcpRuntimeOptions, desktop?: DesktopOpt
     const { handle, acp, startPrompt, available, runControl, commit } = access(owner)
     const updates = owner.desktop!
     const compact = updates.compact
+    const runPrompt = async (draft: AcpInputDraft): Promise<AcpPromptOutcome> => {
+      const result = startPrompt(draft)
+      if ('completed' in result) return result.completed
+      throw new Error(result.receipt.error.message)
+    }
     return {
       ...handle,
       compact: compact && (async () => (available() ? compact() : unavailable('compact', 'access-closed', 'rejected'))),
@@ -558,11 +564,9 @@ export function buildAcpRuntime(options: AcpRuntimeOptions, desktop?: DesktopOpt
           return updates.awaitingNativeTurn
         },
         drainNativeTurn: updates.drainNativeTurn,
-        async runPrompt(draft) {
-          const result = startPrompt(draft)
-          if ('completed' in result) return result.completed
-          throw new Error(result.receipt.error.message)
-        },
+        runPrompt,
+        executeCommand: (command) =>
+          runPrompt({ inputId: command.inputId, content: [{ type: 'text', text: formatRuntimeCommand(command) }] }),
         selectInitialModel: (selection) =>
           runControl('selectInitialModel', () =>
             owner.controls.selectModel(owner.session!, selection.model, commit, selection)

@@ -73,6 +73,52 @@ describe('CursorConnection', () => {
     vi.clearAllMocks()
   })
 
+  it('acknowledges a Skill before the underlying turn finishes and still streams the reply', async () => {
+    const { connection, events, closeAndDrain } = await createCursorSession()
+    const skillPath = '/workspace/.cursor/skills/review/SKILL.md'
+    const finish = Promise.withResolvers<void>()
+    vi.mocked(sendCursorTurn).mockImplementation(async (_agent, content, _mode, host) => {
+      return {
+        status: 'completed',
+        wait: async () => {
+          await finish.promise
+          if ('skillPath' in content && content.skillPath === skillPath && content.args === 'changes')
+            host.append('text', 'Reviewed using the selected Skill')
+          return { status: 'completed' }
+        }
+      } as unknown as Run
+    })
+
+    try {
+      await connection.executeCommand({
+        command: { name: 'skill:review', description: 'Review changes', argumentHint: '', skillPath },
+        args: 'changes',
+        requestId: 'command-request',
+        branchHead: 'branch-head'
+      })
+      expect(events.some(({ type }) => type === 'turn-complete')).toBe(false)
+      finish.resolve()
+      await expect.poll(() => events.some(({ type }) => type === 'turn-complete')).toBe(true)
+    } finally {
+      finish.resolve()
+      await closeAndDrain()
+    }
+
+    expect(events).toContainEqual({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'native-turn' },
+      interactive: true
+    })
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'message.parts',
+        changes: expect.arrayContaining([expect.objectContaining({ text: 'Reviewed using the selected Skill' })])
+      })
+    )
+    expect(events.some(({ type }) => type === 'input-state')).toBe(false)
+  })
+
   it('reports the last model call as context usage and keeps the turn total for billing', async () => {
     const { connection, events, closeAndDrain } = await createCursorSession('claude-sonnet-4-6')
     const run: Run = {

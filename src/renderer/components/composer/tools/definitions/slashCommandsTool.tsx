@@ -14,6 +14,7 @@ const SLASH_COMMAND_DESCRIPTION_KEYS: Record<string, string> = {
   '/goal': 'chat.input.slash_commands.commands.goal',
   '/insights': 'chat.input.slash_commands.commands.insights',
   '/list-agents': 'chat.input.slash_commands.commands.list_agents',
+  '/plan': 'chat.input.slash_commands.commands.plan',
   '/recap': 'chat.input.slash_commands.commands.recap',
   '/security-review': 'chat.input.slash_commands.commands.security_review',
   '/team-onboarding': 'chat.input.slash_commands.commands.team_onboarding',
@@ -79,12 +80,10 @@ const slashCommandsTool = defineTool({
 
         // Goal is a mode entry; other slash commands remain trailing root suggestions.
         const commandLaunchers: ComposerToolLauncher[] = slashCommands.map((cmd, index) => {
-          const isGoal = cmd.command === '/goal' && cmd.builtin !== false
-          const descriptionKey = liveCommands
-            ? cmd.builtin === true
-              ? SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
-              : undefined
-            : SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
+          const isBuiltin = !liveCommands || cmd.builtin === true
+          const isGoal = cmd.command === '/goal' && isBuiltin
+          const descriptionKey =
+            isBuiltin && session?.agentType !== 'local' ? SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command] : undefined
 
           return {
             id: `slash-command:${cmd.command}`,

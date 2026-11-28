@@ -94,7 +94,7 @@ and history opening do not generate host predictions; a resident result can be r
 | `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
 | `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
 | `AgentSessionRuntimeService` | Owns the selected runtime entry and any other Pi Durable roots recovering in the same session. Each entry owns its connection, event consumer, turns, input contexts, persistence and idle timeout. |
-| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `threadInput` for native admission and `compact()` for manual compaction, `close`, and an event stream. |
+| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional native input and slash-command operations, `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | Runtime packages | Interpret native input, task, completion, content and invocation evidence once, and publish captured typed batches. |
@@ -331,6 +331,27 @@ original context and input ID. Connection generations fence stale callbacks.
 
 Standalone compaction holds the connected thread idle for the duration of the native operation.
 Matching completion refreshes the context reading. No new chat input or reply is created.
+
+The session command catalog supplies command-name completion in the Agent composer.
+Runtimes can declare `subcommands` for first-argument completion. Pi and Pi Durable
+publish their Goal actions from the same package as the parser, and Codex advertises its
+Goal controls and `/plan off` when the corresponding native command is available.
+Pi and Pi Durable also offer `/skill:<name>` for the managed and workspace Skills
+available to the session. Cherry uses the same eligibility rules as the runtime
+and rereads the descriptor for the candidate's name and description.
+Runtime packages declare offline and live catalog sources. Main supplies the workspace and
+eligible Skill sources, and publishes normalized snapshots. Passive readers use the snapshot.
+Explicit activation or refresh can connect a driver with a live catalog.
+
+The Agent composer sends recognized slash commands through `ai.agent.session.run_slash_command`
+before ordinary conversation admission. The draft retains the command's identity when its
+catalog entry disappears. Main revalidates the current branch and catalog before accepting it.
+For slash-shaped text missing from the Composer cache, Main checks the current catalog.
+The Composer sends it as chat only when Main reports that the invocation is unrecognized.
+Local results return as feedback. An accepted native submission can release the draft while
+the model continues to run. Native work with an assistant reply uses the receive-only
+runtime turn, while a confirmed context switch saves a boundary and its native binding together.
+Cherry skips the command text in conversation messages and composer input recall.
 
 Background notification generations whose native source calls belong to an unfinished reply resume
 that reply and keep its assistant message ID. Main records intermediate native success but holds

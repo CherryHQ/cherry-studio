@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import type { Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 
+import { formatRuntimeCommand } from '@cherrystudio/agent-runtime'
 import type {
   InputDraft,
   InputId,
@@ -98,6 +99,8 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         followUp: { persistence: 'volatile', submit: (draft) => send(draft, 'follow-up') }
       }
     }
+    const claudeInput = bindInput<ClaudeInput>((draft) => draft.content)
+    const commandInput = claudeInput?.followUp
     return {
       thread: projection.thread,
       compact: agentId
@@ -174,10 +177,13 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
             ? rejected('start', agentId ? 'child-control' : 'released')
             : owner.connect(projection, warm),
         supportedCommands: () => control('supportedCommands', (query) => query.supportedCommands()),
+        executeCommand:
+          commandInput &&
+          ((command) => commandInput.submit({ inputId: command.inputId, content: formatRuntimeCommand(command) })),
         supportedModels: () => control('supportedModels', (query) => query.supportedModels()),
         setEffort: (effort) => control('setEffort', (query) => query.applyFlagSettings({ effortLevel: effort })),
         setPermissionMode: (mode) => control('setPermissionMode', (query) => query.setPermissionMode(mode)),
-        input: bindInput<ClaudeInput>((draft) => draft.content),
+        input: claudeInput,
         observe,
         archive: (options) =>
           released ? Promise.resolve(rejected('archive', 'released')) : owner.archive(projection, options?.refresh),

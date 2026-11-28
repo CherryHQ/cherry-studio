@@ -23,6 +23,7 @@ import type {
   Observation,
   ObservationPayload,
   OperationResult,
+  RuntimeCommandInvocation,
   Thread,
   ThreadHandle,
   ThreadContextUsage
@@ -111,6 +112,7 @@ interface AcpReplayAccess {
 
 interface AcpDesktopAccess extends Pick<AcpHarnessSession, 'legacyEffort' | 'predictPrompt' | 'steer'> {
   runPrompt(draft: AcpInputDraft): Promise<AcpPromptOutcome>
+  executeCommand(command: RuntimeCommandInvocation): Promise<AcpPromptOutcome>
   selectInitialModel(selection: AcpModelSelection & { model: string }): Promise<OperationResult<void>>
   readonly awaitingNativeTurn: boolean
   drainNativeTurn(): void

@@ -48,6 +48,9 @@ as required by the behavior adapter's request accounting.
 - Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
   `/goal` is handled locally through the behavior entry; it never becomes a model prompt.
   Local handling flushes native state before acknowledgement, including a fresh plan-held goal.
+- `pi.executeCommand(invocation)` returns a local Goal notice. `piCommandCatalog.listOffline()`
+  reads the Skill descriptors the host selected. The browser-safe `/commands` export supplies
+  builtin metadata, including the Goal actions declared by the parser.
 - Child `input.steer.submit` delivers input through `entries.messageSubagent`, using the same admission,
   continuation and reporting rules as the model's `message_subagent` tool. Its native custom input
   carries the caller's `inputId`, including when a background report job starts the continuation.

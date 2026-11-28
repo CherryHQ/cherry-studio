@@ -598,10 +598,8 @@ export function useAgentChatRuntimeState({
     trimContext: canCompact
       ? async () => {
           if (isPending || editBusy) return false
-          return (
-            errorToastsRef.current?.waitForFinish(() => send({ text: '/compact' }, { throwOnError: true }), modelId) ??
-            false
-          )
+          const result = await ipcApi.request('ai.agent.session.run_slash_command', { sessionId, text: '/compact' })
+          return result.accepted
         }
       : undefined
   })

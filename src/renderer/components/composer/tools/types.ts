@@ -70,7 +70,7 @@ export interface ToolContext {
     agentType?: AgentType
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: readonly AbsoluteFilePath[]
-    slashCommands?: (SlashCommand & { builtin?: boolean })[]
+    slashCommands?: (SlashCommand & { builtin?: boolean; aliases?: readonly string[] })[]
     /** Knowledge bases statically bound to the Agent. */
     knowledgeBaseIds?: readonly string[]
     localPermission?: Pick<LocalAgentSessionView, 'providerId' | 'presetId'> & {
