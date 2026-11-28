@@ -115,7 +115,7 @@ test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
 })
 
 test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }, testInfo) => {
-  test.setTimeout(3 * 60_000)
+  test.setTimeout(4 * 60_000)
   const previous = await page.evaluate(async () => ({
     port: await window.api.preference.get('feature.openclaw.gateway_port'),
     configs: await window.api.preference.get('feature.code_cli.configs')
@@ -170,7 +170,8 @@ test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }, testInfo) =
       )
       const enable = codeView.getByRole('switch', { name: 'Enable this agent', exact: true })
       if (!(await enable.isChecked())) await enable.click()
-      await expect(enable).toBeChecked()
+      // Enabling probes ACP, which can wait up to 60 seconds for a cold gateway.
+      await expect(enable).toBeChecked({ timeout: 90_000 })
     } else {
       await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
     }
