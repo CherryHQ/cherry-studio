@@ -78,6 +78,7 @@ import { isGPT5SeriesReasoningModel, isVisionModel } from '@shared/utils/model'
 import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
+import { NotificationPrimingBanner } from '../NotificationPrimingBanner'
 import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -1974,6 +1975,7 @@ const ChatComposerInner = ({
               : undefined
           }
           onPause={onPause}
+          bannerContent={<NotificationPrimingBanner />}
           queueContent={
             quotaExhaustion || showProviderQuotaNotice ? (
               <>

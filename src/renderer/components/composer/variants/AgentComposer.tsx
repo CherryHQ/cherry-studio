@@ -104,6 +104,7 @@ import type { ComposerInputFilePreviewAction } from '../filePreview'
 import { createComposerFolderToken } from '../folderToken'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { NativeQueuedFollowups } from '../NativeQueuedFollowups'
+import { NotificationPrimingBanner } from '../NotificationPrimingBanner'
 import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -2024,6 +2025,7 @@ const AgentComposerInner = ({
             launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
           }
           onPause={abortAgentSession}
+          bannerContent={<NotificationPrimingBanner />}
           onShiftTab={supportsPlan || localPlanOption ? togglePlanMode : undefined}
           queueContent={
             <>
