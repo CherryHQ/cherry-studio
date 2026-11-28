@@ -175,7 +175,8 @@ export async function write(target: AbsoluteFilePath, data: string | Uint8Array)
 }
 
 function tmpNameFor(target: string): string {
-  return path.join(path.dirname(target), `.tmp-${randomUUID()}`)
+  // Concatenation preserves symlink/.. resolution in the parent spelling.
+  return `${path.dirname(target)}${path.sep}.tmp-${randomUUID()}`
 }
 
 /**

@@ -4,6 +4,9 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { prepareAtomicWrite } from '@main/utils/file/fs'
+import type { AbsoluteFilePath } from '@shared/types/file'
+
 import type { ModelBundle } from '../../catalog/types'
 
 let installDir: string
@@ -127,6 +130,21 @@ describe('sweepStaleDownloads', () => {
     expect(readdirSync(installDir).filter((entry) => entry.includes('.tmp-'))).toEqual([])
     expect(readdirSync(path.join(installDir, 'nested')).filter((entry) => entry.includes('.tmp-'))).toEqual([])
     expect(existsSync(path.join(installDir, 'runtime', '.tmp'))).toBe(false)
+  })
+
+  it('sweeps a staged file produced by the current atomic writer after an interrupted download', async () => {
+    mkdirSync(installDir, { recursive: true })
+    const target = path.join(installDir, 'a.onnx') as AbsoluteFilePath
+    const staged = await prepareAtomicWrite(target, Buffer.from('partial model bytes'))
+    writeBundleFile('.tmp-keep-not-a-uuid', 5)
+    try {
+      expect(readdirSync(installDir).filter((entry) => /^\.tmp-[0-9a-f]{8}-/.test(entry))).toHaveLength(1)
+      await localModelStorageService.sweepStaleDownloads(BUNDLE)
+      expect(readdirSync(installDir)).toEqual(['.tmp-keep-not-a-uuid'])
+      expect(existsSync(target)).toBe(false)
+    } finally {
+      await staged.abort()
+    }
   })
 
   it('is a no-op for a bundle whose directories were never created', async () => {
