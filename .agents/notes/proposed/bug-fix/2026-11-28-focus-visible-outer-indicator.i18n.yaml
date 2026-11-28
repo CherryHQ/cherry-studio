@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/bug-fix/2026-11-28-focus-visible-outer-indicator.md
+2026-11-28-focus-visible-outer-indicator.md: e31aa9f931230cfda4109aad14a98a5cd732973b
+2026-11-28-focus-visible-outer-indicator.zh.md: e9225e42476c186acce7fa41531f351b67f4b2b1
