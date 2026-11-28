@@ -19,9 +19,11 @@ describe('PromptEditorField session', () => {
   it('keeps the caret at the deletion point when a controlled change is applied synchronously', async () => {
     function Host() {
       const [value, setValue] = useState('abcdef')
+      // eslint-disable-next-line @eslint-react/dom/no-flush-sync -- Exercise a change echoed before CodeMirror's next listener.
+      const applyChange = (next: string) => flushSync(() => setValue(next))
       return (
         <CodeStyleProvider>
-          <PromptEditorField label="Prompt" value={value} onChange={(next) => flushSync(() => setValue(next))} />
+          <PromptEditorField label="Prompt" value={value} onChange={applyChange} />
         </CodeStyleProvider>
       )
     }
