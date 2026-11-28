@@ -97,7 +97,11 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientSearchAvailable,
           clientFetchAvailable,
           modelToolsPreferred,
-          endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
+          // Left undefined so the shared resolver applies the same
+          // supported/configured-default precedence as request routing
+          // (resolveEffectiveEndpoint), instead of pinning the model's first
+          // declared endpoint, which the request may not actually use.
+          endpointType: undefined,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
         })
