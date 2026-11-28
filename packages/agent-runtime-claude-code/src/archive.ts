@@ -6,7 +6,12 @@ import type { SessionMessage, SessionStoreEntry } from '@anthropic-ai/claude-age
 export type NativeArchiveEntry = Pick<SessionStoreEntry, 'type' | 'uuid'> & { childOpening?: true } & Partial<
     Pick<
       SessionStoreEntry,
-      'supersedes' | 'retracted_message_uuids' | 'isAbortedMidStream' | 'isApiErrorMessage' | 'parentAgentId'
+      | 'supersedes'
+      | 'retracted_message_uuids'
+      | 'isAbortedMidStream'
+      | 'isApiErrorMessage'
+      | 'isCompactSummary'
+      | 'parentAgentId'
     >
   >
 

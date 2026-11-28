@@ -56,6 +56,10 @@ export class ClaudeProjection {
   readonly control = new ClaudeControlState((event) => this.pendingControls.push(event))
   readonly retracted = new Set<string>()
   private readonly sources = new Set<string>()
+  // Native continuation context remains intact. Only product observations omit these sources.
+  private compactionActive = false
+  private readonly compactionSources = new Set<string>()
+  private readonly compactionApiIds = new Set<string>()
   private readonly legacy: Record<string, { messageId: string; parts: number[] }> = {}
   private legacyChanged = false
   private readonly messages = new Map<string, RuntimeMessage>()
@@ -90,6 +94,15 @@ export class ClaudeProjection {
 
   ref(uuid: string): ItemRef {
     return { session: this.thread, id: runtimeId(uuid) }
+  }
+
+  /** Native continuation context stays intact; the product feed omits compaction sources. */
+  private withoutCompaction(events: readonly ObservationPayload[]): ObservationPayload[] {
+    return events.filter((event) => {
+      if (event.type === 'message.reconcile') return !this.compactionSources.has(event.message.id)
+      if (event.type === 'message.parts') return !this.compactionSources.has(event.ref.id)
+      return true
+    })
   }
 
   private updateSource(
@@ -202,6 +215,14 @@ export class ClaudeProjection {
     options: { aborted?: boolean; inputId?: InputId; live?: boolean } = {}
   ): ObservationPayload[] {
     if (!message.uuid || (message.type === 'assistant' && isSyntheticTurnCloser(message.message))) return []
+    // The SDK may deliver the completed compact summary after its status has already cleared.
+    if ('isCompactSummary' in message && message.isCompactSummary === true) this.compactionSources.add(message.uuid)
+    if (
+      (this.compactionActive && !options.inputId) ||
+      (message.type === 'assistant' && this.compactionApiIds.has(message.message.id))
+    )
+      this.compactionSources.add(message.uuid)
+    if (this.compactionSources.has(message.uuid)) return []
     if (options.aborted) this.aborted.add(message.uuid)
     const partial = this.aborted.has(message.uuid)
     const content = message.message.content
@@ -344,6 +365,10 @@ export class ClaudeProjection {
 
   async partial(message: SDKPartialAssistantMessage): Promise<ObservationPayload[]> {
     const event = message.event
+    if (this.compactionActive) {
+      if (event.type === 'message_start') this.compactionApiIds.add(event.message.id)
+      return []
+    }
     if (event.type === 'message_start') {
       this.stream = { apiId: event.message.id, id: `live:${randomUUID()}`, blocks: new Map() }
       return [{ type: 'activity.changed', activity: { state: 'active' } }]
@@ -465,7 +490,9 @@ export class ClaudeProjection {
     for (const message of selected) {
       if (message.type === 'assistant' && isSyntheticTurnCloser(message.message)) continue
       if (metadata.get(message.uuid)?.isAbortedMidStream === true) this.aborted.add(message.uuid)
+      if (metadata.get(message.uuid)?.isCompactSummary === true) this.compactionSources.add(message.uuid)
       const decoded = decodeArchiveContent(message.message, this.aborted.has(message.uuid))
+      if (decoded?.id && this.compactionApiIds.has(decoded.id)) this.compactionSources.add(message.uuid)
       if (decoded)
         events.push(
           ...this.updateContent(message.uuid, message.type, decoded.blocks, decoded.id, {
@@ -474,7 +501,7 @@ export class ClaudeProjection {
         )
     }
     this.feed.publish(
-      events,
+      this.withoutCompaction(events),
       selected.map((message): ClaudeNativeMessage => {
         const entry = metadata.get(message.uuid)
         return {
@@ -491,19 +518,22 @@ export class ClaudeProjection {
     const content = selected.flatMap((message) =>
       this.messages.has(message.uuid) ? [this.messages.get(message.uuid)!] : []
     )
-    const ids = new Set(content.map((message) => message.id))
+    // archive.content is the native continuation view; the feed is the product transcript.
+    const visibleContent = content.filter((message) => !this.compactionSources.has(message.id))
+    const ids = new Set(visibleContent.map((message) => message.id))
     const retained = new Map<string | undefined, RuntimeMessage[]>()
     let anchor: string | undefined
     for (const message of this.feed.snapshot.messages) {
       if (ids.has(message.id)) anchor = message.id
-      else if (!this.retracted.has(message.id)) retained.set(anchor, [...(retained.get(anchor) ?? []), message])
+      else if (!this.retracted.has(message.id) && !this.compactionSources.has(message.id))
+        retained.set(anchor, [...(retained.get(anchor) ?? []), message])
     }
     this.feed.publish([
       {
         ...this.feed.snapshot,
         messages: [
           ...(retained.get(undefined) ?? []),
-          ...content.flatMap((message) => [message, ...(retained.get(message.id) ?? [])])
+          ...visibleContent.flatMap((message) => [message, ...(retained.get(message.id) ?? [])])
         ]
       }
     ])
@@ -530,11 +560,30 @@ export class ClaudeProjection {
         ? this.invocations.accept(message.message)
         : []
     if (controls.some((control) => control.type === 'input-boundary')) this.control.beginTurn()
-    if (message?.source === 'live' && message.message.type !== 'command_lifecycle') this.control.accept(message.message)
-    this.feed.publish(events, message ? [message] : [], this.legacyChanged ? this.legacy : undefined, invocations, [
-      ...controls,
-      ...this.pendingControls.splice(0)
-    ])
+    if (message?.source === 'live' && message.message.type !== 'command_lifecycle') {
+      const native = message.message
+      if (native.type === 'system' && native.subtype === 'status') {
+        if (native.status === 'compacting') {
+          this.compactionActive = true
+          this.stream = undefined
+        } else if (native.status === null || native.compact_result || native.compact_error)
+          this.compactionActive = false
+      } else if (
+        native.type === 'result' ||
+        native.type === 'conversation_reset' ||
+        (native.type === 'system' && native.subtype === 'compact_boundary')
+      ) {
+        this.compactionActive = false
+      }
+      this.control.accept(native)
+    }
+    this.feed.publish(
+      this.withoutCompaction(events),
+      message ? [message] : [],
+      this.legacyChanged ? this.legacy : undefined,
+      invocations,
+      [...controls, ...this.pendingControls.splice(0)]
+    )
     this.legacyChanged = false
   }
 }

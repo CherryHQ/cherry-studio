@@ -373,6 +373,9 @@ it('compacts without admitting a product input and retains the native summary', 
     expect(view.snapshot.inputs.flatMap((input) => input.inputId ?? [])).toEqual([original])
     const archive = confirmed(await root.claude.archive())
     expect(JSON.stringify(archive.content)).toContain('Retained decision.')
+    expect(textOf(view.snapshot).join('\n')).not.toContain('Retained decision.')
+    const productArchive = confirmed(await root.claude.archive({ refresh: false }))
+    expect(JSON.stringify(productArchive.content)).not.toContain('Retained decision.')
     expect(textOf(view.snapshot)).toContain('Original decision')
     expect(archive.retracted).toEqual([])
   } finally {
