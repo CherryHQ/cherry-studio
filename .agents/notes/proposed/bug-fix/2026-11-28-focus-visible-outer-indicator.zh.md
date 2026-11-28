@@ -20,7 +20,7 @@ Status: proposed
 
 键盘焦点沿用 shadcn 的两段式设计：不透明的 `--ring` 边框负责对比度，控件外的半透明外圈负责在状态占用边框时依然标出焦点。
 
-1. `packages/ui/src/styles/tokens/colors/providers.css` 里的 `--cs-ring` 继续从品牌色派生，不跟随用户主题色，这与设计 token 体系的文档一致，用户选了极端颜色也不会让焦点消失。它改为不透明：亮色主题为 `var(--cs-brand-700)`（对白色 4.37:1），暗色主题为去掉透明度的现有值 `oklch(0.76 0.204 131)`（对暗色背景 8.79:1）。`--ring` 在自定义 CSS 文档和小程序 `/__cherry/theme.css` 约定里的含义不变，仍是焦点颜色，只改它的值。
+1. `packages/ui/src/styles/tokens/colors/providers.css` 里的 `--cs-ring` 继续从品牌色派生，不跟随用户主题色，这与设计 token 体系的文档一致，用户选了极端颜色也不会让焦点消失。它改为不透明：亮色主题为 `oklch(0.645 0.195 146)`，即品牌色相下对白色达到 3:1 的色域内最高彩度（3.05:1），暗色主题为 `oklch(0.49 0.145 146)`，即同一色相下对暗色背景达到 3:1 的色域内最高彩度（3.02:1）。`--ring` 在自定义 CSS 文档和小程序 `/__cherry/theme.css` 约定里的含义不变，仍是焦点颜色，只改它的值。
 2. packages/ui 的 base 层（由 `packages/ui/scripts/build-theme-css.ts` 生成）为所有元素绘制外圈：在 `:focus-visible` 时画一圈 3px、40% 透明度的 `--ring` 实线 outline，不偏移。外圈用 outline 而不是 `box-shadow`，因此不会和 `shadow-*` 工具类互相影响，强制颜色模式也会保留它。删除 app 层的 `*:focus` 重置。所有渲染进程窗口都通过 `@cherrystudio/ui/styles/theme.css` 获得这条规则，包括只引入 `tailwind.css` 的截图、划词工具栏和划词胶囊窗口。
 3. 有可见边框的控件在键盘聚焦时用 `focus-visible:border-ring` 把边框换成 `--ring`，替换原来的 `focus-visible:border-primary`。包括 Input、Textarea、Select 触发器、Checkbox、RadioGroup 选项和 outline 样式的 Button。状态占用边框时（例如勾选的复选框、选中的单选项、无效的输入框），状态胜出，只剩外圈标出焦点。这个损失予以接受。
 4. 没有可见边框的控件保留现有的聚焦填充或文字变化，并加上外圈。包括填充、幽灵和链接样式的 Button、Tabs 触发器，以及 `menu-list` 的按钮。删除 `Switch` 的内嵌光圈，Switch 只靠外圈标出焦点。
@@ -44,6 +44,7 @@ Status: proposed
 - shadcn 新版的 Radix、Base UI 和 React Aria 样式用 `:where()` 定义 `data-checked` 和 `data-selected`，让焦点边框胜过这些状态。本次不采用，因为边框被状态占用是可以接受的。按 vega 样式实测，在那套实现里无效状态的复选框聚焦时仍然没有任何变化。
 - 另设 `--primary-focus` token 会和 `--ring` 重复，而自定义 CSS 文档和小程序约定已经把 `--ring` 定义为焦点颜色。
 - 从用户主题色派生并按亮度夹紧（亮色主题为 `oklch(from var(--primary) min(l, 0.55) c h)`）在 38 色扫描中都能达到 3:1。没有采用，因为设计 token 体系让焦点色独立于运行时主题色，维护者选择保留这个边界。
+- 亮色 `--ring` 直接用现有的品牌色阶被否决。`var(--cs-brand-700)` 能达到 4.37:1，但维护者觉得它太暗沉，它 40% 的外圈叠在白色上也会发灰。更浅的色阶达不到 3:1：brand-600 为 2.78:1，brand-500 为 1.92:1。保留改动前半透明的 `--ring`（brand-500 叠 40%）时，外圈太淡，聚焦边框也只有约 1.3:1。暗色主题中，去掉透明度的现有青柠绿（`oklch(0.76 0.204 131)`，8.79:1）显得太亮，所以暗色焦点色同样定在 3:1 左右。
 - 全局 `:not([tabindex="-1"])` 排除被否决，因为 `tabindex` 并不能说明元素是不是落脚点。Select 选项和 roving 组里未获焦的条目同样带 `tabindex="-1"`。知道自己的容器是落脚点的，是弹出组件的 primitive。
 - 给弹出列表条目画外圈，会被滚动视口裁切，也会压到相邻条目。由 `aria-activedescendant` 驱动的列表从不把 DOM 焦点移到条目上（cmdk `Command`、`EntitySelector`），那里只能靠高亮。
 - 给所有文本框都画外圈，包括临时界面里和原地编辑的文本框，被否决：这些文本框本来就设计成没有可见的框，光标已经表示了焦点。
@@ -62,7 +63,7 @@ Status: proposed
 
 ## 风险
 
-- 状态占用边框时，以及在没有边框的控件上，焦点只靠外圈和已有的填充变化。外圈在这些地方低于 3:1（白色背景上约 1.7:1，暗色背景上约 2.4:1），因此这些情况不满足 WCAG 1.4.11 对焦点指示的要求。这是为观感有意接受的。
+- 状态占用边框时，以及在没有边框的控件上，焦点只靠外圈和已有的填充变化。外圈在这些地方低于 3:1（白色背景上约 1.6:1，暗色背景上约 1.5:1），因此这些情况不满足 WCAG 1.4.11 对焦点指示的要求。这是为观感有意接受的。
 - 读取 `--ring` 的用户自定义 CSS 和小程序会拿到不透明颜色，而不是 40% 透明度。发布说明里会提示这项变更。
 - 暗色主题的对比度是按 `#181818` 叠加半透明背景 token 计算的。macOS 开启毛玻璃效果时，实际背景取决于桌面，所以 AC6 包含 Electron 抽查。
 - 内容元素为 `contenteditable` 的内嵌编辑器（例如 `CodeViewer` 和 `PromptEditorField` 里的 CodeMirror）可能开始匹配全局规则。第 2 层逐个检查，编辑器外框已经表示焦点的就退出。
