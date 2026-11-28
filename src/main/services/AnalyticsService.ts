@@ -9,6 +9,7 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import { getAppEdition } from '@main/utils/appEdition'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
+import type { ProductAnalyticsEvent } from '@shared/ipc/schemas/analytics'
 import { APP_NAME } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('AnalyticsService')
@@ -16,6 +17,8 @@ const logger = loggerService.withContext('AnalyticsService')
 // Public, write-only token for the shared production project (698240).
 const POSTHOG_PROJECT_KEY = 'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna'
 const POSTHOG_HOST = 'https://us.i.posthog.com'
+const PRODUCT_EVENT_SCHEMA_VERSION = 1
+const MAX_PENDING_PRODUCT_EVENTS = 200
 
 // Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
 function resolvePostHogKey(): string {
@@ -53,6 +56,9 @@ export class AnalyticsService extends BaseService implements Activatable {
   private posthog: PostHog | null = null
   private revokeController: AbortController | null = null
   private hasTrackedAppLaunch = false
+  /** Consented product events raised while the clients are still starting; replayed once they are up. */
+  private pendingProductEvents: ProductAnalyticsEvent[] = []
+  private productEventsReady = false
   /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
   /**
@@ -81,6 +87,7 @@ export class AnalyticsService extends BaseService implements Activatable {
       preferenceService.get('app.privacy.data_collection.enabled'),
       preferenceService.get('app.privacy.policy_version')
     )
+    if (!this.desiredEnabled) this.pendingProductEvents = []
     this.reconciler.request()
   }
 
@@ -156,10 +163,14 @@ export class AnalyticsService extends BaseService implements Activatable {
       this.hasTrackedAppLaunch = true
     }
 
+    this.productEventsReady = true
+    for (const event of this.pendingProductEvents.splice(0)) this.captureProductEvent(event)
+
     logger.info('Analytics service activated')
   }
 
   async onDeactivate(): Promise<void> {
+    this.productEventsReady = false
     if (this.posthog) {
       // After a revocation the shared revoke signal fails every request, so the queue is dropped
       // without waiting out PostHog's retries.
@@ -198,7 +209,35 @@ export class AnalyticsService extends BaseService implements Activatable {
     data: Record<string, string | number | boolean>,
     identity?: { distinctId: string; processPersonProfile: boolean }
   ): void {
-    if (!this.isActivated || !this.desiredEnabled || !this.posthog) return
+    if (!this.isActivated || !this.desiredEnabled) return
+    this.capture(eventType, data, identity)
+  }
+
+  /** Captures a catalogued product event anonymously; events raised before start-up are replayed. */
+  public trackProductEvent(event: ProductAnalyticsEvent): void {
+    if (!this.desiredEnabled) return
+    if (this.productEventsReady) {
+      this.captureProductEvent(event)
+      return
+    }
+    if (this.pendingProductEvents.length >= MAX_PENDING_PRODUCT_EVENTS) this.pendingProductEvents.shift()
+    this.pendingProductEvents.push(event)
+  }
+
+  private captureProductEvent({ event, ...fields }: ProductAnalyticsEvent): void {
+    const properties: Record<string, string | number | boolean> = { schema_version: PRODUCT_EVENT_SCHEMA_VERSION }
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) properties[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] = value
+    }
+    this.capture(event, properties)
+  }
+
+  private capture(
+    eventType: string,
+    data: Record<string, string | number | boolean>,
+    identity?: { distinctId: string; processPersonProfile: boolean }
+  ): void {
+    if (!this.posthog) return
     this.posthog.capture({
       distinctId: identity?.distinctId ?? getClientId(),
       event: eventType,
