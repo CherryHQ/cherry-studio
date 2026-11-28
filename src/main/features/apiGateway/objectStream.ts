@@ -88,7 +88,8 @@ export function createGatewayObjectTransports(config: {
         imageConfig,
         mediaResolution,
         audioTimestamp,
-        automaticFunctionCalling
+        automaticFunctionCalling,
+        automaticContinuation
       } = nativeConfig
       const paramsRecord = {
         contents: params.contents,
@@ -126,7 +127,8 @@ export function createGatewayObjectTransports(config: {
         'continuationToken',
         'abortSignal',
         'httpOptions',
-        ...(automaticFunctionCalling?.disable === true ? ['automaticFunctionCalling'] : [])
+        ...(automaticFunctionCalling?.disable === true ? ['automaticFunctionCalling'] : []),
+        ...(automaticContinuation === false ? ['automaticContinuation'] : [])
       ])
       const unsupported = Object.entries(nativeConfig).filter(
         ([key, value]) => value !== undefined && !supported.has(key)

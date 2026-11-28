@@ -71,7 +71,7 @@ Generated files retain `inlineData` and thought signatures. Terminal responses r
 finish reasons, safety feedback, finish messages, reported service tier and continuation tokens.
 Pi text sessions retain their native output capabilities; forwarding image parts does not add
 an image display feature to those sessions. The pinned provider supports `TEXT` and `IMAGE`
-output, not speech generation. Object calls accept disabled client automatic function calling;
+output, not speech generation. Object calls accept disabled client automatic function calling and continuation;
 enabling client-side execution or requesting unsupported local functionality raises an SDK
 capability error without fabricating an HTTP 400. Actual upstream HTTP errors retain their
 provider status.

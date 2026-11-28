@@ -272,19 +272,10 @@ export async function createPiDurableRuntime(
       owns: config.owns,
       onError: report
     })
-    const registry = createRegistry()
-    const syncRegistry = () => {
-      for (const extension of registry.snapshot().installed()) registry.uninstall(extension)
-      for (const extension of options.harness.registry.snapshot().installed()) registry.install(extension)
-      registry.install(behavior!.extension)
-    }
-    syncRegistry()
-    stopRegistry = options.harness.registry.subscribe(syncRegistry)
     const models = options.harness.models
     const meter = behavior
     harnessOptions = {
       ...options.harness,
-      registry,
       models: typeof models === 'function' ? () => meteredModels(models(), meter) : meteredModels(models, meter)
     }
   }
@@ -298,6 +289,15 @@ export async function createPiDurableRuntime(
   let storage: Storage | undefined
   let harness: Harness | undefined
   try {
+    // Built-in tasks share module-local state with the scheduler that runs them.
+    const registry = createRegistry()
+    const syncRegistry = () => {
+      for (const extension of registry.snapshot().installed()) registry.uninstall(extension)
+      for (const extension of options.harness.registry.snapshot().installed()) registry.install(extension)
+      if (behavior) registry.install(behavior.extension)
+    }
+    syncRegistry()
+    stopRegistry = options.harness.registry.subscribe(syncRegistry)
     storage = await options.openStorage()
     const owned = storage
     const finalArchive = new Proxy(owned, {
@@ -322,7 +322,7 @@ export async function createPiDurableRuntime(
       }
     })
     const work = behavior ? (options.behavior?.recovery ?? (await readDurableWork(owned))) : undefined
-    harness = await Harness.open(finalArchive, harnessOptions, context)
+    harness = await Harness.open(finalArchive, { ...harnessOptions, registry }, context)
     if (behavior && work) await behavior.bind(harness, work)
   } catch (cause) {
     report(cause)
@@ -889,7 +889,7 @@ export async function createPiDurableRuntime(
           }
           const submission = project
             ? await native.commit(async (tx) => {
-                const id = await entry.conversation.submit(tx, draft)
+                const id = await entry.conversation.admit(tx, draft)
                 await registerFollowupProjection(tx, { threadId: entry.ref.id, inputId: input.inputId })
                 return id
               }, context)

@@ -861,7 +861,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       }),
       hook(CompactionTask, {
         async beforeCompact(request, api, callContext) {
-          if (request.ownerAt === undefined) return { decline: true }
+          if (request.ownerAt === undefined) return { kind: 'decline' }
           const facts = await harness.commit(
             (tx) => readFacts(tx, folds, api.conversationId, abandoned, request.ownerAt),
             callContext

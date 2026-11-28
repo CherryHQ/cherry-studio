@@ -18,7 +18,6 @@ packageExtensions:
 overrides:
   # Linux x64 must stay usable without AVX/AVX2; the fork's prebuilt vec0.so requires them (#22048).
   "@aiany/sqlite-vec-linux-x64": "npm:sqlite-vec-linux-x64@0.1.9"
-  "@earendil-works/pi-ai@1.5.2>@google/genai": "2.23.0"
   picomatch: "4.0.4"
   "concurrently>shell-quote": "1.12.0"
   fast-xml-parser: ">=5.12.1"
@@ -123,8 +122,8 @@ patchedDependencies:
   # Version-pinned: hunk targets a content-hashed dist chunk; bumps hard-fail install until key+hunk are re-derived.
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
-  # Preserve ultra reasoning and Google custom fetch until Pi supports both upstream.
-  "@earendil-works/pi-ai@1.5.2": patches/@earendil-works__pi-ai@1.5.2.patch
+  # Preserve Cherry's reasoning replay and gateway object transports.
+  "@earendil-works/pi-ai@1.7.0": patches/@earendil-works__pi-ai@1.7.0.patch
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
@@ -139,12 +138,12 @@ patchedDependencies:
   "@pierre/diffs@1.6.1": patches/@pierre__diffs@1.6.1.patch
   vfile-location@5.0.3: patches/vfile-location@5.0.3.patch
 
-  "@earendil-works/pi-agent-core@1.5.2": patches/@earendil-works__pi-agent-core@1.5.2.patch
+  "@earendil-works/pi-agent-core@1.7.0": patches/@earendil-works__pi-agent-core@1.7.0.patch
 
   # Carry native input correlation until an upstream release provides the same placement events.
-  "@earendil-works/pi-coding-agent@1.5.2": patches/@earendil-works__pi-coding-agent@1.5.2.patch
+  "@earendil-works/pi-coding-agent@1.7.0": patches/@earendil-works__pi-coding-agent@1.7.0.patch
 
-  "@earendil-works/pi-durable@1.5.2": patches/@earendil-works__pi-durable@1.5.2.patch
+  "@earendil-works/pi-durable@1.7.0": patches/@earendil-works__pi-durable@1.7.0.patch
   pi-acp@0.0.34: patches/pi-acp@0.0.34.patch
   "@radix-ui/react-collapsible@1.1.12": patches/@radix-ui__react-collapsible@1.1.12.patch
   "@radix-ui/react-presence@1.1.5": patches/@radix-ui__react-presence@1.1.5.patch
@@ -216,13 +215,13 @@ minimumReleaseAgeExclude:
   - electron@45.2.2
   - "@pierre/diffs@1.6.1"
   - "@pierre/theming@1.0.2"
-  - "@earendil-works/chord@1.5.2"
-  - "@earendil-works/pi-agent-core@1.5.2"
-  - "@earendil-works/pi-ai@1.5.2"
-  - "@earendil-works/pi-codemode@1.5.2"
-  - "@earendil-works/pi-coding-agent@1.5.2"
-  - "@earendil-works/pi-durable@1.5.2"
-  - "@earendil-works/pi-mcp@1.5.2"
-  - "@earendil-works/pi-schema@1.5.2"
-  - "@earendil-works/pi-telemetry@1.5.2"
-  - "@earendil-works/pi-tui@1.5.2"
+  - "@earendil-works/chord@1.7.0"
+  - "@earendil-works/pi-agent-core@1.7.0"
+  - "@earendil-works/pi-ai@1.7.0"
+  - "@earendil-works/pi-codemode@1.7.0"
+  - "@earendil-works/pi-coding-agent@1.7.0"
+  - "@earendil-works/pi-durable@1.7.0"
+  - "@earendil-works/pi-mcp@1.7.0"
+  - "@earendil-works/pi-schema@1.7.0"
+  - "@earendil-works/pi-telemetry@1.7.0"
+  - "@earendil-works/pi-tui@1.7.0"

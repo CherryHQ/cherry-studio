@@ -366,13 +366,13 @@ it('preserves a per-call output cap when native reasoning disagrees with the gat
 it.each(['same', 'provider', 'model', 'api'])(
   'replays Google signatures with %s history ownership after reconnect',
   async (ownership) => {
-    type Part = { functionCall?: { name: string; args: unknown }; text?: string; thoughtSignature?: string }
+    type Part = { functionCall?: { id: string; name: string; args: unknown }; text?: string; thoughtSignature?: string }
     const requests: Array<{ contents: Array<{ role: string; parts: Part[] }> }> = []
     const signature = Buffer.from('fixture-tool-signature').toString('base64')
     const nextSignature = Buffer.from('fixture-next-tool-signature').toString('base64')
     const textSignature = Buffer.from('fixture-text-signature').toString('base64')
     const call = (id: string, thoughtSignature?: string): Part => ({
-      functionCall: { name: 'read', args: { path: `${id}.txt` } },
+      functionCall: { id, name: 'read', args: { path: `${id}.txt` } },
       ...(thoughtSignature ? { thoughtSignature } : {})
     })
     const responses: Part[][] = [
