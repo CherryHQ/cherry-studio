@@ -31,6 +31,7 @@ import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import {
   type AgentSessionMessageRow,
+  type AgentSessionMessageStoredData,
   agentSessionMessagePartTable as sessionMessagePartsTable,
   agentSessionMessageTable as sessionMessagesTable,
   agentSessionToolOutputTable as sessionToolOutputsTable,
@@ -45,6 +46,7 @@ import type { DbOrTx } from '@data/db/types'
 import { resolveAgentSessionRunHistory, type RunEditPlan } from '@data/services/agentSessionRunHistory'
 import { agentSessionReadModelEffects, agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
+import { withoutDetachedFileParts } from '@data/services/utils/detachedFileParts'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
@@ -96,6 +98,7 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { MessageProvenance } from '@shared/data/types/conversationImport'
+import type { FileEntryId } from '@shared/data/types/file'
 import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   type CherryUIMessage,
@@ -385,7 +388,7 @@ type SavedAgentSessionMessage = {
 function replaceAgentSessionMessageFileRefsTx(
   tx: DbOrTx,
   messageId: string,
-  data: AgentSessionMessageEntity['data'],
+  data: AgentSessionMessageData,
   retainCurrentRefs = false
 ): void {
   if (!retainCurrentRefs)
@@ -398,7 +401,7 @@ function replaceAgentSessionMessageFileRefsTx(
     .get()?.snapshot
   const ids = [
     ...new Set(
-      (data.parts ?? [])
+      withoutDetachedFileParts(data.parts ?? [], data.detachedFileEntryIds ?? [])
         .filter((part) => part.type === 'file')
         .flatMap((part) => [readCherryMeta(part)?.fileEntryId, readCherryMeta(part)?.workingFileEntryId])
         .filter((id): id is string => Boolean(id))
@@ -476,6 +479,7 @@ function publicMessageData(data: AgentSessionMessageData): AgentSessionMessageEn
   const result = { ...data }
   delete result.runtimeAnchor
   delete result.nativeSessionId
+  delete result.detachedFileEntryIds
   delete result.deliveryReplyAnchor
   delete result.nativePlaced
   delete result.locallyHandled
@@ -644,6 +648,11 @@ export class AgentSessionMessageService {
     unchangedToolCallIds?: ReadonlySet<string>
   ) {
     return extractMessageToolOutputs(sessionId, messageId, data, this.acceptedToolParts, unchangedToolCallIds)
+  }
+
+  /** Display/edit projection only; never use this to replace native stored input. */
+  projectFileParts(data: AgentSessionMessageData): CherryMessagePart[] {
+    return withoutDetachedFileParts(data.parts ?? [], data.detachedFileEntryIds ?? [])
   }
 
   saveRunCheckpoint(sessionId: string, runId: string, anchor: RuntimeForkAnchor): void {
@@ -2231,6 +2240,16 @@ export class AgentSessionMessageService {
     }
     const hydratedRows = deferToolOutputs ? storedRows : hydrateAgentSessionMessageRowsTx(database, storedRows)
     return hydratedRows.map((row) => {
+      // Detached native input stays stored, but visible parts and IDs are parallel.
+      // Project both before deferred tool-output handles bind to a part ID.
+      const storedParts = row.data.parts ?? []
+      const visibleParts = new Set(this.projectFileParts(row.data))
+      const partIds = row.data.detachedFileEntryIds?.length
+        ? row.partIds?.filter((_, index) => visibleParts.has(storedParts[index]))
+        : row.partIds
+      const partPositions = row.data.detachedFileEntryIds?.length
+        ? row.partPositions?.filter((_, index) => visibleParts.has(storedParts[index]))
+        : row.partPositions
       const entity = this.rowToEntity(row)
       if (deferToolOutputs && entity.role === 'assistant' && entity.data.parts) {
         entity.data = {
@@ -2239,13 +2258,13 @@ export class AgentSessionMessageService {
             entity.data.parts,
             buildAgentSessionTopicId(sessionId),
             entity.id,
-            row.partIds
+            partIds
           )
         }
       }
       return {
         ...entity,
-        ...(row.partIds && { partIds: row.partIds, partPositions: row.partPositions }),
+        ...(partIds && { partIds, ...(partPositions && { partPositions }) }),
         siblings: siblingsByParent.get(row.parentId) ?? []
       }
     })
@@ -2586,6 +2605,61 @@ export class AgentSessionMessageService {
     return message
   }
 
+  /**
+   * Drop the serialized file parts that reference a permanently deleted file
+   * entry, keeping the rest of the message intact, and rebuild the message's
+   * file-ref rows from the reconciled parts. Without this, a delete-and-detach
+   * leaves `data.parts` pointing at the deleted entry: attachment actions fail
+   * and the edit flow rejects the message with `attachment_unavailable`.
+   *
+   * Native-bound input retains its raw parts and checkpoints. A main-owned list
+   * hides detached files only in display/edit projections, including completed input.
+   */
+  detachFileEntryParts(sessionId: string, messageId: string, fileEntryId: FileEntryId): void {
+    const changed = application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, sessionId, messageId, true)
+      if (!existing) return false
+      if (existing.role === 'root') return false
+      const parts = existing.data.parts
+      const keptParts = new Set(withoutDetachedFileParts(parts, [fileEntryId]))
+      if (keptParts.size === parts.length) return false
+      const nativeBound = Boolean(existing.inputContextId || existing.data.nativeSessionId)
+      if (nativeBound && existing.data.detachedFileEntryIds?.includes(fileEntryId)) return false
+      const stored = { ...existing.data }
+      delete (stored as { parts?: unknown }).parts
+      const storedData: AgentSessionMessageStoredData = nativeBound
+        ? { ...stored, detachedFileEntryIds: [...(existing.data.detachedFileEntryIds ?? []), fileEntryId] }
+        : stored
+      const updatedAt = Date.now()
+      if (!nativeBound) this.invalidateForkPrefixTx(tx, sessionId, messageId)
+      tx.update(sessionMessagesTable)
+        .set({ data: storedData, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .run()
+      if (!nativeBound) {
+        const keptIndexes = parts.flatMap((part, index) => (keptParts.has(part) ? [index] : []))
+        replaceAgentSessionMessagePartsTx(tx, {
+          sessionId,
+          messageId,
+          parts: keptIndexes.map((index) => parts[index]),
+          partIds: keptIndexes.map((index) => existing.partIds![index]),
+          timestampMs: updatedAt
+        })
+      }
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, {
+        ...storedData,
+        parts: nativeBound ? parts : [...keptParts]
+      })
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return true
+    })
+    if (changed) {
+      notifyDataApiDataChange([
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+      ])
+    }
+  }
+
   deleteSessionMessageTx(
     tx: DbOrTx,
     sessionId: string,
@@ -2903,7 +2977,9 @@ export class AgentSessionMessageService {
       sessionId: row.sessionId,
       ...(row.partIds && { partIds: row.partIds, partPositions: row.partPositions }),
       role: presented.role as AgentSessionMessageEntity['role'],
-      data: publicMessageData(presented.data),
+      data: row.data.detachedFileEntryIds?.length
+        ? { ...publicMessageData(presented.data), parts: this.projectFileParts(row.data) }
+        : publicMessageData(presented.data),
       ...(row.provenance ? { provenance: row.provenance } : {}),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
@@ -3094,6 +3170,7 @@ export class AgentSessionMessageService {
     if (existingRow) {
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
+      if (existingRow.data.detachedFileEntryIds) data.detachedFileEntryIds = existingRow.data.detachedFileEntryIds
       if (existingRow.data.nativePlaced) data.nativePlaced = true
       if (existingRow.data.locallyHandled) data.locallyHandled = true
       if (existingRow.data.stagedFollowup) data.stagedFollowup = true
@@ -3175,7 +3252,7 @@ export class AgentSessionMessageService {
         existingRow.data,
         updatedAtMs
       )
-      replaceAgentSessionMessageFileRefsTx(db, existingRow.id, message.data)
+      replaceAgentSessionMessageFileRefsTx(db, existingRow.id, data)
 
       return {
         entity: this.rowToEntity({

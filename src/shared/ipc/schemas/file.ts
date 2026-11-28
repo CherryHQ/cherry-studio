@@ -35,6 +35,11 @@ const fileEntryIdsInputSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_IPC_MAX_BATCH_IDS)
 })
 
+const batchPermanentDeleteFromTrashInputSchema = z.strictObject({
+  ids: z.array(FileEntryIdSchema).max(FILE_IPC_MAX_BATCH_IDS),
+  detachReferences: z.boolean().optional()
+})
+
 const batchGetMetadataInputSchema = z.strictObject({
   items: z.array(z.strictObject({ key: z.string().min(1), handle: FileHandleSchema })).max(FILE_IPC_MAX_BATCH_IDS)
 })
@@ -160,7 +165,7 @@ export const fileRequestSchemas = {
   'file.batch_trash': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_restore': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_permanent_delete_from_trash': defineRoute({
-    input: fileEntryIdsInputSchema,
+    input: batchPermanentDeleteFromTrashInputSchema,
     output: batchMutationResultSchema
   }),
   'file.batch_remove_from_library': defineRoute({
