@@ -2481,6 +2481,18 @@ describe('BinaryManager', () => {
     })
   })
 
+  it('skips download-cache cleanup while a tool mutation holds the lock', async () => {
+    const service = new BinaryManager()
+    const clear = async () => 'download cache cleared'
+    const release = await (service as any).mutationMutex.acquire()
+    try {
+      await expect(service.tryClearDownloadCaches(clear)).resolves.toBeNull()
+    } finally {
+      release()
+    }
+    await expect(service.tryClearDownloadCaches(clear)).resolves.toBe('download cache cleared')
+  })
+
   describe('installByName (name-only fixed/custom install)', () => {
     const makeService = () => {
       const service = new BinaryManager()

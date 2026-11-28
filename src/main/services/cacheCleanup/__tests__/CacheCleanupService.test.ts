@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
 import Database from 'better-sqlite3'
-import { app } from 'electron'
+import { app, type Session, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -15,17 +15,19 @@ import { cacheCleanupService } from '@main/services/cacheCleanup'
 const bootConfigGet = vi.hoisted(() => vi.fn())
 const hasPendingRestoreMock = vi.hoisted(() => vi.fn(() => false))
 const removeOrphanBaseArtifacts = vi.hoisted(() => vi.fn())
-const { defaultSession, webviewSession, htmlArtifactPreviewSession } = vi.hoisted(() => {
+const { defaultSession, webviewSession, htmlArtifactPreviewSession, agentBrowserSession } = vi.hoisted(() => {
   const createSession = () => ({
     clearCodeCaches: vi.fn(),
     clearData: vi.fn(),
     clearStorageData: vi.fn(),
-    getCacheSize: vi.fn()
+    getCacheSize: vi.fn(),
+    getStoragePath: vi.fn()
   })
   return {
     defaultSession: createSession(),
     webviewSession: createSession(),
-    htmlArtifactPreviewSession: createSession()
+    htmlArtifactPreviewSession: createSession(),
+    agentBrowserSession: createSession()
   }
 })
 
@@ -49,9 +51,11 @@ vi.mock('electron', () => ({
   },
   session: {
     defaultSession,
-    fromPartition: vi.fn((partition: string) =>
-      partition === 'persist:webview' ? webviewSession : htmlArtifactPreviewSession
-    )
+    fromPartition: vi.fn((partition: string) => {
+      if (partition === 'persist:webview') return webviewSession
+      if (partition === 'persist:agent-browser') return agentBrowserSession
+      return htmlArtifactPreviewSession
+    })
   }
 }))
 
@@ -84,6 +88,8 @@ describe('CacheCleanupService', () => {
   let tracePath: string
   let logsPath: string
   let userDataPath: string
+  let toolchainBusy: boolean
+  let cleanTrace: () => Promise<void>
 
   const rootPath = (...segments: string[]) => path.join(root, ...segments)
 
@@ -106,6 +112,8 @@ describe('CacheCleanupService', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    toolchainBusy = false
+    cleanTrace = async () => {}
     bootConfigGet.mockReset()
     bootConfigGet.mockReturnValue(undefined)
     hasPendingRestoreMock.mockReturnValue(false)
@@ -116,6 +124,20 @@ describe('CacheCleanupService', () => {
       return true
     })
     vi.mocked(application.get).mockImplementation(((name: string) => {
+      if (name === 'BinaryManager') {
+        return { tryClearDownloadCaches: async (clear: () => Promise<unknown>) => (toolchainBusy ? null : clear()) }
+      }
+      if (name === 'BrowserSessionService') {
+        return {
+          clearData: async () => {
+            await fs.rm(rootPath('Session', 'Partitions', 'agent-browser', 'Service Worker', 'CacheStorage'), {
+              recursive: true,
+              force: true
+            })
+          }
+        }
+      }
+      if (name === 'TraceStorageService') return { cleanLocalData: cleanTrace }
       if (name === 'FileManager') return MockMainFileManagerExport.fileManager
       if (name === 'KnowledgeService') return { inspectOrphanBaseArtifacts, removeOrphanBaseArtifacts }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
@@ -134,8 +156,19 @@ describe('CacheCleanupService', () => {
         'app.userdata': userDataPath,
         'app.userdata.data': path.join(userDataPath, 'Data'),
         'app.session': rootPath('Session'),
+        'app.session.partitions': rootPath('Session', 'Partitions'),
         'app.session.webview': rootPath('Session', 'Partitions', 'webview'),
         'app.temp': rootPath('Temp'),
+        'feature.binary.data.cache': rootPath('Toolchain', 'mise', 'cache'),
+        'feature.binary.data.npm_cache': rootPath('Toolchain', 'mise', 'home', '.npm', '_cacache'),
+        'feature.binary.data.aube_metadata_cache': rootPath(
+          'Toolchain',
+          'mise',
+          'xdg',
+          'cache',
+          'aube',
+          'packuments-full-v1'
+        ),
         'feature.trace': tracePath,
         'app.logs': logsPath,
         'feature.mini_app.logs': path.join(logsPath, 'mini-apps'),
@@ -154,7 +187,8 @@ describe('CacheCleanupService', () => {
       return filename ? path.join(base, filename) : base
     })
 
-    for (const mockedSession of [defaultSession, webviewSession, htmlArtifactPreviewSession]) {
+    agentBrowserSession.getStoragePath.mockReturnValue(rootPath('Session', 'Partitions', 'agent-browser'))
+    for (const mockedSession of [defaultSession, webviewSession, htmlArtifactPreviewSession, agentBrowserSession]) {
       mockedSession.getCacheSize.mockResolvedValue(0)
       mockedSession.clearData.mockResolvedValue(undefined)
       mockedSession.clearCodeCaches.mockResolvedValue(undefined)
@@ -198,6 +232,96 @@ describe('CacheCleanupService', () => {
     })
   })
 
+  it('counts and clears browser and toolchain caches while preserving site data and installed dependencies', async () => {
+    const browserRoot = rootPath('Session', 'Partitions', 'agent-browser')
+    const miseRoot = rootPath('Toolchain', 'mise')
+    const caches = [
+      path.join(browserRoot, 'Service Worker', 'CacheStorage', 'asset'),
+      path.join(miseRoot, 'cache', 'versions'),
+      path.join(miseRoot, 'home', '.npm', '_cacache', 'tarball'),
+      path.join(miseRoot, 'xdg', 'cache', 'aube', 'packuments-full-v1', 'metadata')
+    ]
+    const retained = [
+      path.join(browserRoot, 'Cookies'),
+      path.join(browserRoot, 'IndexedDB', 'data'),
+      path.join(browserRoot, 'Local Storage', 'data'),
+      path.join(miseRoot, 'installs', 'node', 'node'),
+      path.join(miseRoot, 'xdg', 'cache', 'aube', 'virtual-store', 'dependency'),
+      path.join(miseRoot, 'xdg', 'cache', 'uv', 'archive-v0', 'package')
+    ]
+    for (const file of caches) await writeTestFile(file, Buffer.alloc(5))
+    for (const file of retained) await writeTestFile(file, 'keep')
+
+    expect((await cacheCleanupService.inspect(['normal_cache'])).results[0]?.size.bytes).toBe(20)
+    expect((await cacheCleanupService.run(['normal_cache'])).results[0]?.status).toBe('cleared')
+    await expectMissing(...caches)
+    await expectExisting(...retained)
+  })
+
+  it('cleans only cache data from existing legacy and mini-app partitions', async () => {
+    const known = [
+      { name: 'persist:default', root: rootPath('Session', 'Partitions', 'default') },
+      { name: 'persist:miniapp:com.example.app', root: rootPath('Session', 'Partitions', 'miniapp%3Acom.example.app') }
+    ]
+    for (const { root } of known) {
+      await writeTestFile(path.join(root, 'Service Worker', 'CacheStorage', 'cache'), Buffer.alloc(10))
+      await writeTestFile(path.join(root, 'Cookies'), 'keep')
+      await writeTestFile(path.join(root, 'IndexedDB', 'data'), 'keep')
+    }
+    const unexpected = rootPath('Session', 'Partitions', 'miniapp%3Acom%2Funsafe', 'Code Cache', 'resource')
+    await writeTestFile(unexpected, 'keep')
+    const partitionLookup = vi.mocked(session.fromPartition)
+    const lookup = partitionLookup.getMockImplementation()!
+    partitionLookup.mockImplementation((name) => {
+      const partition = known.find((entry) => entry.name === name)
+      if (!partition) return lookup(name)
+      return Object.assign({}, lookup(name), {
+        getCacheSize: async () => 0,
+        clearData: async (options) => {
+          expect(options?.dataTypes).toEqual(['cache'])
+        },
+        clearCodeCaches: async () => {},
+        clearStorageData: async (options) => {
+          expect(options?.storages).toEqual(['shadercache', 'cachestorage'])
+          await fs.rm(path.join(partition.root, 'Service Worker', 'CacheStorage'), { recursive: true })
+        }
+      } satisfies Partial<Session>)
+    })
+
+    try {
+      expect((await cacheCleanupService.inspect(['normal_cache'])).results[0]?.size.bytes).toBe(20)
+      expect((await cacheCleanupService.run(['normal_cache'])).results[0]?.status).toBe('cleared')
+      for (const { root } of known) {
+        await expectMissing(path.join(root, 'Service Worker', 'CacheStorage'))
+        await expectExisting(path.join(root, 'Cookies'), path.join(root, 'IndexedDB', 'data'))
+      }
+      await expectExisting(unexpected)
+      expect(partitionLookup.mock.calls.map(([name]) => name)).not.toContain('persist:miniapp:com/unsafe')
+    } finally {
+      partitionLookup.mockImplementation(lookup)
+    }
+  })
+
+  it('leaves download caches untouched when an ancestor redirects outside the toolchain', async () => {
+    const external = rootPath('External')
+    const externalCache = path.join(external, '.npm', '_cacache', 'archive')
+    await writeTestFile(externalCache, 'keep')
+    await fs.mkdir(rootPath('Toolchain', 'mise'), { recursive: true })
+    await fs.symlink(external, rootPath('Toolchain', 'mise', 'home'), 'junction')
+
+    expect((await cacheCleanupService.inspect(['normal_cache'])).results[0]?.size.completeness).toBe('partial')
+    expect((await cacheCleanupService.run(['normal_cache'])).results[0]?.status).toBe('partial')
+    expect(await fs.readFile(externalCache, 'utf8')).toBe('keep')
+  })
+
+  it('reports partial cleanup and preserves download caches during tool installation', async () => {
+    toolchainBusy = true
+    const cache = rootPath('Toolchain', 'mise', 'cache', 'versions')
+    await writeTestFile(cache, 'keep')
+    expect((await cacheCleanupService.run(['normal_cache'])).results[0]?.status).toBe('partial')
+    await expectExisting(cache)
+  })
+
   it('reports site-data inspection as partial when the preview partition cannot be measured', async () => {
     await writeTestFile(rootPath('Session', 'Partitions', 'webview', 'Local Storage', 'data.bin'), Buffer.alloc(17))
 
@@ -219,9 +343,7 @@ describe('CacheCleanupService', () => {
     await writeTestFile(path.join(tracePath, 'active-trace'), 'active')
     await writeTestFile(path.join(legacyTracePath, 'legacy-trace'), 'legacy')
     await writeTestFile(activeTempPath, 'keep')
-    vi.mocked(application.get).mockReturnValueOnce({
-      cleanLocalData: () => fs.rm(tracePath, { recursive: true, force: true })
-    } as never)
+    cleanTrace = () => fs.rm(tracePath, { recursive: true, force: true })
 
     const cleanup = await cacheCleanupService.run(['normal_cache'])
 
