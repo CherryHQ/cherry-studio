@@ -698,33 +698,51 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     expect(event.input.command).toBe('rtk-rewritten')
   })
 
-  it.each(['auto', 'bypassPermissions'] as const)('waits for RTK Ask rewrite approval in %s', async (mode) => {
-    mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git status', approvalRequired: true })
-    const { handler, emitted } = buildGate({ getPermissionMode: () => mode, autoApprovedTools: new Set(['bash']) })
-    const event = toolEvent('bash', { command: 'git status' })
-    const pending = handler(event, extCtx)
+  it.each([
+    { mode: 'acceptEdits', command: 'git status', approved: true },
+    { mode: 'acceptEdits', command: 'rtk git status', approved: true },
+    { mode: 'auto', command: 'git status', approved: true },
+    { mode: 'auto', command: 'rtk git status', approved: false },
+    { mode: 'bypassPermissions', command: 'git status', approved: true },
+    { mode: 'bypassPermissions', command: 'rtk git status', approved: true }
+  ] as const)(
+    'waits for RTK Ask rewrite approval in $mode (command=$command, approved=$approved)',
+    async ({ mode, command, approved }) => {
+      mocks.rtkRewrite.mockResolvedValue({ command: 'rtk git status', approvalRequired: true })
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode, autoApprovedTools: new Set(['bash']) })
+      const event = toolEvent('bash', { command })
+      const pending = handler(event, extCtx)
 
-    await flush()
-    expect(event.input.command).toBe('git status')
-    expect(emitted[0].request.input).toEqual({ command: 'rtk git status' })
-    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
-    await expect(pending).resolves.toBeUndefined()
-    expect(event.input.command).toBe('rtk git status')
-  })
+      await flush()
+      expect(event.input.command).toBe(command)
+      expect(emitted[0].request.input).toEqual({ command: 'rtk git status' })
+      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved })
+      if (approved) {
+        await expect(pending).resolves.toBeUndefined()
+        expect(event.input.command).toBe('rtk git status')
+      } else {
+        await expect(pending).resolves.toMatchObject({ block: true })
+        expect(event.input.command).toBe(command)
+      }
+    }
+  )
 
-  it('blocks an RTK Ask rewrite when unattended', async () => {
-    mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git status', approvalRequired: true })
-    const { handler, emitted } = buildGate({
-      getPermissionMode: () => 'bypassPermissions',
-      getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
-      autoApprovedTools: new Set(['bash'])
-    })
-    const event = toolEvent('bash', { command: 'git status' })
+  it.each(['acceptEdits', 'auto', 'bypassPermissions'] as const)(
+    'blocks an unchanged RTK Ask command when unattended in %s',
+    async (mode) => {
+      mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git status', approvalRequired: true })
+      const { handler, emitted } = buildGate({
+        getPermissionMode: () => mode,
+        getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
+        autoApprovedTools: new Set(['bash'])
+      })
+      const event = toolEvent('bash', { command: 'rtk git status' })
 
-    await expect(handler(event, extCtx)).resolves.toMatchObject({ block: true })
-    expect(emitted).toHaveLength(0)
-    expect(event.input.command).toBe('git status')
-  })
+      await expect(handler(event, extCtx)).resolves.toMatchObject({ block: true })
+      expect(emitted).toHaveLength(0)
+      expect(event.input.command).toBe('rtk git status')
+    }
+  )
 
   it('blocks without emitting an approval card when the signal is already aborted', async () => {
     const controller = new AbortController()

@@ -2688,83 +2688,98 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it.each([
-    { mode: 'auto', approved: true },
-    { mode: 'bypassPermissions', approved: false }
-  ] as const)('gates an RTK Ask rewrite in $mode (approved=$approved)', async ({ mode, approved }) => {
-    mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git status', approvalRequired: true })
-    mocks.createToolPolicySnapshot.mockResolvedValue({
-      resolve: () => ({ approval: 'auto' }),
-      isDisabled: () => false,
-      getPermissionMode: () => mode
-    })
-    const settings = await buildClaudeCodeSessionSettings(
-      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
-      {} as never
-    )
-    const hook = settings.hooks!.PreToolUse![0].hooks.find((callback) => callback.name === 'rtkRewriteHook')!
-    const signal = new AbortController().signal
-    const toolUseID = 'rtk-ask'
-    const originalInput = { command: 'git status' }
-    const rewrittenInput = { command: 'rtk git status' }
-    const output = await hook(
-      { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: originalInput, tool_use_id: toolUseID } as never,
-      toolUseID,
-      { signal }
-    )
-    expect(output).toMatchObject({
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        permissionDecision: 'ask',
-        updatedInput: rewrittenInput
-      }
-    })
+    { mode: 'acceptEdits', command: 'git status', rewritten: 'rtk git status', approved: true },
+    { mode: 'acceptEdits', command: 'rtk git status', rewritten: 'rtk git status', approved: true },
+    { mode: 'auto', command: 'git status', rewritten: 'rtk git status', approved: true },
+    { mode: 'auto', command: 'rtk git status', rewritten: 'rtk git status', approved: false },
+    { mode: 'bypassPermissions', command: 'git status', rewritten: 'rtk git status', approved: false },
+    { mode: 'bypassPermissions', command: 'rtk git status', rewritten: 'rtk git status', approved: true }
+  ] as const)(
+    'gates an RTK Ask rewrite in $mode (command=$command, approved=$approved)',
+    async ({ mode, command, rewritten, approved }) => {
+      mocks.rtkRewrite.mockResolvedValueOnce({ command: rewritten, approvalRequired: true })
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: () => ({ approval: 'auto' }),
+        isDisabled: () => false,
+        getPermissionMode: () => mode
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+      const hook = settings.hooks!.PreToolUse![0].hooks.find((callback) => callback.name === 'rtkRewriteHook')!
+      const signal = new AbortController().signal
+      const toolUseID = 'rtk-ask'
+      const originalInput = { command }
+      const rewrittenInput = { command: rewritten }
+      const output = await hook(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: originalInput,
+          tool_use_id: toolUseID
+        } as never,
+        toolUseID,
+        { signal }
+      )
+      expect(output).toMatchObject({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'ask',
+          updatedInput: rewrittenInput
+        }
+      })
 
-    const emit = vi.fn()
-    settings.approvalEmitter!.emit = emit
-    const pending = settings.canUseTool!('Bash', rewrittenInput, { signal, toolUseID, requestId: 'rtk-ask-request' })
-    await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(expect.objectContaining({ input: rewrittenInput })))
-    mocks.approvalRegister.mock.lastCall![0].resolve({ approved })
-    await expect(pending).resolves.toMatchObject(
-      approved ? { behavior: 'allow', updatedInput: rewrittenInput } : { behavior: 'deny' }
-    )
-  })
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+      const pending = settings.canUseTool!('Bash', rewrittenInput, { signal, toolUseID, requestId: 'rtk-ask-request' })
+      await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(expect.objectContaining({ input: rewrittenInput })))
+      mocks.approvalRegister.mock.lastCall![0].resolve({ approved })
+      await expect(pending).resolves.toMatchObject(
+        approved ? { behavior: 'allow', updatedInput: rewrittenInput } : { behavior: 'deny' }
+      )
+    }
+  )
 
-  it('denies an RTK Ask rewrite when unattended', async () => {
-    mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git status', approvalRequired: true })
-    mocks.createToolPolicySnapshot.mockResolvedValue({
-      resolve: () => ({ approval: 'auto' }),
-      isDisabled: () => false,
-      getPermissionMode: () => 'bypassPermissions'
-    })
-    const originalGet = mocks.applicationGet.getMockImplementation()!
-    mocks.applicationGet.mockImplementation((name: string) =>
-      name === 'AgentSessionRuntimeService'
-        ? { getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
-        : originalGet(name)
-    )
-    const settings = await buildClaudeCodeSessionSettings(
-      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
-      {} as never
-    )
-    const hook = settings.hooks!.PreToolUse![0].hooks.find((callback) => callback.name === 'rtkRewriteHook')!
-    const signal = new AbortController().signal
-    const toolUseID = 'rtk-ask-headless'
-    const rewrittenInput = { command: 'rtk git status' }
-    await hook(
-      {
-        hook_event_name: 'PreToolUse',
-        tool_name: 'Bash',
-        tool_input: { command: 'git status' },
-        tool_use_id: toolUseID
-      } as never,
-      toolUseID,
-      { signal }
-    )
+  it.each(['acceptEdits', 'auto', 'bypassPermissions'] as const)(
+    'denies an unchanged RTK Ask command when unattended in %s',
+    async (mode) => {
+      mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git status', approvalRequired: true })
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: () => ({ approval: 'auto' }),
+        isDisabled: () => false,
+        getPermissionMode: () => mode
+      })
+      const originalGet = mocks.applicationGet.getMockImplementation()!
+      mocks.applicationGet.mockImplementation((name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? { getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
+          : originalGet(name)
+      )
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+      const hook = settings.hooks!.PreToolUse![0].hooks.find((callback) => callback.name === 'rtkRewriteHook')!
+      const signal = new AbortController().signal
+      const toolUseID = 'rtk-ask-headless'
+      const commandInput = { command: 'rtk git status' }
+      await hook(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: commandInput,
+          tool_use_id: toolUseID
+        } as never,
+        toolUseID,
+        { signal }
+      )
 
-    await expect(
-      settings.canUseTool!('Bash', rewrittenInput, { signal, toolUseID, requestId: 'rtk-ask-headless-request' })
-    ).resolves.toMatchObject({ behavior: 'deny' })
-  })
+      await expect(
+        settings.canUseTool!('Bash', commandInput, { signal, toolUseID, requestId: 'rtk-ask-headless-request' })
+      ).resolves.toMatchObject({ behavior: 'deny' })
+    }
+  )
 
   it('does not inject an environment snapshot into the built-in Assistant prompt', async () => {
     const preferenceGet = vi.fn((key: string) => {

@@ -188,7 +188,7 @@ export async function rtkRewrite(command: string): Promise<RtkRewrite | null> {
   }
 
   const rewritten = stdout.trim()
-  if (!rewritten || rewritten === command) {
+  if (!rewritten || (!approvalRequired && rewritten === command)) {
     return null
   }
   if (approvalRequired) logger.debug('rtk rewrite requires approval', { code: 3 })

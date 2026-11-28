@@ -321,8 +321,23 @@ describe('rtk utils', () => {
       expect(loggerMock.debug).toHaveBeenCalledWith('rtk rewrite requires approval', { code: 3 })
     })
 
-    it.each(['  \n', 'ls -la\n'])(
-      'returns null without warning when exit 3 has no usable rewrite (%j)',
+    it('preserves approvalRequired when exit 3 returns nonblank unchanged command output', async () => {
+      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+
+      executeCommandMock
+        .mockResolvedValueOnce('rtk 0.51.0')
+        .mockRejectedValueOnce(new CommandFailedError(3, 'rtk git status\n', ''))
+
+      await expect(rtkRewrite('rtk git status')).resolves.toEqual({
+        command: 'rtk git status',
+        approvalRequired: true
+      })
+      expect(loggerMock.warn).not.toHaveBeenCalled()
+      expect(loggerMock.debug).toHaveBeenCalledWith('rtk rewrite requires approval', { code: 3 })
+    })
+
+    it.each(['', '  \n'])(
+      'returns null without warning or approval log when exit 3 has blank output (%j)',
       async (stdout) => {
         snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
 
@@ -332,6 +347,7 @@ describe('rtk utils', () => {
 
         await expect(rtkRewrite('ls -la')).resolves.toBeNull()
         expect(loggerMock.warn).not.toHaveBeenCalled()
+        expect(loggerMock.debug).not.toHaveBeenCalled()
       }
     )
 
