@@ -20,10 +20,15 @@ Agent 输入框目前把大多数斜杠命令作为普通聊天输入发送。ru
 
 保留已确认的原生上下文切换，包括在会话的同一位置连续重置。上下文边界可以承载原生绑定标识，无需保存命令原文或生成虚构回复。
 
+复用 Agent 输入框的快捷面板，补全草稿开头的命令名。命令可以在会话目录中声明结构化的 `subcommands` 列表。准确匹配命令名后，用目录条目补全第一个参数，开始输入后续自由文本参数时结束子命令补全。命令所属的 runtime 提供候选。Pi 和 Pi Durable 提供各自能解析的目标操作，Codex 提供自己的目标操作和 `/plan off`。原生目录没有结构化候选时，仍可补全命令名。
+
+按 Tab、在高亮候选上按 Enter 或点击候选，都会将候选填入草稿。用户通过现有发送动作提交。补全只替换当前词，保留词外的文本和附件，并沿用输入法和关闭面板的现有行为。
+
 ## 备选方案
 
 - 只在渲染进程过滤命令文本。命令行仍留在产品消息树和输入历史中，也可能改变后续回放时被视作会话输入的内容。
 - 给每个命令添加静态回合标记。它无法描述 Codex `/plan` 这类行为取决于参数的命令，也无法证明动态发现的命令实际做了什么。
+- 从原生参数提示字符串提取子命令。提示可以描述任意文本或 runtime 专属语法，解析它可能会推荐 runtime 从未声明的调用。
 
 ## 验收标准
 
@@ -32,7 +37,12 @@ Agent 输入框目前把大多数斜杠命令作为普通聊天输入发送。ru
 - AC3 — Claude 和 ACP 命令仍然到达原生输入接口。产生模型回复的命令可以流式展示回复，重新打开后仍可阅读，Cherry 历史中没有命令回显。（verification: native runtime and Main — implementation owner）
 - AC4 — 命令目录过期或连接变化时，已识别的命令不会作为普通聊天发送，也不会在不同分支上执行。拒绝后仍可使用草稿。（verification: Main and renderer — implementation owner）
 - AC5 — 连续原生重置后，即使重置之间没有普通消息，后续输入和重新打开会话都会使用最新绑定。（verification: Main and native runtime — implementation owner）
+- AC6 — 输入 `/go` 这样的前缀可以补全为目录中匹配的命令。选择候选只修改草稿，当前词以外的文本保持完整。（verification: renderer and Electron — implementation owner）
+- AC7 — 在 `/goal` 后输入空格会打开所选 runtime 的子命令候选。输入 `/goal pa` 会筛选出 `pause`，选择后草稿为待发送的 `/goal pause`。Codex 不显示 Pi 的 `edit`、`rounds` 和 `budget` 候选。（verification: catalog and renderer — implementation owner）
+- AC8 — 未识别的斜杠文本、第一个参数之后的新参数，以及缺少子命令元数据的原生命令均不会打开子命令补全。按 Escape 保留已输入的草稿。（verification: renderer — implementation owner）
 
 ## 风险
 
 普通回合接收和原生输入恢复目前都关联一条已保存的用户消息。命令执行需要在没有该消息的情况下保留回复归属、取消、分支定位和恢复。原生传输接受输入时，可能还未将其放入回合。连接在分发中关闭时应保留不确定状态，避免自动重复执行。
+
+有些子命令只在特定 runtime 状态下有效。候选反映支持的语法，执行时仍会校验当前状态。

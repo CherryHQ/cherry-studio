@@ -20,10 +20,15 @@ Return local command results through feedback. When a command starts model work,
 
 Retain confirmed native context transitions, including consecutive resets at the same conversation position. A context boundary can carry native binding identity without storing the command text or fabricating a reply.
 
+Use the Agent composer's existing Quick Panel to complete command names at the start of a draft. A command can advertise a structured `subcommands` list in the session catalog. Use those entries to complete the first argument after an exact command, and end subcommand completion when the user begins typing free-form arguments. The runtime that owns a command supplies its candidates. Pi and Pi Durable expose the goal actions they parse, Codex exposes its own goal actions and `/plan off`, and native catalogs without structured candidates still complete the command name.
+
+Tab, Enter on a highlighted candidate, and clicking a candidate insert its text in the draft. The user submits through the existing send action. Completion replaces the active token, preserves text and attachments outside it, and follows existing IME and dismiss behavior.
+
 ## Alternatives considered
 
 - Filter command text only in the renderer. This leaves command rows in the product tree and input history and can change which input a later replay treats as conversation.
 - Assign each command a static loop flag. The flag cannot describe argument-dependent commands such as Codex `/plan` or prove what a dynamically discovered command did.
+- Extract subcommands from the native argument-hint string. Hints can describe arbitrary text or runtime-specific syntax, so parsing them can suggest invocations the runtime never advertised.
 
 ## Acceptance criteria
 
@@ -32,7 +37,12 @@ Retain confirmed native context transitions, including consecutive resets at the
 - AC3 — Claude and ACP commands still reach their native input interface. A command that produces a model reply remains streamable and readable after reopening, with command echo absent from Cherry history. (verification: native runtime and Main — implementation owner)
 - AC4 — A stale command catalog or changed connection cannot send a recognized command as ordinary chat or execute it on a different branch. Rejection leaves the draft available. (verification: Main and renderer — implementation owner)
 - AC5 — Consecutive native resets preserve the latest binding for later input and reopen, including when no normal message separates the resets. (verification: Main and native runtime — implementation owner)
+- AC6 — A typed prefix such as `/go` completes to the matching catalog command. Choosing a completion changes the draft only, and text outside the active token remains intact. (verification: renderer and Electron — implementation owner)
+- AC7 — A space after `/goal` opens the selected runtime's subcommand candidates. Typing `/goal pa` filters them to `pause`, and choosing it leaves `/goal pause` ready to send. Codex excludes Pi's `edit`, `rounds`, and `budget` candidates. (verification: catalog and renderer — implementation owner)
+- AC8 — Unknown slash text, a new argument after the first, and a native command without subcommand metadata do not open subcommand completion. Escape preserves the typed draft. (verification: renderer — implementation owner)
 
 ## Risks
 
 Ordinary run admission and native input recovery currently link to a saved user message. Command execution must preserve reply ownership, cancellation, branch targeting, and recovery without requiring that message. Native transport acceptance can precede placement. Preserve uncertainty and avoid automatically repeating commands when a connection closes mid-dispatch.
+
+Some subcommands are valid only in particular runtime states. Candidate availability describes the supported syntax. Execution still validates the current state.
