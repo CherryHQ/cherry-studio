@@ -4,7 +4,7 @@ import type { MouseEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Kbd, Tooltip } from '@cherrystudio/ui'
+import { Checkbox, Kbd, Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
   SessionActionContext,
@@ -34,6 +34,8 @@ interface SessionItemProps {
   shortcutHint?: string
   active?: boolean
   channelType?: string
+  isSelected: boolean
+  isSelectionMode: boolean
   onDelete: (id: string) => void | Promise<void>
   onDeletePermanently?: (id: string) => void | Promise<void>
   permanentDeleteShortcut?: string
@@ -44,6 +46,7 @@ interface SessionItemProps {
   onPress: (id: string) => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin?: (id: string) => void | Promise<unknown>
+  onToggleSelection: (sessionId: string, selected: boolean) => void
   onToggleSidebar?: (session: AgentSessionEntity) => void
   panePosition?: TopicTabPosition
   pinned?: boolean
@@ -75,6 +78,8 @@ export interface SessionItemMenuActions {
 const SessionItem = ({
   active = false,
   channelType,
+  isSelected,
+  isSelectionMode,
   onDelete,
   onDeletePermanently,
   permanentDeleteShortcut,
@@ -86,6 +91,7 @@ const SessionItem = ({
   onSetPanePosition,
   panePosition,
   onTogglePin,
+  onToggleSelection,
   onToggleSidebar,
   pinned = false,
   reserveLeadingIconSlot = true,
@@ -251,6 +257,10 @@ const SessionItem = ({
 
   const handlePress = useCallback(
     (event: MouseEvent) => {
+      if (isSelectionMode && !pinned) {
+        onToggleSelection(session.id, !isSelected)
+        return
+      }
       // ⌘/Ctrl-click opens the session in a new tab (browser-style), matching the hover action.
       if ((event.metaKey || event.ctrlKey) && onOpenInNewTab && !active) {
         handleOpenInNewTab()
@@ -259,17 +269,33 @@ const SessionItem = ({
       if (rightPanelState?.maximized) rightPanelActions?.minimize()
       onPress(session.id)
     },
-    [active, handleOpenInNewTab, onOpenInNewTab, onPress, rightPanelActions, rightPanelState?.maximized, session.id]
+    [
+      active,
+      handleOpenInNewTab,
+      isSelected,
+      isSelectionMode,
+      onOpenInNewTab,
+      onPress,
+      onToggleSelection,
+      pinned,
+      rightPanelActions,
+      rightPanelState?.maximized,
+      session.id
+    ]
   )
 
   const handleAuxClick = useCallback(
     (event: MouseEvent) => {
+      if (isSelectionMode && event.button === 1) {
+        event.preventDefault()
+        return
+      }
       // Middle-click opens in a new tab.
       if (event.button !== 1 || !onOpenInNewTab || active) return
       event.preventDefault()
       handleOpenInNewTab()
     },
-    [active, handleOpenInNewTab, onOpenInNewTab]
+    [active, handleOpenInNewTab, isSelectionMode, onOpenInNewTab]
   )
 
   const handleTogglePinClick = useCallback(
@@ -293,9 +319,18 @@ const SessionItem = ({
       style={{ cursor: 'pointer' }}
       onClick={handlePress}
       onAuxClick={handleAuxClick}>
-      {showLeadingSlot && (
+      {(showLeadingSlot || isSelectionMode) && (
         <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
-          {!rowState.renaming && channelIcon ? (
+          {isSelectionMode ? (
+            <Checkbox
+              size="sm"
+              aria-label={`${t('common.select')}: ${sessionName}`}
+              checked={isSelected}
+              disabled={pinned}
+              onClick={(event) => event.stopPropagation()}
+              onCheckedChange={(checked) => onToggleSelection(session.id, checked === true)}
+            />
+          ) : !rowState.renaming && channelIcon ? (
             <img
               src={channelIcon}
               alt=""
@@ -327,7 +362,7 @@ const SessionItem = ({
             )}
             onDoubleClick={(event) => {
               event.stopPropagation()
-              startInlineEdit()
+              if (!isSelectionMode) startInlineEdit()
             }}>
             {sessionName}
           </ResourceList.ItemTitle>
