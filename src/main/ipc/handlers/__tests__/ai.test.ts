@@ -95,7 +95,9 @@ const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn() }
 const agentSessionRuntimeService = { listSessionCommands: vi.fn(), forkSession: vi.fn() }
 const agentLifecycleService = {
   archiveSessions: vi.fn(),
+  deleteActiveSessionsPermanently: vi.fn(),
   restoreSession: vi.fn(),
+  restoreAgent: vi.fn(),
   reuseOrCreateSession: vi.fn(),
   archiveAgent: vi.fn(),
   archiveAgentSessions: vi.fn(),
@@ -199,12 +201,27 @@ describe('aiHandlers', () => {
   })
 
   it('delegates mixed-effect Session deletion to the delivery owner', async () => {
-    agentLifecycleService.archiveSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+    agentLifecycleService.archiveSessions.mockResolvedValue({
+      deletedIds: ['session-1'],
+      deferredWorkspacePaths: ['/data/feature.agents.system_workspaces/session-1']
+    })
 
     await expect(aiHandlers['ai.agent.session.delete']({ sessionIds: ['session-1'] }, ctx)).resolves.toEqual({
       deletedIds: ['session-1']
     })
     expect(agentLifecycleService.archiveSessions).toHaveBeenCalledWith(['session-1'])
+  })
+
+  it('projects internal cleanup details out of permanent Session deletion', async () => {
+    agentLifecycleService.deleteActiveSessionsPermanently.mockResolvedValue({
+      deletedIds: ['session-1'],
+      deferredWorkspacePaths: ['/data/feature.agents.system_workspaces/session-1']
+    })
+
+    await expect(
+      aiHandlers['ai.agent.session.delete_permanently']({ sessionIds: ['session-1'] }, ctx)
+    ).resolves.toEqual({ deletedIds: ['session-1'] })
+    expect(agentLifecycleService.deleteActiveSessionsPermanently).toHaveBeenCalledWith(['session-1'])
   })
 
   it('delegates Session restoration to the delivery owner', async () => {
@@ -220,6 +237,26 @@ describe('aiHandlers', () => {
 
     await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).rejects.toMatchObject({
       code: aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND
+    })
+  })
+
+  it('surfaces a Session restore stuck behind a workspace archive as a retryable conflict', async () => {
+    agentLifecycleService.restoreSession.mockRejectedValue(
+      DataApiErrorFactory.conflict('Workspace archive is still in progress; retry the restore shortly', 'Workspace')
+    )
+
+    await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_RESTORE_CONFLICT
+    })
+  })
+
+  it('surfaces an Agent restore stuck behind a workspace archive as a retryable conflict', async () => {
+    agentLifecycleService.restoreAgent.mockRejectedValue(
+      DataApiErrorFactory.conflict('Workspace archive is still in progress; retry the restore shortly', 'Workspace')
+    )
+
+    await expect(aiHandlers['ai.agent.restore']({ agentId: 'agent-1' }, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_RESTORE_CONFLICT
     })
   })
 

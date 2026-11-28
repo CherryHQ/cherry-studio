@@ -181,7 +181,8 @@ describe('conversation owner permanent deletion', () => {
     dbh.db.update(agentTable).set({ deletedAt: 123 }).where(eq(agentTable.id, 'agent')).run()
     await expect(new TrashService().deleteActiveAssistantPermanently('assistant', true)).rejects.toThrow()
     await expect(new AgentLifecycleService().deleteActiveAgentPermanently('agent', true)).resolves.toEqual({
-      deleted: false
+      deleted: false,
+      deferredWorkspacePaths: []
     })
     expect(dbh.db.select().from(assistantTable).get()?.deletedAt).toBe(123)
     expect(dbh.db.select().from(agentTable).get()?.deletedAt).toBe(123)

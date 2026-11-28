@@ -27,6 +27,7 @@ import { triggersEqual, type JobScheduleSnapshot, type UpdateJobScheduleDto } fr
 import type { AgentTaskForm, AgentTaskPatch, HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/ai'
 import { KeyedMutex } from '@shared/utils/async'
 
+import { agentArchiveWorkspaceJobHandler } from './agentArchiveWorkspaceJobHandler'
 import { agentDataDirectoryPath, assertAgentStorageDirectory } from './agentDataDirectory'
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
 import { agentTaskJobHandler } from './agentTaskJobHandler'
@@ -200,6 +201,7 @@ export class AgentJobsService extends BaseService {
     this.isShuttingDown = false
     this.heartbeatAbort = new AbortController()
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
+    application.get('JobManager').registerHandler('agent.archive-system-workspace', agentArchiveWorkspaceJobHandler)
 
     // Creation events cover both new agents and restored built-ins.
     this.registerDisposable(

@@ -2,7 +2,6 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantDataService } from '@data/services/AssistantService'
 import { fileEntryService } from '@data/services/FileEntryService'
-import { jobService } from '@data/services/JobService'
 import { paintingService } from '@data/services/PaintingService'
 import { promptService } from '@data/services/PromptService'
 import { topicService } from '@data/services/TopicService'
@@ -11,8 +10,13 @@ import type { JobHandlerFor } from '@main/core/job/types'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
-    /** Trash retention purge. `emptyAll: true` = "empty trash now" (ignores retention). */
-    'trash.purge': { emptyAll?: boolean }
+    /**
+     * Trash retention purge. `emptyAll: true` = "empty trash now" (ignores retention).
+     * `cutoffMs` pins a manual empty-all's deletion scope to the moment the user
+     * confirmed: a retry replayed after a restart must not permanently delete rows
+     * trashed after that confirmation.
+     */
+    'trash.purge': { emptyAll?: boolean; cutoffMs?: number }
   }
 }
 
@@ -28,10 +32,17 @@ interface PurgeBatch {
   readonly hasMore: boolean
   /** Run immediately after the batch's write transaction commits. */
   readonly notifyPurged: () => void
+  /** Workspace directories whose cleanup was deferred to the orphan sweep (a pack held the reservation). */
+  readonly deferredWorkspacePaths?: readonly string[]
 }
 
-function completedPurgeBatch(purgedIds: readonly string[], hasMore: boolean, notifyPurged: () => void): PurgeBatch {
-  return { purgedIds, hasMore, notifyPurged }
+function completedPurgeBatch(
+  purgedIds: readonly string[],
+  hasMore: boolean,
+  notifyPurged: () => void,
+  deferredWorkspacePaths?: readonly string[]
+): PurgeBatch {
+  return { purgedIds, hasMore, notifyPurged, deferredWorkspacePaths }
 }
 
 /**
@@ -58,14 +69,14 @@ const PURGE_DOMAINS: ReadonlyArray<{
     name: 'session',
     purgeExpired: async (cutoffMs, limit) => {
       const batch = await application.get('AgentLifecycleService').purgeExpiredSessions(cutoffMs, limit)
-      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {})
+      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {}, batch.deferredWorkspacePaths)
     }
   },
   {
     name: 'agent',
     purgeExpired: async (cutoffMs, limit) => {
       const batch = await application.get('AgentLifecycleService').purgeExpiredAgents(cutoffMs, limit)
-      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {})
+      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {}, batch.deferredWorkspacePaths)
     }
   },
   {
@@ -125,13 +136,18 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     const retentionDisabled = !emptyAll && retentionDays === 0
     if (retentionDisabled) logger.info('Trash auto-purge disabled (retention_days = 0) — sweeping residue only')
 
-    // A queued or recovered Empty Trash request covers only rows already in the bin when it was enqueued.
-    const job = emptyAll ? jobService.getById(ctx.jobId) : null
-    if (emptyAll && !job) throw new Error(`Missing Empty Trash job: ${ctx.jobId}`)
-    const cutoffMs = job ? Date.parse(job.createdAt) : Date.now() - retentionDays * DAY_MS
+    // A manual empty-all carries its confirmation time as `cutoffMs`: the purge
+    // deletes only what was in the Bin when the user confirmed, so a retry of an
+    // interrupted request (recovery 'retry') cannot delete rows trashed after
+    // relaunch without a fresh confirmation. Rows enqueued before cutoff support
+    // fall back to the legacy unbounded scope. Scheduled purges derive the cutoff
+    // from the retention window at execution time. MAX_SAFE_INTEGER + strict
+    // `deletedAt < cutoff` captures rows moved to the Recycle Bin "now".
+    const cutoffMs = ctx.input?.cutoffMs ?? (emptyAll ? Number.MAX_SAFE_INTEGER : Date.now() - retentionDays * DAY_MS)
     const totalSteps = PURGE_DOMAINS.length + 3 // + task schedule, file, and agent-dir sweeps
     const purged: Record<string, number> = {}
 
+    const deferredWorkspacePaths: string[] = []
     for (const [index, domain] of retentionDisabled ? [] : PURGE_DOMAINS.entries()) {
       ctx.signal.throwIfAborted()
       const purgedIds: string[] = []
@@ -144,13 +160,14 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
         ctx.signal.throwIfAborted()
         batch = await domain.purgeExpired(cutoffMs, PURGE_BATCH_SIZE)
         purgedIds.push(...batch.purgedIds)
+        if (batch.deferredWorkspacePaths) deferredWorkspacePaths.push(...batch.deferredWorkspacePaths)
         // A later batch may fail after this transaction has already committed.
         if (batch.purgedIds.length > 0) batch.notifyPurged()
       } while (batch.hasMore)
       purged[domain.name] = purgedIds.length
       ctx.reportProgress(Math.round(((index + 1) / totalSteps) * 100))
     }
-    const retainedReferencedFileCount = emptyAll ? fileEntryService.countTrashedBefore(cutoffMs) : 0
+    const retainedReferencedFileCount = emptyAll ? fileEntryService.countReferencedTrashBefore(cutoffMs) : 0
 
     // Schedule reconciliation strictly AFTER all transactions committed. It runs even
     // when retention is disabled so an interrupted event cleanup heals on the next pass.
@@ -195,6 +212,13 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       if (ctx.signal.aborted) throw error
       reclaimed = false
       logger.warn('Agent orphan sweep failed — residue retried next purge run', { error })
+    }
+    // A workspace directory left for the orphan sweep (its pack held the
+    // reservation through the purge wait) means files remain on disk: report
+    // partial success instead of an unqualified reclaim.
+    if (deferredWorkspacePaths.length > 0) {
+      reclaimed = false
+      logger.warn('Workspace cleanup deferred to the orphan sweep', { deferredWorkspacePaths })
     }
     ctx.reportProgress(100)
 

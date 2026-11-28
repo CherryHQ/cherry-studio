@@ -1550,9 +1550,12 @@ describe('JobManager pause / drainInFlight', () => {
       expect(internals(jobManager).finishedResolvers.has(inserted.id)).toBe(false)
 
       await jobManager._doStop()
-      // onStop must have waited for the executor signal — the row reached a
-      // terminal state before shutdown returned.
-      expect(jobService.getById(inserted.id)?.status).toBe('cancelled')
+      // onStop must have waited for the executor signal — the attempt settled
+      // before shutdown returned. A shutdown interruption is not a user
+      // cancellation: with retry budget left the row re-queues for replay
+      // instead of settling terminal-cancelled (issue #21645).
+      expect(jobService.getById(inserted.id)?.status).toBe('delayed')
+      expect(jobService.getById(inserted.id)?.attempt).toBe(1)
 
       await scheduler._doStop()
     })
@@ -1575,7 +1578,9 @@ describe('JobManager pause / drainInFlight', () => {
         ]
       })
 
-      const handle = jobManager.enqueue('stop.settle' as never, { message: 'x' } as never)
+      // maxAttempts 1: the shutdown abort settles terminally (budget
+      // exhausted), so onSettled still runs inside the drain (issue #21645).
+      const handle = jobManager.enqueue('stop.settle' as never, { message: 'x' } as never, { maxAttempts: 1 })
       await pollUntil(() => jobService.getById(handle.id)?.status === 'running')
 
       await jobManager._doStop()
@@ -1655,7 +1660,9 @@ describe('JobManager pause / drainInFlight', () => {
 
       const hold = jobManager.pause('test: onStop while paused')
       await jobManager._doStop()
-      expect(jobService.getById(handle.id)?.status).toBe('cancelled')
+      // Retry budget remains, so the shutdown-interrupted attempt re-queues
+      // for replay instead of settling cancelled (issue #21645).
+      expect(jobService.getById(handle.id)?.status).toBe('delayed')
 
       // Shutdown wins over pause bookkeeping: a late dispose must not run
       // compensation against a stopped service (and must not throw).

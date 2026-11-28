@@ -104,7 +104,16 @@ vi.mock('@main/ai/agents/AgentWorkspaceStorageService', () => ({
   }
 }))
 
+vi.mock('@data/services/JobService', () => ({
+  jobService: {
+    findActiveByIdempotencyKey: () => undefined,
+    getById: () => undefined,
+    setTerminalTx: vi.fn()
+  }
+}))
+
 vi.mock('@data/services/AgentSessionService', () => ({
+  ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX: 'archive-system-workspace:',
   agentSessionService: {
     reuseOrCreatePlaceholderWithImpact: mocks.reuseOrCreate,
     deleteByIdsWithImpact: mocks.deleteByIds,
@@ -155,6 +164,7 @@ const runtime = {
   isSessionBusy: mocks.runtimeBusy,
   isSessionBusyForArchive: mocks.runtimeBusy,
   closeSession: mocks.closeSession,
+  closeSessionForArchive: mocks.closeSession,
   prepareBranch: mocks.prepareBranch,
   onTurnTerminal: (listener: (event: any) => void) => {
     mocks.terminalListeners.add(listener)
@@ -190,6 +200,14 @@ vi.mock('@application', () => ({
       if (name === 'AgentDelegationService') return { cancelOwnedBy: async () => {} }
       if (name === 'AgentImportService') return defaultServiceInstances.AgentImportService
       if (name === 'AgentSessionDeliveryService') return deliveryOwner
+      if (name === 'JobManager')
+        return {
+          isExecutingLocally: () => false,
+          enqueueTx: vi.fn(),
+          suspendQueue: () => undefined,
+          cancel: async () => {},
+          syncJobScheduleTimerById: () => {}
+        }
       if (name === 'ChannelManager')
         return {
           pause: () => ({ dispose() {} }),
@@ -829,7 +847,7 @@ describe('AgentSessionDeliveryService', () => {
 
     releaseRuntime()
 
-    await expect(deleting).resolves.toEqual({ deletedIds: ['target'] })
+    await expect(deleting).resolves.toEqual({ deletedIds: ['target'], deferredWorkspacePaths: [] })
     await competingAdmission
     expect(competingAdmissionEntered).toBe(true)
   })
@@ -852,13 +870,17 @@ describe('AgentSessionDeliveryService', () => {
     })
     mocks.purgeSystemWorkspace.mockImplementation(async () => {
       order.push('workspace-removed')
+      return true
     })
     const delivery = new AgentSessionDeliveryService()
     deliveryOwner = delivery
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
-    await expect(service.purgeSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
+    await expect(service.purgeSessions(['target'])).resolves.toEqual({
+      deletedIds: ['target'],
+      deferredWorkspacePaths: []
+    })
 
     expect(order).toEqual(['forks-cancelled', 'runtime-closed', 'workspace-removed'])
   })
@@ -872,7 +894,10 @@ describe('AgentSessionDeliveryService', () => {
     })
     runtime.recoverSessionForks.mockRejectedValueOnce(new Error('manifest unavailable'))
     deliveryOwner = new AgentSessionDeliveryService()
-    await expect(new AgentLifecycleService().archiveSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
+    await expect(new AgentLifecycleService().archiveSessions(['target'])).resolves.toEqual({
+      deletedIds: ['target'],
+      deferredWorkspacePaths: []
+    })
     expect(mocks.closeSession).toHaveBeenCalledWith('target')
   })
 
@@ -892,7 +917,10 @@ describe('AgentSessionDeliveryService', () => {
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
-    await expect(service.purgeSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
+    await expect(service.purgeSessions(['target'])).resolves.toEqual({
+      deletedIds: ['target'],
+      deferredWorkspacePaths: [workspacePath]
+    })
 
     expect(mocks.logger.warn).toHaveBeenCalledWith('Failed to remove purged Agent Session workspace', {
       workspacePath,
@@ -955,7 +983,7 @@ describe('AgentSessionDeliveryService', () => {
 
     releaseRuntime()
 
-    await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false })
+    await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false, deferredWorkspacePaths: [] })
     expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith({}, ['expired-session'], 500)
     expect(delivery.isWriteQuiesced).toBe(false)
   })
@@ -985,7 +1013,7 @@ describe('AgentSessionDeliveryService', () => {
     markRestored()
 
     await expect(restore).resolves.toEqual({ id: 'expired-session' })
-    await expect(purge).resolves.toEqual({ purgedIds: [], hasMore: false })
+    await expect(purge).resolves.toEqual({ purgedIds: [], hasMore: false, deferredWorkspacePaths: [] })
     expect(mocks.isExpiredTrash).toHaveBeenCalledWith('expired-session', 500)
     expect(mocks.abortAndDrain).not.toHaveBeenCalled()
   })
@@ -1021,7 +1049,7 @@ describe('AgentSessionDeliveryService', () => {
 
     releaseRuntime()
 
-    await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false })
+    await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false, deferredWorkspacePaths: [] })
     await expect(restore).rejects.toMatchObject({ code: 'NOT_FOUND' })
     expect(order).toEqual(['drain', 'purge', 'restore'])
   })
@@ -1056,7 +1084,7 @@ describe('AgentSessionDeliveryService', () => {
 
     releaseValidation()
 
-    await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false })
+    await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false, deferredWorkspacePaths: [] })
     expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledOnce()
   })
 
@@ -1108,7 +1136,8 @@ describe('AgentSessionDeliveryService', () => {
 
     await expect(service.purgeExpiredSessions(500, 2)).resolves.toEqual({
       purgedIds: ['expired-session'],
-      hasMore: true
+      hasMore: true,
+      deferredWorkspacePaths: []
     })
     expect(mocks.abortAndDrain).toHaveBeenCalledOnce()
     expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith({}, ['expired-session'], 500)
@@ -1224,7 +1253,10 @@ describe('AgentSessionDeliveryService', () => {
     deliveryOwner = delivery
     const service = new AgentLifecycleService()
 
-    await expect(service.archiveAgent('agent-1', { archiveSessions: false })).resolves.toEqual({ deleted: true })
+    await expect(service.archiveAgent('agent-1', { archiveSessions: false })).resolves.toEqual({
+      deleted: true,
+      deferredWorkspacePaths: []
+    })
     await service.drainInFlight({ timeoutMs: 100 })
 
     expect(mocks.listAccepted).toHaveBeenCalledWith('sender')
@@ -1267,7 +1299,8 @@ describe('AgentSessionDeliveryService', () => {
 
     expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1', {
       permanent: false,
-      sessionTypes: ['conversation']
+      sessionTypes: ['conversation'],
+      onArchivedSystemWorkspacesTx: expect.any(Function)
     })
     expect(mocks.closeSession).toHaveBeenCalledWith('session-1')
     expect(mocks.closeSession).toHaveBeenCalledWith('session-not-loaded')

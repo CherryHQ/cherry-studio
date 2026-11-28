@@ -142,6 +142,12 @@ async function restoreAgentSession(sessionId: string) {
     if (isDataApiError(e) && e.code === ErrorCode.NOT_FOUND) {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, e.message)
     }
+    // A restore that timed out behind an in-flight workspace archive is
+    // retryable: expose it as a typed conflict instead of INTERNAL (issue
+    // #21645).
+    if (isDataApiError(e) && e.code === ErrorCode.CONFLICT) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_RESTORE_CONFLICT, e.message)
+    }
     throw e
   }
 }
@@ -344,6 +350,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         throw new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, error.message)
       }
+      // Same retryable conflict as the Session restore route (issue #21645).
+      if (isDataApiError(error) && error.code === ErrorCode.CONFLICT) {
+        throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_RESTORE_CONFLICT, error.message)
+      }
       throw error
     }
   },
@@ -376,17 +386,23 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.commands': async ({ sessionId }) => {
     await application.get('AgentSessionRuntimeService').listSessionCommands(sessionId)
   },
-  'ai.agent.session.delete': ({ sessionIds, permanent }) =>
-    exposeAgentSessionArchiveError(() =>
+  'ai.agent.session.delete': async ({ sessionIds, permanent }) => {
+    // Project the public shape: workspace cleanup details travel with the main-process
+    // result for Empty Archive, but the strict output schema publishes deletedIds only.
+    const result = await exposeAgentSessionArchiveError(() =>
       permanent
         ? application.get('AgentLifecycleService').purgeSessions(sessionIds)
         : application.get('AgentLifecycleService').archiveSessions(sessionIds)
-    ),
+    )
+    return { deletedIds: result.deletedIds }
+  },
   'ai.agent.session.restore': ({ sessionId }) => restoreAgentSession(sessionId),
-  'ai.agent.session.delete_permanently': ({ sessionIds }) =>
-    exposeAgentSessionArchiveError(() =>
+  'ai.agent.session.delete_permanently': async ({ sessionIds }) => {
+    const result = await exposeAgentSessionArchiveError(() =>
       application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
-    ),
+    )
+    return { deletedIds: result.deletedIds }
+  },
   'ai.agent.session.reuse_or_create': (input) => application.get('AgentLifecycleService').reuseOrCreateSession(input),
   'ai.agent.session.fork': async ({ sourceSessionId, messageId }) => {
     try {

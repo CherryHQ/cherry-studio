@@ -19,7 +19,7 @@ import {
   type LocalAgentBindingPatch,
   type LocalAgentProviderPrecondition
 } from '@data/services/AgentProviderService'
-import { agentSessionService } from '@data/services/AgentSessionService'
+import { type ArchivedSystemWorkspacesHook, agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService, HEARTBEAT_PROMPT_SENTINEL } from '@data/services/AgentTaskService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import type { BuiltinAgentDefaults } from '@data/services/builtinAgentDefaults'
@@ -1131,7 +1131,12 @@ export class AgentService {
   deleteAgentStateTx(
     tx: DbOrTx,
     id: string,
-    options: { deleteSessions?: boolean; permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+    options: {
+      deleteSessions?: boolean
+      permanent?: boolean
+      targetState?: 'active' | 'trashed'
+      onArchivedSystemWorkspacesTx?: ArchivedSystemWorkspacesHook
+    } = {}
   ) {
     const permanent = options.permanent === true
     const deleteSessions = options.deleteSessions === true && (!permanent || options.targetState === 'active')
@@ -1175,7 +1180,8 @@ export class AgentService {
         options.deleteSessions === true
           ? agentSessionService.trashByAgentIdTx(tx, id, {
               validateAgent: false,
-              deletedAt: trashedAt
+              deletedAt: trashedAt,
+              onArchivedSystemWorkspacesTx: options.onArchivedSystemWorkspacesTx
             })
           : {
               trashedIds: [],

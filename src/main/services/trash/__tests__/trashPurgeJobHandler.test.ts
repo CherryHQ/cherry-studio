@@ -19,7 +19,6 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { jobService } from '@data/services/JobService'
 import type { JobContext } from '@main/core/job/types'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
@@ -78,17 +77,11 @@ const OLD = Date.now() - 40 * DAY
 /** Trashed, but still inside the retention window. */
 const RECENT = Date.now() - 1 * DAY
 
-function makeCtx(input: { emptyAll?: boolean } = {}, createdAt = Date.now()): JobContext<{ emptyAll?: boolean }> {
-  const job = jobService.create({
-    type: 'trash.purge',
-    queue: 'trash.purge',
-    status: 'running',
-    input,
-    createdAt,
-    scheduledAt: createdAt
-  })
+function makeCtx(
+  input: { emptyAll?: boolean; cutoffMs?: number } = {}
+): JobContext<{ emptyAll?: boolean; cutoffMs?: number }> {
   return {
-    jobId: job.id,
+    jobId: 'job-trash-test',
     input,
     attempt: 1,
     parentId: null,
@@ -594,6 +587,27 @@ describe('trashPurgeJobHandler', () => {
     expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
   })
 
+  it('emptyAll with a persisted cutoff spares rows trashed after the confirmation', async () => {
+    // The replay contract: a manual empty-all interrupted and retried after a
+    // restart must delete only what was in the Bin at confirmation time — rows
+    // trashed later require a fresh confirmation.
+    MockMainPreferenceServiceUtils.setPreferenceValue('data.trash.retention_days', 0)
+    const confirmedAt = Date.now() - 60_000
+    await dbh.db.insert(topicTable).values([
+      { id: 'topic-before-confirm', name: 'old trash', orderKey: 'a0', deletedAt: confirmedAt - 1000 },
+      { id: 'topic-after-confirm', name: 'trashed after relaunch', orderKey: 'a1', deletedAt: confirmedAt + 1000 },
+      { id: 'topic-active', name: 'active', orderKey: 'a2' }
+    ])
+
+    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true, cutoffMs: confirmedAt }))
+
+    expect(result).toMatchObject({ skipped: false, purged: expect.objectContaining({ topic: 1 }) })
+    expect(allIds(dbh.db.select({ id: topicTable.id }).from(topicTable).all()).sort()).toEqual([
+      'topic-active',
+      'topic-after-confirm'
+    ])
+  })
+
   it('emptyAll keeps referenced trashed files and reports how many remain', async () => {
     const held = '019606a0-0000-7000-8000-00000000dd01'
     const free = '019606a0-0000-7000-8000-00000000dd02'
@@ -621,13 +635,42 @@ describe('trashPurgeJobHandler', () => {
       role: 'attachment'
     })
 
-    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true }, now))
+    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true, cutoffMs: now }))
 
     expect(result).toMatchObject({
       purged: expect.objectContaining({ fileEntry: 1 }),
       retainedReferencedFileCount: 1
     })
     expect(allIds(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all()).sort()).toEqual([held, later])
+  })
+
+  it('counts only reference-protected files inside the confirmed purge scope', async () => {
+    const cutoffMs = Date.now()
+    const held = '019606a0-0000-7000-8000-00000000de01'
+    const newer = '019606a0-0000-7000-8000-00000000de02'
+    await dbh.db.insert(topicTable).values({ id: 'holder-topic', name: 'holder', orderKey: 'a0' })
+    await dbh.db.insert(messageTable).values([
+      rootRow('holder-topic'),
+      {
+        id: 'holder-message',
+        parentId: 'vroot-holder-topic',
+        topicId: 'holder-topic',
+        role: 'user',
+        data: { parts: [] },
+        status: 'success'
+      }
+    ])
+    await seedFileEntry(held, cutoffMs - 1)
+    await seedFileEntry(newer, cutoffMs + 1)
+    await dbh.db.insert(chatMessageFileRefTable).values({
+      id: 'confirmed-file-ref',
+      fileEntryId: held,
+      sourceId: 'holder-message',
+      role: 'attachment'
+    })
+    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true, cutoffMs }))
+    expect(result).toMatchObject({ retainedReferencedFileCount: 1 })
+    expect(allIds(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all()).sort()).toEqual([held, newer])
   })
 
   it('does not report reclamation complete when entry cleanup still has pending work', async () => {

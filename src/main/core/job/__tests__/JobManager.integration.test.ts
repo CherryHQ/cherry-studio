@@ -951,7 +951,7 @@ describe('JobManager integration', () => {
   })
 
   describe('graceful shutdown', () => {
-    it('aborts in-flight handlers and resolves the finished promise quickly', async () => {
+    it('aborts in-flight handlers and re-queues the interrupted retryable attempt for replay', async () => {
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['shutdown.slow', makeSlowHandler('retry') as JobHandler]]
       })
@@ -974,11 +974,126 @@ describe('JobManager integration', () => {
       await entered
       onSlowHandlerEntered = null
 
-      const stopPromise = jobManager._doStop()
-      const settled = await handle.finished
-      expect(settled.status).toBe('cancelled')
+      // A shutdown interruption is not a user cancellation: the attempt
+      // re-queues with its retry budget intact so startup recovery replays it,
+      // instead of settling terminal-cancelled (issue #21645). handle.finished
+      // stays unsettled by design (onStop discards the resolvers).
+      await jobManager._doStop()
+      const row = jobService.getById(handle.id)
+      expect(row === null || row === undefined ? 'missing' : (row as { status: string }).status).not.toBe('cancelled')
+      expect(row?.status === 'delayed' || row?.status === 'pending').toBe(true)
+      expect(row?.attempt).toBe(1)
 
-      await stopPromise
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('does not claim queued work after shutdown begins', async () => {
+      let executeCount = 0
+      const countingHandler: JobHandler = {
+        recovery: 'retry',
+        defaultConcurrency: 1,
+        async execute() {
+          executeCount++
+          return { echoed: 'echo: queued' } satisfies SlowOutput
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['shutdown.gated', countingHandler]]
+      })
+
+      // A settlement tick landing after the drain snapshot must not claim the
+      // queued job: the claim gate is closed for the shutdown window (issue
+      // #21645).
+      ;(jobManager as unknown as { _isShuttingDown: boolean })._isShuttingDown = true
+      jobManager.enqueue('shutdown.gated' as never, { message: 'queued', sleepMs: 1 } as never)
+      await drainAllQueues(jobManager)
+      expect(executeCount).toBe(0)
+
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('lifecycle restart', () => {
+    it('clears the shutdown flag on re-init so new enqueues dispatch', async () => {
+      let ran = 0
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        async execute() {
+          ran++
+          return { ok: true }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({ handlers: [['restart.flag', handler]] })
+
+      // An in-process application.restart('JobManager') reuses the instance:
+      // onStop set _isShuttingDown, and without a reset the dispatch gate would
+      // hold every later enqueue for the rest of the process.
+      await jobManager._doStop()
+      await jobManager._doInit()
+
+      const handle = jobManager.enqueue('restart.flag' as never, {} as never)
+      await handle.finished
+      expect(ran).toBe(1)
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('queue suspension and local execution probe', () => {
+    it('suspendQueue holds claims until the last nested hold disposes', async () => {
+      let ran = 0
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        defaultQueue: () => 'suspend.me',
+        async execute() {
+          ran++
+          return { ok: true }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({ handlers: [['suspend.target', handler]] })
+
+      const holdA = jobManager.suspendQueue('suspend.me')
+      const holdB = jobManager.suspendQueue('suspend.me')
+      jobManager.enqueue('suspend.target' as never, {} as never)
+      await drainAllQueues(jobManager)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(ran).toBe(0)
+
+      holdA.dispose()
+      await drainAllQueues(jobManager)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Nested hold still active: no claim.
+      expect(ran).toBe(0)
+
+      holdB.dispose()
+      // Disposing the last hold kicks dispatch.
+      await vi.waitFor(() => expect(ran).toBe(1))
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('isExecutingLocally tracks the in-flight executor set', async () => {
+      const release = Promise.withResolvers<void>()
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        async execute() {
+          await release.promise
+          return { ok: true }
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({ handlers: [['executing.probe', handler]] })
+
+      expect(jobManager.isExecutingLocally('missing-job')).toBe(false)
+      const handle = jobManager.enqueue('executing.probe' as never, {} as never)
+      await vi.waitFor(() => expect(jobManager.isExecutingLocally(handle.id)).toBe(true))
+      release.resolve()
+      await handle.finished
+      // The executor set entry is dropped as the run unwinds after settle.
+      await vi.waitFor(() => expect(jobManager.isExecutingLocally(handle.id)).toBe(false))
+
+      await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
     })
   })
