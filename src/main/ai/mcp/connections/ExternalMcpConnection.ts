@@ -137,8 +137,10 @@ export async function createExternalMcpConnection({
   }
   let connecting = true
   let connected = false
+  let authorizationAttempted = false
   let activeConnection: ClientMcpConnection | undefined
   authProvider.beginAuthorization = async () => {
+    if (connecting) authorizationAttempted = true
     const operation = authOperations.getStore() ?? initialAuthorization
     const windowId = connecting ? authorizationWindowId : activeConnection?.getInteractionContext()?.windowId
     const window = windowId ? application.get('WindowManager').getWindow(windowId) : undefined
@@ -231,14 +233,16 @@ export async function createExternalMcpConnection({
 
   let callbackServer: CallBackServer | undefined
   authProvider.prepareAuthorization = async () => {
-    callbackServer ??= new CallBackServer({
+    const server = (callbackServer ??= new CallBackServer({
       port: authProvider.config.callbackPort,
       path: authProvider.config.callbackPath,
       events: new EventEmitter()
-    })
+    }))
     try {
-      await callbackServer.getServer
+      await server.getServer
     } catch (error) {
+      if (callbackServer === server) callbackServer = undefined
+      await server.close().catch(() => undefined)
       const code = (error as NodeJS.ErrnoException)?.code
       throw new Error(
         t('settings.mcp.oauth.callback.listen_error', {
@@ -247,6 +251,17 @@ export async function createExternalMcpConnection({
         }),
         { cause: error }
       )
+    }
+  }
+
+  const releasePendingAuthorization = async (operation: AuthOperation, reason: unknown): Promise<void> => {
+    const callback = callbackServer
+    callbackServer = undefined
+    await callback?.close().catch(() => undefined)
+    if (operation.lease) {
+      const lease = operation.lease
+      operation.lease = undefined
+      lease.finish(reason)
     }
   }
 
@@ -298,10 +313,7 @@ export async function createExternalMcpConnection({
                 continue
               }
               if (operation.lease) {
-                await callbackServer?.close().catch(() => undefined)
-                callbackServer = undefined
-                operation.lease.finish(error)
-                operation.lease = undefined
+                await releasePendingAuthorization(operation, error)
               }
               throw error
             }
@@ -320,9 +332,51 @@ export async function createExternalMcpConnection({
       lifetime.abort()
       authProvider.prepareAuthorization = undefined
       authProvider.beginAuthorization = undefined
-      await callbackServer?.close()
+      await callbackServer?.close().catch(() => undefined)
+      callbackServer = undefined
     })
     return connection
+  }
+
+  const isUrlTransport = (transport: Transport): transport is UrlTransport =>
+    transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport
+
+  const connectWithOAuth = async (
+    candidate: McpServerType | undefined,
+    versionMode: 'auto' | 'legacy'
+  ): Promise<{ connection: ClientMcpConnection; authenticated: boolean }> => {
+    let connection = createClient(appVersion, events, versionMode)
+    activeConnection = connection
+    let transport = await createTransport(candidate)
+    try {
+      await authProvider.withAuthorizationFlow(() =>
+        connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
+      )
+      return { connection, authenticated: false }
+    } catch (error) {
+      if (
+        isUrlTransport(transport) &&
+        ((callbackServer && UnauthorizedError.isInstance(error)) || error instanceof McpAuthorizationCompleted)
+      ) {
+        try {
+          if (error instanceof McpAuthorizationCompleted) authProvider.reloadCredentials()
+          else await authenticate(transport, initialAuthorization)
+          await connection.close().catch(() => undefined)
+          connection = createClient(appVersion, events, versionMode)
+          activeConnection = connection
+          transport = await createTransport(candidate)
+          await authProvider.withAuthorizationFlow(() =>
+            connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
+          )
+          return { connection, authenticated: true }
+        } catch (oauthError) {
+          await connection.close().catch(() => undefined)
+          throw oauthError
+        }
+      }
+      await connection.close().catch(() => undefined)
+      throw error
+    }
   }
 
   try {
@@ -330,61 +384,35 @@ export async function createExternalMcpConnection({
     let lastError: unknown
 
     for (const candidate of candidates) {
-      let connection = createClient(appVersion, events)
-      activeConnection = connection
-      let transport = await createTransport(candidate)
       try {
-        await authProvider.withAuthorizationFlow(() =>
-          connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
-        )
-        log.info('Server connected', { era: connection.era, serverVersion: connection.serverVersion })
+        const { connection, authenticated } = await connectWithOAuth(candidate, 'auto')
+        if (authenticated) log.info('Server authenticated', { era: connection.era })
+        else log.info('Server connected', { era: connection.era, serverVersion: connection.serverVersion })
         return finishConnection(connection)
       } catch (error) {
         lastError = error
+        await releasePendingAuthorization(initialAuthorization, error)
 
-        if (
-          (transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport) &&
-          ((callbackServer && UnauthorizedError.isInstance(error)) || error instanceof McpAuthorizationCompleted)
-        ) {
-          try {
-            if (error instanceof McpAuthorizationCompleted) authProvider.reloadCredentials()
-            else await authenticate(transport, initialAuthorization)
-            await connection.close().catch(() => undefined)
-            connection = createClient(appVersion, events)
-            activeConnection = connection
-            transport = await createTransport(candidate)
-            await authProvider.withAuthorizationFlow(() =>
-              connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
-            )
-            log.info('Server authenticated', { era: connection.era })
-            return finishConnection(connection)
-          } catch (oauthError) {
-            await connection.close().catch(() => undefined)
-            throw oauthError
-          }
-        }
-
-        await connection.close().catch(() => undefined)
-        if (
-          isLegacyProbeRejection(error) &&
-          !initialAuthorization.signal.aborted &&
-          (transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport)
-        ) {
+        if (isLegacyProbeRejection(error) && !initialAuthorization.signal.aborted && Boolean(server.baseUrl)) {
           log.warn('Server rejected probe; retrying in legacy mode', {
             status: SdkHttpError.isInstance(error) ? error.status : undefined,
             message: error.message
           })
-          const legacy = createClient(appVersion, events, 'legacy')
-          activeConnection = legacy
+          authorizationAttempted = false
           try {
-            const retryTransport = await createTransport(candidate)
-            await authProvider.withAuthorizationFlow(() =>
-              legacy.connect(retryTransport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
-            )
-            log.info('Server connected', { era: legacy.era, serverVersion: legacy.serverVersion })
-            return finishConnection(legacy)
+            const { connection, authenticated } = await connectWithOAuth(candidate, 'legacy')
+            if (authenticated) log.info('Server authenticated', { era: connection.era })
+            else log.info('Server connected', { era: connection.era, serverVersion: connection.serverVersion })
+            return finishConnection(connection)
           } catch (legacyError) {
-            await legacy.close().catch(() => undefined)
+            await releasePendingAuthorization(initialAuthorization, legacyError)
+            if (
+              authorizationAttempted ||
+              UnauthorizedError.isInstance(legacyError) ||
+              legacyError instanceof McpAuthorizationCompleted
+            ) {
+              throw legacyError
+            }
             log.warn('Legacy retry failed', legacyError)
             throw error
           }
@@ -401,10 +429,9 @@ export async function createExternalMcpConnection({
   } finally {
     if (!connected) {
       lifetime.abort()
-      initialAuthorization.lease?.finish(new Error('MCP connection authorization failed'))
+      await releasePendingAuthorization(initialAuthorization, new Error('MCP connection authorization failed'))
       authProvider.prepareAuthorization = undefined
       authProvider.beginAuthorization = undefined
-      await callbackServer?.close()
     }
   }
 }

@@ -7,7 +7,8 @@ import { SdkError, SdkErrorCode, SdkHttpError, UnauthorizedError } from '@modelc
 import { createMcpHandler, Server } from '@modelcontextprotocol/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }))
+const { fetchMock, openMock } = vi.hoisted(() => ({ fetchMock: vi.fn(), openMock: vi.fn() }))
+vi.mock('open', () => ({ default: openMock }))
 vi.mock('electron', () => ({
   app: {
     getLocale: () => 'en-US',
@@ -76,6 +77,7 @@ function createLegacyHandler() {
 
 beforeEach(() => {
   fetchMock.mockReset()
+  openMock.mockReset()
 })
 
 describe('ExternalMcpConnection transport fallback policy', () => {
@@ -787,5 +789,287 @@ describe('ExternalMcpConnection legacy probe rejection', () => {
         new SdkError(SdkErrorCode.RequestTimeout, 'Version negotiation probe timed out')
       )
     ).toBe(false)
+  })
+})
+
+describe('ExternalMcpConnection OAuth + fallback composition', () => {
+  const oauthServerUrl = 'https://oauth-legacy-mcp.test/mcp'
+  const oauthIssuer = 'https://auth.oauth-legacy-mcp.test'
+  const oauthServer: McpServer = {
+    id: 'oauth-legacy-mcp',
+    name: 'oauth-legacy-mcp',
+    type: 'streamableHttp',
+    baseUrl: oauthServerUrl,
+    isActive: true
+  }
+
+  function mockOAuthEndpoints(url: string): Response | null {
+    if (url === 'https://oauth-legacy-mcp.test/.well-known/oauth-protected-resource/mcp') {
+      return Response.json({ resource: oauthServerUrl, authorization_servers: [oauthIssuer] })
+    }
+    if (url === `${oauthIssuer}/.well-known/oauth-authorization-server`) {
+      return Response.json({
+        issuer: oauthIssuer,
+        authorization_endpoint: `${oauthIssuer}/oauth/authorize`,
+        token_endpoint: `${oauthIssuer}/oauth/token`,
+        registration_endpoint: `${oauthIssuer}/oauth/register`,
+        response_types_supported: ['code'],
+        grant_types_supported: ['authorization_code', 'refresh_token'],
+        token_endpoint_auth_methods_supported: ['none'],
+        code_challenge_methods_supported: ['S256']
+      })
+    }
+    if (url === `${oauthIssuer}/oauth/register`) {
+      return Response.json({
+        client_id: 'oauth-legacy-client',
+        redirect_uris: ['http://127.0.0.1:12346/oauth/callback'],
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code']
+      })
+    }
+    if (url === `${oauthIssuer}/oauth/token`) {
+      return Response.json({
+        access_token: 'fresh-oauth-token',
+        refresh_token: 'refresh-1',
+        token_type: 'Bearer'
+      })
+    }
+    return null
+  }
+
+  function unauthorizedResponse(): Response {
+    return new Response(null, {
+      status: 401,
+      headers: {
+        'WWW-Authenticate':
+          'Bearer resource_metadata="https://oauth-legacy-mcp.test/.well-known/oauth-protected-resource/mcp"'
+      }
+    })
+  }
+
+  function installInteractiveCallbackOpenMock(): void {
+    openMock.mockImplementation(async (rawUrl: string) => {
+      const authUrl = new URL(rawUrl)
+      const redirectUri = authUrl.searchParams.get('redirect_uri')
+      const state = authUrl.searchParams.get('state')
+      expect(redirectUri).toBeTruthy()
+      expect(state).toBeTruthy()
+      const callbackUrl = new URL(redirectUri!)
+      callbackUrl.searchParams.set('code', 'oauth-code-1')
+      callbackUrl.searchParams.set('state', state!)
+      callbackUrl.searchParams.set('iss', oauthIssuer)
+      const response = await fetch(callbackUrl)
+      expect(response.status).toBe(200)
+    })
+  }
+
+  async function withTempOAuthDir<T>(fn: () => Promise<T>): Promise<T> {
+    const oauthDir = await fs.mkdtemp(path.join(os.tmpdir(), 'external-mcp-oauth-fallback-'))
+    const getPathSpy = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key: string, filename?: string) =>
+        key === 'feature.mcp.oauth'
+          ? path.resolve(oauthDir, filename ?? '')
+          : path.resolve('/mock', key, filename ?? '')
+      )
+    try {
+      return await fn()
+    } finally {
+      getPathSpy.mockRestore()
+      await fs.rm(oauthDir, { recursive: true, force: true })
+    }
+  }
+
+  it('falls back to legacy mode when an OAuth-protected legacy server rejects authenticated server/discover with HTTP 500', async () => {
+    await withTempOAuthDir(async () => {
+      const handler = createLegacyHandler()
+      const log = createLog()
+      installInteractiveCallbackOpenMock()
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const oauthResponse = mockOAuthEndpoints(request.url)
+        if (oauthResponse) return oauthResponse
+        if (request.url === oauthServerUrl) {
+          if (request.headers.get('authorization') !== 'Bearer fresh-oauth-token') {
+            return unauthorizedResponse()
+          }
+          if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
+            return new Response(probeRejectionBody, { status: 500 })
+          }
+          return fetchMcpHandler(handler, input, init)
+        }
+        throw new Error(`Unexpected request: ${request.url}`)
+      })
+
+      try {
+        const connection = await createExternalMcpConnection({
+          server: oauthServer,
+          appVersion: '0.0.0-test',
+          events,
+          log,
+          connectTimeoutMs: 5_000
+        })
+        try {
+          expect(connection.era).toBe('legacy')
+          expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+          expect(openMock).toHaveBeenCalledTimes(1)
+          expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('legacy'), expect.anything())
+        } finally {
+          await connection.close()
+        }
+      } finally {
+        await handler.close()
+      }
+    })
+  })
+
+  it('completes interactive OAuth when server/discover returns HTTP 500 before auth and legacy initialize returns 401', async () => {
+    await withTempOAuthDir(async () => {
+      const handler = createLegacyHandler()
+      const log = createLog()
+      installInteractiveCallbackOpenMock()
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const oauthResponse = mockOAuthEndpoints(request.url)
+        if (oauthResponse) return oauthResponse
+        if (request.url === oauthServerUrl) {
+          if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
+            return new Response(probeRejectionBody, { status: 500 })
+          }
+          if (request.headers.get('authorization') !== 'Bearer fresh-oauth-token') {
+            return unauthorizedResponse()
+          }
+          return fetchMcpHandler(handler, input, init)
+        }
+        throw new Error(`Unexpected request: ${request.url}`)
+      })
+
+      try {
+        const connection = await createExternalMcpConnection({
+          server: oauthServer,
+          appVersion: '0.0.0-test',
+          events,
+          log,
+          connectTimeoutMs: 5_000
+        })
+        try {
+          expect(connection.era).toBe('legacy')
+          expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+          expect(openMock).toHaveBeenCalledTimes(1)
+        } finally {
+          await connection.close()
+        }
+      } finally {
+        await handler.close()
+      }
+    })
+  })
+
+  it('preserves UnauthorizedError instead of masking it as probe HTTP 500 during non-interactive legacy fallback', async () => {
+    await withTempOAuthDir(async () => {
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const oauthResponse = mockOAuthEndpoints(request.url)
+        if (oauthResponse) return oauthResponse
+        if (request.url === oauthServerUrl) {
+          if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
+            return new Response(probeRejectionBody, { status: 500 })
+          }
+          return unauthorizedResponse()
+        }
+        throw new Error(`Unexpected request: ${request.url}`)
+      })
+
+      await expect(
+        createExternalMcpConnection({
+          server: oauthServer,
+          appVersion: '0.0.0-test',
+          events,
+          log: createLog(),
+          allowInteractiveAuthorization: false,
+          connectTimeoutMs: 5_000
+        })
+      ).rejects.toSatisfy((error) => UnauthorizedError.isInstance(error))
+    })
+  })
+
+  it('propagates OAuth callback listen errors instead of masking them as probe HTTP 500 during legacy fallback', async () => {
+    await withTempOAuthDir(async () => {
+      const blocker = createServer()
+      await new Promise<void>((resolve, reject) => {
+        blocker.once('error', reject)
+        blocker.listen(12346, '127.0.0.1', () => resolve())
+      })
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const oauthResponse = mockOAuthEndpoints(request.url)
+        if (oauthResponse) return oauthResponse
+        if (request.url === oauthServerUrl) {
+          if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
+            return new Response(probeRejectionBody, { status: 500 })
+          }
+          return unauthorizedResponse()
+        }
+        throw new Error(`Unexpected request: ${request.url}`)
+      })
+
+      try {
+        const error = await createExternalMcpConnection({
+          server: oauthServer,
+          appVersion: '0.0.0-test',
+          events,
+          log: createLog(),
+          connectTimeoutMs: 5_000
+        }).then(
+          (connection) => connection.close(),
+          (rejection: unknown) => rejection
+        )
+        expect(error).toBeInstanceOf(Error)
+        expect((error as Error & { cause?: NodeJS.ErrnoException }).cause?.code).toBe('EADDRINUSE')
+      } finally {
+        await new Promise<void>((resolve, reject) => blocker.close((err) => (err ? reject(err) : resolve())))
+      }
+    })
+  })
+
+  it('falls back to the alternate URL transport when authenticated streamableHttp returns HTTP 405 after OAuth', async () => {
+    await withTempOAuthDir(async () => {
+      const log = createLog()
+      const sseFallbackAuthHeaders: Array<string | null> = []
+      installInteractiveCallbackOpenMock()
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const oauthResponse = mockOAuthEndpoints(request.url)
+        if (oauthResponse) return oauthResponse
+        if (request.url === oauthServerUrl) {
+          const authHeader = request.headers.get('authorization')
+          if (authHeader !== 'Bearer fresh-oauth-token') {
+            return unauthorizedResponse()
+          }
+          if (request.method === 'POST') {
+            return new Response('Method Not Allowed', { status: 405 })
+          }
+          if (request.method === 'GET') {
+            sseFallbackAuthHeaders.push(authHeader)
+            return new Response('Service Unavailable', { status: 503 })
+          }
+        }
+        throw new Error(`Unexpected request: ${request.url}`)
+      })
+
+      await expect(
+        createExternalMcpConnection({
+          server: oauthServer,
+          appVersion: '0.0.0-test',
+          events,
+          log,
+          connectTimeoutMs: 5_000
+        })
+      ).rejects.toBeInstanceOf(Error)
+      expect(openMock).toHaveBeenCalledTimes(1)
+      expect(log.warn).toHaveBeenCalledWith('Transport mismatch; trying fallback', { candidate: 'streamableHttp' })
+      expect(sseFallbackAuthHeaders).toEqual(['Bearer fresh-oauth-token'])
+    })
   })
 })
