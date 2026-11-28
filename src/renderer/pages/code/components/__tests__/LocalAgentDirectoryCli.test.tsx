@@ -72,7 +72,8 @@ it('keeps enabled Agents first and applies the saved order within each status', 
   const rows = within(screen.getByRole('complementary')).getAllByRole('button', {
     name: / · |^(OpenClaw|DeepSeek Harness)$/
   })
-  expect(rows[4]).toHaveAccessibleName(/^Claude Code ·/)
+  expect(rows[4]).toHaveAccessibleName(/^Cursor ·/)
+  expect(rows[5]).toHaveAccessibleName(/^Claude Code ·/)
 })
 
 it.each([
@@ -81,7 +82,11 @@ it.each([
 ])('opens existing %s links as one ACP entry and preserves its saved order', async (id, name) => {
   navigation.search = { id: `cli:${id}` }
   mockPreferenceState.set('feature.code_cli.agent_order', [`cli:${id}`, 'claude'])
-  vi.mocked(ipcApi.request).mockImplementation(async () => [] as never)
+  vi.mocked(ipcApi.request).mockImplementation(async (route) =>
+    route === 'ai.local_agents.detect'
+      ? ([{ presetId: id, source: 'system', path: `/usr/local/bin/${id}` }] as never)
+      : ([] as never)
+  )
   render(<LocalAgentDirectory />)
   expect(await screen.findByRole('heading', { name })).toBeVisible()
   expect(screen.getByRole('switch')).not.toBeChecked()

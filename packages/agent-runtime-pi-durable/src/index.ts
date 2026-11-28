@@ -1,9 +1,12 @@
 export {
   acknowledgeChildArchive,
+  acknowledgeFollowupProjections,
   nonterminalTaskStates,
   readDurableWork,
+  readFollowupProjections,
   recoveryIndex,
-  type DurableRecoveryWork
+  type DurableRecoveryWork,
+  type FollowupProjection
 } from './recovery'
 export { readDurableInput } from './inputLookup'
 export { areDurableInputsAbsent, readDurableReply } from './replyHistory'
@@ -19,4 +22,4 @@ export type {
 
 export type { DurableObservation } from './projection'
 
-export type { DurableFollowup, DurableFollowupChange } from './followups'
+export { followupEdit, followupSteerPlacement, type DurableFollowup, type DurableFollowupChange } from './followups'

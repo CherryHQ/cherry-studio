@@ -319,7 +319,10 @@ export function useAgentChatRuntimeState({
       reasoningEffort: input.options?.body?.reasoningEffort,
       serviceTier: input.options?.body?.serviceTier,
       ...(input.options?.body?.fastMode === true ? { fastMode: true } : {}),
-      ...(input.options?.body?.followUp === true ? { followUp: true } : {})
+      ...(input.options?.body?.followUp === true ? { followUp: true } : {}),
+      ...(input.options?.body?.resendUnsentMessageId
+        ? { resendUnsentMessageId: input.options.body.resendUnsentMessageId }
+        : {})
     }),
     []
   )
@@ -330,7 +333,7 @@ export function useAgentChatRuntimeState({
     buildStreamRequest,
     onAccepted: async (ack, input) => {
       errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages)
-      if (input.editTarget) await revalidate()
+      if (input.editTarget || input.options?.body?.resendUnsentMessageId) await revalidate()
       else if (ack.reservedMessages?.length) await refreshReservedMessages(ack.reservedMessages.map(({ id }) => id))
     },
     onError: (error, input) =>

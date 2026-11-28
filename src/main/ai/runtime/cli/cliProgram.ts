@@ -20,7 +20,7 @@ import { getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/lo
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
 import { readModelProfile, type CliModelBinding, type CliModelProfile } from './cliModelProfile'
-import { type InstalledBinary, selectAvailableInstallation } from './installedCli'
+import { getClaudeSdkFallback, type InstalledBinary, selectAvailableInstallation } from './installedCli'
 import { bindLaunchModel } from './launchBinding'
 import { resolveRequiredRuntime } from './runtimeDependency'
 
@@ -165,6 +165,7 @@ export async function resolveCliProgram(
     const names = [preset.executable, ...(preset.aliases ?? [])]
     const snapshots = await application.get('BinaryManager').getToolSnapshots(names)
     installation = await selectAvailableInstallation(preset, snapshots)
+    if (installation.source === 'none') installation = getClaudeSdkFallback(preset.executable) ?? installation
   }
   if (installation.source === 'none') {
     throw Object.assign(new Error('Local agent is not installed'), { code: 'LOCAL_AGENT_NOT_INSTALLED' })

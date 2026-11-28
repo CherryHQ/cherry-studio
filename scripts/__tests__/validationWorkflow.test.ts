@@ -145,7 +145,11 @@ describe('nine-runner full validation', () => {
 })
 
 describe('CI preparation and preflight', () => {
-  it.each([0, 7])('marks workspace exports prepared only after installation succeeds: exit %s', (exitCode) => {
+  it.each([
+    { exitCode: 0, skipBuild: false },
+    { exitCode: 7, skipBuild: false },
+    { exitCode: 0, skipBuild: true }
+  ])('only marks workspace exports prepared after building them: %j', ({ exitCode, skipBuild }) => {
     const action = parse(readFileSync('.github/actions/setup-validation/action.yml', 'utf8'))
     const install = action.runs.steps.find((step: { name?: string }) => step.name === 'Install dependencies')
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-install-'))
@@ -153,11 +157,17 @@ describe('CI preparation and preflight', () => {
     writeFileSync(join(cwd, 'pnpm'), '#!/bin/sh\nexit "$INSTALL_EXIT"\n', { mode: 0o755 })
     const envFile = join(cwd, 'environment')
     const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', install.run], {
-      env: { ...process.env, PATH: `${cwd}:${process.env.PATH}`, INSTALL_EXIT: String(exitCode), GITHUB_ENV: envFile }
+      env: {
+        ...process.env,
+        PATH: `${cwd}:${process.env.PATH}`,
+        INSTALL_EXIT: String(exitCode),
+        GITHUB_ENV: envFile,
+        VALIDATION_SKIP_WORKSPACE_BUILD: String(skipBuild)
+      }
     })
     expect(result.status).toBe(exitCode)
     expect(existsSync(envFile) ? readFileSync(envFile, 'utf8') : '').toBe(
-      exitCode === 0 ? 'VALIDATION_WORKSPACE_PREPARED=true\n' : ''
+      exitCode === 0 && !skipBuild ? 'VALIDATION_WORKSPACE_PREPARED=true\n' : ''
     )
   })
 
@@ -185,6 +195,28 @@ describe('CI preparation and preflight', () => {
         () => false
       )
     ).toBe(false)
+  })
+
+  it('reuses CI preflight formatting while still checking documentation', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-format-'))
+    directories.push(cwd)
+    const pnpm = join(cwd, 'pnpm.cjs')
+    writeFileSync(pnpm, 'process.stdout.write(JSON.stringify(process.argv.slice(2)) + "\\n")\n')
+    const args = ['scripts/validation/run.mjs', '--group', 'repository']
+    const options = {
+      encoding: 'utf8' as const,
+      env: { ...process.env, npm_execpath: pnpm, VALIDATION_PLAN: JSON.stringify(createPlan(['README.md'])) }
+    }
+    const local = spawnSync(process.execPath, args, options)
+    expect(local.status).toBe(0)
+    expect(local.stdout).toContain('["format:check"]')
+    const repository = workflow.jobs['basic-checks'].steps.find(
+      (step: { id?: string }) => step.id === 'repository-checks'
+    )
+    const ci = spawnSync(process.execPath, [args[0], ...repository.run.split(' ').slice(2)], options)
+    expect(ci.status).toBe(0)
+    expect(ci.stdout).not.toContain('["format:check"]')
+    expect(ci.stdout).toContain('["docs:check"]')
   })
 })
 
@@ -370,7 +402,7 @@ describe('basic checks in one runner', () => {
   ])('preserves %s selection and readiness for %s', (group, id) => {
     const needs = { changes: { outputs: { [group]: 'true' } } }
     const step = job.steps.find((step: { id?: string }) => step.id === id)
-    if (id !== 'i18n-sync') expect(step.run).toBe(`pnpm check --group ${group}`)
+    if (id !== 'i18n-sync' && id !== 'repository-checks') expect(step.run).toBe(`pnpm check --group ${group}`)
     const condition = step.if.replaceAll('steps.i18n-sync', "steps['i18n-sync']")
     const selected = (outcome: string, cancelled: boolean) =>
       new Function('needs', 'steps', 'cancelled', 'success', `return (${condition})`)(
