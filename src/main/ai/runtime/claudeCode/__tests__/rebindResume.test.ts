@@ -40,10 +40,11 @@ function fakeEvent(overrides: Partial<AgentSessionWorkspaceEventRow> = {}): Agen
     createdAt: 1000,
     surfacedAt: null,
     ...overrides
-  } as AgentSessionWorkspaceEventRow
+  }
 }
 
 interface HarnessOptions {
+  events?: AgentSessionWorkspaceEventRow[]
   event?: AgentSessionWorkspaceEventRow | null
   probeOpenResult?: unknown
   primaryCreateResult?: unknown
@@ -66,10 +67,10 @@ function harness(options: HarnessOptions = {}) {
     backendId: 'backend-1',
     currentCwd: '/projects/b',
     primaryRuntime: primaryRuntime as unknown as ClaudeCodeRuntime,
-    createConfig: { cwd: '/projects/b' } as never,
+    createConfig: { cwd: '/projects/b' },
     createRuntime: createRuntime as never,
     probeRuntimeOptions: (previousCwd: string) => ({ load: async () => ({ cwd: previousCwd }) }) as never,
-    getLatestWorkspaceEvent: () => (options.event === undefined ? fakeEvent() : options.event)
+    getWorkspaceEvents: () => options.events ?? (options.event === null ? [] : [options.event ?? fakeEvent()])
   }
   return { input, probe, probeHandle, successorHandle, createRuntime, primaryRuntime }
 }
@@ -113,6 +114,55 @@ describe('openRebindSuccessor', () => {
     expect(probeHandle.release).toHaveBeenCalledTimes(1)
     expect(probe.shutdown).toHaveBeenCalledTimes(1)
     expect(primaryRuntime.create).toHaveBeenCalledWith({ cwd: '/projects/b' })
+  })
+
+  it('cold-reopens A through the recorded A-to-B-to-C chain with no turn in B', async () => {
+    const first = fakeEvent()
+    const second = fakeEvent({
+      id: 'event-2',
+      previousWorkspaceId: 'ws-b',
+      previousWorkspacePath: '/projects/b',
+      newWorkspaceId: 'ws-c',
+      newWorkspacePath: '/projects/c',
+      createdAt: 1000
+    })
+    const h = harness({ events: [second, first] })
+    h.input.currentCwd = '/projects/c'
+    h.input.createConfig = { cwd: '/projects/c' }
+    h.probe.open.mockResolvedValueOnce(storageMissing()).mockResolvedValueOnce(confirmed(h.probeHandle))
+
+    await expect(openRebindSuccessor(h.input)).resolves.toBe(h.successorHandle)
+
+    expect(h.createRuntime).toHaveBeenCalledTimes(2)
+    expect(h.probe.shutdown).toHaveBeenCalledTimes(2)
+    expect(h.probeHandle.release).toHaveBeenCalledTimes(1)
+    expect(h.primaryRuntime.create).toHaveBeenCalledWith({ cwd: '/projects/c' })
+  })
+
+  it('does not search an unrelated earlier event when history has a broken link', async () => {
+    const h = harness({
+      events: [
+        fakeEvent({
+          id: 'event-2',
+          previousWorkspaceId: 'ws-unrelated',
+          previousWorkspacePath: '/projects/unrelated',
+          newWorkspaceId: 'ws-c',
+          newWorkspacePath: '/projects/c'
+        }),
+        fakeEvent()
+      ]
+    })
+    h.input.currentCwd = '/projects/c'
+    h.probe.open.mockResolvedValue(storageMissing())
+    await expect(openRebindSuccessor(h.input)).resolves.toBeUndefined()
+    expect(h.createRuntime).toHaveBeenCalledTimes(1)
+    expect(h.primaryRuntime.create).not.toHaveBeenCalled()
+  })
+
+  it('does not accept another session history', async () => {
+    const h = harness({ event: fakeEvent({ sessionId: 'other-session' }) })
+    await expect(openRebindSuccessor(h.input)).resolves.toBeUndefined()
+    expect(h.createRuntime).not.toHaveBeenCalled()
   })
 
   it('propagates a successor-create failure instead of falling back silently', async () => {

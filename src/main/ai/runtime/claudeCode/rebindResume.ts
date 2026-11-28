@@ -27,55 +27,63 @@ export interface RebindResumeInput {
   createRuntime: typeof createClaudeCodeRuntime
   /** Probe factory options; its load() resolves the archive under the given cwd. */
   probeRuntimeOptions: (previousCwd: string) => ClaudeCodeRuntimeOptions
-  /** Recorded deliberate rebind (AgentSessionService.getLatestWorkspaceEvent). */
-  getLatestWorkspaceEvent: (sessionId: string) => AgentSessionWorkspaceEventRow | null
+  /** Durable recorded rebinds, newest insertion first. */
+  getWorkspaceEvents: (sessionId: string) => AgentSessionWorkspaceEventRow[]
 }
 
 /**
  * AC5 of the session workdir rebind spec: a resume that misses its native transcript
  * under the current project tree stays fail-closed UNLESS a deliberate rebind is
- * recorded on the session. With a recorded event whose new path matches the current
- * cwd, the original transcript must still be accessible under the recorded previous
- * path (probed read-only); the session then continues as a successor engine session
+ * recorded on the session. With a contiguous recorded chain ending at the current
+ * cwd, the original transcript must still be accessible under a recorded previous
+ * path (each probed read-only, newest first); the session then continues as a successor engine session
  * created under the new cwd, keeping Cherry history and the recorded event.
  *
  * Returns the successor handle, or undefined to keep the caller fail-closed.
  */
 export async function openRebindSuccessor(input: RebindResumeInput): Promise<ClaudeThreadHandle | undefined> {
-  const event = input.getLatestWorkspaceEvent(input.sessionId)
-  if (!event) return undefined
-  if (event.newWorkspacePath !== input.currentCwd) {
-    // The recorded chain does not explain this mismatch: fail closed.
-    logger.warn('Workspace event does not match the current binding; refusing successor resume', {
-      sessionId: input.sessionId,
-      recordedNewPath: event.newWorkspacePath,
-      currentCwd: input.currentCwd
-    })
-    return undefined
-  }
+  const events = input.getWorkspaceEvents(input.sessionId)
+  const latest = events[0]
+  if (!latest || latest.sessionId !== input.sessionId || latest.newWorkspacePath !== input.currentCwd) return undefined
 
-  const probe = input.createRuntime(input.probeRuntimeOptions(event.previousWorkspacePath))
-  try {
-    const probed = await probe.open({ backendId: runtimeId(input.backendId), id: runtimeId(input.resumeToken) })
-    if (probed.status !== 'confirmed') {
-      logger.warn('Recorded rebind but the original transcript is not accessible; refusing successor resume', {
-        sessionId: input.sessionId,
-        previousWorkspacePath: event.previousWorkspacePath,
-        error: probed.error.message
-      })
-      return undefined
+  // Follow only contiguous recorded edges. Repeated rebinds may have no native
+  // turn in the intermediate workspace, so the transcript can still live in A.
+  let expectedId = latest.newWorkspaceId
+  let expectedPath = input.currentCwd
+  let transcriptFound = false
+  const visitedPaths = new Set<string>()
+  for (const event of events) {
+    if (
+      event.sessionId !== input.sessionId ||
+      event.newWorkspaceId !== expectedId ||
+      event.newWorkspacePath !== expectedPath
+    )
+      break
+    expectedId = event.previousWorkspaceId
+    expectedPath = event.previousWorkspacePath
+    if (visitedPaths.has(expectedPath)) continue
+    visitedPaths.add(expectedPath)
+    const probe = input.createRuntime(input.probeRuntimeOptions(expectedPath))
+    try {
+      const probed = await probe.open({ backendId: runtimeId(input.backendId), id: runtimeId(input.resumeToken) })
+      if (probed.status === 'confirmed') {
+        await probed.value.release()
+        transcriptFound = true
+        break
+      }
+      if (probed.error.code !== 'native-storage-missing') return undefined
+    } finally {
+      await probe.shutdown().catch(() => undefined)
     }
-    await probed.value.release()
-  } finally {
-    await probe.shutdown().catch(() => undefined)
   }
+  if (!transcriptFound) return undefined
 
   const created = await input.primaryRuntime.create(input.createConfig)
   if (created.status !== 'confirmed') throw new Error(created.error.message)
   logger.info('Recorded workspace rebind: created successor engine session under the new workspace', {
     sessionId: input.sessionId,
-    previousWorkspacePath: event.previousWorkspacePath,
-    newWorkspacePath: event.newWorkspacePath
+    previousWorkspacePath: expectedPath,
+    newWorkspacePath: input.currentCwd
   })
   return created.value
 }

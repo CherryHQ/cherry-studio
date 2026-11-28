@@ -1185,17 +1185,19 @@ export class AgentSessionService {
    * unexpected change does not and stays fail-closed (AC5 of the rebind spec).
    */
   getLatestWorkspaceEvent(sessionId: string): AgentSessionWorkspaceEventRow | null {
-    return (
-      application
-        .get('DbService')
-        .getDb()
-        .select()
-        .from(agentSessionWorkspaceEventTable)
-        .where(eq(agentSessionWorkspaceEventTable.sessionId, sessionId))
-        .orderBy(desc(agentSessionWorkspaceEventTable.createdAt))
-        .limit(1)
-        .get() ?? null
-    )
+    return this.getWorkspaceEvents(sessionId)[0] ?? null
+  }
+
+  /** Append order is authoritative, including multiple rebinds in one millisecond. */
+  getWorkspaceEvents(sessionId: string): AgentSessionWorkspaceEventRow[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(agentSessionWorkspaceEventTable)
+      .where(eq(agentSessionWorkspaceEventTable.sessionId, sessionId))
+      .orderBy(desc(sql`rowid`))
+      .all()
   }
 
   /**

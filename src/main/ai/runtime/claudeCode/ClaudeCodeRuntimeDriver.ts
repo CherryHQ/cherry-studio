@@ -274,6 +274,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : await this.runtime.create(config)
     let resumeEffective = resume
     if (opened.status === 'rejected' && opened.error.code === 'native-storage-missing') {
+      const backendId = this.context.backendId
       // AC5 of the session workdir rebind spec: a transcript miss under the current
       // project tree is fail-closed unless a deliberate rebind is recorded; then the
       // session continues as a successor engine session under the new cwd.
@@ -281,13 +282,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         ? await openRebindSuccessor({
             sessionId: this.input.sessionId,
             resumeToken: resume,
-            backendId: this.context.backendId,
+            backendId,
             currentCwd: cwd,
             primaryRuntime: this.runtime,
             createConfig: config,
             createRuntime: createClaudeCodeRuntime,
             probeRuntimeOptions: (previousCwd) => ({
-              backendId: runtimeId(this.context.backendId),
+              backendId: runtimeId(backendId),
               configDir: resolveClaudeConfigDirectory(options.env),
               contextWindow: request.contextWindow,
               load: async () => ({ ...config, cwd: previousCwd }),
@@ -295,7 +296,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                 this.nativeError = error
               }
             }),
-            getLatestWorkspaceEvent: (sessionId) => agentSessionService.getLatestWorkspaceEvent(sessionId)
+            getWorkspaceEvents: (sessionId) => agentSessionService.getWorkspaceEvents(sessionId)
           })
         : undefined
       if (!successor) return unavailableNativeContext(this.context, opened.error.message)
