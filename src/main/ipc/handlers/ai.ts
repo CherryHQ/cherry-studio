@@ -336,7 +336,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       channel: 'ai.agent.session.open_path'
     })
   },
-  'ai.agent.session.list_workspace_events': ({ sessionId }) =>
+  'ai.agent.session.list_workspace_events': async ({ sessionId }) =>
     agentSessionService.listWorkspaceEvents(sessionId).map((event) => ({
       previousWorkspacePath: event.previousWorkspacePath,
       newWorkspacePath: event.newWorkspacePath,

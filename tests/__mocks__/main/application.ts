@@ -132,6 +132,7 @@ export const defaultServiceInstances = {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))
   },
+  AgentSessionRuntimeService: { isSessionBusy: vi.fn(() => false) },
   RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const
 
