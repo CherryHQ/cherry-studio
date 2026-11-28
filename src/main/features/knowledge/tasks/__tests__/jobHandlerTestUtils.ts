@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   probeKnowledgeSourcePathMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
+  knowledgeItemPrepareUrlCrawlMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
@@ -67,6 +68,7 @@ export const {
   probeKnowledgeSourcePathMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
+  knowledgeItemPrepareUrlCrawlMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
@@ -147,6 +149,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     getById: knowledgeItemGetByIdMock,
+    prepareUrlCrawl: knowledgeItemPrepareUrlCrawlMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
     deleteItemsByIds: deleteItemsByIdsMock,
@@ -416,6 +419,7 @@ beforeEach(() => {
   )
   knowledgeBaseGetByIdMock.mockReturnValue(createBase())
   knowledgeItemGetByIdMock.mockReturnValue(createNoteItem())
+  knowledgeItemPrepareUrlCrawlMock.mockReturnValue([])
   knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
   knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
   knowledgeItemSetSubtreeStatusMock.mockReturnValue([])

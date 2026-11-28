@@ -45,7 +45,13 @@ export function resolveKnowledgeReacquireProducer(item: IndexableKnowledgeItem):
       if (!page.markdown) {
         throw new Error(`Knowledge URL returned empty markdown: ${url}`)
       }
-      const { fileText } = buildUrlSnapshotFile(url, page.markdown, new Date().toISOString(), page.title)
+      const { fileText } = buildUrlSnapshotFile(
+        url,
+        page.markdown,
+        new Date().toISOString(),
+        page.title,
+        item.data.name
+      )
       return async () => {
         await writeFileIntoKnowledgeBaseAt(baseId, relativePath, fileText, { overwrite: true })
       }

@@ -268,8 +268,8 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onItemClick,
     onViewNoteContent,
     onPreviewFile,
-    onDrillIntoDirectory,
-    currentDirectory,
+    onDrillIntoGroup,
+    currentGroup,
     onDelete,
     onDeleteItems,
     onReindex,
@@ -282,8 +282,8 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onItemClick: (itemId: string) => void
     onViewNoteContent: (itemId: string) => void
     onPreviewFile: (target: KnowledgeFilePreviewTarget) => void
-    onDrillIntoDirectory?: (item: KnowledgeItemOf<'directory'>) => void
-    currentDirectory?: KnowledgeItemOf<'directory'> | null
+    onDrillIntoGroup?: (item: KnowledgeItemOf<'directory'>) => void
+    currentGroup?: KnowledgeItemOf<'directory'> | null
     onDelete: (item: { id: string }) => void | Promise<void>
     onDeleteItems: (itemIds: string[]) => void | Promise<void>
     onReindex: (item: { id: string }) => void | Promise<void>
@@ -293,7 +293,7 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
 
     return (
       <div>
-        <div data-testid="data-source-panel" data-current-directory={currentDirectory?.id ?? 'root'}>
+        <div data-testid="data-source-panel" data-current-directory={currentGroup?.id ?? 'root'}>
           {`${items.length}:${isLoading ? 'loading' : 'idle'}`}
         </div>
         <button type="button" onClick={onAdd}>
@@ -308,7 +308,7 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
         {items.map((item) => (
           <div key={item.id}>
             {item.type === 'directory' ? (
-              <button type="button" onClick={() => onDrillIntoDirectory?.(item)}>
+              <button type="button" onClick={() => onDrillIntoGroup?.(item)}>
                 DrillDirectory {item.id}
               </button>
             ) : null}

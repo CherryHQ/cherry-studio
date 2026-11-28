@@ -102,6 +102,28 @@ describe('captureUrlSnapshotFile', () => {
     expect(stripOkfFrontmatter(written)).toBe(markdown)
   })
 
+  it('uses the user name for the snapshot title and a safe collision-free file stem', async () => {
+    const markdown = '# Different page title\n\nbody'
+    const relativePath = await captureUrlSnapshotFile(
+      'kb-1',
+      'https://example.com/docs',
+      markdown,
+      new Set(['Research_ notes.md']),
+      'Fetched title',
+      '  Research: notes  '
+    )
+    expect(relativePath).toBe('Research_ notes_1.md')
+    const written = writeFileIntoKnowledgeBaseAtMock.mock.calls[0][2] as string
+    expect(written).toContain('title: "Research: notes"')
+    expect(stripOkfFrontmatter(written)).toBe(markdown)
+  })
+
+  it('uses the fetched title when the optional name is blank', async () => {
+    expect(
+      await captureUrlSnapshotFile('kb-1', 'https://example.com', '# Heading', new Set(), 'Fetched title', '  ')
+    ).toBe('Fetched title.md')
+  })
+
   it('renames around an already-reserved snapshot name', async () => {
     const reserved = new Set<string>(['My Page.md'])
     const relativePath = await captureUrlSnapshotFile('kb-1', 'https://example.com/p', '# My Page\n\nbody', reserved)

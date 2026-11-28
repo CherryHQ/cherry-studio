@@ -363,7 +363,7 @@ export class KnowledgeConceptService {
           // Only a completed leaf is readable; directories and pending leaves carry no Concept ID.
           conceptId: item.type !== 'directory' && item.status === 'completed' ? deriveConceptId(item) : undefined
         })
-        if (item.type === 'directory') {
+        if (item.type === 'directory' || (item.type === 'url' && item.data.crawl)) {
           walk(item.id, depth + 1)
         }
       }

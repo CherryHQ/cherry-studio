@@ -364,6 +364,7 @@ describe('reindex-subtree job handler', () => {
       new FileProcessingWaitManager()
     )
     const root = createUrlItem('url-1', 'example-page.md' as PosixRelativeFilePath)
+    root.data.name = 'My saved title'
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([root])
     fetchKnowledgeWebPageMock.mockResolvedValue({ title: 'Updated', markdown: '# Updated\n\nfresh body' })
 
@@ -373,6 +374,7 @@ describe('reindex-subtree job handler', () => {
     const [baseId, relativePath, fileText, options] = writeFileIntoKnowledgeBaseAtMock.mock.calls[0]
     expect([baseId, relativePath, options]).toEqual(['kb-1', 'example-page.md', { overwrite: true }])
     expect(fileText).toContain('fresh body')
+    expect(fileText).toContain('My saved title')
   })
 
   it('rewrites a note root’s snapshot from data.content, the note’s source of truth', async () => {
@@ -423,7 +425,7 @@ describe('reindex-subtree job handler', () => {
 
     // The root is still `completed` at this point, so the reset-side onSettled recovery would never
     // pick it up — without this explicit flip the user's refresh click would look like a no-op.
-    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['url-1'], 'failed', {
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('url-1', 'failed', {
       error: '404 Not Found'
     })
     expect(deleteMaterialsMock).not.toHaveBeenCalled()
@@ -492,10 +494,10 @@ describe('reindex-subtree job handler', () => {
       handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['url-1', 'url-2'] }, 'reindex-job'))
     ).rejects.toThrow('404 Not Found')
 
-    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['url-1'], 'failed', {
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('url-1', 'failed', {
       error: '404 Not Found'
     })
-    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['url-2'], 'failed', {
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('url-2', 'failed', {
       error: '503 Service Unavailable'
     })
   })
@@ -518,7 +520,7 @@ describe('reindex-subtree job handler', () => {
     const deadRecorded = new Promise<void>((resolve) => {
       onDeadRecorded = resolve
     })
-    knowledgeItemSetSubtreeStatusMock.mockImplementation(() => {
+    knowledgeItemUpdateStatusMock.mockImplementation(() => {
       onDeadRecorded()
       return []
     })
@@ -532,8 +534,8 @@ describe('reindex-subtree job handler', () => {
 
     // url-2 was never touched: its snapshot and vectors are intact, and `failed` would drop it out
     // of search (query/visibility.ts keeps only completed items) for a refresh that did nothing.
-    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledTimes(1)
-    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['url-1'], 'failed', {
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledTimes(1)
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('url-1', 'failed', {
       error: '404 Not Found'
     })
   })

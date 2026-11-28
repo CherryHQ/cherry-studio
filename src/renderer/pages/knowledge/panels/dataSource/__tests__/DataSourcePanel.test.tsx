@@ -733,7 +733,7 @@ describe('DataSourcePanel', () => {
         const onAdd = renderDropPanel({
           items: [createFileItem({ id: 'existing', originName: 'existing.pdf' })],
           ...(gate === 'drilled-in directory'
-            ? { currentDirectory: createDirectoryItem({ id: 'directory-1' }) }
+            ? { currentGroup: createDirectoryItem({ id: 'directory-1' }) }
             : { embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID })
         })
 
@@ -965,6 +965,26 @@ describe('DataSourcePanel', () => {
     expect(onItemClick).not.toHaveBeenCalled()
   })
 
+  it('opens opt-in URL children while keeping ordinary URL activation unchanged', () => {
+    const item = createUrlItem({ id: 'url-crawl', source: 'https://example.com/root' })
+    item.data.crawl = true
+    const onDrillIntoGroup = vi.fn()
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDrillIntoGroup={onDrillIntoGroup}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByText('https://example.com/root'))
+    expect(onDrillIntoGroup).toHaveBeenCalledWith(item)
+    expect(previewSourceMock).not.toHaveBeenCalled()
+  })
+
   it('dispatches a URL row click to source preview', () => {
     const onItemClick = vi.fn()
     const item = createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })
@@ -1014,7 +1034,7 @@ describe('DataSourcePanel', () => {
 
   it('drills into a directory on a directory row click', () => {
     const onItemClick = vi.fn()
-    const onDrillIntoDirectory = vi.fn()
+    const onDrillIntoGroup = vi.fn()
     const item = createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })
 
     render(
@@ -1024,7 +1044,7 @@ describe('DataSourcePanel', () => {
         isLoading={false}
         onAdd={vi.fn()}
         onItemClick={onItemClick}
-        onDrillIntoDirectory={onDrillIntoDirectory}
+        onDrillIntoGroup={onDrillIntoGroup}
         onDelete={vi.fn()}
         onReindex={vi.fn()}
       />
@@ -1034,9 +1054,9 @@ describe('DataSourcePanel', () => {
 
     expect(invalidatePreviewRequestsMock).toHaveBeenCalledOnce()
     expect(invalidatePreviewRequestsMock.mock.invocationCallOrder[0]).toBeLessThan(
-      onDrillIntoDirectory.mock.invocationCallOrder[0]
+      onDrillIntoGroup.mock.invocationCallOrder[0]
     )
-    expect(onDrillIntoDirectory).toHaveBeenCalledWith(item)
+    expect(onDrillIntoGroup).toHaveBeenCalledWith(item)
     expect(onItemClick).not.toHaveBeenCalled()
     expect(previewSourceMock).not.toHaveBeenCalled()
   })
@@ -1053,7 +1073,7 @@ describe('DataSourcePanel', () => {
         onAdd={vi.fn()}
         onDelete={vi.fn()}
         onReindex={vi.fn()}
-        currentDirectory={directory}
+        currentGroup={directory}
         onNavigateUp={onNavigateUp}
       />
     )
@@ -1081,7 +1101,7 @@ describe('DataSourcePanel', () => {
         onAdd={vi.fn()}
         onDelete={vi.fn()}
         onReindex={vi.fn()}
-        currentDirectory={createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })}
+        currentGroup={createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })}
         onNavigateUp={vi.fn()}
       />
     )
@@ -1098,7 +1118,7 @@ describe('DataSourcePanel', () => {
         onAdd={vi.fn()}
         onDelete={vi.fn()}
         onReindex={vi.fn()}
-        currentDirectory={createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })}
+        currentGroup={createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })}
         onNavigateUp={vi.fn()}
       />
     )

@@ -328,13 +328,26 @@ export type FileItemData = z.infer<typeof FileItemDataSchema>
 /**
  * URL item data.
  */
+export const KNOWLEDGE_URL_CRAWL_MAX_ITEMS = 20
+
 export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
+  name: z.string().trim().optional().describe('Optional user-chosen title for the captured website.'),
   url: z.string().trim().min(1).describe('URL to read and index.'),
   // Written lazily by main on first index/refresh, never by raw caller input
   // (add omits it).
   relativePath: KnowledgeRelativePathSchema.optional().describe(
     'Knowledge-base-relative path for the captured URL snapshot markdown, written on first index.'
-  )
+  ),
+  crawl: z.boolean().optional().describe('Opt-in depth-one same-origin linked-page capture.'),
+  crawlExpanded: z.boolean().optional().describe('Main-owned marker preventing repeated crawl expansion.'),
+  crawlProgress: z
+    .strictObject({
+      total: z.number().int().nonnegative(),
+      completed: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+      active: z.number().int().nonnegative()
+    })
+    .optional()
 })
 
 /**
@@ -707,6 +720,8 @@ const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 
 const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
+  name: z.string().trim().optional().describe('Optional user-chosen title for the captured website.'),
+  crawl: z.boolean().optional().describe('Also capture up to 19 same-origin linked pages.'),
   url: z.string().trim().url().describe('URL to read and index.'),
   // Restore-only: absolute path to a captured snapshot markdown in the source base.
   // When present, Knowledge copies it in and pins the item to it so the first index

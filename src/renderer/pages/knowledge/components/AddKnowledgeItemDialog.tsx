@@ -63,6 +63,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const [selectedNotes, setSelectedNotes] = useState<NoteItem[]>([])
   const [noteDraft, setNoteDraft] = useState<NoteDraft>({ title: '', content: '' })
   const [urlValue, setUrlValue] = useState('')
+  const [urlName, setUrlName] = useState('')
+  const [urlCrawl, setUrlCrawl] = useState(false)
   const parsedUrls = useMemo(() => parseKnowledgeUrls(urlValue), [urlValue])
   const [urlAcceptedCount, setUrlAcceptedCount] = useState<number | null>(null)
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
@@ -150,7 +152,11 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
   const buildPanelSubmitItems = useCallback(async (): Promise<KnowledgeAddItemInput[]> => {
     if (activeSource === 'url') {
-      return parsedUrls.valid.map(({ value }) => ({ type: 'url' as const, data: { source: value, url: value } }))
+      const name = urlName.trim()
+      return parsedUrls.valid.map(({ value }) => ({
+        type: 'url' as const,
+        data: { source: value, url: value, ...(name ? { name } : {}), ...(urlCrawl ? { crawl: true } : {}) }
+      }))
     }
 
     if (activeSource === 'note') {
@@ -171,7 +177,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     }
 
     return []
-  }, [activeSource, noteDraft.content, noteDraft.title, noteMode, selectedNotes, parsedUrls.valid])
+  }, [activeSource, noteDraft.content, noteDraft.title, noteMode, selectedNotes, parsedUrls.valid, urlName, urlCrawl])
 
   const submitWithStrategy = useCallback(
     async (
@@ -306,6 +312,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setSelectedNotes([])
     setNoteDraft({ title: '', content: '' })
     setUrlValue('')
+    setUrlName('')
+    setUrlCrawl(false)
     setSubmitErrorMessage('')
     setPendingConflict(null)
     setPendingResolution(null)
@@ -419,6 +427,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
                 selectedNotes={selectedNotes}
                 noteDraft={noteDraft}
                 urlValue={urlValue}
+                urlName={urlName}
+                urlCrawl={urlCrawl}
+                onUrlCrawlChange={setUrlCrawl}
+                onUrlNameChange={setUrlName}
                 urlValid={parsedUrls.valid}
                 urlErrors={parsedUrls.invalid}
                 disabled={isSubmitting || pendingConflict !== null}

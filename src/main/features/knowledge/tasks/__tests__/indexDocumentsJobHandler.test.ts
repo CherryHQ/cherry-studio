@@ -490,6 +490,21 @@ describe('index-documents job handler', () => {
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
 
+  it('carries the stored website name into first snapshot capture', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    const item = createUrlItem('url-1')
+    knowledgeItemGetByIdMock.mockReturnValue({ ...item, data: { ...item.data, name: 'Research notes' } })
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'url-1' }))
+    expect(captureUrlSnapshotFileMock).toHaveBeenCalledWith(
+      'kb-1',
+      'https://example.com',
+      '# Example page\n\nbody text',
+      expect.any(Set),
+      'Example Page',
+      'Research notes'
+    )
+  })
+
   it('captures a URL snapshot on first index, persists its relativePath, and reads it offline', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     // A freshly added / migrated URL has no snapshot yet (returned both at load
@@ -507,7 +522,8 @@ describe('index-documents job handler', () => {
       'https://example.com',
       '# Example page\n\nbody text',
       expect.any(Set),
-      'Example Page'
+      'Example Page',
+      undefined
     )
     expect(knowledgeItemUpdateSnapshotRelativePathMock).toHaveBeenCalledWith('url-1', 'url', 'example-page.md')
     // The reader receives the item carrying the freshly captured snapshot path.

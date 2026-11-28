@@ -64,6 +64,15 @@ describe('indexable knowledge item helpers', () => {
 })
 
 describe('classifyKnowledgeItemRestoreSource', () => {
+  it('probes pinned URL snapshots and distinguishes missing from unverifiable', async () => {
+    const item = createItem('url') as KnowledgeItemOf<'url'>
+    item.data.relativePath = 'child.md' as PosixRelativeFilePath
+    probeKnowledgeFileMock.mockResolvedValueOnce('missing').mockResolvedValueOnce('unverifiable')
+    await expect(classifyKnowledgeItemRestoreSource('kb-1', item)).resolves.toBe('missing')
+    await expect(classifyKnowledgeItemRestoreSource('kb-1', item)).resolves.toBe('unverifiable')
+    expect(probeKnowledgeFileMock).toHaveBeenCalledWith('kb-1', 'child.md')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     probeKnowledgeFileMock.mockResolvedValue('readable')
