@@ -52,7 +52,7 @@ import {
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig, ModelUnavailableError } from './cherryCloud'
-import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
+import { applyCodexFetchInit, prepareCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
@@ -469,8 +469,8 @@ function buildOpenCodeGoConfig(ctx: BuilderContext): ProviderConfig {
  * segment) with OAuth bearer auth instead of an API key. The per-request `fetch`
  * is the single place that (1) injects a freshly-refreshed OAuth token + account
  * header, and (2) coerces the body to what the codex backend demands —
- * `store: false` plus encrypted-reasoning round-tripping — neither of which the
- * generic Responses adapter sets on its own.
+ * `store: false` plus encrypted-reasoning round-tripping for Responses, and JSON
+ * `images` references instead of multipart for `/images/edits`.
  */
 function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
   // Use the raw configured baseURL (the adapter appends `/responses`); the
@@ -497,24 +497,22 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
 function buildCodexFetch() {
   // Token fetch + not-signed-in guard + 401 force-refresh retry live in
   // OAuthRuntimeService.authenticatedFetch; this wrapper only shapes the codex
-  // request (headers + body coercion), re-applied with the fresh token on retry.
-  return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
-    application.get('OAuthRuntimeService').authenticatedFetch(
+  // request. The body is encoded once and reused when a 401 retries with a new token.
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const body = await prepareCodexRequestBody(input, init?.body)
+    return application.get('OAuthRuntimeService').authenticatedFetch(
       OPENAI_CODEX_PROVIDER_ID,
       (creds) => ({
         input,
-        init: {
-          ...init,
-          headers: buildCodexRequestHeaders(init?.headers, {
-            accessToken: creds.accessToken,
-            accountId: creds.accountId ?? null
-          }),
-          body: coerceCodexRequestBody(init?.body)
-        }
+        init: applyCodexFetchInit(input, init, body, {
+          accessToken: creds.accessToken,
+          accountId: creds.accountId ?? null
+        })
       }),
       customFetch,
       { notSignedInMessage: 'Not signed in to OpenAI Codex. Open the provider settings and sign in again.' }
     )
+  }
 }
 
 /**
