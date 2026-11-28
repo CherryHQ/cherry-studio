@@ -31,7 +31,7 @@ import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { getPendingReplayRoute, ToolContinuationRouteError } from '../../../provider/replayRoute'
-import { unwrapRetryError } from '../../../utils/retryError'
+import { getTerminalModelError } from '../../../utils/retryError'
 import { outputTokenRetry } from './outputTokenRetry'
 import type { RetryPolicy } from './retryPolicy'
 
@@ -119,7 +119,7 @@ function apiKeyFallbackRetryable(
   let nextFallbackIndex = 0
   return (context) => {
     if (!isErrorAttempt(context.current)) return undefined
-    const terminalError = unwrapRetryError(context.current.error)
+    const terminalError = getTerminalModelError(context.current.error)
     if (
       !APICallError.isInstance(terminalError) ||
       (terminalError.statusCode !== 401 && terminalError.statusCode !== 429)

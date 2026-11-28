@@ -134,27 +134,27 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const specialViewDefinition: SpecialViewDefinition | undefined = hasSpecialView
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
-  const defaultViewMode: ViewMode = specialViewDefinition?.defaultViewMode ?? 'special'
 
   const [viewState, setViewState] = useState<{ language: string; mode: ViewMode; previousMode: ViewMode }>(() => ({
     language,
-    mode: defaultViewMode,
-    previousMode: defaultViewMode
+    mode: 'special',
+    previousMode: 'special'
   }))
   if (viewState.language !== language) {
     setViewState({
       language,
-      mode: defaultViewMode,
-      previousMode: defaultViewMode
+      mode: 'special',
+      previousMode: 'special'
     })
   }
   const viewMode = useMemo<ViewMode>(() => {
+    if (language === 'plantuml' && isStreaming) return 'source'
     if (viewState.mode === 'edit' && !canEdit) return 'source'
     if (!hasSpecialView && viewState.mode !== 'edit') {
       return 'source'
     }
     return viewState.mode
-  }, [canEdit, hasSpecialView, viewState.mode])
+  }, [canEdit, hasSpecialView, isStreaming, language, viewState.mode])
 
   const setViewMode = useCallback((newMode: ViewMode) => {
     setViewState((current) => ({
@@ -479,9 +479,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       style={codeBlockStyle}
       className={cn(
         'code-block relative w-full min-w-0 overflow-clip rounded-lg',
-        isInSpecialView && language !== 'plantuml'
-          ? 'bg-transparent'
-          : 'border-[0.5px] border-border bg-background-subtle',
+        isInSpecialView ? 'bg-transparent' : 'border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
         '[&_.code-toolbar.show]:opacity-100 [&:hover_.code-toolbar]:opacity-100',
         isInSpecialView

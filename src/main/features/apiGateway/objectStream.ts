@@ -6,7 +6,6 @@ import type { ObjectTransportResponse, ObjectTransports } from '@earendil-works/
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { StreamListener } from '@main/ai/streamManager'
-import { unwrapRetryError } from '@main/ai/utils/retryError'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { RetryPartDataSchema } from '@shared/data/types/uiParts'
 
@@ -291,12 +290,7 @@ async function openObjectMessage<T>(
         fail(error)
       }
     },
-    onError: (result, error) => {
-      const terminal = unwrapRetryError(error)
-      fail(
-        objectGatewayError(terminal, terminal === error ? result.error : serializeError(terminal), request.outputFormat)
-      )
-    },
+    onError: (result, error) => fail(objectGatewayError(error, result.error, request.outputFormat)),
     onPaused: () => fail(streamInterruptedError()),
     isAlive: () => !closed
   }

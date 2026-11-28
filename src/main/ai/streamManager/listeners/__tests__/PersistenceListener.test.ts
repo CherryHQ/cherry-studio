@@ -507,7 +507,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     messageFinalizeMock.mockReturnValue({ id: 'assistant-1' })
   })
 
-  it('persists runtimeTiming and contextTokens while leaving usage/cost to the record projection', async () => {
+  it('persists timing without copying stream usage or a legacy context count', async () => {
     const finalMessage = {
       id: 'msg-x',
       role: 'assistant',
@@ -536,7 +536,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: { parts: [{ type: 'text', text: 'hi' }] },
       status: 'success',
-      runtimeStats: { runtimeTiming, contextTokens: 13 }
+      runtimeStats: { runtimeTiming }
     })
     expect(markTerminalErrorMock).not.toHaveBeenCalled()
   })

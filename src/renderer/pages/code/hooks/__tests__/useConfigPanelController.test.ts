@@ -3,13 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 const mocks = vi.hoisted(() => ({
   clearCliConfig: vi.fn(),
   writeCliConfigDraft: vi.fn(),
-  writeOwnLoginCliConfigDraft: vi.fn(),
-  isOwnLoginConfigurable: vi.fn(),
   resolveCliConfigApplyContext: vi.fn(),
   parseConfiguredModelId: vi.fn(),
   sanitizeCliConfigBlob: vi.fn()
@@ -25,23 +23,20 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('../../cliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
-vi.mock('../../cliConfig/draft', () => ({
-  writeCliConfigDraft: mocks.writeCliConfigDraft,
-  writeOwnLoginCliConfigDraft: mocks.writeOwnLoginCliConfigDraft,
-  isOwnLoginConfigurable: mocks.isOwnLoginConfigurable
+vi.mock('@renderer/services/codeCliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
+vi.mock('@renderer/services/codeCliConfig/draft', () => ({
+  writeCliConfigDraft: mocks.writeCliConfigDraft
 }))
-vi.mock('../../cliConfig/applyContext', () => ({
+vi.mock('@renderer/services/codeCliConfig/applyContext', () => ({
   parseConfiguredModelId: mocks.parseConfiguredModelId,
   resolveCliConfigApplyContext: mocks.resolveCliConfigApplyContext
 }))
-vi.mock('../../cliConfig/parser', () => ({ extractConnectionFromCliConfigDraft: vi.fn() }))
 // `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
-// Keep the real registry so any transitive importer of `adapters` (getAdapter/CLI_CONFIG_ADAPTERS)
+// Keep the real registry so any transitive importer of the shared CLI config barrel
 // still resolves; override only the sanitizer this test asserts on.
-vi.mock('../../cliConfig/adapters', async (importOriginal) => ({
+vi.mock('@shared/utils/cliConfig', async (importOriginal) => ({
   // oxlint-disable-next-line consistent-type-imports
-  ...(await importOriginal<typeof import('../../cliConfig/adapters')>()),
+  ...(await importOriginal<typeof import('@shared/utils/cliConfig')>()),
   sanitizeCliConfigBlob: mocks.sanitizeCliConfigBlob
 }))
 
@@ -52,13 +47,11 @@ const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0))
 function baseOptions() {
   return {
     selectedCliTool: CodeCli.CLAUDE_CODE,
-    toolName: 'Claude Code',
     currentProviderId: 'p1',
     providerConfigs: {},
     upsertProviderConfig: vi.fn().mockResolvedValue('p1'),
     deleteProviderConfig: vi.fn().mockResolvedValue(undefined),
     setCurrentProvider: vi.fn().mockResolvedValue(undefined),
-    setCurrentCliConfigConnection: vi.fn(),
     makeModelFilter: vi.fn(() => () => true)
   }
 }
@@ -66,33 +59,24 @@ function baseOptions() {
 describe('useConfigPanelController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Only Claude Code's own-login entry is configurable (writes tool params); the rest clear-on-select.
-    mocks.isOwnLoginConfigurable.mockImplementation((tool: string) => tool === CodeCli.CLAUDE_CODE)
     // Identity sanitize: keep the blob as-is so assertions can match the input.
     mocks.sanitizeCliConfigBlob.mockImplementation((_tool: string, blob: unknown) => blob)
   })
 
-  it.each(['p1', CLI_OWN_LOGIN_PROVIDER_ID])(
-    'opens a fresh editor session for %s after cancellation while preserving its saved config',
-    (providerId) => {
-      const savedConfig = { modelId: null, config: { effortLevel: 'medium' } }
-      const options = { ...baseOptions(), providerConfigs: { [providerId]: savedConfig } }
-      const { result, rerender } = renderHook(() => useConfigPanelController(options))
-      const provider = { id: providerId } as Provider
-      act(() => result.current.openConfigurePanel(provider))
-      const originalKey = result.current.configPanelKey
-      const originalPanel = result.current.configPanelProps ?? result.current.ownLoginConfigPanelProps!
-      rerender()
-      expect(result.current.configPanelKey).toBe(originalKey)
-
-      act(() => originalPanel.onClose())
-      act(() => result.current.openConfigurePanel(provider))
-
-      // The editor owns its draft at mount; a new session discards canceled edits even during exit retention.
-      expect(result.current.configPanelKey).not.toBe(originalKey)
-      const reopenedPanel = result.current.configPanelProps ?? result.current.ownLoginConfigPanelProps!
-      expect(reopenedPanel.providerConfig).toEqual(savedConfig)
-      expect(options.upsertProviderConfig).not.toHaveBeenCalled()
+  it.each([CodeCli.CLAUDE_CODE, CodeCli.OPENCLAW])(
+    'keeps the previous %s selection when applying a new model fails',
+    async (selectedCliTool) => {
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'p2::new', writePrimaryModel: true })
+      mocks.writeCliConfigDraft.mockRejectedValueOnce(new Error('write failed'))
+      const options = { ...baseOptions(), selectedCliTool }
+      const { result } = renderHook(() => useConfigPanelController(options))
+      let saved: boolean | undefined
+      await act(async () => {
+        saved = await result.current.selectModel({ id: 'p2' } as Provider, 'p2::new')
+      })
+      expect(saved).toBe(false)
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+      expect(options.deleteProviderConfig).toHaveBeenCalledWith('p2')
     }
   )
 
@@ -213,147 +197,8 @@ describe('useConfigPanelController', () => {
     })
   })
 
-  describe('own-login toggle (via onToggleCurrent with the reserved id)', () => {
-    const ownLoginProvider = { id: CLI_OWN_LOGIN_PROVIDER_ID } as Provider
-
-    beforeEach(() => {
-      // clearAllMocks() keeps prior mockImplementations (e.g. the never-resolving one from the
-      // in-flight guard tests); restore resolved apply mocks so the toggle can proceed.
-      mocks.clearCliConfig.mockReset()
-      mocks.clearCliConfig.mockResolvedValue(undefined)
-      mocks.writeOwnLoginCliConfigDraft.mockReset()
-      mocks.writeOwnLoginCliConfigDraft.mockResolvedValue(undefined)
-    })
-
-    it('selects own-login for a configurable tool: scrubs credentials, then writes the saved tool params', async () => {
-      const options = {
-        ...baseOptions(),
-        providerConfigs: { [CLI_OWN_LOGIN_PROVIDER_ID]: { config: { effortLevel: 'high' } } } as any
-      }
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      await act(async () => {
-        result.current.onToggleCurrent(ownLoginProvider)
-        await flushMicrotasks()
-      })
-
-      // Credentials/model (incl. credential-only side files) are scrubbed first, then params applied.
-      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.CLAUDE_CODE })
-      expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalledWith({
-        cliTool: CodeCli.CLAUDE_CODE,
-        configBlob: { effortLevel: 'high' }
-      })
-      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
-      expect(options.setCurrentCliConfigConnection).toHaveBeenCalledWith(null)
-      // Own-login never falls through to the provider-injection path.
-      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
-    })
-
-    it('selects own-login for a non-configurable tool: only clears, no tool params', async () => {
-      const options = { ...baseOptions(), selectedCliTool: CodeCli.GEMINI_CLI, currentProviderId: 'p1' }
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      await act(async () => {
-        result.current.onToggleCurrent(ownLoginProvider)
-        await flushMicrotasks()
-      })
-
-      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.GEMINI_CLI })
-      expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
-      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
-    })
-
-    it('deselects own-login when it is already current: clears the injected config', async () => {
-      const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      await act(async () => {
-        result.current.onToggleCurrent(ownLoginProvider)
-        await flushMicrotasks()
-      })
-
-      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.CLAUDE_CODE })
-      expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
-      expect(options.setCurrentProvider).toHaveBeenCalledWith(null)
-    })
-
-    it('saves own-login config and re-applies when own-login is the active selection', async () => {
-      const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      // Open the own-login config panel so its onSubmit is exposed.
-      act(() => {
-        result.current.openConfigurePanel(ownLoginProvider)
-      })
-      const submit = result.current.ownLoginConfigPanelProps?.onSubmit
-      expect(submit).toBeTypeOf('function')
-
-      await act(async () => {
-        await submit?.({ config: { effortLevel: 'high' } })
-      })
-
-      expect(options.upsertProviderConfig).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID, {
-        modelId: null,
-        config: { effortLevel: 'high' }
-      })
-      expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalledWith({
-        cliTool: CodeCli.CLAUDE_CODE,
-        configBlob: { effortLevel: 'high' },
-        files: undefined
-      })
-    })
-
-    // Same single-owner failure contract as the provider panel: a failed own-login injection must
-    // reject so OwnLoginConfigPanel keeps the dialog (and the user's edits) open instead of closing.
-    // Reviewer A3: the preference must NOT be persisted when the disk write fails — otherwise the
-    // panel recomputes its baseline from the new prop, `isConfigDirty` collapses to false, and Save
-    // is disabled, so the user can't retry the write directly.
-    it('propagates an own-login injection failure and leaves the preference unpersisted (retryable)', async () => {
-      const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
-      mocks.writeOwnLoginCliConfigDraft.mockReset()
-      mocks.writeOwnLoginCliConfigDraft.mockRejectedValue(new Error('settings write failed'))
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      act(() => {
-        result.current.openConfigurePanel(ownLoginProvider)
-      })
-
-      await expect(
-        result.current.ownLoginConfigPanelProps!.onSubmit({ config: { effortLevel: 'high' } })
-      ).rejects.toThrow('settings write failed')
-      // Write is attempted before the preference is persisted, so a failure aborts before upsert.
-      expect(options.upsertProviderConfig).not.toHaveBeenCalled()
-      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
-    })
-
-    it('writes hand-edited raw files verbatim when own-login config is saved with raw edits', async () => {
-      const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      act(() => {
-        result.current.openConfigurePanel(ownLoginProvider)
-      })
-      const rawFiles = [
-        { target: 'claude-settings', label: 'settings.json', path: '/tmp/s.json', language: 'json', content: '{}' }
-      ] as any
-
-      await act(async () => {
-        await result.current.ownLoginConfigPanelProps?.onSubmit({
-          config: { effortLevel: 'high' },
-          cliConfigFiles: rawFiles
-        })
-      })
-
-      expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalledWith({
-        cliTool: CodeCli.CLAUDE_CODE,
-        configBlob: { effortLevel: 'high' },
-        files: rawFiles
-      })
-    })
-  })
-
   describe('DeepSeek Harness selection', () => {
-    it('defers gateway startup and shared config writes until the managed launch action', async () => {
+    it('applies the native model before enabling DeepSeek Harness', async () => {
       const ensureRunning = vi.fn().mockResolvedValue(undefined)
       const getApiKey = vi.fn().mockResolvedValue('gateway-key')
       const options = {
@@ -382,9 +227,11 @@ describe('useConfigPanelController', () => {
       })
 
       expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID)
-      expect(ensureRunning).not.toHaveBeenCalled()
-      expect(getApiKey).not.toHaveBeenCalled()
-      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(ensureRunning).toHaveBeenCalled()
+      expect(getApiKey).toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith(
+        expect.objectContaining({ cliTool: CodeCli.DEEPSEEK_HARNESS, modelId: 'deepseek::deepseek-chat' })
+      )
     })
   })
 
@@ -434,8 +281,6 @@ describe('useConfigPanelController', () => {
   // rewritten. If the scrub/write fails, leaving `currentProvider` flipped would show the UI as
   // switched/disabled while the CLI still holds the previous managed credentials.
   describe('clear/write failure keeps the active-provider state (A3)', () => {
-    const ownLoginProvider = { id: CLI_OWN_LOGIN_PROVIDER_ID } as Provider
-
     it('does not clear the active provider when the disable scrub fails', async () => {
       const options = { ...baseOptions(), currentProviderId: 'p1' }
       mocks.clearCliConfig.mockReset()
@@ -450,51 +295,9 @@ describe('useConfigPanelController', () => {
 
       expect(mocks.clearCliConfig).toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
-      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
       expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
     })
 
-    it('does not switch to own login when the scrub fails', async () => {
-      const options = { ...baseOptions() } // currentProviderId 'p1' → toggling selects own login
-      mocks.clearCliConfig.mockReset()
-      mocks.clearCliConfig.mockRejectedValue(new Error('scrub failed'))
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      await act(async () => {
-        result.current.onToggleCurrent(ownLoginProvider)
-        await flushMicrotasks()
-      })
-
-      expect(mocks.clearCliConfig).toHaveBeenCalled()
-      expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
-      expect(options.setCurrentProvider).not.toHaveBeenCalled()
-      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
-      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
-    })
-
-    // The multi-file case the reviewer called out (e.g. Gemini): scrub succeeds but the tool-params
-    // write fails — the selection must not flip while the config is half-written.
-    it('does not switch to own login when the tool-params write fails after a successful scrub', async () => {
-      const options = { ...baseOptions() }
-      mocks.clearCliConfig.mockReset()
-      mocks.clearCliConfig.mockResolvedValue(undefined)
-      mocks.writeOwnLoginCliConfigDraft.mockReset()
-      mocks.writeOwnLoginCliConfigDraft.mockRejectedValue(new Error('settings write failed'))
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      await act(async () => {
-        result.current.onToggleCurrent(ownLoginProvider)
-        await flushMicrotasks()
-      })
-
-      expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalled()
-      expect(options.setCurrentProvider).not.toHaveBeenCalled()
-      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
-      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
-    })
-
-    // Reviewer: a failed config injection on panel save must reject (not be swallowed) so the
-    // submitting dialog treats the save as failed, keeps the user's draft, and stays open.
     it('propagates a config-write failure and restores the previous provider preference', async () => {
       const previousConfig = { modelId: 'anthropic::claude-old', config: { permissionMode: 'default' } } as any
       const options = {
@@ -527,7 +330,6 @@ describe('useConfigPanelController', () => {
       expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
         options.upsertProviderConfig.mock.invocationCallOrder[1]
       )
-      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
     })
 
     it('removes a newly-created provider preference when its first CLI write fails', async () => {
@@ -752,7 +554,6 @@ describe('useConfigPanelController', () => {
         modelId: 'deepseek::deepseek-old',
         config: { permissionMode: 'default' }
       })
-      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
     })
 
     // Reviewer A3-1: enabling the gateway must not write the CLI config or mark it current when the

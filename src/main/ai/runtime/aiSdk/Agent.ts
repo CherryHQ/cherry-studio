@@ -22,6 +22,7 @@ import { usesAnthropicMessagesSdk } from '../../messages/anthropicThinking'
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
+import { getTerminalModelError } from '../../utils/retryError'
 import { serializeError } from '../../utils/serializeError'
 import { classifyAiSdkFailure } from './failureFacts'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
@@ -261,9 +262,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
 
       logAiFailure(logger, 'agent generate error', err, 'agent.ai_sdk.generate', classifyAiSdkFailure(err))
+      const terminalError = getTerminalModelError(err)
       if (hooks.onError) {
         try {
-          await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
+          await hooks.onError({
+            error: terminalError instanceof Error ? terminalError : new Error(String(terminalError))
+          })
         } catch (hookErr) {
           logAiFailure(logger, 'hooks.onError threw; rethrowing original', hookErr, 'agent.ai_sdk.hook', {
             source: 'application',
@@ -274,7 +278,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           })
         }
       }
-      throw err
+      throw terminalError
     }
   }
 
@@ -504,7 +508,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
 
         const streamError = normalizeStreamError(
-          err,
+          getTerminalModelError(err),
           params.errorContext?.providerId ?? params.providerId,
           params.errorContext?.modelId ?? params.modelId
         )

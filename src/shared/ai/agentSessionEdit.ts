@@ -13,6 +13,7 @@ export interface AgentSessionEditDraft extends AgentSessionEditTarget {
 }
 
 export const agentSessionEditFailureReasons = [
+  'runtime_unsupported',
   'busy',
   'history_changed',
   'invalid_target',

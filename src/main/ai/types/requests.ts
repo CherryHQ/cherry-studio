@@ -89,6 +89,8 @@ export interface AiRequest {
 export interface AiChatRequest extends AiRequest {
   conversation: ConversationRef
   mcpToolIds?: string[]
+  /** A utility task (naming, translation, diagnosis, prompt helpers) rather than a conversation turn. */
+  utilityTask?: boolean
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured when the message was submitted. */
