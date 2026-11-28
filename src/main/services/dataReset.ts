@@ -2,16 +2,35 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { dialog, session } from 'electron'
+import { app, dialog, session } from 'electron'
 import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
+import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 // Preboot dialogs cannot use PreferenceService-backed translations.
-import { t } from '@main/i18n'
+import { resolveSystemLanguage, t } from '@main/i18n'
 
 const logger = loggerService.withContext('DataReset')
+
+type PrebootDialogAction = 'exit' | 'close'
+type PrebootLanguage = ReturnType<typeof resolveSystemLanguage>
+
+async function systemLanguage(): Promise<PrebootLanguage> {
+  if (typeof app.isReady === 'function' && !app.isReady()) await app.whenReady()
+  return resolveSystemLanguage(app.getLocale())
+}
+
+async function prebootText(action: PrebootDialogAction): Promise<string> {
+  const language = await systemLanguage()
+  switch (action) {
+    case 'exit':
+      return t('dialog.support.exit', undefined, language)
+    case 'close':
+      return t('dialog.support.close', undefined, language)
+  }
+}
 
 /**
  * Stages a reset in the running app and executes it at the next preboot.
@@ -258,7 +277,7 @@ async function stageDataReset(): Promise<void> {
  * The target path and attempt count are committed before deletion. Success
  * commits `completed` before removing the marker; unsafe failures quit.
  */
-export function runDataReset(): void {
+export async function runDataReset(): Promise<void> {
   try {
     const marker = readMarker()
     if (!marker) return
@@ -289,7 +308,7 @@ export function runDataReset(): void {
         recorded: marker.canonicalPath,
         actual: actualCanonical
       })
-      refuseResetForPathMismatch()
+      refuseResetForPathMismatch(`recorded: ${marker.canonicalPath}\nactual: ${actualCanonical}`)
       return
     }
 
@@ -299,7 +318,7 @@ export function runDataReset(): void {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
-      abandonIncompleteReset()
+      abandonIncompleteReset(`Data reset attempt cap reached after ${attempts} attempts`)
       return
     }
 
@@ -319,7 +338,7 @@ export function runDataReset(): void {
       logger.error('Data reset abandoned: the attempt count could not be durably recorded', {
         error: String(error)
       })
-      abandonIncompleteReset()
+      abandonIncompleteReset(`Could not record the reset attempt: ${String(error)}`)
       return
     }
 
@@ -342,7 +361,7 @@ export function runDataReset(): void {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
-      abandonIncompleteReset()
+      abandonIncompleteReset(`Could not remove:\n${failures.join('\n')}`)
       return
     }
 
@@ -356,12 +375,12 @@ export function runDataReset(): void {
           error: String(error)
         }
       )
-      showDataResetError(
-        'Data Reset Incomplete',
-        'Cherry Studio erased its data but could not record the reset as finished ' +
-          `in ${markerPath()}.\n\n` +
-          'Starting now could erase anything you create on the next launch, so the app will quit instead.\n\n' +
-          'Please check disk space and file permissions, then start Cherry Studio again.'
+      const language = await systemLanguage()
+      const markerFile = markerPath()
+      await showDataResetError(
+        t('dialog.data_reset.incomplete.title', undefined, language),
+        t('dialog.data_reset.incomplete.completion', { path: markerFile }, language),
+        error instanceof Error ? `${markerFile}\n${error.message}` : markerFile
       )
       return
     }
@@ -378,11 +397,11 @@ export function runDataReset(): void {
     application.relaunch()
   } catch (error) {
     logger.error('Data reset failed — refusing to boot', error as Error)
-    showDataResetError(
-      'Data Reset Failed',
-      'Cherry Studio could not safely complete a pending data reset. ' +
-        'The app will quit instead of starting with a reset marker still present.\n\n' +
-        'Please check disk space and file permissions, then start Cherry Studio again.'
+    const language = await systemLanguage()
+    await showDataResetError(
+      t('dialog.data_reset.failed.title', undefined, language),
+      t('dialog.data_reset.failed.generic', undefined, language),
+      error instanceof Error ? error.stack || error.message : String(error)
     )
   }
 }
@@ -395,39 +414,38 @@ function wipeNestedUserDataTargets(failures: string[]): void {
       fs.rmSync(target, RM_OPTIONS)
     } catch (error) {
       logger.warn('Failed to remove nested user data during reset', { target, error: String(error) })
-      failures.push(target)
+      failures.push(`${target}: ${String(error)}`)
     }
   }
 }
 
-function refuseResetForPathMismatch(): void {
+// Startup continues without waiting for ready: relocation must isolate sessionData before it.
+function refuseResetForPathMismatch(technicalDetail: string): void {
   deleteMarker()
-  showPathMismatchWarning()
+  void showPathMismatchWarning(technicalDetail).catch((error) =>
+    logger.error('Could not show the reset warning', error as Error)
+  )
 }
 
-function abandonIncompleteReset(): void {
+function abandonIncompleteReset(technicalDetail: string): void {
   deleteMarker()
-  showIncompleteResetWarning()
+  void showIncompleteResetWarning(technicalDetail).catch((error) =>
+    logger.error('Could not show the reset warning', error as Error)
+  )
 }
 
-function showDataResetError(title: string, message: string): void {
-  showPrebootNotice(title, message)
+async function showDataResetError(title: string, message: string, technicalDetail: string): Promise<void> {
+  await showSupportedMessageBox({
+    box: {
+      type: 'error',
+      title,
+      message,
+      buttons: [await prebootText('exit')],
+      cancelId: 0
+    },
+    technicalDetail
+  })
   application.forceExit(1)
-}
-
-/**
- * Preboot runs before `app.whenReady()`, where `dialog.showErrorBox` throws. A throw here used to
- * abort the whole boot path, so the pending marker was retried on every start and the app could
- * never open. Log instead, and only show the dialog once Electron can render one.
- */
-function showPrebootNotice(title: string, message: string): void {
-  logger.error(`[preboot] ${title}: ${message}`)
-  if (!application.isReady()) return
-  try {
-    dialog.showErrorBox(title, message)
-  } catch (error) {
-    logger.warn('Could not show the preboot dialog', { title, error: String(error) })
-  }
 }
 
 function shouldWipe(entry: string): boolean {
@@ -482,22 +500,32 @@ function canonicalize(p: string): string {
   return fs.realpathSync.native(path.resolve(p))
 }
 
-function showPathMismatchWarning(): void {
-  dialog.showErrorBox(
-    'Data Reset Cancelled',
-    'Cherry Studio did not run Data Reset because the data location changed after confirmation.\n\n' +
-      'No data was removed, and the pending request has been cleared. ' +
-      'Run Data Reset again from Settings if you still want to erase this profile.'
-  )
+async function showPathMismatchWarning(technicalDetail: string): Promise<void> {
+  const language = await systemLanguage()
+  await showSupportedMessageBox({
+    box: {
+      type: 'warning',
+      title: t('dialog.data_reset.cancelled.title', undefined, language),
+      message: t('dialog.data_reset.cancelled.message', undefined, language),
+      buttons: [await prebootText('close')],
+      cancelId: 0
+    },
+    technicalDetail
+  })
 }
 
-function showIncompleteResetWarning(): void {
-  showPrebootNotice(
-    'Data Reset Incomplete',
-    'Cherry Studio could not remove some of its data during the data reset.\n\n' +
-      'The app will start with whatever remains. ' +
-      'Please check file permissions (or antivirus locks) and run Data Reset again from Settings.'
-  )
+async function showIncompleteResetWarning(technicalDetail: string): Promise<void> {
+  const language = await systemLanguage()
+  await showSupportedMessageBox({
+    box: {
+      type: 'warning',
+      title: t('dialog.data_reset.incomplete.title', undefined, language),
+      message: t('dialog.data_reset.incomplete.partial', undefined, language),
+      buttons: [await prebootText('close')],
+      cancelId: 0
+    },
+    technicalDetail
+  })
 }
 
 /** Removes matching children independently and records failures. */
@@ -508,7 +536,7 @@ function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => b
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       logger.warn('Cannot list directory for data reset', { dir, error: String(error) })
-      failures.push(dir)
+      failures.push(`${dir}: ${String(error)}`)
     }
     return
   }
@@ -519,7 +547,7 @@ function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => b
       fs.rmSync(path.join(dir, entry), RM_OPTIONS)
     } catch (error) {
       logger.warn('Failed to remove entry during data reset', { entry, error: String(error) })
-      failures.push(path.join(dir, entry))
+      failures.push(`${path.join(dir, entry)}: ${String(error)}`)
     }
   }
 }

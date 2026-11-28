@@ -1,10 +1,14 @@
 import type { FC } from 'react'
 import { useEffect } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
 
+import { loggerService } from '@logger'
+import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import { ipcApi } from '@renderer/ipc'
+import { createAppErrorContext, stringifyThrown } from '@shared/utils/appError'
 
 import CaptureOverlay from './CaptureOverlay'
 
@@ -15,6 +19,32 @@ function ScreenshotRuntime(): null {
   return null
 }
 
+/** Main ends the session before presenting, so the fallback never depends on this renderer surviving. */
+export async function dismissScreenshotFault(error: unknown): Promise<void> {
+  const logger = loggerService.withContext('ScreenshotApp')
+  try {
+    // Error fields can be any value or a throwing accessor, so each is read once, inside the guard.
+    const isError = error instanceof Error
+    const message = isError ? error.message : error
+    const name: unknown = isError ? error.name : undefined
+    const stack: unknown = isError ? error.stack : undefined
+    const context = createAppErrorContext({
+      source: 'screenshotWindow',
+      operation: 'react.render',
+      message: typeof message === 'string' ? message : stringifyThrown(message),
+      ...(typeof name === 'string' && name ? { name } : {}),
+      ...(typeof stack === 'string' && stack ? { stack } : {})
+    })
+    await ipcApi.request('screenshot.fail', context)
+  } catch (failError) {
+    logger.error('Failed to report a screenshot error', failError as Error)
+    // The boundary already unmounted the overlay's Escape handler, so this is the only way off the screen.
+    await ipcApi.request('screenshot.cancel').catch((cancelError: unknown) => {
+      logger.error('Failed to cancel the screenshot session', cancelError as Error)
+    })
+  }
+}
+
 /**
  * End the session instead of rendering an error card.
  *
@@ -23,10 +53,10 @@ function ScreenshotRuntime(): null {
  * would be an opaque full-screen panel with no way out, so the only useful thing a fatal
  * render error can do is get the overlay off the user's screen.
  */
-function DismissOnFatalError(): null {
+function DismissOnFatalError({ error }: FallbackProps): null {
   useEffect(() => {
-    void ipcApi.request('screenshot.cancel')
-  }, [])
+    void dismissScreenshotFault(error)
+  }, [error])
   return null
 }
 
@@ -36,6 +66,7 @@ const ScreenshotApp: FC = () => {
     // during render falls back instead of white-screening.
     <ErrorBoundary fallbackComponent={DismissOnFatalError}>
       <ThemeProvider>
+        <AppErrorRuntime mode="handoff" />
         <ScreenshotRuntime />
         <CaptureOverlay />
       </ThemeProvider>

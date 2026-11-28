@@ -9,8 +9,10 @@ import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
+import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { WindowType } from '@main/core/window/types'
-import { t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
+import { deliverToReadyMain } from '@main/services/mainWindowNavigation'
 import { MediaKind } from '@main/services/mediaProtocol'
 import { cropPng } from '@main/utils/image'
 import {
@@ -21,7 +23,9 @@ import {
 } from '@main/utils/screenCapturePermission'
 import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
+import type { AppErrorContext } from '@shared/types/appError'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
+import { createAppErrorContext } from '@shared/utils/appError'
 
 import { isScreenshotOcrAvailable, recognizeScreenshotText } from './recognizeText'
 import { captureAllMonitors, listMonitors } from './screenCapture'
@@ -922,16 +926,57 @@ export class ScreenshotOverlayService extends BaseService {
     if (response === 0) openScreenCaptureSettings()
   }
 
-  /** Report a capture that failed for any reason other than a missing permission. */
+  /**
+   * An overlay renderer failed. The session comes down and the source is restored before
+   * either surface is shown, so nothing covers it and the failing renderer is not needed.
+   * Only an overlay of the live session may end it; the fault is presented either way.
+   */
+  public async failFromOverlay(windowId: WindowId, context: AppErrorContext): Promise<void> {
+    if (this.isSessionOverlay(windowId)) this.dismiss()
+    await this.presentFault(context)
+  }
+
   private async showCaptureFailedDialog(error: unknown): Promise<void> {
-    await dialog.showMessageBox({
-      type: 'error',
-      title: t('dialog.screenshot_failed.title'),
-      message: t('dialog.screenshot_failed.message'),
-      detail: error instanceof Error ? error.message : String(error),
-      buttons: [t('dialog.screenshot_failed.ok')],
-      defaultId: 0
-    })
+    await this.presentFault(
+      createAppErrorContext({
+        source: 'screenshot',
+        operation: 'screenshot.capture',
+        message: error instanceof Error ? error.message : String(error),
+        ...(error instanceof Error && error.name ? { name: error.name } : {}),
+        ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
+      })
+    )
+  }
+
+  /**
+   * Keep the fault's own cause on the ready main window.
+   * The native dialog is only the fallback and copies that same cause.
+   */
+  private async presentFault(context: AppErrorContext): Promise<void> {
+    try {
+      if (deliverToReadyMain('app.error.open', context)) return
+    } catch (handoffError) {
+      // A failed handoff must not replace the capture error the dialog copies.
+      logger.error('Screenshot failure could not be handed to the main window', handoffError as Error)
+    }
+
+    const technicalDetail = [context.name, context.message, context.stack].filter(Boolean).join('\n')
+    const language = getAppLanguage()
+    try {
+      await showSupportedMessageBox({
+        language,
+        box: {
+          type: 'error',
+          title: t('dialog.screenshot_failed.title', undefined, language),
+          message: t('dialog.screenshot_failed.message', undefined, language),
+          buttons: [t('dialog.screenshot_failed.ok', undefined, language)],
+          defaultId: 0
+        },
+        ...(technicalDetail ? { technicalDetail } : {})
+      })
+    } catch (dialogError) {
+      logger.error('Screenshot failure could not be shown', dialogError as Error)
+    }
   }
 }
 

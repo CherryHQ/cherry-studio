@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import { app, dialog } from 'electron'
+import { app } from 'electron'
 
 import { application } from '@application'
 import { readRestoreJournal } from '@data/db/restore/restoreJournal'
@@ -11,7 +11,9 @@ import {
   runRestorePromotion
 } from '@data/db/restore/restorePromotion'
 import { loggerService } from '@logger'
+import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { resolveSystemLanguage, t } from '@main/i18n'
+import { stringifyThrown } from '@shared/utils/appErrorSnapshot'
 
 const logger = loggerService.withContext('BackupRestoreGate')
 
@@ -61,9 +63,12 @@ export function prepareBackupRestoreSession(): boolean {
  * empty database boot or an automatic relaunch loop.
  */
 export async function runBackupRestoreGate(isolatedSession = false): Promise<'handled' | 'skipped'> {
+  let promotionError: unknown
+  let refusal: string | undefined
   try {
-    await runRestorePromotion()
+    refusal = await runRestorePromotion()
   } catch (error) {
+    promotionError = error
     logger.error('Restore promotion crashed unexpectedly — attempting last-resort recovery', error as Error)
     try {
       markRestoreFailedAfterCrash()
@@ -80,7 +85,21 @@ export async function runBackupRestoreGate(isolatedSession = false): Promise<'ha
   if (result.kind === 'ok' && (result.journal.state === 'failed' || result.journal.state === 'expired')) {
     await app.whenReady()
     const language = resolveSystemLanguage(app.getLocale())
-    dialog.showErrorBox(t('backup.restore.failed', undefined, language), t('backup.restore.retry', undefined, language))
+    const { state, step } = result.journal
+    const journalLine = `Restore journal: ${state}${step ? ` at ${step}` : ''}`
+    await showSupportedMessageBox({
+      box: {
+        type: 'error',
+        title: t('backup.restore.failed', undefined, language),
+        message: t('backup.restore.retry', undefined, language),
+        buttons: [t('dialog.support.ok', undefined, language)],
+        defaultId: 0,
+        cancelId: 0
+      },
+      technicalDetail: [journalLine, refusal, promotionError ? stringifyThrown(promotionError) : undefined]
+        .filter(Boolean)
+        .join('\n')
+    })
   }
   cleanupTerminalRestoreArtifacts()
   if (isolatedSession) {

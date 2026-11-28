@@ -219,6 +219,18 @@ describe('openAppErrorDetail', () => {
     )
   })
 
+  it('keeps one main-process rejection toast: a different rejection replaces the previous one', () => {
+    const rejection = (id: string, message: string) =>
+      createAppErrorContext({ id, message, operation: 'process.unhandledRejection', source: 'main' })
+
+    presentHandedOffError(rejection('rej-1', 'database locked'))
+    presentHandedOffError(rejection('rej-2', 'disk full'))
+
+    const keys = mocks.toastError.mock.calls.map(([notice]) => notice.key)
+    expect(keys).toHaveLength(2)
+    expect(keys[1]).toBe(keys[0])
+  })
+
   it('labels a screenshot failure without rewriting the handed-off capture context', () => {
     const context = createAppErrorContext({
       id: 'shot-1',

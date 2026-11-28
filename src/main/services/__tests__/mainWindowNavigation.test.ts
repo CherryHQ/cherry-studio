@@ -39,6 +39,7 @@ import {
   openSettingsInMainWindow,
   openTabInMainWindow,
   deliverToReadyMain,
+  flushMainRendererFault,
   queueMainRendererFault,
   resetMainRendererTabAttachDelivery,
   setMainSurfaceReceiver
@@ -337,6 +338,26 @@ describe('mainWindowNavigation', () => {
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.updater.run_check', undefined)
     })
 
+    it('never raises main without reveal and skips it while hidden or minimized', () => {
+      const backgroundWindow = { ...focusedWindow, isVisible: vi.fn(() => false), isMinimized: vi.fn(() => false) }
+      windowManagerMock.getWindowsByType.mockReturnValue([backgroundWindow])
+      markMainRendererReadyForTabAttach('main-1')
+      setMainSurfaceReceiver('error', true)
+
+      expect(deliverToReadyMain('app.error.open', fault, { reveal: false })).toBe(false)
+      backgroundWindow.isVisible.mockReturnValue(true)
+      backgroundWindow.isMinimized.mockReturnValue(true)
+      expect(deliverToReadyMain('app.error.open', fault, { reveal: false })).toBe(false)
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+
+      backgroundWindow.isMinimized.mockReturnValue(false)
+      expect(deliverToReadyMain('app.error.open', fault, { reveal: false })).toBe(true)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.error.open', fault)
+      expect(backgroundWindow.restore).not.toHaveBeenCalled()
+      expect(backgroundWindow.show).not.toHaveBeenCalled()
+      expect(backgroundWindow.focus).not.toHaveBeenCalled()
+    })
+
     it('delivers an update handoff retried after a transient main-frame load without another mount', () => {
       let loading = true
       const mainWindow = {
@@ -391,6 +412,61 @@ describe('mainWindowNavigation', () => {
           message: 'Renderer process crashed'
         })
       )
+    })
+    it('delivers a queued renderer crash into a minimized or hidden main without raising it', () => {
+      const backgroundWindow = { ...focusedWindow, isVisible: vi.fn(() => true), isMinimized: vi.fn(() => true) }
+      windowManagerMock.getWindowsByType.mockReturnValue([backgroundWindow])
+      markMainRendererReadyForTabAttach('main-1')
+      queueMainRendererFault('Renderer process crashed')
+
+      setMainSurfaceReceiver('error', true)
+
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith(
+        'main-1',
+        'app.error.open',
+        expect.objectContaining({ operation: 'renderer.crash' })
+      )
+      expect(backgroundWindow.restore).not.toHaveBeenCalled()
+      expect(backgroundWindow.show).not.toHaveBeenCalled()
+      expect(backgroundWindow.focus).not.toHaveBeenCalled()
+
+      ipcApiServiceMock.send.mockClear()
+      backgroundWindow.isMinimized.mockReturnValue(false)
+      backgroundWindow.isVisible.mockReturnValue(false)
+      queueMainRendererFault('Renderer process crashed again')
+      flushMainRendererFault()
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith(
+        'main-1',
+        'app.error.open',
+        expect.objectContaining({ message: 'Renderer process crashed again' })
+      )
+      expect(backgroundWindow.show).not.toHaveBeenCalled()
+    })
+
+    it('keeps tab readiness while main is loading and presents the crash once loading ends', () => {
+      let loading = true
+      const loadingWindow = {
+        ...focusedWindow,
+        webContents: { isLoadingMainFrame: () => loading, isCrashed: () => false }
+      }
+      windowManagerMock.getWindowsByType.mockReturnValue([loadingWindow])
+      windowManagerMock.getWindow.mockReturnValue(loadingWindow)
+      markMainRendererReadyForTabAttach('main-1')
+      queueMainRendererFault('Renderer process crashed')
+      setMainSurfaceReceiver('error', true)
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+
+      loading = false
+      flushMainRendererFault()
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith(
+        'main-1',
+        'app.error.open',
+        expect.objectContaining({ operation: 'renderer.crash' })
+      )
+
+      const tab = { id: 'tab-returned', type: 'route', url: '/app/chat', title: 'Chat' } as const
+      openTabInMainWindow(tab)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'tab.attached', tab)
     })
   })
 
