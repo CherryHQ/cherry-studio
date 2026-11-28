@@ -29,6 +29,7 @@ vi.mock('@main/core/lifecycle', async () => {
 // hooks.ts module-load deps the outcome hook never touches.
 vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: (text: string) => text }))
 vi.mock('@main/ai/toolApproval/toolGuards', () => ({ evaluateToolGuards: vi.fn(async () => undefined) }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn(async () => null) }))
 vi.mock('../guardRules', () => ({ CLAUDE_TOOL_GUARD_RULES: [] }))
 vi.mock('../skillDependencies', () => ({ SKILL_TOOL_NAME: 'Skill', checkSkillRuntimeDependencies: vi.fn() }))
@@ -257,7 +258,7 @@ describe('bashOutcomeHook', () => {
   })
 
   const rewriteViaRtk = async (original: string, rewritten: string, toolUseId: string) => {
-    vi.mocked(rtkRewrite).mockResolvedValueOnce(rewritten)
+    vi.mocked(rtkRewrite).mockResolvedValueOnce({ command: rewritten, approvalRequired: false })
     await rtkRewriteHook(
       {
         hook_event_name: 'PreToolUse',
@@ -274,7 +275,7 @@ describe('bashOutcomeHook', () => {
     (bashOutcomesOf(svc, SESSION) as { command: string }[] | undefined)?.map((e) => e.command)
 
   const pendingOrigins = () =>
-    (svc as unknown as { bashRewriteOrigins: Map<string, Map<string, string>> }).bashRewriteOrigins
+    (svc as unknown as { bashRewriteOrigins: ReadonlyMap<string, unknown> }).bashRewriteOrigins
 
   const finishBatch = (toolUseId: string, agentId?: string) =>
     Promise.all(
@@ -337,7 +338,7 @@ describe('bashOutcomeHook', () => {
   it.each(['dispose', 'onStop', 'onDestroy'] as const)(
     'an in-flight rewrite cannot repopulate session state after %s',
     async (cleanup) => {
-      const rewrite = Promise.withResolvers<string | null>()
+      const rewrite = Promise.withResolvers<Awaited<ReturnType<typeof rtkRewrite>>>()
       vi.mocked(rtkRewrite).mockReturnValueOnce(rewrite.promise)
       const pending = rtkRewriteHook(
         {
@@ -354,7 +355,7 @@ describe('bashOutcomeHook', () => {
       else await (svc as unknown as Record<'onStop' | 'onDestroy', () => Promise<void>>)[cleanup]()
       expect(pendingOrigins().size).toBe(0)
 
-      rewrite.resolve('rtk git status')
+      rewrite.resolve({ command: 'rtk git status', approvalRequired: true })
       await pending
 
       expect(pendingOrigins().size).toBe(0)
