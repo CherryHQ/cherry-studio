@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PlantUmlRenderResponse } from '@renderer/workers/plantUml.worker'
@@ -142,5 +143,32 @@ describe('PlantUmlPreview', () => {
     expect(FakeWorker.current).not.toBe(timedOutWorker)
     await reply({ svgs: [svg('<text>Bob to Carol</text>')] })
     expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('Bob to Carol')
+  })
+
+  it('re-renders on the reused worker after Activity hide and show', async () => {
+    const { rerender } = render(
+      <Activity mode="visible">
+        <PlantUmlPreview>{source}</PlantUmlPreview>
+      </Activity>
+    )
+    await advance()
+    const firstWorker = FakeWorker.current
+    await reply({ error: 'cannot include <C4/C4_Context>', line: 2 })
+    expect(screen.getByText('2: cannot include <C4/C4_Context>')).toBeInTheDocument()
+
+    rerender(
+      <Activity mode="hidden">
+        <PlantUmlPreview>{source}</PlantUmlPreview>
+      </Activity>
+    )
+    rerender(
+      <Activity mode="visible">
+        <PlantUmlPreview>{source}</PlantUmlPreview>
+      </Activity>
+    )
+    await advance()
+    expect(FakeWorker.current).toBe(firstWorker)
+    await reply({ error: 'cannot include <C4/C4_Context>', line: 2 })
+    expect(screen.getByText('2: cannot include <C4/C4_Context>')).toBeInTheDocument()
   })
 })

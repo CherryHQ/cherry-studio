@@ -15,6 +15,7 @@
  */
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import type { NativeFileSupport } from '@main/ai/messages/nativeFileSupport'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -29,7 +30,6 @@ import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
-import type { NativeFileSupport } from '../params/nativeFileSupport'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
 import type { RetryPolicy } from './retryPolicy'
 

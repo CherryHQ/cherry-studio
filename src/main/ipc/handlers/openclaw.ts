@@ -26,5 +26,7 @@ export const openclawHandlers: IpcHandlersFor<typeof openclawRequestSchemas> = {
     return application.get('OpenClawService').getDashboardUrl()
   },
   'openclaw.sync_config': (input) =>
-    asOperationResult(() => application.get('OpenClawService').syncConfig(input.uniqueModelId, input.port))
+    asOperationResult(() =>
+      application.get('OpenClawService').syncConfig(input.uniqueModelId, input.port, input.viaGateway)
+    )
 }

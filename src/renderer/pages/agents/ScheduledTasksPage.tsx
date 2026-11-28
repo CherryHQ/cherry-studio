@@ -7,8 +7,12 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, 
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import { ConversationNavigationPane } from '@renderer/components/chat/shell/ConversationNavigationPane'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
-import { formatTaskCardTime, TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import {
+  formatTaskCardTime,
+  TASK_RUN_STATUS_KEYS,
+  TaskRunSummaryLine
+} from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTaskConversation } from '@renderer/hooks/agent/useTaskConversation'
 import { TASKS_PAGE_LIMIT, useAllTasks, useCreateTask, useTask } from '@renderer/hooks/agent/useTasks'
@@ -16,7 +20,9 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import AgentChat from './AgentChat'
 import { ScheduledTaskGroup } from './components/ScheduledTaskSidebar'
@@ -41,16 +47,26 @@ export default function ScheduledTasksPage() {
     enabled: !!notificationId,
     swrOptions: { shouldRetryOnError: false }
   })
+  const conversation = useTaskConversation(selectedTask, runId)
+  const selectedRun = conversation.result?.selectedRun
+  const explicitRun = runId && selectedRun?.id === runId ? selectedRun : undefined
   const resultError =
-    selectedTask?.runSummary?.status === 'failed' &&
+    selectedTask &&
+    (runId ? !explicitRun || explicitRun.status === 'failed' : selectedTask.runSummary?.status === 'failed') &&
     notificationId &&
     notification?.id === notificationId &&
     !notificationError &&
     notification.target?.kind === 'scheduled-task' &&
-    notification.target.taskId === selectedTask?.id
+    notification.target.taskId === selectedTask.id &&
+    (!notification.target.runId || notification.target.runId === runId)
       ? notification.target.result?.errorSummary
       : undefined
-  const conversation = useTaskConversation(selectedTask, runId)
+  const runHint =
+    resultError ??
+    explicitRun?.error ??
+    ((explicitRun?.status ?? selectedTask?.runSummary?.status) === 'skipped' && selectedRun?.status === 'skipped'
+      ? selectedRun.result
+      : null)
   const bootstrap = useAgentConversationBootstrap({
     session: conversation.session,
     sessionLoading: conversation.sessionLoading,
@@ -69,7 +85,11 @@ export default function ScheduledTasksPage() {
   // Keep the lazy form mounted after first use so Dialog can finish its exit animation.
   const [createOpen, setCreateOpen] = useState<boolean>()
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const creatingConversation = useRef(false)
   const { createTask } = useCreateTask()
+  const { trigger: createConversation } = useMutation('POST', '/agent-sessions', {
+    refresh: ['/agent-sessions', '/agent-workspaces']
+  })
   const ids = useMemo(
     () => [...new Set([...active.tasks, ...paused.tasks, ...completed.tasks].map((item) => item.agentId))].sort(),
     [active.tasks, paused.tasks, completed.tasks]
@@ -87,6 +107,18 @@ export default function ScheduledTasksPage() {
   })
   const selectTask = (id: string) => {
     void navigate({ to: '/app/scheduled-tasks', search: { taskId: id }, replace: true })
+  }
+  const startNewTaskConversation = async (agentId: string) => {
+    if (creatingConversation.current) return
+    creatingConversation.current = true
+    try {
+      const session = await createConversation({ body: { agentId, name: '', workspace: { type: 'system' } } })
+      await navigate({ to: '/app/agents', search: { sessionId: session.id } })
+    } catch (error) {
+      toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
+    } finally {
+      creatingConversation.current = false
+    }
   }
   const selectRun = (id: string) => {
     if (taskId) void navigate({ to: '/app/scheduled-tasks', search: { taskId, runId: id }, replace: true })
@@ -129,17 +161,18 @@ export default function ScheduledTasksPage() {
       </div>
     </ConversationNavigationPane>
   )
-  const selectedRun = conversation.result?.selectedRun
   const toolbar = (
     <div className="flex min-h-(--navbar-height) flex-wrap items-center gap-2 px-3 py-1.5">
       <ConversationSidebarToggleButton sidebarOpen={shell.shellPaneOpen} onSidebarToggle={shell.toggleShellPane} />
       <span className="min-w-0 flex-1 truncate text-sm font-medium">
         {selectedTask?.name ?? t('settings.scheduledTasks.title')}
       </span>
-      {selectedTask?.runSummary && (
-        <Tooltip content={resultError} placement="bottom" asChild>
-          <span className="text-xs" tabIndex={resultError ? 0 : undefined}>
-            <TaskRunSummaryLine summary={selectedTask.runSummary} />
+      {(explicitRun || (!runId && selectedTask?.runSummary)) && (
+        <Tooltip content={runHint} placement="bottom" asChild>
+          <span className="text-xs" tabIndex={runHint ? 0 : undefined}>
+            {explicitRun
+              ? t(TASK_RUN_STATUS_KEYS[explicitRun.status])
+              : selectedTask?.runSummary && <TaskRunSummaryLine summary={selectedTask.runSummary} />}
           </span>
         </Tooltip>
       )}
@@ -195,6 +228,7 @@ export default function ScheduledTasksPage() {
                   ? t('agent.tasks.reuseSession.pending')
                   : t('scheduledTasks.noConversation')}
       </p>
+      {!!error && resultError && <p className="whitespace-pre-wrap break-words">{resultError}</p>}
       {!!error && (
         <Button
           variant="outline"
@@ -220,18 +254,7 @@ export default function ScheduledTasksPage() {
           {t('agent.tasks.logs.runAt')}: {formatTaskCardTime(selectedRun.startedAt)}
         </p>
         <p>
-          {t('agent.tasks.logs.status')}:{' '}
-          {selectedRun.status === 'pending' || selectedRun.status === 'delayed'
-            ? t('agent.tasks.runSummary.queued')
-            : t(
-                selectedRun.status === 'completed'
-                  ? 'agent.tasks.logs.completed'
-                  : selectedRun.status === 'failed'
-                    ? 'agent.tasks.logs.failed'
-                    : selectedRun.status === 'cancelled'
-                      ? 'agent.tasks.logs.cancelled'
-                      : 'agent.tasks.logs.running'
-              )}
+          {t('agent.tasks.logs.status')}: {t(TASK_RUN_STATUS_KEYS[selectedRun.status])}
         </p>
         {selectedRun.result !== null && (
           <section className="mt-4">
@@ -239,13 +262,13 @@ export default function ScheduledTasksPage() {
             <p className="whitespace-pre-wrap break-words">{selectedRun.result}</p>
           </section>
         )}
-        {selectedRun.error !== null && (
+        {(resultError || selectedRun.error !== null) && (
           <section className="mt-4">
             <h2>{t('common.error')}</h2>
-            <p className="whitespace-pre-wrap break-words">{selectedRun.error}</p>
+            <p className="whitespace-pre-wrap break-words">{resultError ?? selectedRun.error}</p>
           </section>
         )}
-        {selectedRun.result === null && selectedRun.error === null && (
+        {selectedRun.result === null && selectedRun.error === null && !resultError && (
           <p className="mt-4">{t('scheduledTasks.noStoredResult')}</p>
         )}
       </div>
@@ -266,6 +289,7 @@ export default function ScheduledTasksPage() {
         onPaneAutoCollapseChange={shell.handlePaneAutoCollapseChange}
         paneManualToggle={shell.paneManualToggle}
         showResourceListControls={false}
+        onStartNewTaskConversation={(agentId) => void startNewTaskConversation(agentId)}
         conversationToolbar={toolbar}
         centerSurface={!conversation.session ? { content: storedResult } : null}
       />

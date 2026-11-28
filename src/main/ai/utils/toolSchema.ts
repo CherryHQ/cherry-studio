@@ -225,3 +225,124 @@ export function normalizeRootObjectSchema(
     properties: properties as JSONSchema7['properties']
   }
 }
+
+const SCHEMA_MAPS = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas'])
+const SCHEMA_LISTS = new Set(['allOf', 'anyOf', 'oneOf', 'prefixItems'])
+const SCHEMA_VALUES = new Set([
+  'items',
+  'additionalItems',
+  'additionalProperties',
+  'contains',
+  'propertyNames',
+  'not',
+  'if',
+  'then',
+  'else'
+])
+const HEX_DIGITS_PATTERN = /^[0-9a-fA-F]+$/
+
+function hasUnpairedSurrogate(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i)
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = i + 1 < value.length ? value.charCodeAt(i + 1) : 0
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        i += 1
+        continue
+      }
+      return true
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      return true
+    }
+  }
+  return false
+}
+
+function hasNonPortableRegexEscape(pattern: string): boolean {
+  for (let i = 0; i < pattern.length; i += 1) {
+    if (pattern[i] !== '\\') continue
+    const next = pattern[i + 1]
+    if (next === undefined) return true
+    // Rust regex / RE2 JSON Schema validators reject JS `\uXXXX` escapes and surrogate code points.
+    if (next === 'u') return true
+    if (next === 'x' && pattern[i + 2] === '{') {
+      const end = pattern.indexOf('}', i + 3)
+      if (end === -1) return true
+      const hex = pattern.slice(i + 3, end)
+      if (!HEX_DIGITS_PATTERN.test(hex)) return true
+      const codePoint = Number.parseInt(hex, 16)
+      if ((codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
+        return true
+      }
+    }
+    i += 1
+  }
+  return false
+}
+
+/**
+ * Returns true when a JSON Schema `pattern` is syntactically valid and portable
+ * across strict UTF-8 regex validators (Rust `regex` / RE2 / ECMA-262).
+ */
+export function isPortableSchemaPattern(pattern: unknown): boolean {
+  if (typeof pattern !== 'string') return false
+  if (hasUnpairedSurrogate(pattern) || hasNonPortableRegexEscape(pattern)) return false
+  try {
+    new RegExp(pattern)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function stripPatternsFromMap(map: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  let changed = false
+  for (const [key, entry] of Object.entries(map)) {
+    const next = stripIncompatibleSchemaPatterns(entry)
+    result[key] = next
+    if (next !== entry) changed = true
+  }
+  return changed ? result : map
+}
+
+function stripPatternsFromList(list: unknown[]): unknown[] {
+  let changed = false
+  const result = list.map((entry) => {
+    const next = stripIncompatibleSchemaPatterns(entry)
+    if (next !== entry) changed = true
+    return next
+  })
+  return changed ? result : list
+}
+
+/**
+ * Recursively removes non-portable or invalid `pattern` keywords from schema-bearing
+ * positions without mutating the input or stripping object properties named `pattern`.
+ * Returns the original reference when nothing changes.
+ */
+export function stripIncompatibleSchemaPatterns<T>(schema: T): T {
+  if (!isPlainObject(schema)) return schema
+
+  const result: Record<string, unknown> = {}
+  let changed = false
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === 'pattern' && !isPortableSchemaPattern(value)) {
+      changed = true
+      continue
+    }
+    let next = value
+    if (SCHEMA_MAPS.has(key) && isPlainObject(value)) {
+      next = stripPatternsFromMap(value)
+    } else if (SCHEMA_LISTS.has(key) && Array.isArray(value)) {
+      next = stripPatternsFromList(value)
+    } else if (SCHEMA_VALUES.has(key)) {
+      next = Array.isArray(value) ? stripPatternsFromList(value) : stripIncompatibleSchemaPatterns(value)
+    }
+    result[key] = next
+    if (next !== value) changed = true
+  }
+
+  return (changed ? result : schema) as T
+}
