@@ -85,7 +85,8 @@
  *   `@main/utils/file/fs` (reached through a `FilePathHandle`), which is an
  *   explicit user-facing operation not tied to any entry id.
  * - User-facing removal goes through `batchRemoveFromLibrary`, which also
- *   verifies external origin and persistent-reference absence in the delete tx.
+ *   verifies external origin and protects persistent refs in the delete tx,
+ *   except optional source refs to missing translation originals.
  *
  * **External entries cannot be trashed.** Their lifecycle is monotonic:
  * created by `ensureExternalEntry` (pure upsert keyed by path — see below),
@@ -628,7 +629,7 @@ export interface IFileManager {
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
   /** Permanently delete unreferenced internal entries that are currently in Trash. */
   batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
-  /** Remove unreferenced external entries from the library without modifying user files. */
+  /** Remove external entries with no protected refs from the library without modifying user files. */
   batchRemoveFromLibrary(ids: FileEntryId[]): Promise<BatchMutationResult>
 
   // ─── Stream ───

@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -8,6 +9,7 @@ import type { AiGenerateRequest, AsInProcessChat } from '@main/ai/AiService'
 import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
 import { getAppLanguage } from '@main/i18n'
+import { isLocalAgentPlaceholderTitle } from '@shared/ai/localAgent'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -131,9 +133,20 @@ function matchesFirstUserMessageTitle(name: string | null | undefined, userText:
 // manual), nothing auto-renames it again — so the gate is "name is still
 // default or still the temporary title", which survives restarts because it
 // derives from the persisted name instead of runtime state.
-function canAutoRenameAgentSessionName(name: string | null | undefined, userText?: string): boolean {
-  if (isDefaultAgentSessionName(name)) return true
-  return userText !== undefined && matchesFirstUserMessageTitle(name, userText)
+function canAutoRenameAgentSessionName(
+  session: { name?: string | null; agentId?: string | null },
+  userText?: string
+): boolean {
+  if (
+    isDefaultAgentSessionName(session.name) ||
+    (userText !== undefined && matchesFirstUserMessageTitle(session.name, userText))
+  )
+    return true
+  const agentId = session.agentId
+  return (
+    !!agentId &&
+    isLocalAgentPlaceholderTitle(session.name, () => agentService.getAgent(agentId)?.localRuntime?.presetId)
+  )
 }
 
 // v2 creates topics with name `''`; anything else is a real title.
@@ -243,7 +256,7 @@ export class TopicNamingService {
     try {
       const session = this.getAgentSession(sessionId, 'initial')
       if (session?.isNameManuallyEdited) return
-      if (!session || !canAutoRenameAgentSessionName(session.name)) return
+      if (!session || !canAutoRenameAgentSessionName(session)) return
 
       const userText = typeof userMessage === 'string' ? userMessage : getMainTextContentFromMessageData(userMessage)
       const nextName = buildFirstUserMessageTitle(userText)
@@ -251,7 +264,7 @@ export class TopicNamingService {
 
       const latestSession = this.getAgentSession(sessionId, 'latest')
       if (latestSession?.isNameManuallyEdited) return
-      if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
+      if (!latestSession || !canAutoRenameAgentSessionName(latestSession, userText)) return
       if (nextName === (latestSession.name ?? '').trim()) return
 
       agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
@@ -306,7 +319,7 @@ export class TopicNamingService {
       const session = this.getAgentSession(sessionId, 'initial')
       if (!session || !session.agentId) return
       if (session.isNameManuallyEdited) return
-      if (!canAutoRenameAgentSessionName(session.name, userText)) return
+      if (!canAutoRenameAgentSessionName(session, userText)) return
       const uniqueModelId = this.resolveNamingModelId()
 
       const structuredConversation: StructuredMessage[] = [
@@ -324,7 +337,7 @@ export class TopicNamingService {
       const nextName = sanitizeConversationTitle(title)
       const latestSession = this.getAgentSession(sessionId, 'latest')
       if (latestSession?.isNameManuallyEdited) return
-      if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
+      if (!latestSession || !canAutoRenameAgentSessionName(latestSession, userText)) return
       if (!nextName || nextName === (latestSession.name ?? '').trim()) return
 
       agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
@@ -378,6 +391,7 @@ export class TopicNamingService {
     // the renderer omits assistantId for the same reason.
     const request: AsInProcessChat<AiGenerateRequest> = {
       uniqueModelId,
+      utilityTask: true,
       conversation: { id: chatId, topicId: chatId },
       system: systemPrompt,
       prompt,

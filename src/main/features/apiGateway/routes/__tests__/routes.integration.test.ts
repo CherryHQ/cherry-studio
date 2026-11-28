@@ -40,7 +40,7 @@ const {
         ''
     )
   ),
-  scopedCredentials: new Map<string, { path: string; model: string }>(),
+  scopedCredentials: new Map<string, { paths: readonly string[]; model: string }>(),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown, release?: () => void) => Promise<Response>>(
     async () =>
@@ -969,7 +969,7 @@ describe('internal consumer authorization', () => {
           body: JSON.stringify({ model, messages: [{ role: 'user', content: 'translate' }] })
         })
       )
-    scopedCredentials.set('job-key', { path: '/v1/chat/completions', model: 'openai:gpt-4o' })
+    scopedCredentials.set('job-key', { paths: ['/v1/chat/completions'], model: 'openai:gpt-4o' })
 
     expect((await chat('openai:gpt-4o')).status).toBe(200)
     expect((await chat('openai:gpt-4.1')).status).toBe(403)
@@ -988,6 +988,19 @@ describe('internal consumer authorization', () => {
 
     scopedCredentials.delete('job-key')
     expect((await chat('openai:gpt-4o')).status).toBe(403)
+  })
+
+  it('authorizes every path a multi-path scope names and no other', async () => {
+    const app = buildApp({ surface: 'internal' })
+    const headers = { authorization: 'Bearer cli-key', 'content-type': 'application/json' }
+    const post = (path: string, body: unknown) =>
+      app.handle(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
+    scopedCredentials.set('cli-key', { paths: ['/v1/chat/completions', '/v1/messages'], model: 'openai:gpt-4o' })
+
+    const chat = { model: 'openai:gpt-4o', messages: [{ role: 'user', content: 'hi' }] }
+    expect((await post('/v1/chat/completions', chat)).status).toBe(200)
+    expect((await post('/v1/messages', { ...chat, max_tokens: 8 })).status).not.toBe(403)
+    expect((await post('/v1/responses', { model: 'openai:gpt-4o', input: 'hi' })).status).toBe(403)
   })
 
   it('rejects an internal key presented only as a query parameter', async () => {
