@@ -27,6 +27,7 @@ import { detectLocalAgents, openLocalAgentTerminal, selectLocalAgentModel } from
 import { openRequestPath } from '@main/services/file'
 import { protectLocalAgentEnvironment, resolveLocalAgentCredentials } from '@main/services/localAgentCredentials'
 import { PathStaleVersionError } from '@main/utils/file'
+import { isDirectoryAccessibleAsync } from '@main/utils/isDirectoryAccessible'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { LocalAgentAccount, LocalAgentConfiguration } from '@shared/ai/localAgent'
@@ -379,6 +380,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
     }
   },
+  'ai.agent.workspace.is_accessible': async ({ path }) => isDirectoryAccessibleAsync(path),
   'ai.agent.workspace.register': async ({ path, name }) =>
     agentWorkspaceStorageService.registerWorkspace(path, { name }),
   'ai.agent.workspace.delete': ({ workspaceId }) =>

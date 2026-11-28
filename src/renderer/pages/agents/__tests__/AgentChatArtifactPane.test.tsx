@@ -459,7 +459,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
-  useAgentWorkspaceWarning: () => undefined
+  useAgentWorkspaceStatus: () => ({ available: true, warning: undefined })
 }))
 
 const activeSessionMocks = vi.hoisted(() => ({

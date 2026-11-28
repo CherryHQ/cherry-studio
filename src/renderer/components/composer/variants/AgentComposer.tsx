@@ -215,6 +215,7 @@ type Props = {
   resolvedAgent: AgentEntity | undefined
   resolvedModel: Model | undefined
   resolvedWorkspaceWarning: string | null
+  resolvedWorkspaceAvailable?: boolean
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<boolean | void>
   stop: () => Promise<void>
@@ -251,6 +252,7 @@ const AgentComposerRoot = ({
   resolvedAgent,
   resolvedModel,
   resolvedWorkspaceWarning,
+  resolvedWorkspaceAvailable,
   sendMessage,
   stop,
   onCreateEmptySession,
@@ -454,6 +456,7 @@ const AgentComposerRoot = ({
         forceNarrowLayout={forceNarrowLayout}
         deferQuickPanel={deferQuickPanel}
         resolvedWorkspaceWarning={resolvedWorkspaceWarning}
+        resolvedWorkspaceAvailable={resolvedWorkspaceAvailable}
       />
     </ComposerToolRuntimeProvider>
   )
@@ -500,6 +503,7 @@ interface InnerProps {
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
   resolvedWorkspaceWarning: string | null
+  resolvedWorkspaceAvailable?: boolean
 }
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
@@ -591,7 +595,8 @@ const AgentComposerInner = ({
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false,
-  resolvedWorkspaceWarning
+  resolvedWorkspaceWarning,
+  resolvedWorkspaceAvailable
 }: InnerProps) => {
   const { updateAgent } = useUpdateAgent()
   const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
@@ -770,6 +775,8 @@ const AgentComposerInner = ({
       getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
       rootPanelVisible ||
       skillsPanelVisible)
+  const skillsDiscoveryEnabled =
+    skillsDataEnabled && !workspaceWarning && (!userWorkspacePath || resolvedWorkspaceAvailable === true)
   const knowledgeBasesDataEnabled =
     supportsKnowledgeBases &&
     (selectedKnowledgeBases.length > 0 ||
@@ -781,7 +788,7 @@ const AgentComposerInner = ({
     loading: isAvailableSkillsLoading,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
-  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
+  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDiscoveryEnabled })
   const remoteSkillCatalogs = useMcpSkills(
     agent?.mcps ?? [],
     supportsCherryMcp && (rootPanelVisible || skillsPanelVisible)
@@ -829,7 +836,7 @@ const AgentComposerInner = ({
   )
 
   useEffect(() => {
-    if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return
+    if (!shouldValidateSkills || !skillsDiscoveryEnabled || isAvailableSkillsLoading || availableSkillsError) return
 
     const draft = { text, tokens: draftTokens }
     const validatedDraft = excludeComposerDraftTokens(draft, (token) => {
@@ -856,6 +863,7 @@ const AgentComposerInner = ({
     isAvailableSkillsLoading,
     setText,
     shouldValidateSkills,
+    skillsDiscoveryEnabled,
     skillByFilename,
     text
   ])

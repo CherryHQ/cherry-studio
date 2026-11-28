@@ -149,6 +149,8 @@ const AgentPage = () => {
   const { agents, isLoading: isAgentsLoading } = useAgents()
   const routeAgentExists = !!routeAgentId && agents.some((agent) => agent.id === routeAgentId)
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
+  const workspaceSelectionRef = useRef(activeSessionId)
+  workspaceSelectionRef.current = activeSessionId
   const requestComposerFocus = useComposerFocusRequest(
     activeSessionId ? buildAgentSessionTopicId(activeSessionId) : null
   )
@@ -978,7 +980,9 @@ const AgentPage = () => {
         if (workspaceId) {
           setLastUsedWorkspaceId(workspaceId)
         }
-        setActiveSession(updated)
+        // The mutation refreshes the recovered entity cache independently. Do not select it
+        // again if navigation changed while recovery was pending.
+        if (workspaceSelectionRef.current === current.id) setActiveSession(updated)
       } finally {
         setReplacingSessionWorkspace(false)
       }

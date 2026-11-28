@@ -49,6 +49,7 @@ import { toast } from '@renderer/services/toast'
 import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
 
 import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
+import { useAgentWorkspaceStatus } from '../agent/useAgentWorkspaceWarning'
 import {
   useAvailableSkills,
   useInstalledSkills,
@@ -153,6 +154,53 @@ describe('useInstalledSkills', () => {
     expect(skillMocks.request).not.toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' })
   })
 
+  it('does not discover local skills while availability is pending or after an inaccessible reply', async () => {
+    let resolve!: (available: boolean) => void
+    const skillRequest = skillMocks.request.getMockImplementation()!
+    skillMocks.request.mockImplementation((route: string, input: unknown) =>
+      route === 'ai.agent.workspace.is_accessible'
+        ? new Promise<boolean>((done) => {
+            resolve = done
+          })
+        : skillRequest(route, input)
+    )
+    const { result } = renderHook(() => {
+      const status = useAgentWorkspaceStatus('/repo')
+      return { status, skills: useAvailableSkills('agent-1', '/repo', { enabled: status.available === true }) }
+    })
+    expect(result.current.status.available).toBeUndefined()
+    await act(async () => {
+      await result.current.skills.refresh()
+    })
+    expect(skillMocks.request).not.toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' })
+    await act(async () => {
+      resolve(false)
+    })
+    expect(result.current.status.available).toBe(false)
+    await act(async () => {
+      await result.current.skills.refresh()
+    })
+    expect(skillMocks.request).not.toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' })
+  })
+
+  it('blocks manual local refresh as well as automatic discovery while disabled', async () => {
+    const { result, rerender } = renderHook(({ enabled }) => useAvailableSkills('agent-1', '/repo', { enabled }), {
+      initialProps: { enabled: false }
+    })
+    await act(async () => {
+      await result.current.refresh()
+    })
+    expect(skillMocks.request).not.toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' })
+    rerender({ enabled: true })
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' }))
+    skillMocks.request.mockClear()
+    rerender({ enabled: false })
+    await act(async () => {
+      await result.current.refresh()
+    })
+    expect(skillMocks.request).not.toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' })
+  })
+
   it('keeps cached skills visible during background refresh', () => {
     useQueryMock.mockReturnValue({
       data: [createSkill()],
@@ -196,6 +244,22 @@ describe('useInstalledSkills', () => {
       expect.objectContaining({ name: 'PDF', filename: 'pdf' }),
       expect.objectContaining({ name: 'repo-skill', filename: 'repo-skill' })
     ])
+  })
+
+  it('ends missing-directory loading and reloads skills when the workspace changes', async () => {
+    listLocalSkillsMock.mockResolvedValueOnce({ success: true, data: [] })
+    const { result, rerender } = renderHook(({ workdir }) => useAvailableSkills('agent-1', workdir), {
+      initialProps: { workdir: '/missing' }
+    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    listLocalSkillsMock.mockResolvedValueOnce({
+      success: true,
+      data: [{ name: 'Recovered', filename: 'recovered' }]
+    })
+    rerender({ workdir: '/recovered' })
+    await waitFor(() => expect(result.current.skills).toEqual([expect.objectContaining({ filename: 'recovered' })]))
+    expect(result.current.loading).toBe(false)
+    expect(listLocalSkillsMock).toHaveBeenLastCalledWith({ workdir: '/recovered' })
   })
 
   it('reports loading before the first local skill request resolves for a workspace', async () => {

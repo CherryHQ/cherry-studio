@@ -66,7 +66,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       agentSessionService.getConversationById(params.sessionId)
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.setWorkspace(params.sessionId, parsed.data)
+      return agentSessionService.setWorkspaceRecovering(params.sessionId, parsed.data)
     }
   },
 

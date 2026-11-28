@@ -37,7 +37,7 @@ import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
-import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
+import { useAgentWorkspaceStatus } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useLocalAgentSessionInfo } from '@renderer/hooks/agent/useLocalAgentSessionInfo'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
@@ -67,6 +67,7 @@ import {
   AgentTaskProgressCapsule,
   useAgentRightPaneActions
 } from './components/AgentRightPane'
+import { AgentWorkspaceUnavailableNotice } from './components/AgentWorkspaceUnavailableNotice'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -278,7 +279,14 @@ const AgentChat = ({
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
-  const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
+  const [workspaceCheckRevision, setWorkspaceCheckRevision] = useState(0)
+  const { warning: workspaceWarning, available: workspaceAvailable } = useAgentWorkspaceStatus(
+    workspacePath,
+    true,
+    workspaceCheckRevision,
+    currentSessionId ?? undefined
+  )
+  const workspaceUnavailable = Boolean(workspaceWarning)
   const citationPanelCitations =
     citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
 
@@ -346,7 +354,7 @@ const AgentChat = ({
     !runtime.hasOlder &&
     runtime.uiMessages.length === 0
   )
-  const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
+  const canChangeWorkspace = Boolean(onSessionWorkspaceChange && (isEmptyConversation || workspaceUnavailable))
   const runAfterFileNavigation = useCallback(
     (transition: () => void) => {
       if (requestFileNavigation) {
@@ -393,7 +401,9 @@ const AgentChat = ({
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
       runAfterFileNavigation(() => {
-        void onSessionWorkspaceChange?.(workspaceId)
+        void Promise.resolve(onSessionWorkspaceChange?.(workspaceId)).then(() => {
+          setWorkspaceCheckRevision((revision) => revision + 1)
+        })
       })
     },
     [onSessionWorkspaceChange, runAfterFileNavigation]
@@ -569,6 +579,9 @@ const AgentChat = ({
         localPresetId={localPresetId}
         activeModel={activeModel}
         workspaceWarning={workspaceWarning}
+        workspaceAvailable={workspaceAvailable}
+        workspacePath={workspacePath}
+        onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
         isEmptyConversation={isEmptyConversation}
         isMultiSelectMode={isMultiSelectMode}
         sessionMessagesEnabled={sessionMessagesEnabled}
@@ -676,6 +689,9 @@ interface AgentChatSessionCenterProps {
   localPresetId?: string
   activeModel?: Model
   workspaceWarning?: string
+  workspaceAvailable?: boolean
+  workspacePath?: string
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   isEmptyConversation: boolean
   isMultiSelectMode: boolean
   sessionMessagesEnabled: boolean
@@ -698,6 +714,9 @@ const AgentChatSessionCenter = ({
   localPresetId,
   activeModel,
   workspaceWarning,
+  workspaceAvailable,
+  workspacePath,
+  onWorkspaceChange,
   isEmptyConversation,
   isMultiSelectMode,
   sessionMessagesEnabled,
@@ -719,18 +738,18 @@ const AgentChatSessionCenter = ({
   const tabId = useCurrentTabId()
   const isActiveTab = useIsActiveTab()
   const sessionId = session.id
-  const workspacePath = session.workspace?.path
+  const sessionWorkspacePath = session.workspace?.path
   const canActivateRuntime =
     (!tabId || isActiveTab) &&
     !onStartNewTaskConversation &&
     !session.deletedAt &&
-    !!workspacePath &&
+    !!sessionWorkspacePath &&
     activeAgent?.id === session.agentId &&
     localRuntime?.enabled === true &&
     protocol === 'acp'
 
   useEffect(() => {
-    if (!canActivateRuntime || !agentId || !workspacePath) return
+    if (!canActivateRuntime || !agentId || !sessionWorkspacePath) return
     let active = true
     void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: true }).catch((error) => {
       if (active) logger.warn('Failed to prepare active ACP session', { sessionId, error })
@@ -741,11 +760,14 @@ const AgentChatSessionCenter = ({
         logger.warn('Failed to leave active ACP session', { sessionId, error })
       })
     }
-  }, [agentId, canActivateRuntime, sessionId, workspacePath])
+  }, [agentId, canActivateRuntime, sessionId, sessionWorkspacePath])
 
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
+      {workspaceWarning && workspacePath && onWorkspaceChange && (
+        <AgentWorkspaceUnavailableNotice workspacePath={workspacePath} onWorkspaceChange={onWorkspaceChange} />
+      )}
       {checkingRestore ? (
         <p className="px-4 py-3 text-center text-sm text-muted-foreground" role="status">
           {t('common.loading')}
@@ -770,6 +792,7 @@ const AgentChatSessionCenter = ({
           activeAgent={activeAgent}
           activeModel={activeModel}
           workspaceWarning={workspaceWarning}
+          workspaceAvailable={workspaceAvailable}
           isMultiSelectMode={isMultiSelectMode}
           session={session}
           sessionId={runtime.sessionId}

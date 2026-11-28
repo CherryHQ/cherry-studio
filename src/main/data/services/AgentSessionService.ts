@@ -1,4 +1,12 @@
 import { randomBytes } from 'node:crypto'
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs'
+import {
+  access as accessAsync,
+  lstat as lstatAsync,
+  readFile as readFileAsync,
+  readdir as readdirAsync
+} from 'node:fs/promises'
+import path from 'node:path'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
@@ -7,11 +15,13 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import {
   type AgentSessionRow as SessionRow,
   type AgentSessionType,
   agentSessionTable as sessionsTable
 } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { artifactTable } from '@data/db/schemas/artifact'
@@ -29,6 +39,7 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
+import { isDirectoryAccessible, isDirectoryAccessibleAsync, withProbeTimeout } from '@main/utils/isDirectoryAccessible'
 import { parseJsonSortKey, selectNamePage } from '@main/utils/listOrdering'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
@@ -190,6 +201,53 @@ function isPiServableUniqueModel(uniqueModelId: string): boolean {
   } catch {
     return false
   }
+}
+
+/** Results of the filesystem probes a workspace recovery needs, gathered off the main thread. */
+export interface AgentWorkspaceRecoveryPreflight {
+  currentAccessible: boolean
+  targetAccessible: boolean
+  historyProblem?: string
+  /** Workspace the probes were run against; a different one at write time means the request overlapped another. */
+  expectedWorkspaceId?: string
+}
+
+const MANAGED_CLAUDE_ROOT_TAIL = '/Agents/.claude'
+
+/** A saved managed Claude config dir from any machine: its absolute prefix differs, its tail does not. */
+function isManagedClaudeConfigDir(dir: string): boolean {
+  return dir.replace(/\\/g, '/').replace(/\/+$/, '').endsWith(MANAGED_CLAUDE_ROOT_TAIL)
+}
+
+type NativeHistoryProbe =
+  | {
+      kind: 'claude-code'
+      configDir: string
+      foreignConfigDir: boolean
+      /** A managed-root branch from another profile path; its history may have been restored under ours. */
+      relocatable: boolean
+      managedRoot: string
+      nativeThreadId: string | null
+    }
+  | { kind: 'pi'; sessionDir: string; suffix: string; required: boolean }
+  | { kind: 'pi-durable'; storePath: string }
+
+/**
+ * A restored Pi archive must hold complete JSONL records: a slim backup can copy the expected
+ * filename with a truncated record, and the pinned loader throws on it the next turn. An empty
+ * file stays valid; Pi persists lazily, so a session may legitimately have no records yet.
+ */
+function hasCompleteJsonlRecords(content: string): boolean {
+  for (const line of content.split('\n')) {
+    const record = line.trim()
+    if (!record) continue
+    try {
+      JSON.parse(record)
+    } catch {
+      return false
+    }
+  }
+  return true
 }
 
 export class AgentSessionService {
@@ -1211,14 +1269,66 @@ export class AgentSessionService {
   }
 
   /**
-   * Replace a session's workspace. Only an empty session (no messages) may
-   * change its workspace; once a conversation has started the binding is
-   * permanent. Lives on `PUT /agent-sessions/:id/workspace` rather than the
-   * generic PATCH because it creates/deletes the backing system workspace row.
+   * Replace a session's workspace. A session with messages may only change its
+   * workspace when the current user workspace folder is inaccessible, so a
+   * migrated or moved Agent can be re-pointed at a valid folder. Lives on
+   * `PUT /agent-sessions/:id/workspace` rather than the generic PATCH because it
+   * creates/deletes the backing system workspace row.
    */
-  setWorkspace(id: string, source: AgentSessionWorkspaceSource): AgentSessionEntity {
+  setWorkspace(
+    id: string,
+    source: AgentSessionWorkspaceSource,
+    preflight?: AgentWorkspaceRecoveryPreflight
+  ): AgentSessionEntity {
     withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
+      () => {
+        const current = this.getJoinedSessionRowTx(application.get('DbService').getDb(), id)
+        if (preflight?.expectedWorkspaceId && preflight.expectedWorkspaceId !== current.session.workspaceId) {
+          throw DataApiErrorFactory.invalidOperation(
+            'update session workspace',
+            'the conversation workspace changed while recovery was being checked; try again'
+          )
+        }
+        // An empty chat is free to switch, so its folders are never probed.
+        const lockApplies =
+          source.type === AGENT_WORKSPACE_TYPE.USER &&
+          current.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
+          this.sessionHasMessages(application.get('DbService').getDb(), id)
+        const inaccessibleWorkspaceId =
+          lockApplies && !(preflight ? preflight.currentAccessible : isDirectoryAccessible(current.workspace.path))
+            ? current.workspace.id
+            : undefined
+        if (inaccessibleWorkspaceId && source.type === AGENT_WORKSPACE_TYPE.USER) {
+          // Recovery must land on a usable folder and on history this profile can still continue; both
+          // are probed here (or by the async preflight), outside the write transaction.
+          const target = agentWorkspaceService.getRowByIdTx(application.get('DbService').getDb(), source.workspaceId)
+          const targetAccessible =
+            target.id === current.session.workspaceId ||
+            (preflight ? preflight.targetAccessible : isDirectoryAccessible(target.path))
+          if (!targetAccessible) {
+            throw DataApiErrorFactory.invalidOperation(
+              'update session workspace',
+              'the replacement workspace folder is not accessible'
+            )
+          }
+          const historyProblem = preflight
+            ? preflight.historyProblem
+            : this.findNativeHistoryProblem(this.listNativeHistoryProbes(id), (probe) => this.probeHistorySync(probe))
+          if (historyProblem) {
+            throw DataApiErrorFactory.invalidOperation('update session workspace', historyProblem)
+          }
+          if (
+            !preflight &&
+            this.listNativeHistoryProbes(id).some((probe) => probe.kind === 'claude-code' && probe.nativeThreadId)
+          ) {
+            throw DataApiErrorFactory.invalidOperation(
+              'update session workspace',
+              'Claude history recovery requires asynchronous native verification'
+            )
+          }
+        }
+        application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source, inaccessibleWorkspaceId))
+      },
       defaultHandlersFor('Session', id)
     )
     notifyDataApiDataChange([
@@ -1229,16 +1339,284 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
-  setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
+  /**
+   * Run the filesystem probes `setWorkspace` needs without blocking the main thread, then apply the
+   * change with their results. A stalled mount resolves as inaccessible after a bounded wait.
+   */
+  async setWorkspaceRecovering(id: string, source: AgentSessionWorkspaceSource): Promise<AgentSessionEntity> {
+    const db = application.get('DbService').getDb()
+    const current = this.getJoinedSessionRowTx(db, id)
+    if (
+      source.type !== AGENT_WORKSPACE_TYPE.USER ||
+      current.workspace.type !== AGENT_WORKSPACE_TYPE.USER ||
+      !this.sessionHasMessages(db, id)
+    ) {
+      return this.setWorkspace(id, source)
+    }
+    const target = agentWorkspaceService.getRowByIdTx(db, source.workspaceId)
+    const expectedWorkspaceId = current.session.workspaceId
+    if (await isDirectoryAccessibleAsync(current.workspace.path)) {
+      return this.setWorkspace(id, source, { currentAccessible: true, targetAccessible: true, expectedWorkspaceId })
+    }
+    const targetInitiallyAccessible =
+      target.id === current.session.workspaceId || (await isDirectoryAccessibleAsync(target.path))
+    if (!targetInitiallyAccessible) {
+      return this.setWorkspace(id, source, { currentAccessible: false, targetAccessible: false, expectedWorkspaceId })
+    }
+    const probes = this.listNativeHistoryProbes(id)
+    let historyProblem: string | undefined
+    for (const probe of probes) {
+      historyProblem = this.describeHistoryProblem(probe, await this.probeHistoryAsync(probe))
+      if (historyProblem) break
+      if (probe.kind === 'claude-code' && probe.nativeThreadId) {
+        try {
+          const { recoverClaudeWorkspaceHistory } = await import('@main/ai/runtime/claudeCode')
+          await recoverClaudeWorkspaceHistory({
+            configDir: probe.foreignConfigDir ? probe.managedRoot : probe.configDir,
+            targetCwd: target.path,
+            sourceCwd: current.workspace.path,
+            nativeThreadId: probe.nativeThreadId
+          })
+        } catch {
+          historyProblem =
+            "this conversation's Claude Code history cannot be reopened from the replacement workspace; the original binding is unchanged"
+          break
+        }
+      }
+    }
+    // Recheck both folders after native-history work. These are best-effort filesystem observations,
+    // not a lock against a drive being detached immediately after the check.
+    const currentAccessible = await isDirectoryAccessibleAsync(current.workspace.path)
+    // Do not carry a successful target probe across a potentially stalled original-folder check.
+    const targetAccessible =
+      target.id === current.session.workspaceId ? true : await isDirectoryAccessibleAsync(target.path)
+    return this.setWorkspace(id, source, { currentAccessible, targetAccessible, historyProblem, expectedWorkspaceId })
+  }
+
+  /**
+   * Config directories this profile's Claude Code runtime can run a branch under: the managed root
+   * used for API-key providers, the user's own Claude config used for the login provider, and an
+   * explicit override. A branch saved under none of them belongs to another data directory.
+   */
+  private effectiveClaudeConfigDirs(): Set<string> {
+    const home = application.getPath('sys.home')
+    const dirs = [
+      process.env.CLAUDE_CONFIG_DIR,
+      application.getPath('feature.agents.claude.root'),
+      application.getPath('external.claude.config'),
+      home ? path.join(home, '.claude') : undefined
+    ]
+    return new Set(dirs.filter((dir): dir is string => Boolean(dir)).map((dir) => path.resolve(dir)))
+  }
+
+  private listNativeHistoryProbes(sessionId: string): NativeHistoryProbe[] {
+    const configDirs = this.effectiveClaudeConfigDirs()
+    const piSessionDir = application.getPath('feature.agents.pi.sessions')
+    const db = application.get('DbService').getDb()
+    return db
+      .select({
+        contextId: agentSessionContextTable.id,
+        locator: agentRuntimeBackendTable.locator,
+        nativeThreadId: agentSessionContextTable.nativeThreadId,
+        bindingState: agentSessionContextTable.bindingState
+      })
+      .from(agentSessionContextTable)
+      .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
+      .where(eq(agentSessionContextTable.sessionId, sessionId))
+      .all()
+      .flatMap(({ contextId, locator, nativeThreadId, bindingState }): NativeHistoryProbe[] => {
+        if (locator.kind === 'claude-code') {
+          if (bindingState === 'pending') {
+            const input = db
+              .select({ id: agentSessionMessageTable.id })
+              .from(agentSessionMessageTable)
+              .where(
+                and(
+                  eq(agentSessionMessageTable.sessionId, sessionId),
+                  eq(agentSessionMessageTable.inputContextId, contextId)
+                )
+              )
+              .limit(1)
+              .get()
+            if (!input) {
+              // No transcript exists yet, but the reserved branch still needs a backend
+              // that this profile can run. Only managed roots can be remapped safely.
+              if (!configDirs.has(path.resolve(locator.configDir)) && !isManagedClaudeConfigDir(locator.configDir)) {
+                return [
+                  {
+                    kind: 'claude-code',
+                    configDir: locator.configDir,
+                    foreignConfigDir: true,
+                    relocatable: false,
+                    managedRoot: application.getPath('feature.agents.claude.root'),
+                    nativeThreadId: null
+                  }
+                ]
+              }
+              return []
+            }
+          }
+          return [
+            {
+              kind: 'claude-code',
+              configDir: locator.configDir,
+              foreignConfigDir: !configDirs.has(path.resolve(locator.configDir)),
+              relocatable: isManagedClaudeConfigDir(locator.configDir),
+              managedRoot: application.getPath('feature.agents.claude.root'),
+              nativeThreadId
+            }
+          ]
+        }
+        if (locator.kind === 'pi' || locator.kind === 'pi-durable') {
+          // Pi opens an archive for a bound branch and for a pending one that already has input.
+          const [input] = db
+            .select({ id: agentSessionMessageTable.id })
+            .from(agentSessionMessageTable)
+            .where(
+              and(
+                eq(agentSessionMessageTable.sessionId, sessionId),
+                eq(agentSessionMessageTable.inputContextId, contextId)
+              )
+            )
+            .limit(1)
+            .all()
+          const required = bindingState === 'bound' || Boolean(input)
+          if (!required) return []
+          if (locator.kind === 'pi-durable') {
+            // A slim backup can carry the binding without its native store; the next turn would
+            // fail to open it, so recovery must refuse instead of clearing the warning.
+            return [
+              {
+                kind: 'pi-durable',
+                storePath: application.getPath('feature.agents.durable.stores', locator.fileName)
+              }
+            ]
+          }
+          return nativeThreadId
+            ? [{ kind: 'pi', sessionDir: piSessionDir, suffix: `_${nativeThreadId}.jsonl`, required }]
+            : []
+        }
+        return []
+      })
+  }
+
+  private probeHistorySync(probe: NativeHistoryProbe): boolean {
+    if (probe.kind === 'claude-code') {
+      if (!probe.foreignConfigDir) return true
+      if (!probe.relocatable || !probe.nativeThreadId) return false
+      try {
+        const projects = path.join(probe.managedRoot, 'projects')
+        return readdirSync(projects).some((dir) =>
+          existsSync(path.join(projects, dir, `${probe.nativeThreadId}.jsonl`))
+        )
+      } catch {
+        return false
+      }
+    }
+    if (probe.kind === 'pi-durable') {
+      try {
+        return lstatSync(probe.storePath).isFile()
+      } catch {
+        return false
+      }
+    }
+    try {
+      const files = readdirSync(probe.sessionDir).filter((file) => file.endsWith(probe.suffix))
+      if (files.length !== 1) return false
+      const archive = path.join(probe.sessionDir, files[0])
+      return lstatSync(archive).isFile() && hasCompleteJsonlRecords(readFileSync(archive, 'utf8'))
+    } catch {
+      return false
+    }
+  }
+
+  private async probeHistoryAsync(probe: NativeHistoryProbe): Promise<boolean> {
+    if (probe.kind === 'claude-code') {
+      if (!probe.foreignConfigDir) return true
+      if (!probe.relocatable || !probe.nativeThreadId) return false
+      try {
+        const projects = path.join(probe.managedRoot, 'projects')
+        const dirs = await withProbeTimeout(readdirAsync(projects))
+        for (const dir of dirs) {
+          try {
+            await withProbeTimeout(accessAsync(path.join(projects, dir, `${probe.nativeThreadId}.jsonl`)))
+            return true
+          } catch {
+            // try the next project directory
+          }
+        }
+        return false
+      } catch {
+        return false
+      }
+    }
+    if (probe.kind === 'pi-durable') {
+      try {
+        return (await withProbeTimeout(lstatAsync(probe.storePath))).isFile()
+      } catch {
+        return false
+      }
+    }
+    try {
+      const files = (await withProbeTimeout(readdirAsync(probe.sessionDir))).filter((file) =>
+        file.endsWith(probe.suffix)
+      )
+      if (files.length !== 1) return false
+      const archive = path.join(probe.sessionDir, files[0])
+      if (!(await withProbeTimeout(lstatAsync(archive))).isFile()) return false
+      return hasCompleteJsonlRecords(await withProbeTimeout(readFileAsync(archive, 'utf8')))
+    } catch {
+      return false
+    }
+  }
+
+  private describeHistoryProblem(probe: NativeHistoryProbe, reachable: boolean): string | undefined {
+    if (reachable) return undefined
+    if (probe.kind === 'claude-code')
+      return "this conversation's Claude Code history belongs to another data directory and cannot be continued here; start a new conversation or restore the original data directory"
+    return probe.kind === 'pi-durable'
+      ? "this conversation's Pi history store is missing from this data directory and cannot be continued here; start a new conversation or restore the original data directory"
+      : "this conversation's Pi history file is missing or incomplete in this data directory and cannot be continued here; start a new conversation or restore the original data directory"
+  }
+
+  /**
+   * Native history lives outside the workspace. After a restore into a different profile the runtime
+   * rejects the branch on the next turn (Claude: its config directory differs from the effective one;
+   * Pi: its session file is absent), so rebinding the folder would only clear the warning. Fail with a
+   * reason instead, leaving the binding and recovery state in place.
+   */
+  private findNativeHistoryProblem(
+    probes: NativeHistoryProbe[],
+    probe: (probe: NativeHistoryProbe) => boolean
+  ): string | undefined {
+    for (const item of probes) {
+      const problem = this.describeHistoryProblem(item, probe(item))
+      if (problem) return problem
+    }
+    return undefined
+  }
+
+  private setWorkspaceTx(
+    tx: DbOrTx,
+    id: string,
+    source: AgentSessionWorkspaceSource,
+    inaccessibleWorkspaceId?: string
+  ): void {
     const current = this.getJoinedSessionRowTx(tx, id)
-    // The workspace binding is locked the moment a session has any message.
-    this.assertSessionHasNoMessagesTx(tx, id)
+    const recoveringMissingWorkspace =
+      source.type === AGENT_WORKSPACE_TYPE.USER &&
+      current.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
+      current.workspace.id === inaccessibleWorkspaceId
+    // The workspace binding is locked once a session has messages, unless its folder is gone (migrated/renamed/unplugged).
+    if (!recoveringMissingWorkspace) this.assertSessionHasNoMessagesTx(tx, id)
+    if (recoveringMissingWorkspace) this.rebindRestoredClaudeHistoryTx(tx, id)
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
       if (workspace.id === current.session.workspaceId) return
       // Repoint first, then drop the old system workspace so the session FK never dangles.
       tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
+      this.moveChildArchivesTx(tx, id, current.session.workspaceId, workspace.id)
       if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
         agentWorkspaceService.deleteByIdTx(tx, current.session.workspaceId)
       }
@@ -1252,6 +1630,89 @@ export class AgentSessionService {
       createdAt: current.session.createdAt
     })
     tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
+    this.moveChildArchivesTx(tx, id, current.session.workspaceId, workspace.id)
+  }
+
+  /**
+   * A full backup carries the managed Claude history under this profile's own data directory while the
+   * saved backend still names the source machine's path. Recovery already verified the restored
+   * transcript, so point the conversation's Claude branches at this profile's managed root.
+   */
+  private rebindRestoredClaudeHistoryTx(tx: DbOrTx, sessionId: string): void {
+    const configDirs = this.effectiveClaudeConfigDirs()
+    const managedRoot = application.getPath('feature.agents.claude.root')
+    const rows = tx
+      .select({
+        contextId: agentSessionContextTable.id,
+        locator: agentRuntimeBackendTable.locator,
+        state: agentRuntimeBackendTable.state,
+        checkpointMapping: agentSessionContextTable.checkpointMapping
+      })
+      .from(agentSessionContextTable)
+      .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
+      .where(eq(agentSessionContextTable.sessionId, sessionId))
+      .all()
+    for (const { contextId, locator, state, checkpointMapping } of rows) {
+      if (locator.kind !== 'claude-code') continue
+      if (configDirs.has(path.resolve(locator.configDir)) || !isManagedClaudeConfigDir(locator.configDir)) continue
+      const next = { version: 1 as const, kind: 'claude-code' as const, configDir: managedRoot }
+      tx.insert(agentRuntimeBackendTable).values({ locator: next, state }).onConflictDoNothing().run()
+      const [backend] = tx
+        .select({ id: agentRuntimeBackendTable.id })
+        .from(agentRuntimeBackendTable)
+        .where(eq(agentRuntimeBackendTable.locator, next))
+        .all()
+      if (backend) {
+        const fork = checkpointMapping?.fork
+        const remappedFork =
+          fork &&
+          Object.fromEntries(
+            Object.entries(fork).map(([id, value]) => {
+              if (
+                value &&
+                typeof value === 'object' &&
+                'runtime' in value &&
+                value.runtime === 'claude-code' &&
+                'configDir' in value &&
+                value.configDir === locator.configDir
+              ) {
+                return [id, { ...value, configDir: managedRoot }]
+              }
+              return [id, value]
+            })
+          )
+        tx.update(agentSessionContextTable)
+          .set({
+            backendId: backend.id,
+            ...(remappedFork ? { checkpointMapping: { ...checkpointMapping, fork: remappedFork } } : {})
+          })
+          .where(eq(agentSessionContextTable.id, contextId))
+          .run()
+        // Fork checkpoints are adapter-owned addresses too; keeping the old profile path would
+        // break forks from replies made before the restore even though the backend was rebound.
+        tx.update(agentSessionMessageTable)
+          .set({
+            data: sql`json_set(${agentSessionMessageTable.data}, '$.runtimeAnchor.checkpoint.configDir', ${managedRoot})`,
+            updatedAt: agentSessionMessageTable.updatedAt
+          })
+          .where(
+            and(
+              eq(agentSessionMessageTable.sessionId, sessionId),
+              sql`json_extract(${agentSessionMessageTable.data}, '$.runtimeAnchor.checkpoint.runtime') = 'claude-code'`,
+              sql`json_extract(${agentSessionMessageTable.data}, '$.runtimeAnchor.checkpoint.configDir') = ${locator.configDir}`
+            )
+          )
+          .run()
+      }
+    }
+  }
+
+  /** Subagent archives share their owner's workspace, so a deletion of the old one must not reach them. */
+  private moveChildArchivesTx(tx: DbOrTx, ownerId: string, fromWorkspaceId: string, toWorkspaceId: string): void {
+    tx.update(sessionsTable)
+      .set({ workspaceId: toWorkspaceId })
+      .where(and(eq(sessionsTable.ownerSessionId, ownerId), eq(sessionsTable.workspaceId, fromWorkspaceId)))
+      .run()
   }
 
   private getJoinedSessionRowTx(tx: DbOrTx, id: string): JoinedSessionRow {
@@ -1268,6 +1729,16 @@ export class AgentSessionService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return row
+  }
+
+  private sessionHasMessages(tx: DbOrTx, sessionId: string): boolean {
+    const [message] = tx
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), sql`${agentSessionMessageTable.role} != 'root'`))
+      .limit(1)
+      .all()
+    return Boolean(message)
   }
 
   private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): void {
