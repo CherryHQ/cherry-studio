@@ -28,8 +28,10 @@ import AgentChat from './AgentChat'
 import { ScheduledTaskGroup } from './components/ScheduledTaskSidebar'
 import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
-const TaskFormDialog = lazy(() =>
-  import('@renderer/components/ScheduledTask/TaskFormDialog').then((module) => ({ default: module.TaskFormDialog }))
+const SelectableTaskFormDialog = lazy(() =>
+  import('@renderer/components/ScheduledTask/SelectableTaskFormDialog').then((module) => ({
+    default: module.SelectableTaskFormDialog
+  }))
 )
 const routeApi = getRouteApi('/app/scheduled-tasks')
 
@@ -303,7 +305,7 @@ export default function ScheduledTasksPage() {
       )}
       {createOpen !== undefined && (
         <Suspense fallback={<p role="status">{t('common.loading')}</p>}>
-          <TaskFormDialog
+          <SelectableTaskFormDialog
             agentNotice={
               !agentsLoading &&
               (agentsError || !availableAgents?.items.length) && (

@@ -90,6 +90,7 @@ export function buildPathRegistry() {
     'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),
     'app.session': appSession,
+    'app.session.partitions': path.join(appSession, 'Partitions'),
     'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
     'app.session.webview': path.join(appSession, 'Partitions', 'webview'), // persist:webview Chromium partition
     'app.pi_acp.file': app.isPackaged
@@ -184,6 +185,17 @@ export function buildPathRegistry() {
 
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
+    'feature.binary.data.cache': path.join(appUserDataToolchainMise, 'cache'),
+    'feature.binary.data.npm_cache': isWin
+      ? path.join(appUserDataToolchainMise, 'localappdata', 'npm-cache', '_cacache')
+      : path.join(appUserDataToolchainMise, 'home', '.npm', '_cacache'),
+    'feature.binary.data.aube_metadata_cache': path.join(
+      appUserDataToolchainMise,
+      'xdg',
+      'cache',
+      'aube',
+      'packuments-full-v1'
+    ),
     // Cherry-provisioned CPython for pipx tools. mise is never told about it —
     // naming a Python runtime there is what makes mise fetch its own from
     // GitHub releases (see binaryManager/pythonRuntime.ts).
@@ -498,6 +510,7 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'app.session.partitions',
   'feature.acp.agents',
   'feature.agents.command_parser_assets',
   'feature.agents.pi.sessions',
@@ -532,6 +545,9 @@ const NO_ENSURE = [
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
   'feature.mini_app.builtin',
+  'feature.binary.data.cache',
+  'feature.binary.data.npm_cache',
+  'feature.binary.data.aube_metadata_cache',
   'feature.binary.data.uv_cache',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.

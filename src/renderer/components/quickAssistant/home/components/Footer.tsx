@@ -1,5 +1,5 @@
 import { ArrowLeft, CircleArrowLeft, Copy, Loader2, Pin, Volume2 } from 'lucide-react'
-import type { ButtonHTMLAttributes, FC } from 'react'
+import type { ButtonHTMLAttributes, FC, RefObject } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
@@ -15,6 +15,7 @@ interface FooterProps {
   onEsc: () => void
   onCopy?: () => void
   onReadAloud?: () => void
+  shortcutScopeRef?: RefObject<HTMLDivElement | null>
 }
 
 const Footer: FC<FooterProps> = ({
@@ -26,17 +27,20 @@ const Footer: FC<FooterProps> = ({
   setIsPinned,
   isPinned,
   onCopy,
-  onReadAloud
+  onReadAloud,
+  shortcutScopeRef
 }) => {
   const { t } = useTranslation()
 
-  useHotkeys('esc', () => {
-    onEsc()
-  })
+  const shortcuts = shortcutScopeRef
+    ? {
+        enabled: (event: KeyboardEvent) =>
+          event.target instanceof Node && !!shortcutScopeRef.current?.contains(event.target)
+      }
+    : undefined
 
-  useHotkeys('c', () => {
-    handleCopy()
-  })
+  useHotkeys('esc', onEsc, shortcuts)
+  useHotkeys('c', () => handleCopy(), shortcuts)
 
   const handleCopy = () => {
     if (loading || !onCopy) return

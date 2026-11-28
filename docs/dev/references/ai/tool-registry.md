@@ -188,9 +188,12 @@ see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
   with a warning log.
 - `createAiRepair(...)` (`tools/adapters/aiSdk/repair.ts`) — passed to AI SDK as
   `experimental_repairToolCall`. When the model emits **malformed args**
-  (`InvalidToolInputError`), the repair function gets one chance to fix it via a
-  follow-up LLM call. Other failures (e.g. an unknown tool name) are
-  returned unrepaired.
+  (`InvalidToolInputError`), repair first tries to normalize the input locally.
+  A follow-up generation uses the same model and validates the result against
+  the tool's input schema. An invalid result from a normally completed
+  generation allows one additional attempt unless the Chat request sets
+  `maxRetries: 0`. Other failures, such as an unknown tool name, are returned
+  unrepaired.
 
 ## Where to read more
 

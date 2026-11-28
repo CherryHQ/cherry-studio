@@ -48,7 +48,7 @@ describe('plantUml.worker', () => {
       `@startuml\n${setting}\nskinparam sequenceArrowColor white\nAlice -> Bob: Message\n@enduml`
     )
 
-    expect('svg' in result && result.svg).toContain(`background:${color};`)
+    expect(result).toEqual({ svgs: [expect.stringContaining(`background:${color};`)] })
   })
 
   it('fails repeated unbundled stdlib includes quickly without wedging subsequent renders', async () => {
@@ -59,23 +59,23 @@ describe('plantUml.worker', () => {
     expect(second).toEqual({ error: 'cannot include <C4/C4_Context>', line: 2 })
 
     const sequence = await renderInWorker('@startuml\nAlice -> Bob: Hello\n@enduml')
-    expect('svg' in sequence && sequence.svg).toContain('<svg')
+    expect(sequence).toEqual({ svgs: [expect.stringContaining('<svg')] })
   })
 
   it('renders bundled themes and icons after an unbundled emoji request', async () => {
     const themed = await renderInWorker('@startuml\n!theme cerulean\nAlice -> Bob\n@enduml')
-    expect('svg' in themed && themed.svg).toContain('<svg')
+    expect(themed).toEqual({ svgs: [expect.stringContaining('<svg')] })
 
     const themedAgain = await renderInWorker('@startuml\n!theme cerulean\nAlice -> Bob\n@enduml')
-    expect('svg' in themedAgain && themedAgain.svg).toContain('<svg')
+    expect(themedAgain).toEqual({ svgs: [expect.stringContaining('<svg')] })
 
     const emoji = await renderInWorker('@startuml\nAlice -> Bob : <:smile:>\n@enduml')
     expect(emoji).toMatchObject({ error: expect.stringContaining('emoji.js') })
 
     const openiconic = await renderInWorker('@startuml\nAlice -> Bob : <&person>\n@enduml')
-    expect('svg' in openiconic && openiconic.svg).toContain('<path')
+    expect(openiconic).toEqual({ svgs: [expect.stringContaining('<path')] })
 
     const graphvizClass = await renderInWorker('@startuml\nclass User {\n  +id: string\n}\n@enduml')
-    expect('svg' in graphvizClass && graphvizClass.svg).toContain('<svg')
+    expect(graphvizClass).toEqual({ svgs: [expect.stringContaining('<svg')] })
   })
 })

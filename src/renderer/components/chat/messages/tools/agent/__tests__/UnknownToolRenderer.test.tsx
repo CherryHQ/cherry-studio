@@ -8,8 +8,8 @@ vi.mock('react-i18next', () => ({
       key === 'message.tools.linksOmitted' ? `Omitted: ${options?.count}` : key
   })
 }))
-vi.mock('../../shared/GenericTools', () => ({
-  ToolHeader: ({ toolName }: { toolName: string }) => <div data-testid="tool-header">{toolName}</div>
+vi.mock('../../ToolHeader', () => ({
+  default: ({ toolName }: { toolName: string }) => <div data-testid="tool-header">{toolName}</div>
 }))
 
 import { UnknownToolRenderer } from '../UnknownToolRenderer'

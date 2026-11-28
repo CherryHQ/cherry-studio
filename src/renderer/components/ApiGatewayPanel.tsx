@@ -59,6 +59,7 @@ const PORT_MAX = 65535
 const MODEL_ROW_HEIGHT = 48
 const MODEL_LIST_MAX_ROWS = 4
 const connectionRow = 'grid min-w-0 items-center gap-x-4 gap-y-1.5 py-1 @min-[29rem]:grid-cols-[9rem_minmax(0,1fr)]'
+const gatewaySection = 'min-w-0 rounded-xl border border-border bg-[var(--settings-group-background,var(--card))]'
 
 const gatewayNode = 'absolute grid size-7 place-items-center rounded-md border bg-card text-success [&>svg]:size-3.5'
 
@@ -67,7 +68,8 @@ function GatewayIllustration({ running, sharing }: { running: boolean; sharing: 
     <div
       aria-hidden="true"
       className={cn(
-        'pointer-events-none relative flex h-24 items-center justify-center overflow-hidden rounded-xl border bg-linear-to-r from-card via-success-subtle/55 to-card',
+        gatewaySection,
+        'pointer-events-none relative flex h-24 items-center justify-center overflow-hidden',
         !running && 'grayscale'
       )}>
       <div className="absolute inset-0 bg-[radial-gradient(var(--success-border)_1px,transparent_1px)] bg-size-[11px_11px] mask-[radial-gradient(ellipse,black,transparent_75%)]" />
@@ -176,7 +178,7 @@ function GatewayModels() {
     data?.filter(({ id, name, owned_by }) => `${name} ${id} ${owned_by}`.toLowerCase().includes(query)) ?? []
 
   return (
-    <section aria-label={t('common.models')} className="min-w-0 rounded-xl border border-border-subtle bg-card">
+    <section aria-label={t('common.models')} className={gatewaySection}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-4 py-2">
         <h2 className="text-sm font-semibold">{t('common.models')}</h2>
         <InputGroup
@@ -433,7 +435,7 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
         <GatewayIllustration running={apiGatewayRunning} sharing={lanRunning} />
       </div>
 
-      <div className="min-w-0 rounded-xl border border-border-subtle bg-card">
+      <div className={gatewaySection}>
         <section aria-label={t('apiGateway.connections.local')} className="min-w-0 px-4 pt-2 pb-1">
           <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <h2 className="text-sm font-semibold">{t('apiGateway.connections.local')}</h2>
@@ -451,9 +453,7 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
           <GatewayEndpoints origin={localOrigin} />
         </section>
 
-        <section
-          aria-label={t('apiGateway.connections.lan')}
-          className="min-w-0 rounded-b-xl border-t border-border-subtle bg-background-subtle px-4">
+        <section aria-label={t('apiGateway.connections.lan')} className="min-w-0 border-t border-border-subtle px-4">
           <div className="flex min-h-12 items-center justify-between gap-3">
             <h2 className="text-sm font-semibold">{t('apiGateway.connections.lan')}</h2>
             <Switch
@@ -514,7 +514,7 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
 
       <GatewayModels />
 
-      <Accordion type="single" collapsible className="rounded-xl border border-border-subtle bg-card">
+      <Accordion type="single" collapsible className={gatewaySection}>
         <AccordionItem value="advanced" className="first:border-t-0">
           <AccordionTrigger className="min-h-11 items-center rounded-xl px-4 py-2 text-sm font-medium">
             {t('common.advanced_settings')}

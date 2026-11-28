@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 
 import { AgentToolsType, type ToolSearchToolInput, ToolSearchToolOutputSchema } from '../shared/agentToolTypes'
 import { ToolArgsTable } from '../shared/ArgsTable'
-import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import ToolHeader from '../ToolHeader'
 
 function parseOutput(output: unknown): { matches: string[]; message?: string } {
   if (!output) return { matches: [] }

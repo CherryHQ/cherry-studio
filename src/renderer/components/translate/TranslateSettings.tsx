@@ -44,8 +44,8 @@ import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/pr
 import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
-import IconButton from './components/IconButton'
-import LanguagePicker from './components/LanguagePicker'
+import IconButton from './IconButton'
+import LanguagePicker from './LanguagePicker'
 import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 type Props = {

@@ -4,7 +4,7 @@ import type { ExportableMessage } from '@renderer/types/messageExport'
 
 import { CONTENT_TYPES, processMessageContent } from '../knowledge'
 
-vi.mock('@renderer/hooks/useTopic', () => ({
+vi.mock('@renderer/utils/message/getTopicMessages', () => ({
   getTopicMessages: vi.fn()
 }))
 

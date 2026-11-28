@@ -3,8 +3,8 @@ import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 import type { EditToolInput, EditToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
-import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import ToolHeader from '../ToolHeader'
 import { AgentFileDiffView } from './AgentFileDiffView'
 
 function EditToolChildren({ input, output }: { input?: EditToolInput; output?: EditToolOutput }) {

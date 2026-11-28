@@ -4,9 +4,10 @@ import { StaticMarkdown } from '@renderer/components/markdown'
 import type { NotebookEditToolInput, NotebookEditToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
-import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 
 export function NotebookEditTool({
   input,

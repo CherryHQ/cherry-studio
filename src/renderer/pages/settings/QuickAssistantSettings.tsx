@@ -24,6 +24,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSettingsNavigation } from '@renderer/components/ModelSettingsNavigation'
+import QuickAssistantView from '@renderer/components/quickAssistant/home/QuickAssistantView'
 import {
   SettingDivider,
   SettingGroup,
@@ -39,7 +40,6 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
-import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import type { Model } from '@shared/data/types/model'
 
 const QuickAssistantSettings: FC = () => {
@@ -245,7 +245,7 @@ const QuickAssistantSettings: FC = () => {
       )}
       {enableQuickAssistant && (
         <div className="mx-auto mt-5 h-115 w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
-          <HomeWindow draggable={false} />
+          <QuickAssistantView />
         </div>
       )}
     </SettingsContentColumn>

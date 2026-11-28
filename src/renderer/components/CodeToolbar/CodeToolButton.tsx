@@ -1,6 +1,6 @@
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Tooltip } from '@cherrystudio/ui'
 import type { ActionTool } from '@renderer/components/ActionTools'
 
 import { ToolWrapper } from './styles'
@@ -10,8 +10,6 @@ interface CodeToolButtonProps {
 }
 
 const CodeToolButton = ({ tool }: CodeToolButtonProps) => {
-  const [open, setOpen] = useState(false)
-
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -38,37 +36,25 @@ const CodeToolButton = ({ tool }: CodeToolButtonProps) => {
     [tool, handleKeyDown]
   )
 
-  if (tool.children?.length && tool.children.length > 0) {
+  if (tool.children?.length) {
     return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <DropdownMenu modal={false}>
         <Tooltip key={tool.id} content={tool.tooltip} delay={500}>
-          <PopoverTrigger asChild>
-            <ToolWrapper
-              onClick={tool.onClick}
-              onKeyDown={handleKeyDown}
-              role="button"
-              aria-label={tool.tooltip}
-              tabIndex={0}>
+          <DropdownMenuTrigger asChild>
+            <ToolWrapper role="button" aria-label={tool.tooltip} tabIndex={0}>
               {tool.icon}
             </ToolWrapper>
-          </PopoverTrigger>
+          </DropdownMenuTrigger>
         </Tooltip>
-        <PopoverContent align="end" className="w-auto min-w-36 p-1">
-          <MenuList className="gap-1">
-            {tool.children.map((child) => (
-              <MenuItem
-                key={child.id}
-                icon={child.icon}
-                label={child.tooltip ?? ''}
-                onClick={() => {
-                  child.onClick?.()
-                  setOpen(false)
-                }}
-              />
-            ))}
-          </MenuList>
-        </PopoverContent>
-      </Popover>
+        <DropdownMenuContent align="end" className="w-auto min-w-36 p-1">
+          {tool.children.map((child) => (
+            <DropdownMenuItem key={child.id} textValue={child.tooltip} onSelect={() => child.onClick?.()}>
+              {child.icon}
+              <span className="min-w-0 truncate">{child.tooltip}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     )
   }
 

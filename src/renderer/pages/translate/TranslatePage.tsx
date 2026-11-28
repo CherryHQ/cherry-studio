@@ -13,6 +13,8 @@ import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
+import TranslateSettings from '@renderer/components/translate/TranslateSettings'
+import { useTranslateReasoningEffort } from '@renderer/components/translate/useTranslateReasoningEffort'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFileProcessingTask } from '@renderer/hooks/useFileProcessingTask'
@@ -65,9 +67,7 @@ import type {
   PdfTranslationOutput,
   PdfTranslationStatus
 } from './pdf/PdfTranslationView'
-import TranslateSettings from './TranslateSettings'
 import type { TranslationFiles } from './translationFiles'
-import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 

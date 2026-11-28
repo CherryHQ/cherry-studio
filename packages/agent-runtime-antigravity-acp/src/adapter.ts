@@ -7,5 +7,3 @@ export const antigravityPreset = {
   id: antigravityCli.id,
   protocol: { ...antigravityPermissions, hostMutations: 'disabled' } satisfies AcpHarnessAdapter
 }
-
-export { readAntigravitySubscriptionUsage } from './accountUsage'

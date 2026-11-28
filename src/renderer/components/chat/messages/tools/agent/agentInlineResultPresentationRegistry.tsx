@@ -4,10 +4,10 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
+import { NavigateToolInline } from '../NavigateTool'
 import { useToolResponsePreview } from '../useToolResponsePreview'
 import { getAgentConfigToolKind } from './agentConfigTool'
 import { getAgentNavigateResult, isAgentNavigateResultPart, isAgentNavigateResponse } from './navigateResult'
-import { NavigateToolInline } from './NavigateTool'
 import {
   getPrepareDiagnosticReportResult,
   isPrepareDiagnosticReportResultPart,
