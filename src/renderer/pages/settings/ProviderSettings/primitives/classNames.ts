@@ -41,6 +41,9 @@ export const actionClasses = {
 const providerListItemFrame =
   'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-0.5 text-left shadow-none outline-none transition-[color,border-color] focus-visible:ring-0'
 
+/** The sortable row wrapper is the keyboard drag stop; keep its focus halo on the frame's rounded-[10px]. */
+export const providerListSortableItemStyle = { borderRadius: 10 } as const
+
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
   shell: 'flex h-full w-[248px] shrink-0 basis-[248px] flex-col border-border border-r-[0.5px]',
