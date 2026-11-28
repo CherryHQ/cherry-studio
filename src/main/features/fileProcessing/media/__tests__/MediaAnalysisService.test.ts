@@ -1177,6 +1177,62 @@ describe('MediaAnalysisService', () => {
       expect(third.warnings).not.toContain('vision_failed')
       expect(third.visuals?.every((frame) => frame.summary === 'kept')).toBe(true)
     })
+
+    it('keeps a frame another overlapping analysis described when this run skipped it', async () => {
+      runtime.config = {
+        ...runtime.config,
+        budget: { maxFrames: 7, targetIntervalMs: 1_000, maxEdgePx: 640, jpegQuality: 70 }
+      }
+      let extractCalls = 0
+      runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => {
+        const run = extractCalls++
+        return {
+          frames: await Promise.all(
+            timestampsMs.map(async (timestampMs: number) => {
+              const path = join(outputDir, `frame-${timestampMs}.jpg`)
+              await writeFile(path, Buffer.from(`run-${run}`))
+              return { path, timestampMs }
+            })
+          )
+        }
+      })
+      const storedDescriptions = () =>
+        [...runtime.cache.values()].flatMap((value) =>
+          value && typeof value === 'object' && !Array.isArray(value) && !('version' in value)
+            ? Object.values(value).filter((summary) => summary === 'kept')
+            : []
+        )
+      const started = new Set<string>()
+      let releaseBoth!: () => void
+      const bothStarted = new Promise<void>((resolve) => (releaseBoth = resolve))
+      runtime.generateText.mockImplementation(async (_provider, _settings, request) => {
+        const call = runtime.generateText.mock.calls.length - 1
+        const parts: Array<{ type: string; image?: Buffer }> = request.messages[0].content
+        const run = parts.find((part) => part.type === 'image')?.image?.toString() ?? ''
+        // Both runs read the answered-frame cache before either stores a reply.
+        started.add(run)
+        if (started.size === 2) releaseBoth()
+        await bothStarted
+        const frames = requestedFrames(call)
+        if (run !== 'run-1') return { text: frames.map((frame) => `${frame}: kept`).join('\n') }
+        // Run 1 replies after run 0 stored every description, and its reply skips the first frame.
+        await vi.waitFor(() => expect(storedDescriptions()).toHaveLength(7))
+        return {
+          text: frames
+            .slice(1)
+            .map((frame) => `${frame}: kept`)
+            .join('\n')
+        }
+      })
+
+      await Promise.all([service.analyze(file), service.analyze(file)])
+      runtime.generateText.mockImplementation(async () => ({ text: '' }))
+      const third = await service.analyze(file)
+
+      expect(runtime.generateText).toHaveBeenCalledTimes(4)
+      expect(third.visuals).toHaveLength(7)
+      expect(third.visuals?.every((frame) => frame.summary === 'kept')).toBe(true)
+    })
   })
 
   it('retries frame extraction after a recoverable visual failure instead of caching it', async () => {
