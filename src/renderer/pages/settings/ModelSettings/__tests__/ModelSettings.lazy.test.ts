@@ -7,7 +7,7 @@ const optionalPanels = vi.hoisted(() => ({
   translatePanelEvaluated: vi.fn()
 }))
 
-vi.mock('@renderer/pages/translate/TranslateSettings', () => {
+vi.mock('@renderer/components/translate/TranslateSettings', () => {
   optionalPanels.translatePanelEvaluated()
   return { TranslateSettingsPanelContent: () => null }
 })
@@ -32,7 +32,7 @@ describe('ModelSettings optional panel lazy boundaries', () => {
   it(
     'positive control: both optional panel modules remain loadable on demand',
     async () => {
-      await Promise.all([import('../TopicNamingSettings'), import('@renderer/pages/translate/TranslateSettings')])
+      await Promise.all([import('../TopicNamingSettings'), import('@renderer/components/translate/TranslateSettings')])
 
       expect(optionalPanels.topicPanelEvaluated).toHaveBeenCalledTimes(1)
       expect(optionalPanels.translatePanelEvaluated).toHaveBeenCalledTimes(1)

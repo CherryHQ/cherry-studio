@@ -5,9 +5,10 @@ import {
   type SearchToolInput as SearchToolInputType,
   type SearchToolOutput as SearchToolOutputType
 } from '../shared/agentToolTypes'
-import { StringInputTool, StringOutputTool, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { StringInputTool, StringOutputTool, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 
 export function SearchTool({
   input,

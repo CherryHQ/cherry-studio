@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next'
 
 import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
-import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
+import { SkeletonValue } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import ToolHeader from '../ToolHeader'
 import { TaskListView } from './TaskTool'
 
 export function TodoWriteTool({ input }: ToolRendererProps<typeof AgentToolsType.TodoWrite>): ToolDisclosureItem {

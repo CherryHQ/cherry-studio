@@ -6,7 +6,7 @@ import { Switch } from '@cherrystudio/ui'
 import { requestComposerPrefill } from '@renderer/components/composer/variants/shared/useComposerPrefill'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
-import { TaskFormDialog } from '@renderer/components/ScheduledTask/TaskFormDialog'
+import { SelectableTaskFormDialog } from '@renderer/components/ScheduledTask/SelectableTaskFormDialog'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useSetTaskEnabled, useUpdateTask } from '@renderer/hooks/agent/useTasks'
@@ -174,7 +174,7 @@ function ScheduledTasksSection({
         <div className="py-3 text-center text-foreground-tertiary text-xs">{t('chat.profile_pane.tasks.empty')}</div>
       )}
       {editingTask ? (
-        <TaskFormDialog
+        <SelectableTaskFormDialog
           open
           task={editingTask}
           agents={agents}
