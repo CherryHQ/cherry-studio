@@ -507,8 +507,9 @@ vi.mock('motion/react', () => ({
 // would invalidate the provider's scope memo and break render-isolation assertions.
 const stableT = (key: string, values?: Record<string, unknown>) =>
   key === 'agent.right_pane.status.task_progress_compact' ? `Step ${values?.current}/${values?.total}` : key
+const stableI18n = { resolvedLanguage: 'en-US' }
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: stableT, i18n: { resolvedLanguage: 'en-US' } })
+  useTranslation: () => ({ t: stableT, i18n: stableI18n })
 }))
 
 import { AgentRightPane, AgentTaskProgressCapsule, useAgentRightPaneActions } from '../AgentRightPane'
@@ -821,6 +822,39 @@ describe('AgentRightPane', () => {
       else expect(context).not.toBeInTheDocument()
     }
   )
+
+  it('shows numeric context usage and measurement timestamp in session details after a turn finishes', async () => {
+    const user = userEvent.setup()
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY('session-a'), {
+      measuredAt: new Date(2026, 10, 26, 11, 45).getTime(),
+      stale: true,
+      result: {
+        status: 'confirmed',
+        value: {
+          model: 'claude-sonnet-4-5',
+          revision: 'r1',
+          contextWindow: 100_000,
+          used: { tokens: 42_000, precision: 'reported' },
+          basis: 'last-request'
+        }
+      }
+    })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
+
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.agent.session.refresh_context_usage', expect.anything())
+    expect(screen.getByText('42%')).toBeVisible()
+    expect(screen.queryByText('agent.right_pane.info.context_details.unavailable')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.info.context' }))
+    expect(screen.getByText('agent.right_pane.info.context_details.last_measured')).toBeVisible()
+  })
 
   it('navigates repeatedly within one file and clears locations for a plain open', async () => {
     resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({

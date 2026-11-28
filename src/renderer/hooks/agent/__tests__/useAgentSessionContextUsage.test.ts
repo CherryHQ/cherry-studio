@@ -41,12 +41,13 @@ afterEach(() => {
 })
 
 describe('useAgentSessionContextUsage', () => {
-  it('drops a reading published by a different model', () => {
+  it('drops a reading published by a different model and explains why', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::big-model', 1_000_000)))
 
     // Keeping it would render 200,000 / 1,000,000 (20%) for a session that was at 80%.
     expect(result.current.usage).toBeNull()
     expect(result.current.percentage).toBeNull()
+    expect(result.current.unavailableReason).toBe('model-changed')
   })
 
   it('uses the harness window even when the catalog disagrees', () => {
@@ -55,9 +56,12 @@ describe('useAgentSessionContextUsage', () => {
     )
     expect(result.current.maxTokens).toBe(250_000)
     expect(result.current.percentage).toBe(80)
+    expect(result.current.stale).toBe(false)
+    expect(result.current.measuredAt).toBeNull()
+    expect(result.current.unavailableReason).toBeNull()
   })
 
-  it('preserves unknown occupancy instead of showing zero', () => {
+  it('preserves unknown occupancy after compaction instead of showing zero', () => {
     cacheService.setShared(KEY, {
       modelId: 'openai::small-model',
       result: {
@@ -68,9 +72,33 @@ describe('useAgentSessionContextUsage', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 250_000)))
     expect(result.current.percentage).toBeNull()
     expect(result.current.maxTokens).toBe(250_000)
+    expect(result.current.unavailableReason).toBe('compacted')
   })
 
-  it('hides an unavailable native reading', () => {
+  it('exposes the retained measurement timestamp and specific unavailability reasons', () => {
+    cacheService.setShared(KEY, {
+      modelId: 'openai::small-model',
+      stale: true,
+      measuredAt: 1_700_000_000_000,
+      result: {
+        status: 'confirmed',
+        value: {
+          model: 'small-model',
+          revision: 'r1',
+          contextWindow: 250_000,
+          used: { tokens: 200_000, precision: 'reported' },
+          basis: 'current-context'
+        }
+      }
+    })
+    const retained = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 250_000)))
+    expect(retained.result.current).toMatchObject({
+      percentage: 80,
+      stale: true,
+      measuredAt: 1_700_000_000_000,
+      unavailableReason: null
+    })
+
     cacheService.setShared(KEY, {
       modelId: 'openai::small-model',
       result: {
@@ -78,9 +106,20 @@ describe('useAgentSessionContextUsage', () => {
         error: { operation: 'contextUsage', code: 'child', message: 'Unsupported child access' }
       }
     })
-    const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID))
-    expect(result.current.usage).toBeNull()
-    expect(result.current.percentage).toBeNull()
-    expect(result.current.status).toBe('unsupported')
+    const unsupported = renderHook(() => useAgentSessionContextUsage(SESSION_ID))
+    expect(unsupported.result.current.usage).toBeNull()
+    expect(unsupported.result.current.percentage).toBeNull()
+    expect(unsupported.result.current.status).toBe('unsupported')
+    expect(unsupported.result.current.unavailableReason).toBe('unsupported')
+
+    cacheService.setShared(KEY, {
+      modelId: 'openai::small-model',
+      result: {
+        status: 'unknown',
+        error: { operation: 'contextUsage', code: 'native-error', message: 'Read failed' }
+      }
+    })
+    const failed = renderHook(() => useAgentSessionContextUsage(SESSION_ID))
+    expect(failed.result.current.unavailableReason).toBe('read-failed')
   })
 })

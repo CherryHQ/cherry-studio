@@ -12,6 +12,7 @@ import type {
 } from '@cherrystudio/agent-runtime'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, ScrollArea } from '@cherrystudio/ui'
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
+import type { AgentSessionContextUsageUnavailableReason } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { cn } from '@renderer/utils/style'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
@@ -74,10 +75,21 @@ function resourceLabel(resource: ContextResource, serverNames: ReadonlyMap<strin
   return server ? `${server} · ${tool}` : tool
 }
 
+const UNAVAILABLE_LABEL_KEYS: Record<AgentSessionContextUsageUnavailableReason, string> = {
+  compacted: 'agent.right_pane.info.context_details.unavailable_compacted',
+  'model-changed': 'agent.right_pane.info.context_details.unavailable_model_changed',
+  reset: 'agent.right_pane.info.context_details.unavailable_reset',
+  unsupported: 'agent.right_pane.info.context_details.unsupported',
+  'unknown-window': 'agent.right_pane.info.context_details.unavailable_window',
+  'read-failed': 'agent.right_pane.info.context_details.read_failed'
+}
+
 interface AgentContextUsageSummaryProps {
   usage: ThreadContextUsage | null
   percentage: number | null
   status?: OperationResult<ThreadContextUsage>['status'] | null
+  measuredAt?: number | null
+  unavailableReason?: AgentSessionContextUsageUnavailableReason | null
   className?: string
   isCompacting?: boolean
   modelName?: string
@@ -91,6 +103,8 @@ export function AgentContextUsageSummary({
   usage,
   percentage,
   status,
+  measuredAt,
+  unavailableReason,
   className,
   isCompacting = false,
   modelName,
@@ -141,17 +155,29 @@ export function AgentContextUsageSummary({
           segments: categories.filter((category) => category.kind === 'used' || category.kind === 'buffer')
         }
       : null
+  const effectiveUnavailableReason = unavailableReason ?? (usage && !usage.used ? 'compacted' : null)
+  const measuredLabel =
+    measuredAt != null
+      ? t('agent.right_pane.info.context_details.last_measured', {
+          time: new Date(measuredAt).toLocaleTimeString(i18n?.resolvedLanguage, {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        })
+      : null
   return (
     <ContextUsageSummary
       title={t(showCategories ? 'agent.right_pane.info.context' : 'agent.right_pane.info.context_usage')}
       emptyLabel={
         usage?.used
           ? t('chat.message.token_details.tokens', { value: formatExact(usage.used.tokens) })
-          : status === 'unsupported'
-            ? t('agent.right_pane.info.context_usage_unsupported')
-            : usage
-              ? t('agent.right_pane.info.context_details.unavailable')
-              : t('common.unknown')
+          : effectiveUnavailableReason
+            ? t(UNAVAILABLE_LABEL_KEYS[effectiveUnavailableReason])
+            : status === 'unsupported'
+              ? t('agent.right_pane.info.context_usage_unsupported')
+              : usage
+                ? t('agent.right_pane.info.context_details.unavailable')
+                : t('common.unknown')
       }
       data={data}
       className={className}
@@ -159,11 +185,13 @@ export function AgentContextUsageSummary({
       collapsible={showCategories}
       description={[
         usage?.breakdown?.coverage === 'partial' && t('agent.right_pane.info.context_details.partial'),
-        usage?.basis === 'last-request' && t('agent.right_pane.info.context_details.last_request')
+        usage?.basis === 'last-request' && t('agent.right_pane.info.context_details.last_request'),
+        measuredLabel
       ]
         .filter(Boolean)
         .join(' · ')}
       isBusy={isCompacting}>
+      {measuredLabel && <p className={cn('text-muted-foreground', showCategories && 'px-3')}>{measuredLabel}</p>}
       {showCategories && (
         <AgentContextUsageDetails categories={categories} resources={usage?.resources} windowTokens={windowTokens} />
       )}

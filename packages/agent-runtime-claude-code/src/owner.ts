@@ -207,7 +207,13 @@ export class ClaudeOwner {
     if (native !== undefined) return native
     const declared = this.runtime.contextWindow
     const normalize = (id: string) => id.replace(/\[1m\]$/i, '')
-    return declared && normalize(declared.model) === normalize(model) ? declared.tokens : undefined
+    if (declared && normalize(declared.model) === normalize(model)) return declared.tokens
+    const normalized = normalize(model)
+    const matchingWindows = new Set<number>()
+    for (const [key, tokens] of this.contextWindows) {
+      if (normalize(key) === normalized) matchingWindows.add(tokens)
+    }
+    return matchingWindows.size === 1 ? [...matchingWindows][0] : undefined
   }
 
   async contextUsage(projection: ClaudeProjection): Promise<OperationResult<ThreadContextUsage>> {

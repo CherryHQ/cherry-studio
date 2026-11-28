@@ -3334,6 +3334,41 @@ describe('AgentComposer', () => {
     expect(within(accessory).queryByRole('status')).not.toBeInTheDocument()
   })
 
+  it('keeps showing the retained context usage and its measurement time after a turn finishes', async () => {
+    const measuredAt = new Date(2026, 10, 26, 11, 45).getTime()
+    MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
+      modelId: model.id,
+      stale: true,
+      measuredAt,
+      result: {
+        status: 'confirmed',
+        value: {
+          model: model.apiModelId,
+          revision: 'r1',
+          contextWindow: 100,
+          used: { tokens: 42, precision: 'reported' },
+          basis: 'last-request'
+        }
+      }
+    })
+    mocks.sessionLayout = 'time'
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const sendAccessory = screen.getByTestId('composer-send-accessory')
+    expect(within(sendAccessory).getByLabelText('agent.right_pane.info.context_usage 42%')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('42 / 100 (42%)')).toBeInTheDocument())
+    expect(screen.getByText(/agent\.right_pane\.info\.context_details\.last_measured/)).toBeInTheDocument()
+  })
+
   it('ignores a workspace path that is not an absolute filesystem path', async () => {
     mocks.sessionWorkspacePath = 'relative/workspace'
 

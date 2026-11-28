@@ -194,8 +194,27 @@ describe('AgentContextUsageSummary', () => {
 
   it('shows that usage is unavailable after compaction without a zero-percent meter', () => {
     renderSummary({ usage: { ...usage, used: undefined }, percentage: null })
-    expect(screen.getByText('No usage data')).toBeInTheDocument()
+    expect(screen.getByText('Unavailable after compaction')).toBeInTheDocument()
     expect(screen.queryByRole('meter')).not.toBeInTheDocument()
+  })
+
+  it('shows why usage is genuinely unavailable and labels retained readings with their measurement time', async () => {
+    const measuredAt = new Date(2026, 10, 26, 11, 45).getTime()
+    const expectedTime = new Date(measuredAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <AgentContextUsageSummary usage={null} percentage={null} unavailableReason="read-failed" />
+      </I18nextProvider>
+    )
+    expect(screen.getByText('Could not read context usage')).toBeInTheDocument()
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <AgentContextUsageSummary usage={usage} percentage={20} measuredAt={measuredAt} />
+      </I18nextProvider>
+    )
+    await expandSummary()
+    expect(screen.getByText(`Last measured at ${expectedTime}`)).toBeVisible()
   })
 
   it('shows friendly tool names and file basenames without paths or repeated status lines', async () => {
