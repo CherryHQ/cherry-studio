@@ -23,6 +23,7 @@ import type {
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
@@ -42,6 +43,7 @@ import {
   wrapAgentSessionDeliveryContent
 } from '@main/ai/runtime/agentUserContent'
 import { claudeBranchQueryIdentity, prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
+import { openRebindSuccessor } from '@main/ai/runtime/claudeCode/rebindResume'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
@@ -270,10 +272,39 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const opened = resume
       ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
-    if (opened.status === 'rejected' && opened.error.code === 'native-storage-missing')
-      return unavailableNativeContext(this.context, opened.error.message)
-    if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-    this.handle = opened.value
+    let resumeEffective = resume
+    if (opened.status === 'rejected' && opened.error.code === 'native-storage-missing') {
+      // AC5 of the session workdir rebind spec: a transcript miss under the current
+      // project tree is fail-closed unless a deliberate rebind is recorded; then the
+      // session continues as a successor engine session under the new cwd.
+      const successor = resume
+        ? await openRebindSuccessor({
+            sessionId: this.input.sessionId,
+            resumeToken: resume,
+            backendId: this.context.backendId,
+            currentCwd: cwd,
+            primaryRuntime: this.runtime,
+            createConfig: config,
+            createRuntime: createClaudeCodeRuntime,
+            probeRuntimeOptions: (previousCwd) => ({
+              backendId: runtimeId(this.context.backendId),
+              configDir: resolveClaudeConfigDirectory(options.env),
+              contextWindow: request.contextWindow,
+              load: async () => ({ ...config, cwd: previousCwd }),
+              onError: (error) => {
+                this.nativeError = error
+              }
+            }),
+            getLatestWorkspaceEvent: (sessionId) => agentSessionService.getLatestWorkspaceEvent(sessionId)
+          })
+        : undefined
+      if (!successor) return unavailableNativeContext(this.context, opened.error.message)
+      this.handle = successor
+      resumeEffective = undefined
+    } else {
+      if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+      this.handle = opened.value
+    }
     this.sdkModelId = request.sdkModelId
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
@@ -301,7 +332,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     )
     if (started.status !== 'confirmed') throw new Error(started.error.message)
-    if (resume) this.updateResumeToken(resume)
+    if (resumeEffective) this.updateResumeToken(resumeEffective)
     this.parkedQuery = undefined
     return this
   }

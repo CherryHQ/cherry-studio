@@ -1219,6 +1219,30 @@ describe('AgentSessionService', () => {
     expect(dbh.db.transaction((tx) => agentSessionService.consumeWorkspaceChangeNoteTx(tx, untouched.id))).toBeNull()
   })
 
+  it('returns the latest recorded rebind for resume verification', async () => {
+    const first = await createWorkspace('latest-before')
+    const second = await createWorkspace('latest-middle')
+    const third = await createWorkspace('latest-after')
+    const session = await createSession('Latest rebind event', first.id)
+    expect(agentSessionService.getLatestWorkspaceEvent(session.id)).toBeNull()
+
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    try {
+      agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: second.id })
+      now.mockReturnValue(2000)
+      agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: third.id })
+    } finally {
+      now.mockRestore()
+    }
+
+    expect(agentSessionService.getLatestWorkspaceEvent(session.id)).toMatchObject({
+      previousWorkspaceId: second.id,
+      previousWorkspacePath: second.path,
+      newWorkspaceId: third.id,
+      newWorkspacePath: third.path
+    })
+  })
+
   it('deletes a session', async () => {
     const session = await createSession('Delete me')
     notifyDataApiDataChangeMock.mockClear()

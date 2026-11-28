@@ -13,7 +13,10 @@ import {
   agentSessionTable as sessionsTable
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { agentSessionWorkspaceEventTable } from '@data/db/schemas/agentSessionWorkspaceEvent'
+import {
+  type AgentSessionWorkspaceEventRow,
+  agentSessionWorkspaceEventTable
+} from '@data/db/schemas/agentSessionWorkspaceEvent'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { artifactTable } from '@data/db/schemas/artifact'
 import { pinTable } from '@data/db/schemas/pin'
@@ -1173,6 +1176,26 @@ export class AgentSessionService {
     const earlier =
       pending.length > 1 ? ` ${pending.length - 1} earlier workspace change(s) this session are also recorded.` : ''
     return `[Workspace changed: "${previous}" -> "${next}". Resolve relative paths against the new directory for this and future turns.${earlier}]`
+  }
+
+  /**
+   * Latest recorded deliberate workspace rebind for a session, or null when the
+   * binding never changed. Resume paths compare an observed cwd/identity
+   * mismatch against this log: a deliberate rebind has a matching event, an
+   * unexpected change does not and stays fail-closed (AC5 of the rebind spec).
+   */
+  getLatestWorkspaceEvent(sessionId: string): AgentSessionWorkspaceEventRow | null {
+    return (
+      application
+        .get('DbService')
+        .getDb()
+        .select()
+        .from(agentSessionWorkspaceEventTable)
+        .where(eq(agentSessionWorkspaceEventTable.sessionId, sessionId))
+        .orderBy(desc(agentSessionWorkspaceEventTable.createdAt))
+        .limit(1)
+        .get() ?? null
+    )
   }
 
   private recordWorkspaceEventTx(
