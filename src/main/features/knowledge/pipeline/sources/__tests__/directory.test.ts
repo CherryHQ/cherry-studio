@@ -6,6 +6,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type * as PathStorage from '../../../pathStorage'
 
@@ -243,10 +244,7 @@ describe('expandDirectoryOwnerToTree', () => {
     for (let index = 0; index < 3; index++) {
       copyFileIntoKnowledgeBaseAtMock.mockImplementationOnce(async (_base, source, relative) => {
         const target = path.join(output, path.basename(relative))
-        await copy(
-          source as import('@shared/types/file').AbsoluteFilePath,
-          target as import('@shared/types/file').AbsoluteFilePath
-        )
+        await copy(source as AbsoluteFilePath, target as AbsoluteFilePath)
         return relative
       })
     }
