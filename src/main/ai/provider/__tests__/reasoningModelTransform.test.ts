@@ -298,6 +298,27 @@ describe('wire-body regression through real construction paths', () => {
     expect(body.max_tokens).toBeUndefined()
   })
 
+  it('sends one output-token limit for a non-reasoning GPT-4o model through New API', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
+    const provider = createNewApi({
+      baseURL: 'https://newapi.example.com/v1',
+      apiKey: 'sk-test',
+      fetch: fetchSpy,
+      endpointType: 'openai'
+    })
+
+    await provider.languageModel('gpt-4o').doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      maxOutputTokens: 2000,
+      providerOptions: { newapi: { max_completion_tokens: 1500 } }
+    })
+
+    expect(String(fetchSpy.mock.calls[0][0])).toBe('https://newapi.example.com/v1/chat/completions')
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
+    expect(body).toMatchObject({ model: 'gpt-4o', max_completion_tokens: 1500 })
+    expect(body).not.toHaveProperty('max_tokens')
+  })
+
   it('CherryIn createCherryIn path rewrites max_tokens on the wire', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
     const provider = createCherryIn({

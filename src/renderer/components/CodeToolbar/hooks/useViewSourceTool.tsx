@@ -37,7 +37,18 @@ export const useViewSourceTool = ({
         tooltip: viewMode === 'edit' ? t('preview.label') : t('code_block.edit.label'),
         onClick: () => onViewModeChange(viewMode === 'edit' ? (hasSpecialView ? 'special' : 'source') : 'edit')
       })
-      return () => removeTool(TOOL_SPECS.edit.id)
+      if (hasSpecialView && viewMode === 'source') {
+        registerTool({
+          ...TOOL_SPECS['view-source'],
+          icon: <Eye className="tool-icon" />,
+          tooltip: t('preview.label'),
+          onClick: () => onViewModeChange('special')
+        })
+      }
+      return () => {
+        removeTool(TOOL_SPECS.edit.id)
+        removeTool(TOOL_SPECS['view-source'].id)
+      }
     }
 
     if (!hasSpecialView) return

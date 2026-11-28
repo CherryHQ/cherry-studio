@@ -33,7 +33,7 @@ export function projectAgentTimeline(
   messages.forEach((message, index) => {
     const current = read(message)
     const ids = current.partIds
-    if (message.role !== 'assistant' || !ids || ids.length !== current.parts.length) {
+    if (message.role !== 'assistant' || message.metadata?.provenance || !ids || ids.length !== current.parts.length) {
       rows.push({ row: { id: message.id, message, parts: current.parts, partIds: ids }, anchor: index, order: -1 })
       return
     }
@@ -55,8 +55,11 @@ export function projectAgentTimeline(
       group.parts.push(part)
       group.ids.push(ids[partIndex])
     })
-    if (!groups.length && message.metadata?.status !== 'paused')
-      groups.push({ anchor: index, kind: 'content', parts: [], ids: [] })
+    const isWaitingForOutput = !groups.length && message.metadata?.status === 'pending'
+    if (!groups.length && message.metadata?.status !== 'paused') {
+      const anchor = isWaitingForOutput ? Math.max(index, latestRunInputs.get(message.id) ?? index) : index
+      groups.push({ anchor, kind: 'content', parts: [], ids: [] })
+    }
     const contents = groups.filter((group) => group.kind === 'content')
     const firstContent = contents[0]
     const visible = contents.filter((group) => group.parts.some((part) => !isHiddenPart(part)))
@@ -72,7 +75,7 @@ export function projectAgentTimeline(
                 ? message.id
                 : `${message.id}:part:${group.ids[0]}`,
           kind: group.kind,
-          showHeader: group === visible[0],
+          showHeader: isWaitingForOutput || visible.includes(group),
           message,
           parts: group.parts,
           partIds: group.ids,

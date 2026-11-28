@@ -44,6 +44,8 @@ type WithoutComposition<T> = T extends unknown ? Omit<T, 'composition'> : never
 export type CherryCloudModelSelectorProps = WithoutComposition<ModelSelectorProps> & {
   offerFilter?: CherryCloudOfferFilter
   showSubscriptionOffers?: boolean
+  /** The picked model serves only utility tasks, which may use the built-in CherryAI model signed out. */
+  forUtilityTask?: boolean
 }
 
 function EntryView({ open, source }: { open: boolean; source: SubscriptionEntrySource }) {
@@ -66,7 +68,12 @@ function OfferIcon({ id, name }: { id: string; name: string }) {
 
 /** Composes Cloud entitlement and subscription presentation around the domain-blind selector. */
 export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
-  const { offerFilter = isCherryCloudChatOffer, showSubscriptionOffers = true, ...selectorProps } = props
+  const {
+    offerFilter = isCherryCloudChatOffer,
+    showSubscriptionOffers = true,
+    forUtilityTask = false,
+    ...selectorProps
+  } = props
   const { filter, includeAgentOnlyModels } = props
   const [internalOpen, setInternalOpen] = useState(false)
   const open = props.open ?? internalOpen
@@ -133,11 +140,11 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
   }
   const selectAfterSignInRef = useRef(selectAfterSignIn)
   selectAfterSignInRef.current = selectAfterSignIn
-  // Main refuses the built-in CherryAI models while signed out, so they act like the sign-in rows.
+  // Main refuses conversations on the built-in CherryAI models while signed out, so they act like the sign-in rows.
   const presentModel = useCallback(
     (model: Model, modelProvider: Provider) => {
       const presentation = getModelPresentation(model, modelProvider)
-      if (!signedOut || !isManagedCherryAiProviderId(model.providerId)) return presentation
+      if (!signedOut || forUtilityTask || !isManagedCherryAiProviderId(model.providerId)) return presentation
       return {
         ...presentation,
         badge: <SubscriptionTag size={9} label={t('settings.subscription.sign_in')} className="h-full" />,
@@ -145,7 +152,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
         onAction: () => void signInFromPicker().then((signedIn) => signedIn && selectAfterSignInRef.current(model))
       }
     },
-    [getModelPresentation, signedOut, t]
+    [forUtilityTask, getModelPresentation, signedOut, t]
   )
   const actions = useMemo<ModelSelectorActionItem[]>(() => {
     const lockedRows = {

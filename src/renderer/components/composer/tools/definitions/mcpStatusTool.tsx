@@ -19,6 +19,7 @@ import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import { DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -424,6 +425,7 @@ const mcpStatusTool = defineTool({
   key: 'mcp_status',
   label: 'MCP',
   visibleInScopes: [TopicType.Chat, TopicType.Session],
+  condition: ({ session }) => !session?.agentType || AGENT_RUNTIME_CAPABILITIES[session.agentType].mcp,
   composer: {
     runtime: ({ context }) => <McpStatusComposerRuntime context={context} />
   }
