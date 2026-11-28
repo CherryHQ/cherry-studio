@@ -28,7 +28,6 @@ const {
   mockBindTaskSessionReuse,
   mockRecordTaskExecutionStart,
   mockPersistRecoveredTaskBaseline,
-  mockReleaseOverflowed,
   mockReleaseTaskSessionReuse,
   mockIsSessionBusy,
   mockUpdateJobScheduleTx,

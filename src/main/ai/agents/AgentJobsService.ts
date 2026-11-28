@@ -741,7 +741,6 @@ export class AgentJobsService extends BaseService {
     return this.getActiveTask(agentId, taskId)
   }
 
-  releaseOverflowedTaskSession(binding: { scheduleId: string; reuseRevision: number }, sessionId: string): void {
   releaseTaskSessionReuse(binding: { scheduleId: string; reuseRevision: number }, sessionId: string): void {
     const cleared = application.get('DbService').withWriteTx((tx) => {
       const schedule = jobScheduleService.getByIdTx(tx, binding.scheduleId)
