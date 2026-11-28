@@ -1,5 +1,5 @@
 import { XIcon } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { parse, stringify } from 'yaml'
 
 import {
@@ -37,20 +37,20 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
+import type { OutputFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('ObsidianExportDialog')
 
-interface FileInfo {
-  path: string
-  type: 'folder' | 'markdown'
-  name: string
-}
+type FileInfo = OutputFor<'export.obsidian.get_files'>[number]
 
 const ObsidianProcessingMethod = {
   APPEND: '1',
   PREPEND: '2',
   NEW_OR_OVERWRITE: '3'
 } as const
+
+type WriteMode = (typeof ObsidianProcessingMethod)[keyof typeof ObsidianProcessingMethod]
+type NoteDraft = { title: string; processingMethod: WriteMode | undefined }
 
 // Separator from Obsidian Web Clipper's `multitext` parsing (obsidianmd/obsidian-clipper, src/utils/shared.ts, MIT).
 const multitextSeparator = /,(?![^[]*\]\])/
@@ -78,7 +78,7 @@ const parseTags = (input: string): string[] => {
 interface PopupContainerProps {
   title: string
   obsidianTags: string | null
-  processingMethod: (typeof ObsidianProcessingMethod)[keyof typeof ObsidianProcessingMethod]
+  processingMethod: WriteMode
   open: boolean
   resolve: (success: boolean) => void
   message?: ExportableMessage
@@ -202,91 +202,62 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   topic,
   rawContent
 }) => {
-  const [defaultObsidianVault, setDefaultObsidianVault] = usePreference('data.integration.obsidian.default_vault')
-  const [state, setState] = useState({
-    title,
+  const [defaultObsidianVault] = usePreference('data.integration.obsidian.default_vault')
+  const [properties, setProperties] = useState({
     tags: obsidianTags || '',
     createdAt: new Date().toISOString().split('T')[0],
-    source: 'Cherry Studio',
-    processingMethod: processingMethod,
-    folder: ''
+    source: 'Cherry Studio'
   })
-  const [hasTitleBeenManuallyEdited, setHasTitleBeenManuallyEdited] = useState(false)
-  const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
-  const [files, setFiles] = useState<FileInfo[]>([])
-  const [fileTreeData, setFileTreeData] = useState<TreeSelectOption[]>([])
-  const [selectedVault, setSelectedVault] = useState<string>('')
-  const [loading, setLoading] = useState<boolean>(false)
+  const [newNote, setNewNote] = useState<NoteDraft>({ title, processingMethod })
+  const [selection, setSelection] = useState<{ entry: FileInfo; note?: NoteDraft }>()
+  const note = selection?.note ?? newNote
+  const [vaults, setVaults] = useState<OutputFor<'export.obsidian.get_vaults'> | null>()
+  const [chosenVault, setChosenVault] = useState<string>()
+  const selectedVault =
+    chosenVault ?? vaults?.find((vault) => vault.name === defaultObsidianVault)?.name ?? vaults?.[0]?.name
+  const [directory, setDirectory] = useState<{ vault: string; files: FileInfo[] | null }>()
+  const currentDirectory = directory?.vault === selectedVault ? directory : undefined
+  const fileTreeData = useMemo(() => convertToTreeData(currentDirectory?.files ?? []), [currentDirectory])
+  const loading = vaults === undefined || Boolean(selectedVault && !currentDirectory)
+  const error =
+    vaults === null
+      ? i18n.t('chat.topics.export.obsidian_fetch_error')
+      : currentDirectory?.files === null && i18n.t('chat.topics.export.obsidian_fetch_folders_error')
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [exportReasoning, setExportReasoning] = useState(false)
 
   useEffect(() => {
-    if (files.length > 0) {
-      const treeData = convertToTreeData(files)
-      setFileTreeData(treeData)
-    } else {
-      setFileTreeData([
-        {
-          title: i18n.t('chat.topics.export.obsidian_root_directory'),
-          value: '',
-          isLeaf: false,
-          selectable: true
-        }
-      ])
-    }
-  }, [files])
-
-  useEffect(() => {
-    const fetchVaults = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const vaultsData = await ipcApi.request('export.obsidian.get_vaults')
-        if (vaultsData.length === 0) {
-          setError(i18n.t('chat.topics.export.obsidian_no_vaults'))
-          setLoading(false)
-          return
-        }
-        setVaults(vaultsData)
-        const vaultToUse = defaultObsidianVault || vaultsData[0]?.name
-        if (vaultToUse) {
-          setSelectedVault(vaultToUse)
-        }
-      } catch (error) {
+    void ipcApi
+      .request('export.obsidian.get_vaults')
+      .then(setVaults)
+      .catch((error) => {
         logger.error('获取Obsidian Vault失败:', error as Error)
-        setError(i18n.t('chat.topics.export.obsidian_fetch_error'))
-      } finally {
-        setLoading(false)
-      }
-    }
-    void fetchVaults()
-  }, [defaultObsidianVault, setDefaultObsidianVault])
+        setVaults(null)
+      })
+  }, [])
 
   useEffect(() => {
-    if (selectedVault) {
-      const fetchFiles = async () => {
-        try {
-          setLoading(true)
-          setError(null)
-          const filesData = await ipcApi.request('export.obsidian.get_files', { vaultName: selectedVault })
-          setFiles(filesData)
-        } catch (error) {
+    if (!selectedVault) return
+    let active = true
+    setDirectory(undefined)
+    void ipcApi
+      .request('export.obsidian.get_files', { vaultName: selectedVault })
+      .then((files) => {
+        if (active) setDirectory({ vault: selectedVault, files })
+      })
+      .catch((error) => {
+        if (active) {
           logger.error('获取Obsidian文件失败:', error as Error)
-          setError(i18n.t('chat.topics.export.obsidian_fetch_folders_error'))
-        } finally {
-          setLoading(false)
+          setDirectory({ vault: selectedVault, files: null })
         }
-      }
-      void fetchFiles()
+      })
+    return () => {
+      active = false
     }
   }, [selectedVault])
 
   const handleOk = async () => {
-    if (!selectedVault) {
-      setError(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
-      return
-    }
+    if (!selectedVault || !currentDirectory?.files) return
     setSubmitting(true)
     try {
       let markdown = ''
@@ -304,11 +275,16 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         markdown = ''
       }
       let content = ''
-      if (state.processingMethod !== ObsidianProcessingMethod.NEW_OR_OVERWRITE) {
+      if (note.processingMethod !== ObsidianProcessingMethod.NEW_OR_OVERWRITE) {
         content = `\n---\n${markdown}`
       } else {
         const frontMatter = stringify(
-          { title: state.title, created: state.createdAt, source: state.source, tags: parseTags(state.tags) },
+          {
+            title: note.title,
+            created: properties.createdAt,
+            source: properties.source,
+            tags: parseTags(properties.tags)
+          },
           { lineWidth: 0 }
         )
         content = `---\n${frontMatter}---\n${markdown}`
@@ -319,8 +295,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       }
       await navigator.clipboard.writeText(content)
       const success = await exportMarkdownToObsidian({
-        ...state,
-        folder: state.folder,
+        ...note,
+        destination: selection?.entry,
         vault: selectedVault
       })
       if (!success) {
@@ -343,36 +319,26 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     resolve(false)
   }
 
-  const handleChange = (key: string, value: any) => {
-    setState((prevState) => ({ ...prevState, [key]: value }))
+  const handleChange = (key: keyof typeof properties, value: string) => {
+    setProperties((previous) => ({ ...previous, [key]: value }))
   }
-  const handleTitleInputChange = (newTitle: string) => {
-    handleChange('title', newTitle)
-    setHasTitleBeenManuallyEdited(true)
-  }
-  const handleVaultChange = (value: string) => {
-    setSelectedVault(value)
-    setState((prevState) => ({ ...prevState, folder: '' }))
+  const updateNote = (patch: Partial<NoteDraft>) => {
+    if (selection?.note) setSelection({ ...selection, note: { ...selection.note, ...patch } })
+    // A typed title also names the next new note; an existing file's write mode belongs to that file.
+    if (!selection?.note || patch.title !== undefined) setNewNote((previous) => ({ ...previous, ...patch }))
   }
   const handleFileSelect = (value: string) => {
-    handleChange('folder', value)
-    if (value) {
-      const selectedFile = files.find((file) => file.path === value)
-      if (selectedFile) {
-        if (selectedFile.type === 'markdown') {
-          const fileName = selectedFile.name
-          const titleWithoutExt = fileName.endsWith('.md') ? fileName.substring(0, fileName.length - 3) : fileName
-          handleChange('title', titleWithoutExt)
-          setHasTitleBeenManuallyEdited(false)
-          handleChange('processingMethod', ObsidianProcessingMethod.APPEND)
-        } else {
-          handleChange('processingMethod', ObsidianProcessingMethod.NEW_OR_OVERWRITE)
-          if (!hasTitleBeenManuallyEdited) {
-            handleChange('title', title)
-          }
-        }
-      }
-    }
+    setChosenVault(selectedVault)
+    if (value === selection?.entry.path) return
+    const entry = currentDirectory?.files?.find((file) => file.path === value)
+    if (entry?.type === 'markdown') {
+      const name = entry.name.endsWith('.md') ? entry.name.slice(0, -3) : entry.name
+      setSelection({ entry, note: { title: name, processingMethod: ObsidianProcessingMethod.APPEND } })
+    } else setSelection(entry ? { entry } : undefined)
+  }
+  const handleVaultChange = (value: string) => {
+    setSelection(undefined)
+    setChosenVault(value)
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -382,7 +348,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   }
 
   const renderVaultSelector = () => {
-    if (loading && vaults.length === 0) {
+    if (vaults === undefined) {
       return (
         <div className="flex min-h-20 items-center justify-center">
           <Spinner text={i18n.t('chat.topics.export.obsidian_loading')} />
@@ -390,9 +356,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       )
     }
 
-    if (vaults.length > 0) {
+    if (vaults?.length) {
       return (
-        <Select value={selectedVault || undefined} onValueChange={handleVaultChange} disabled={loading}>
+        <Select value={selectedVault} onValueChange={handleVaultChange} disabled={submitting}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder={i18n.t('chat.topics.export.obsidian_vault_placeholder')} />
           </SelectTrigger>
@@ -424,7 +390,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     if (selectedVault) {
       return (
         <TreeSelect
-          value={state.folder}
+          value={selection?.entry.path ?? ''}
           onChange={handleFileSelect}
           placeholder={i18n.t('chat.topics.export.obsidian_path_placeholder')}
           searchPlaceholder={i18n.t('common.search')}
@@ -458,8 +424,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           <FormRow label={i18n.t('chat.topics.export.obsidian_title')}>
             <Input
               autoFocus
-              value={state.title}
-              onChange={(e) => handleTitleInputChange(e.target.value)}
+              value={note.title}
+              onChange={(e) => updateNote({ title: e.target.value })}
               placeholder={i18n.t('chat.topics.export.obsidian_title_placeholder')}
             />
           </FormRow>
@@ -467,21 +433,21 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           <FormRow label={i18n.t('chat.topics.export.obsidian_path')}>{renderPathSelector()}</FormRow>
           <FormRow label={i18n.t('chat.topics.export.obsidian_tags')}>
             <Input
-              value={state.tags}
+              value={properties.tags}
               onChange={(e) => handleChange('tags', e.target.value)}
               placeholder={i18n.t('chat.topics.export.obsidian_tags_placeholder')}
             />
           </FormRow>
           <FormRow label={i18n.t('chat.topics.export.obsidian_created')}>
             <Input
-              value={state.createdAt}
+              value={properties.createdAt}
               onChange={(e) => handleChange('createdAt', e.target.value)}
               placeholder={i18n.t('chat.topics.export.obsidian_created_placeholder')}
             />
           </FormRow>
           <FormRow label={i18n.t('chat.topics.export.obsidian_source')}>
             <Input
-              value={state.source}
+              value={properties.source}
               onChange={(e) => handleChange('source', e.target.value)}
               placeholder={i18n.t('chat.topics.export.obsidian_source_placeholder')}
             />
@@ -489,8 +455,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           <FormRow label={i18n.t('chat.topics.export.obsidian_operate')}>
             <div className="flex items-center gap-2">
               <Select
-                value={state.processingMethod || undefined}
-                onValueChange={(value) => handleChange('processingMethod', value)}>
+                value={note.processingMethod ?? ''}
+                onValueChange={(value) => updateNote({ processingMethod: value as WriteMode })}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={i18n.t('chat.topics.export.obsidian_operate_placeholder')} />
                 </SelectTrigger>
@@ -510,9 +476,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                disabled={!state.processingMethod}
+                disabled={!note.processingMethod}
                 aria-label={i18n.t('common.clear')}
-                onClick={() => handleChange('processingMethod', undefined)}>
+                onClick={() => updateNote({ processingMethod: undefined })}>
                 <XIcon size={14} />
               </Button>
             </div>
@@ -530,7 +496,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           <Button
             type="button"
             loading={submitting}
-            disabled={vaults.length === 0 || loading || !!error || !state.title.trim()}
+            disabled={!currentDirectory?.files || !note.title.trim()}
             onClick={handleOk}>
             {i18n.t('chat.topics.export.obsidian_btn')}
           </Button>
