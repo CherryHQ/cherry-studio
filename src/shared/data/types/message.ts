@@ -22,7 +22,7 @@ import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared
 
 import type { MessageProvenance } from './conversationImport'
 import { FileEntryIdSchema } from './file'
-import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
+import { type UniqueModelId, type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
 /**
@@ -141,7 +141,14 @@ export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTimin
 export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
 
 /** Request controls frozen when an assistant turn is created. */
+export interface ModelPromptPair {
+  modelId: UniqueModelId
+  systemPrompt: string
+}
+
 export interface AssistantTurnOptions {
+  /** Immutable model/prompt association captured for a comparison turn. */
+  modelPrompts?: ModelPromptPair[]
   reasoningEffort?: ReasoningEffortOption
   serviceTier?: ServiceTierSelection
   fastMode?: boolean

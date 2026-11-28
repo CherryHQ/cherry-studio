@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-24-model-prompt-comparisons.md
+2026-11-24-model-prompt-comparisons.md: 66ffb518a61326a15dca01b7885e1b4340a90696
+2026-11-24-model-prompt-comparisons.zh.md: 31d96b2a839b955c96cef1f20b42b37fb90903c6

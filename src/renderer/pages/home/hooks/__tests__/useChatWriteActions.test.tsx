@@ -477,7 +477,12 @@ describe('useChatWriteActions — regenerate', () => {
   it('inherits the persisted turn options when retrying an assistant message', async () => {
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
     assistantMessage.parts = [{ type: 'text', text: 'answer' }]
-    assistantMessage.metadata.turnOptions = { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
+    assistantMessage.metadata.turnOptions = {
+      modelPrompts: [{ modelId: 'provider::model-a' as any, systemPrompt: 'Frozen prompt' }],
+      reasoningEffort: 'high',
+      serviceTier: 'flex',
+      fastMode: true
+    }
     const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
 
     await actions.regenerate('a1')
@@ -485,6 +490,7 @@ describe('useChatWriteActions — regenerate', () => {
     expect(regenerate).toHaveBeenCalledWith({
       body: expect.objectContaining({
         parentAnchorId: 'u1',
+        modelPrompts: [{ modelId: 'provider::model-a', systemPrompt: 'Frozen prompt' }],
         reasoningEffort: 'high',
         serviceTier: 'flex',
         fastMode: true
@@ -832,10 +838,26 @@ describe('useChatWriteActions — fork and resend', () => {
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
     const firstAssistant = uiMsg('a1', 'assistant', 'u1')
     firstAssistant.metadata.modelId = 'provider::model-a'
-    firstAssistant.metadata.turnOptions = { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
+    firstAssistant.metadata.turnOptions = {
+      modelPrompts: [
+        { modelId: 'provider::model-a' as any, systemPrompt: 'Prompt A' },
+        { modelId: 'provider::model-b' as any, systemPrompt: 'Prompt B' }
+      ],
+      reasoningEffort: 'high',
+      serviceTier: 'flex',
+      fastMode: true
+    }
     const secondAssistant = uiMsg('a2', 'assistant', 'u1')
     secondAssistant.metadata.modelId = 'provider::model-b'
-    secondAssistant.metadata.turnOptions = { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
+    secondAssistant.metadata.turnOptions = {
+      modelPrompts: [
+        { modelId: 'provider::model-a' as any, systemPrompt: 'Prompt A' },
+        { modelId: 'provider::model-b' as any, systemPrompt: 'Prompt B' }
+      ],
+      reasoningEffort: 'high',
+      serviceTier: 'flex',
+      fastMode: true
+    }
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), firstAssistant, secondAssistant], cache)
 
     await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
@@ -843,9 +865,47 @@ describe('useChatWriteActions — fork and resend', () => {
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         mentionedModelIds: ['provider::model-a', 'provider::model-b'],
+        modelPrompts: [
+          { modelId: 'provider::model-a', systemPrompt: 'Prompt A' },
+          { modelId: 'provider::model-b', systemPrompt: 'Prompt B' }
+        ],
         reasoningEffort: 'high',
         serviceTier: 'flex',
         fastMode: true
+      })
+    )
+  })
+
+  it('recovers the full comparison map when the active reply was regenerated for one model', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    // Regenerating only A narrowed the active reply's stored map to A alone.
+    const regeneratedA = uiMsg('a1', 'assistant', 'u1')
+    regeneratedA.metadata.modelId = 'provider::model-a'
+    regeneratedA.metadata.isActiveBranch = true
+    regeneratedA.metadata.turnOptions = {
+      modelPrompts: [{ modelId: 'provider::model-a' as any, systemPrompt: 'Prompt A edited' }]
+    }
+    const originalB = uiMsg('a2', 'assistant', 'u1')
+    originalB.metadata.modelId = 'provider::model-b'
+    originalB.metadata.turnOptions = {
+      modelPrompts: [
+        { modelId: 'provider::model-a' as any, systemPrompt: 'Prompt A' },
+        { modelId: 'provider::model-b' as any, systemPrompt: 'Prompt B' }
+      ]
+    }
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), regeneratedA, originalB], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mentionedModelIds: ['provider::model-a', 'provider::model-b'],
+        modelPrompts: [
+          { modelId: 'provider::model-a', systemPrompt: 'Prompt A edited' },
+          { modelId: 'provider::model-b', systemPrompt: 'Prompt B' }
+        ]
       })
     )
   })

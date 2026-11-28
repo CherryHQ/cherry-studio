@@ -228,9 +228,19 @@ const aiImagePayloadSchema = z.strictObject({
 // Keep the public output named so declaration emit does not expose FileEntry's private path brand.
 const aiImageOutputSchema: z.ZodType<{ files: FileEntry[] }> = z.object({ files: z.array(FileEntrySchema) })
 
+// New submissions cap each override at 100k chars; regeneration replays the Main-stored
+// comparison snapshot, whose inherited assistant prompts are uncapped, so any finite cap
+// on the replay would reject a snapshot Main itself saved.
+const modelPromptPairSchema = (systemPrompt: z.ZodString) =>
+  z
+    .array(z.strictObject({ modelId: UniqueModelIdSchema, systemPrompt }))
+    .max(100)
+    .optional()
+
 const aiStreamRegenerateShape = {
   trigger: z.literal('regenerate-message'),
   parentAnchorId: z.string().min(1),
+  modelPrompts: modelPromptPairSchema(z.string()),
   userMessageParts: z.never().optional(),
   targetMode: z.never().optional(),
   reasoningEffort: ReasoningEffortOptionSchema.optional(),
@@ -411,6 +421,7 @@ export const aiRequestSchemas = {
         z.object({
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
+          modelPrompts: modelPromptPairSchema(z.string().max(100_000)),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
           targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
           retryMessageId: z.never().optional(),

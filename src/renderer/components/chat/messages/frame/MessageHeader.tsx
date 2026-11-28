@@ -234,6 +234,17 @@ const MessageHeader: FC<Props> = memo(
                   <span className="truncate">{displayModelName}</span>
                 </span>
               )}
+              {isAssistantMessage && message.modelPrompts?.some((pair) => pair.modelId === message.modelId) && (
+                <details className="relative min-w-0 text-xs">
+                  <summary className="cursor-pointer truncate text-muted-foreground">
+                    {displayModelName}: {t('chat.model_prompt.used')}
+                  </summary>
+                  <pre className="absolute top-6 left-0 z-20 max-h-64 w-72 max-w-[70vw] overflow-auto rounded-md border border-border bg-card p-3 break-words whitespace-pre-wrap text-card-foreground shadow-md">
+                    {message.modelPrompts.find((pair) => pair.modelId === message.modelId)?.systemPrompt ||
+                      t('chat.model_prompt.empty')}
+                  </pre>
+                </details>
+              )}
               {isGroupContextMessage && (
                 <Tooltip content={t('chat.message.useful.tip')}>
                   <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />

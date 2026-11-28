@@ -60,6 +60,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       throw new Error('Cannot submit to a temporary chat while a turn is in flight')
     }
 
+    if (req.modelPrompts?.length) throw new Error('Prompt comparisons require a saved conversation')
     const topic = temporaryChatService.getTopic(req.topicId)
     if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
 

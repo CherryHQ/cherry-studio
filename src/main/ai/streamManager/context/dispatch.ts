@@ -90,6 +90,9 @@ export async function dispatchStreamRequest(
   subscriber: StreamListener,
   req: MainDispatchRequest
 ): Promise<AiStreamOpenResponse> {
+  if ('modelPrompts' in req && req.modelPrompts?.length && agentChatContextProvider.canHandle(req.topicId)) {
+    throw new Error('Model prompt comparisons are only supported in ordinary chat')
+  }
   const provider = providers.find((p) => p.canHandle(req.topicId))
   if (!provider) {
     throw new Error(`No ChatContextProvider can handle topicId: ${req.topicId}`)

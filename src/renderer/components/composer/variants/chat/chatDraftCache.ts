@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import type { CacheChatComposerDraft } from '@shared/data/cache/cacheValueTypes'
+import type { ModelPromptPair } from '@shared/data/types/message'
 import { isUniqueModelId } from '@shared/data/types/model'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
@@ -33,6 +34,14 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
       ? cached.knowledgeBaseIds.filter((id): id is string => typeof id === 'string')
       : [],
     mentionedModelIds: Array.isArray(cached.mentionedModelIds) ? cached.mentionedModelIds.filter(isUniqueModelId) : [],
+    ...(Array.isArray(cached.modelPrompts)
+      ? {
+          modelPrompts: cached.modelPrompts.filter(
+            (pair): pair is ModelPromptPair =>
+              isRecord(pair) && isUniqueModelId(pair.modelId) && typeof pair.systemPrompt === 'string'
+          )
+        }
+      : {}),
     modelMultiSelectMode: cached.modelMultiSelectMode === true
   }
 }
@@ -64,6 +73,7 @@ export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCac
       files: [...draft.files],
       knowledgeBaseIds: [...draft.knowledgeBaseIds],
       mentionedModelIds: [...draft.mentionedModelIds],
+      ...(draft.modelPrompts?.length ? { modelPrompts: draft.modelPrompts.map((pair) => ({ ...pair })) } : {}),
       modelMultiSelectMode: draft.modelMultiSelectMode
     },
     DRAFT_CACHE_TTL

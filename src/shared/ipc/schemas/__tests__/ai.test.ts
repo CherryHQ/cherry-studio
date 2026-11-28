@@ -76,6 +76,30 @@ describe('ai.stream.open IPC schema', () => {
     ).toMatchObject({ followUp: true })
   })
 
+  // A comparison stores each model's inherited assistant prompt, which has no length cap, so the
+  // resend must replay the snapshot Main saved; only newly submitted overrides are capped.
+  it('replays an oversized stored prompt on regenerate while capping new submissions', () => {
+    const oversized = 'p'.repeat(100_001)
+    expect(
+      openStream.safeParse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        mentionedModelIds: ['openai::gpt-4o'],
+        modelPrompts: [{ modelId: 'openai::gpt-4o', systemPrompt: oversized }]
+      }).success
+    ).toBe(true)
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        mentionedModelIds: ['openai::gpt-4o'],
+        modelPrompts: [{ modelId: 'openai::gpt-4o', systemPrompt: oversized }]
+      }).success
+    ).toBe(false)
+  })
+
   it('rejects an unknown target mode', () => {
     expect(
       openStream.safeParse({

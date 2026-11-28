@@ -16,7 +16,6 @@ import { estimateTokenCount } from 'tokenx'
 import { definePlugin } from '@cherrystudio/ai-core'
 import { resolveAnthropicCacheSettings } from '@shared/ai/anthropicCache'
 import { VOLATILE_PROMPT_VARIABLES } from '@shared/ai/promptVariables'
-import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { AnthropicCacheTtl, Provider } from '@shared/data/types/provider'
 
@@ -28,8 +27,7 @@ function getCacheControl(ttl: AnthropicCacheTtl) {
   return ttl === '1h' ? ({ type: 'ephemeral', ttl } as const) : ({ type: 'ephemeral' } as const)
 }
 
-function hasVolatilePromptVariables(assistant: Assistant | undefined): boolean {
-  const prompt = assistant?.prompt
+function hasVolatilePromptVariables(prompt: string | undefined): boolean {
   return Boolean(prompt && VOLATILE_PROMPT_VARIABLES.some((variable) => prompt.includes(variable)))
 }
 
@@ -258,7 +256,7 @@ function hasExplicitCacheControl(value: { providerOptions?: ProviderOptions }): 
 export async function transformAnthropicCacheParams(
   params: LanguageModelV3CallOptions,
   provider: Provider,
-  assistant: Assistant | undefined,
+  systemPrompt: string | undefined,
   callerOwned = false
 ): Promise<LanguageModelV3CallOptions> {
   if (
@@ -281,7 +279,7 @@ export async function transformAnthropicCacheParams(
   const messages = [...params.prompt]
   const budget = createCacheBreakpointBudget()
   const cacheControl = getCacheControl(settings.ttl)
-  const volatileSystemPrompt = hasVolatilePromptVariables(assistant)
+  const volatileSystemPrompt = hasVolatilePromptVariables(systemPrompt)
   const sortedTools = sortToolsForCache(params.tools)
   const toolPrefix = estimateToolsPrefix(sortedTools)
 
@@ -348,22 +346,22 @@ export async function transformAnthropicCacheParams(
 
 function anthropicCacheMiddleware(
   provider: Provider,
-  assistant: Assistant | undefined,
+  systemPrompt: string | undefined,
   callerOwned: boolean
 ): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
-    transformParams: async ({ params }) => transformAnthropicCacheParams(params, provider, assistant, callerOwned)
+    transformParams: async ({ params }) => transformAnthropicCacheParams(params, provider, systemPrompt, callerOwned)
   }
 }
 
-function createAnthropicCachePlugin(provider: Provider, assistant: Assistant | undefined, callerOwned: boolean) {
+function createAnthropicCachePlugin(provider: Provider, systemPrompt: string | undefined, callerOwned: boolean) {
   return definePlugin({
     name: 'anthropic-cache',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(anthropicCacheMiddleware(provider, assistant, callerOwned))
+      context.middlewares.push(anthropicCacheMiddleware(provider, systemPrompt, callerOwned))
     }
   })
 }
@@ -373,6 +371,12 @@ export const anthropicCacheFeature: RequestFeature = {
   applies: (scope) =>
     scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && resolveAnthropicCacheSettings(scope.provider).enabled,
   contributeModelAdapters: (scope) => [
-    createAnthropicCachePlugin(scope.provider, scope.assistant, scope.request.contextOwner === 'caller')
+    // The effective raw prompt decides volatility: an override must be checked even in a
+    // saved chat without an assistant, where there is no assistant object to carry it.
+    createAnthropicCachePlugin(
+      scope.provider,
+      scope.request.systemPromptOverride ?? scope.assistant?.prompt,
+      scope.request.contextOwner === 'caller'
+    )
   ]
 }

@@ -1154,6 +1154,25 @@ describe('ChatComposer', () => {
     expect(indicator).toHaveAttribute('aria-valuenow', '42')
   })
 
+  it('keeps a saved prompt override editable after the selection narrows to one model', () => {
+    mocks.model = model
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1'
+        ? {
+            text: '',
+            tokens: [],
+            files: [],
+            knowledgeBaseIds: [],
+            mentionedModelIds: [],
+            modelPrompts: [{ modelId: 'provider::model-a', systemPrompt: 'Saved A' }],
+            modelMultiSelectMode: false
+          }
+        : undefined
+    )
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    expect(screen.getByDisplayValue('Saved A')).toBeTruthy()
+  })
+
   it('snapshots a newly selected reasoning effort before its assistant PATCH finishes', async () => {
     mocks.model = {
       ...model,

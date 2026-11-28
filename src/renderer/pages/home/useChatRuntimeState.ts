@@ -30,7 +30,7 @@ import { mergeLiveReplies, mergeMessagesById } from '@renderer/utils/message/mer
 import { activeReplyIds, replyParts } from '@renderer/utils/message/messagePartRows'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { ModelPromptPair, CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -44,6 +44,7 @@ const logger = loggerService.withContext('useChatRuntimeState')
 export interface ChatTurnInput {
   text: string
   options?: {
+    modelPrompts?: ModelPromptPair[]
     mentionedModels?: UniqueModelId[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
@@ -290,6 +291,7 @@ export function useChatRuntimeState({
     ({ text, options }: ChatTurnInput, conversation: { topicId: string; parentAnchorId: string | null }) => {
       const requestOptions = {
         topicId: conversation.topicId,
+        modelPrompts: options?.modelPrompts,
         mentionedModelIds: options?.mentionedModels,
         reasoningEffort: options?.reasoningEffort,
         serviceTier: options?.serviceTier,

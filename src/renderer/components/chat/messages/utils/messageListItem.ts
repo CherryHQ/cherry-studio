@@ -58,6 +58,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
           : 'success',
     modelId,
     model,
+    modelPrompts: metadata.turnOptions?.modelPrompts,
     messageSnapshot,
     ...(metadata.provenance ? { isImportedHistory: true } : {}),
     siblingsGroupId: metadata.siblingsGroupId,

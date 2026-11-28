@@ -1,6 +1,11 @@
 import type { UIMessageChunk } from 'ai'
 
-import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '../../data/types/message'
+import type {
+  ModelPromptPair,
+  AssistantTurnOptions,
+  CherryMessagePart,
+  CherryUIMessage
+} from '../../data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
@@ -104,6 +109,7 @@ export interface ComposerQueuedMessagePayload {
   attachments?: Array<Record<string, unknown>>
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
+  modelPrompts?: ModelPromptPair[]
   /** Canonical reasoning selection captured with this queued draft. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured with this queued draft. */
@@ -194,6 +200,7 @@ export interface StreamErrorPayload {
 export type AiStreamOpenRequest = {
   topicId: string
   /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
+  modelPrompts?: ModelPromptPair[]
   mentionedModelIds?: UniqueModelId[]
 } & (
   | {

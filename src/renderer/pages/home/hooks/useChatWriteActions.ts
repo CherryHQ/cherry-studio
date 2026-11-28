@@ -19,7 +19,8 @@ import type {
   AssistantTurnOptions,
   BranchMessagesResponse,
   CherryUIMessage,
-  Message as DbMessage
+  Message as DbMessage,
+  ModelPromptPair
 } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
@@ -55,11 +56,30 @@ function getInheritedTurnOptions(
     (message) => message.role === 'assistant' && message.metadata?.parentId === target.id
   )
   const source = directAssistants.find((message) => message.metadata?.isActiveBranch) ?? directAssistants.at(-1)
-  return source?.metadata?.turnOptions
+  const turnOptions = source?.metadata?.turnOptions
+  if (!turnOptions) return turnOptions
+
+  // Regenerating one model narrows that reply's stored modelPrompts to the
+  // regenerated model. Merge the pairs every direct reply stored so a later
+  // edit-and-resend still supplies the full comparison map; the active
+  // branch's entries win because they carry the latest reviewed prompts.
+  if (turnOptions.modelPrompts === undefined) return turnOptions
+  const merged = new Map<string, ModelPromptPair>()
+  for (const reply of directAssistants) {
+    if (reply === source) continue
+    for (const pair of reply.metadata?.turnOptions?.modelPrompts ?? []) {
+      if (!merged.has(pair.modelId)) merged.set(pair.modelId, pair)
+    }
+  }
+  for (const pair of turnOptions.modelPrompts) {
+    merged.set(pair.modelId, pair)
+  }
+  return { ...turnOptions, modelPrompts: [...merged.values()] }
 }
 
 function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
   return {
+    ...(turnOptions?.modelPrompts !== undefined && { modelPrompts: turnOptions.modelPrompts }),
     ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
     ...(turnOptions?.serviceTier !== undefined && { serviceTier: turnOptions.serviceTier }),
     ...(turnOptions?.fastMode !== undefined && { fastMode: turnOptions.fastMode })
@@ -366,7 +386,8 @@ export function useChatWriteActions(params: Params): Result {
     async (messageId, editedParts, turnOptions) => {
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const sourceMessage = uiMessages.find((message) => message.id === messageId)
-      const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(uiMessages, sourceMessage)
+      const inheritedOptions = getInheritedTurnOptions(uiMessages, sourceMessage)
+      const effectiveTurnOptions = { ...inheritedOptions, ...turnOptions, modelPrompts: inheritedOptions?.modelPrompts }
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
         body: { parts: editedParts }

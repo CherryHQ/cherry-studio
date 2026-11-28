@@ -2,7 +2,6 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -76,7 +75,7 @@ function countCacheMarkers(params: LanguageModelV3CallOptions): number {
 async function transform(
   input: Partial<LanguageModelV3CallOptions>,
   provider = makeProvider(),
-  assistant?: Assistant
+  systemPrompt?: string
 ): Promise<LanguageModelV3CallOptions> {
   return transformAnthropicCacheParams(
     {
@@ -84,7 +83,7 @@ async function transform(
       ...input
     },
     provider,
-    assistant
+    systemPrompt
   )
 }
 
@@ -145,6 +144,28 @@ describe('anthropicCacheFeature', () => {
         model: makeModel()
       } as never)
     ).toBe(false)
+  })
+  it('checks the override prompt for volatility when the chat has no assistant', async () => {
+    const adapters = anthropicCacheFeature.contributeModelAdapters!({
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      provider: makeProvider({ enabled: true, tokenThreshold: 1 }),
+      model: makeModel(),
+      assistant: undefined,
+      request: { systemPromptOverride: 'Current time: {{time}}', contextOwner: 'main' }
+    } as never)
+    const context: {
+      middlewares?: {
+        transformParams: (args: { params: LanguageModelV3CallOptions }) => Promise<LanguageModelV3CallOptions>
+      }[]
+    } = {}
+    for (const adapter of adapters as { configureContext?: (context: unknown) => void }[]) {
+      adapter.configureContext?.(context)
+    }
+    expect(context.middlewares).toHaveLength(1)
+    const out = await context.middlewares![0].transformParams({
+      params: { prompt: [textMessage('system', 'x '.repeat(3000)), textMessage('user', 'hello')] }
+    })
+    expect(countCacheMarkers(out)).toBe(0)
   })
 })
 
@@ -281,7 +302,7 @@ describe('transformAnthropicCacheParams', () => {
         tools: [makeTool('mcp_tool', 6000)]
       },
       makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 2 }),
-      { id: 'a1', prompt: 'Current time: {{time}}' } as Assistant
+      'Current time: {{time}}'
     )
 
     expect(hasCacheControl(out.prompt[0])).toBe(false)
@@ -399,7 +420,7 @@ describe('overflow cleanup', () => {
     const out = await transform(
       { tools, prompt: [textMessage('system', 'system'), textMessage('user', 'user')] },
       makeProvider({ enabled: true, tokenThreshold: 1, cacheSystemMessage: gate !== 'system disabled' }),
-      gate === 'volatile' ? ({ prompt: '{{time}}' } as Assistant) : undefined
+      gate === 'volatile' ? '{{time}}' : undefined
     )
     expect(countCacheMarkers(out)).toBe(4)
     expect(hasCacheControl(out.prompt[0])).toBe(false)

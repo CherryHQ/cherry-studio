@@ -15,6 +15,7 @@ import type { AgentSessionCostSnapshot } from '../../ai/agentSessionCost'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { McpServer } from '../types/mcpServer'
+import type { ModelPromptPair } from '../types/message'
 import type { UniqueModelId } from '../types/model'
 import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
@@ -175,6 +176,7 @@ export interface CacheComposerDraftBase {
 }
 
 export interface CacheChatComposerDraft extends CacheComposerDraftBase {
+  modelPrompts?: ModelPromptPair[]
   /** Explicit per-topic model selection; runtime model records are resolved when restoring. */
   mentionedModelIds: UniqueModelId[]
   /** Selection behavior cannot be inferred when zero or one models remain selected. */

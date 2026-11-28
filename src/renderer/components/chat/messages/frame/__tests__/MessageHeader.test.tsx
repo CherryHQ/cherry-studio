@@ -105,6 +105,20 @@ describe('MessageHeader', () => {
     providerState.meta = {}
   })
 
+  it('shows the producing model and only its own stored prompt on history readback', () => {
+    const message = createMessage('assistant', {
+      modelId: 'p::a',
+      model: { id: 'a', name: 'Model A', provider: 'p' },
+      modelPrompts: [
+        { modelId: 'p::a' as any, systemPrompt: 'Frozen A prompt' },
+        { modelId: 'p::b' as any, systemPrompt: 'B must stay hidden' }
+      ]
+    })
+    render(<MessageHeader message={message} />)
+    expect(screen.getByText('Frozen A prompt')).toBeDefined()
+    expect(screen.queryByText('B must stay hidden')).toBeNull()
+  })
+
   it('attributes historical system records to the system instead of the user', () => {
     render(<MessageHeader message={createMessage('system')} />)
     expect(screen.getByText('chat.message.system')).toBeInTheDocument()
