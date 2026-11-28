@@ -2759,6 +2759,7 @@ describe('AgentComposer', () => {
     'saves ordinary input %s after a successful agent send',
     async (text) => {
       mocks.sendMessage.mockResolvedValue(undefined)
+      mocks.ipcApiRequest.mockResolvedValue({ accepted: false, unrecognized: true })
 
       render(
         <AgentComposer
@@ -2778,6 +2779,42 @@ describe('AgentComposer', () => {
         expect(mocks.sendMessage).toHaveBeenCalled()
         expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([text])
       })
+    }
+  )
+
+  it.each([true, false])(
+    'keeps a newly discovered Skill out of chat when command acceptance is %s',
+    async (accepted) => {
+      seedInputHistory(['previous message'])
+      mocks.ipcApiRequest.mockResolvedValue({ accepted, commandName: 'skill:review' })
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      )
+      const text = '/skill:review changes'
+      act(() => mocks.surfaceProps?.onTextChange(text))
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+      })
+
+      expect(mocks.surfaceProps?.text).toBe(accepted ? '' : text)
+      expect(mocks.sendMessage).not.toHaveBeenCalled()
+      expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['previous message'])
+
+      if (!accepted) {
+        mocks.ipcApiRequest.mockResolvedValue({ accepted: false, unrecognized: true })
+        await act(async () => {
+          await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+        })
+        expect(mocks.surfaceProps?.text).toBe(text)
+        expect(mocks.sendMessage).not.toHaveBeenCalled()
+      }
     }
   )
 

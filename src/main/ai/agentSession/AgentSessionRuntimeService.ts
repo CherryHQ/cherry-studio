@@ -3400,22 +3400,20 @@ export class AgentSessionRuntimeService extends BaseService {
     expectedConnection?: string,
     senderId?: WindowId,
     commandName?: string
-  ): Promise<{ accepted: boolean; notice?: LocalAgentNotice }> {
+  ): Promise<{
+    accepted: boolean
+    unrecognized?: true
+    commandName?: string
+    generation?: string
+    notice?: LocalAgentNotice
+  }> {
     this.assertSessionWritable(sessionId)
     const invocation = parseAgentSlashCommand(text)
     if (!invocation) return { accepted: false }
-    const branchHead = agentSessionMessageService.captureHead(sessionId)
-    await this.prepareBranch(sessionId, branchHead)
-    if (agentSessionMessageService.captureHead(sessionId) !== branchHead) return { accepted: false }
-    const connection = await this.ensureSessionConnection(sessionId)
-    const entry = this.entries.get(sessionId)
-    const generation = entry?.connectionGeneration
-    if (!entry || !connection || !generation || (expectedConnection && generation !== expectedConnection))
-      return { accepted: false }
-
-    const agent = agentService.getAgent(entry.agentId)
-    if (!agent) return { accepted: false }
     const session = agentSessionService.getById(sessionId)
+    const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
+    if (!agent) return { accepted: false }
+    const branchHead = agentSessionMessageService.captureHead(sessionId)
     const capabilities = await runtimeDriverRegistry.getAgentSessionDriver(agent.type)?.commands?.({
       agent,
       session,
@@ -3424,38 +3422,75 @@ export class AgentSessionRuntimeService extends BaseService {
     const matches = (item: AgentSessionSlashCommand) =>
       (item.name === invocation.name || item.aliases?.includes(invocation.name)) &&
       (!commandName || item.name === commandName)
-    const live = capabilities?.liveCatalog ? await connection.getSupportedCommands?.() : undefined
-    const command =
-      live?.find(matches) ??
-      (await capabilities?.listOffline?.())?.find(matches) ??
-      this.builtinCommands(agent.type).find(matches)
+    const builtin = this.builtinCommands(agent.type).find(matches)
+    const compact = invocation.name === 'compact' && (!commandName || commandName === 'compact')
+    const missing = (): { accepted: false; unrecognized?: true } =>
+      commandName ? { accepted: false } : { accepted: false, unrecognized: true }
+
+    let discoveredOffline: string | undefined
+    if (!commandName && !builtin && !compact && !capabilities?.liveCatalog) {
+      discoveredOffline = (await capabilities?.listOffline?.())?.find(matches)?.name
+      if (agentSessionMessageService.captureHead(sessionId) !== branchHead) return { accepted: false }
+      if (!discoveredOffline) return missing()
+    }
+
+    await this.prepareBranch(sessionId, branchHead)
+    if (agentSessionMessageService.captureHead(sessionId) !== branchHead) return { accepted: false }
+    const connection = await this.ensureSessionConnection(sessionId)
+    const entry = this.entries.get(sessionId)
+    const generation = entry?.connectionGeneration
+    if (
+      entry?.agentId !== agent.id ||
+      !connection ||
+      !generation ||
+      (expectedConnection && generation !== expectedConnection)
+    )
+      return { accepted: false }
+
+    const live = capabilities?.liveCatalog
+      ? await connection.getSupportedCommands?.(!commandName && capabilities.liveCatalog === 'query' ? true : undefined)
+      : undefined
+    const command = live?.find(matches) ?? (await capabilities?.listOffline?.())?.find(matches) ?? builtin
     if (
       !this.isCurrentGeneration(entry, generation) ||
       this.currentConnection(entry) !== connection ||
       entry.closing ||
       entry.stopping ||
-      entry.slashCommandRequestId ||
       agentSessionMessageService.captureHead(sessionId) !== branchHead
     )
       return { accepted: false }
 
+    const resolvedName = command?.name ?? discoveredOffline
+    const discovered = !commandName && resolvedName ? { commandName: resolvedName, generation } : {}
+    if (entry.slashCommandRequestId) return { accepted: false, ...discovered }
     if (
-      invocation.name === 'compact' &&
-      (!commandName || commandName === 'compact') &&
+      compact &&
       connection.compact &&
       (!invocation.args || connection.compactWithInstructions) &&
-      !(command && 'builtin' in command && command.builtin === false)
+      command?.builtin !== false
     )
-      return { accepted: await this.compactSession(sessionId, generation, invocation.args || undefined) }
-    if (!command || !connection.executeCommand || ('skillPath' in command && this.isSessionBusy(sessionId)))
-      return { accepted: false }
+      return { accepted: await this.compactSession(sessionId, generation, invocation.args || undefined), ...discovered }
+    if (!command) {
+      if (discoveredOffline) return { accepted: false, ...discovered }
+      if (capabilities?.liveCatalog === 'query' && !live) return { accepted: false }
+      return missing()
+    }
+    if (!connection.executeCommand || ('skillPath' in command && this.isSessionBusy(sessionId)))
+      return { accepted: false, ...discovered }
     if (senderId) entry.interactionWindowId = senderId
     const requestId = uuidv7()
     entry.slashCommandRequestId = requestId
     this.clearIdleTimer(entry)
     try {
       const notice = await connection.executeCommand({ command, args: invocation.args, requestId, branchHead })
-      return { accepted: notice?.severity !== 'error', ...(notice && { notice }) }
+      return { accepted: notice?.severity !== 'error', ...discovered, ...(notice && { notice }) }
+    } catch (error) {
+      if (commandName) throw error
+      return {
+        accepted: false,
+        ...discovered,
+        notice: { severity: 'error', title: error instanceof Error ? error.message : String(error) }
+      }
     } finally {
       if (entry.slashCommandRequestId === requestId) delete entry.slashCommandRequestId
       if (this.isCurrentGeneration(entry, generation)) {

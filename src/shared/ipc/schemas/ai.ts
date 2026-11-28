@@ -786,6 +786,9 @@ export const aiRequestSchemas = {
     }),
     output: z.strictObject({
       accepted: z.boolean(),
+      unrecognized: z.literal(true).optional(),
+      commandName: z.string().optional(),
+      generation: z.string().optional(),
       notice: z
         .strictObject({
           severity: z.enum(['info', 'warning', 'error']),

@@ -1765,30 +1765,41 @@ const AgentComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
-      const command = commandIntentFor(payload.text)
-      if (command && !payload.attachments?.length && !launchOptions?.editing) {
+      const invocation = parseAgentSlashCommand(payload.text)
+      if (invocation && !payload.attachments?.length && !launchOptions?.editing) {
+        const command = commandIntentFor(payload.text)
         directSendInFlightRef.current = true
         setIsDirectSending(true)
         try {
           const result = await ipcApi.request('ai.agent.session.run_slash_command', {
             sessionId,
             text: payload.text,
-            generation: command.generation,
-            commandName: command.name
+            generation: command?.generation,
+            commandName: command?.name
           })
-          if (result.notice) {
-            const { severity, title, description } = result.notice
-            toast[severity]({ title, description })
+          if (command || !result.unrecognized) {
+            if (!command && result.commandName) {
+              commandIntentRef.current = {
+                name: result.commandName,
+                textName: invocation.name,
+                generation: result.generation
+              }
+            }
+            if (result.notice) {
+              const { severity, title, description } = result.notice
+              toast[severity]({ title, description })
+            }
+            if (result.accepted) clearCurrentDraft()
+            else if (!result.notice) toast.error(t('error.unknown'))
+            return
           }
-          if (result.accepted) clearCurrentDraft()
-          else if (!result.notice) toast.error(t('error.unknown'))
         } catch (error) {
           toast.errorFromException(error)
+          return
         } finally {
           directSendInFlightRef.current = false
           setIsDirectSending(false)
         }
-        return
       }
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and

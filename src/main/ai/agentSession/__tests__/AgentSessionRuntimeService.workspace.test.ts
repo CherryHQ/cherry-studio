@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, realpath, rm, stat } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +8,7 @@ import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+import { piCommandCatalog } from '@cherrystudio/agent-runtime-pi'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -341,7 +342,41 @@ it('rejects a missing command without submitting a prompt to ACP', async () => {
   await expect(
     service.runSlashCommand('session', '/removed-command', undefined, undefined, 'removed-command')
   ).resolves.toEqual({ accepted: false })
+  await expect(service.runSlashCommand('session', '/plain-text')).resolves.toEqual({
+    accepted: false,
+    unrecognized: true
+  })
   expect((await readAcpRequests()).some(({ method }) => method === 'session/prompt')).toBe(false)
+})
+
+it('dispatches a Skill added after the offline command catalog was published', async () => {
+  const driver = setup('acp')
+  const workspace = path.join(directory, 'A')
+  const folder = path.join(workspace, 'review')
+  vi.spyOn(driver, 'commands').mockResolvedValue({
+    listOffline: () => piCommandCatalog.listOffline({ cwd: workspace, agentDir: directory, skillPaths: [folder] })
+  })
+  await expect(service.refreshSessionCommands('session')).resolves.toEqual([])
+  await expect(service.runSlashCommand('session', '/unknown')).resolves.toEqual({
+    accepted: false,
+    unrecognized: true
+  })
+  expect(connections).toHaveLength(0)
+
+  await mkdir(folder, { recursive: true })
+  await writeFile(path.join(folder, 'SKILL.md'), '---\nname: review\ndescription: Review changes.\n---\nRead the diff.')
+
+  await expect(service.runSlashCommand('session', '/skill:review changes')).resolves.toMatchObject({
+    accepted: true,
+    commandName: 'skill:review',
+    generation: expect.any(String)
+  })
+  expect((await readAcpRequests()).find(({ method }) => method === 'session/prompt')?.params.prompt).toEqual([
+    { type: 'text', text: '/skill:review changes' }
+  ])
+  expect(agentSessionMessageService.listSessionMessages('session').items.filter(({ role }) => role === 'user')).toEqual(
+    []
+  )
 })
 
 it('rejects a command selected on a sibling branch without prompting either ACP connection', async () => {

@@ -342,6 +342,8 @@ Explicit activation or refresh can connect a driver with a live catalog.
 The Agent composer sends recognized slash commands through `ai.agent.session.run_slash_command`
 before ordinary conversation admission. The draft retains the command's identity when its
 catalog entry disappears. Main revalidates the current branch and catalog before accepting it.
+For slash-shaped text missing from the Composer cache, Main checks the current catalog.
+The Composer sends it as chat only when Main reports that the invocation is unrecognized.
 Local results return as feedback. An accepted native submission can release the draft while
 the model continues to run. Native work with an assistant reply uses the receive-only
 runtime turn, while a confirmed context switch saves a boundary and its native binding together.
