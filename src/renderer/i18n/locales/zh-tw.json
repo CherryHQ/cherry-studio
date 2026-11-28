@@ -448,6 +448,7 @@
   "agent.session_delivery.status.consumed": "已處理",
   "agent.session_delivery.status.delivering": "投遞中",
   "agent.session_delivery.status.failed": "失敗",
+  "agent.session_delivery.waiting_for_model": "等待模型接收…",
   "agent.session_turn_origin.goal_round": "目標推進 · 第 {{round}} 輪",
   "agent.settings.permissionMode.title": "權限模式",
   "agent.settings.tooling.mcp.toggle": "切換 {{name}}",

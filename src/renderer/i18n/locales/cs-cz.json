@@ -448,6 +448,7 @@
   "agent.session_delivery.status.consumed": "Zpracováno",
   "agent.session_delivery.status.delivering": "Doručování",
   "agent.session_delivery.status.failed": "Selhalo",
+  "agent.session_delivery.waiting_for_model": "Čeká se na předání modelu…",
   "agent.session_turn_origin.goal_round": "Kolo cíle {{round}}",
   "agent.settings.permissionMode.title": "Režim oprávnění",
   "agent.settings.tooling.mcp.toggle": "Přepnout {{name}}",

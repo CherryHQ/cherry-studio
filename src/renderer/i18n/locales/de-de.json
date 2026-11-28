@@ -448,6 +448,7 @@
   "agent.session_delivery.status.consumed": "Verarbeitet",
   "agent.session_delivery.status.delivering": "Wird zugestellt",
   "agent.session_delivery.status.failed": "Fehlgeschlagen",
+  "agent.session_delivery.waiting_for_model": "Wartet auf die Übergabe an das Modell…",
   "agent.session_turn_origin.goal_round": "Zielrunde {{round}}",
   "agent.settings.permissionMode.title": "Berechtigungsmodus",
   "agent.settings.tooling.mcp.toggle": "{{name}} umschalten",

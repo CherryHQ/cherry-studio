@@ -448,6 +448,7 @@
   "agent.session_delivery.status.consumed": "Processado",
   "agent.session_delivery.status.delivering": "A entregar",
   "agent.session_delivery.status.failed": "Falhou",
+  "agent.session_delivery.waiting_for_model": "A aguardar o envio da mensagem para o modelo…",
   "agent.session_turn_origin.goal_round": "Ronda de objetivo {{round}}",
   "agent.settings.permissionMode.title": "Modo de Permissão",
   "agent.settings.tooling.mcp.toggle": "Alternar {{name}}",

@@ -2881,6 +2881,8 @@ export class AgentSessionRuntimeService extends BaseService {
           (input.facts.includes('queued') || input.facts.includes('placed'))
         ) {
           pending.generation = generation
+          if (pending.nextTurn.steer && !input.facts.includes('placed'))
+            this.publishInputDelivery(entry, inputId, 'queued')
           continue
         }
         if (input.facts.includes('placed')) {
@@ -3048,13 +3050,18 @@ export class AgentSessionRuntimeService extends BaseService {
         application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
         break
       case 'input-state':
+        if (
+          event.input.outcome ||
+          event.input.facts.includes('locally-handled') ||
+          event.input.facts.includes('placed')
+        )
+          this.publishInputDelivery(entry, event.input.inputId)
         if (event.input.facts.includes('locally-handled')) {
           markLocalInput(entry.sessionId, event.contextId, event.input.inputId)
           if (entry.agentType === 'pi-durable')
             agentSessionMessageService.publishStagedFollowup(entry.sessionId, event.input.inputId)
         }
         if (event.input.facts.includes('placed')) {
-          this.publishInputDelivery(entry, event.input.inputId)
           const timeline = this.timelineFor(entry)
           const current = this.currentTurn(entry)
           const pos = agentSessionMessageService.saveInputTimelinePosition(
@@ -3392,9 +3399,24 @@ export class AgentSessionRuntimeService extends BaseService {
     const key = AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(entry.sessionId)
     const cache = application.get('CacheService')
     const view = cache.getShared(key)
-    if (!view || view.generation !== entry.connectionGeneration || (!status && view.delivery?.inputId !== inputId))
+    if (!view || view.generation !== entry.connectionGeneration) return
+    const pendingSteerIds = view.pendingSteerIds ?? []
+    if (
+      status &&
+      status !== 'unknown' &&
+      entry.agentType === 'pi-durable' &&
+      entry.pendingInputs?.get(inputId)?.nextTurn.steer
+    ) {
+      if (!pendingSteerIds.includes(inputId))
+        cache.setShared(key, { ...view, pendingSteerIds: [...pendingSteerIds, inputId] })
       return
-    cache.setShared(key, { ...view, delivery: status && { inputId, status } })
+    }
+    if (!status && view.delivery?.inputId !== inputId && !pendingSteerIds.includes(inputId)) return
+    cache.setShared(key, {
+      ...view,
+      pendingSteerIds: status ? view.pendingSteerIds : pendingSteerIds.filter((id) => id !== inputId),
+      delivery: status ? { inputId, status } : view.delivery?.inputId === inputId ? undefined : view.delivery
+    })
   }
 
   private handleCompactionStart(

@@ -448,6 +448,7 @@
   "agent.session_delivery.status.consumed": "사용됨",
   "agent.session_delivery.status.delivering": "전달 중",
   "agent.session_delivery.status.failed": "실패",
+  "agent.session_delivery.waiting_for_model": "모델이 메시지를 받을 때까지 대기 중…",
   "agent.session_turn_origin.goal_round": "목표 {{round}}회차",
   "agent.settings.permissionMode.title": "권한 모드",
   "agent.settings.tooling.mcp.toggle": "{{name}} 전환",

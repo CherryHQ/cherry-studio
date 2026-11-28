@@ -448,6 +448,7 @@
   "agent.session_delivery.status.consumed": "Consumed",
   "agent.session_delivery.status.delivering": "Delivering",
   "agent.session_delivery.status.failed": "Failed",
+  "agent.session_delivery.waiting_for_model": "Waiting for the model…",
   "agent.session_turn_origin.goal_round": "Goal round {{round}}",
   "agent.settings.permissionMode.title": "Permission Mode",
   "agent.settings.tooling.mcp.toggle": "Toggle {{name}}",

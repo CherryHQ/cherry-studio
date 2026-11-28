@@ -364,12 +364,18 @@ test.describe('Pi Durable turn authority in Electron', () => {
       await expect(chat.message('SOURCE_PARTIAL')).toBeVisible()
 
       await chat.steer('STEER_INPUT')
-      await expect(chat.message('STEER_INPUT')).toBeVisible()
+      const waiting = chat.message('STEER_INPUT').getByRole('status').filter({ hasText: 'Waiting for the model…' })
+      await expect(waiting).toBeVisible()
       // Durable places a steer before the next model call, so the run needs one more step.
       source.completeToolCall({ id: 'call-read', name: 'read', arguments: { path: 'steer-probe.txt' } })
       // The steer must wait through the approval and land on the call after it.
-      await page.getByRole('button', { name: /^Allow/ }).click()
+      const allow = page.getByRole('button', { name: /^Allow/ })
+      await expect(allow).toBeVisible()
+      await expect(waiting).toBeVisible()
+      await capture(page, testInfo, 'steer-waiting')
+      await allow.click()
       const steered = await route.next('STEER_INPUT')
+      await expect(waiting).toHaveCount(0)
       steered.complete('STEER_ANSWER')
 
       await expect(chat.message('STEER_ANSWER')).toBeVisible()
