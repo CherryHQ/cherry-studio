@@ -30,7 +30,7 @@ Pi 和 Pi Durable 也从会话可用的托管与工作区 Skill 中提供 `/skil
 
 提交 Skill 命令时会根据所选会话重新验证候选。Runtime 通过现有斜杠命令分发，以 Skill 引用和可选参数启动模型回合。Cherry 保留助理回复，调用原文不进入会话历史和输入召回。
 
-各 driver 声明命令目录能力。离线来源可以在没有连接时提供命令。实时来源在显式激活或刷新时沿用现有连接路径。原生推送和查询结果更新当前连接的目录。被动读取使用已发布的快照，Channel 帮助也可读取已有目录而不启动 runtime。
+Runtime 包通过统一契约声明如何发现和执行命令。各包提供原生命令元数据，并声明自身支持的离线查询、实时推送或实时查询方式。Pi 和 Pi Durable 与 goal 解析器共用元数据，通用 ACP adapter 共用协议中的命令推送。Main 解析当前连接、分支和允许使用的 Skill 来源。离线目录接收显式的工作区和 Skill 输入。原生推送和查询结果更新当前连接的目录，Composer 和 Channel 帮助读取已发布的快照时无需启动 runtime。
 
 Composer 在草稿中保留已选中或已识别命令的标识。目录变化或命令被移除时，草稿仍可保留。Main 在分发前校验命令标识、会话以及当前分支或连接。
 
@@ -60,6 +60,8 @@ Main 统一协调命令执行。Runtime 回执确认本地命令已处理，或�
 - AC11 — 读取命令快照时，包括 Channel 帮助，空闲或断开的 runtime 保持关闭。显式激活支持实时目录的 driver 时更新目录，已退役连接的延迟结果会被丢弃。（verification: Main and renderer — implementation owner）
 - AC12 — 目录更新后，已选中或已识别的命令仍按命令处理。发送已失效命令会保留草稿，不写入普通聊天输入。从未识别为命令的斜杠路径仍可作为文本发送。（verification: renderer and Main — implementation owner）
 - AC13 — Cursor SDK 接收 Skill 回合后，Composer 可继续编辑。后续模型输出和结束状态仍走现有 runtime 事件。（verification: runtime and renderer — implementation owner）
+
+- AC14 — 通过 runtime 包的导出即可发现命令和分发本地命令，所需参数由宿主提供。Runtime 包可脱离 Cherry 会话实体使用，Main 消费现有 harness 包中的能力声明。（verification: package contract, Main integration, and renderer — implementation owner）
 
 ## 风险
 
