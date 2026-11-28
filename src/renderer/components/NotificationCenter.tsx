@@ -2,7 +2,7 @@ import { Bell, CalendarClock, Check, ChevronRight } from 'lucide-react'
 import { createContext, lazy, Suspense, use, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Drawer, DrawerContent, DrawerTitle, ScrollArea } from '@cherrystudio/ui'
+import { Button, Drawer, DrawerContent, DrawerTitle, EmptyState, ScrollArea } from '@cherrystudio/ui'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -12,6 +12,7 @@ import { toast } from '@renderer/services/toast'
 import type { NotificationRecord } from '@shared/data/types/notification'
 
 import NotificationAnnouncement from './NotificationAnnouncement'
+import { NotificationEmptyScene } from './NotificationEmptyScene'
 import { notificationCategoryIcons, notificationPreview } from './notificationPresentation'
 import { NotificationTaskIdentity } from './NotificationTaskIdentity'
 import { NotificationTitle } from './NotificationTitle'
@@ -275,7 +276,7 @@ function NotificationList({
         </div>
       )}
       {!isLoading && !error && visibleItems.length === 0 && (
-        <p className="p-8 text-center text-sm text-muted-foreground">{t('notification.center.empty')}</p>
+        <EmptyState compact scene={<NotificationEmptyScene />} title={t('notification.center.empty')} />
       )}
       <ul ref={listRef} aria-label={t('notification.center.title')}>
         {visibleItems.map((record) => (

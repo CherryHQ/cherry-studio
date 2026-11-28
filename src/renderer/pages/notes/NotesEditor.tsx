@@ -16,6 +16,8 @@ import { toast } from '@renderer/services/toast'
 import { readTextAloud, voiceTargetManager } from '@renderer/services/voice'
 import type { EditorView } from '@renderer/types/app'
 
+import { NotesEmptyScene } from './NotesEmptyScene'
+
 const logger = loggerService.withContext('NotesEditor')
 // Hides the toolbar button and the slash-menu entry only. Image *paste* stays enabled: notes have
 // persisted pasted images into the user's notes folder since the module shipped, and
@@ -205,7 +207,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     if (!activeNodeId) {
       return (
         <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState title={t('notes.empty')} actionLabel={t('notes.new_note')} onAction={onCreateNote} />
+          <EmptyState
+            scene={<NotesEmptyScene />}
+            title={t('notes.empty')}
+            actionLabel={t('notes.new_note')}
+            onAction={onCreateNote}
+          />
         </div>
       )
     }

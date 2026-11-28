@@ -20,6 +20,7 @@ import { isDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import InstallMiniAppPanel from './InstallMiniAppPanel'
+import { MiniAppsEmptyScene } from './MiniAppsEmptyScene'
 import MiniAppDisplaySettings from './MiniAppSettings/MiniAppDisplaySettings'
 import MiniAppListPair from './MiniAppSettings/MiniAppListPair'
 import MiniAppSettingsPanel from './MiniAppSettings/MiniAppSettingsPanel'
@@ -219,7 +220,10 @@ const MiniAppsPage: FC = () => {
               </div>
             ) : filteredApps.length === 0 && filteredBuiltins.length === 0 ? (
               <div className="flex flex-1 items-center justify-center">
-                <EmptyState title={search ? t('common.no_results') : t('miniApp.title')} />
+                <EmptyState
+                  scene={<MiniAppsEmptyScene />}
+                  title={search ? t('common.no_results') : t('miniApp.title')}
+                />
               </div>
             ) : (
               <>

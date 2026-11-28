@@ -511,7 +511,7 @@ const AgentChat = ({
         onSidebarToggle={onSidebarToggle}
       />
     )
-    center = <ConversationCenterState state="empty" />
+    center = <ConversationCenterState state="empty" variant="agent" />
   } else {
     topBar = (
       <AgentChatNavbar
