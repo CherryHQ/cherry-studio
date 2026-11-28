@@ -5075,10 +5075,15 @@ describe('AgentSessionRuntimeService', () => {
         return this.localSessionInfo
       }
     }
-    runtimeDriverRegistry.register({ type: 'local', connect: vi.fn(async () => connection), validateSession: vi.fn() })
+    runtimeDriverRegistry.register({
+      type: 'local',
+      commands: () => ({ liveCatalog: 'push' }),
+      connect: vi.fn(async () => connection),
+      validateSession: vi.fn()
+    })
 
     const service = new AgentSessionRuntimeService()
-    await service.listSessionCommands('session-1')
+    await service.refreshSessionCommands('session-1')
     for (const permission_mode of ['plan', 'acceptEdits'] as const) {
       const configuration = { permission_mode }
       const updated = { ...agent, configuration }
@@ -5163,11 +5168,12 @@ describe('AgentSessionRuntimeService', () => {
     }
     runtimeDriverRegistry.register({
       type: 'local',
+      commands: () => ({ liveCatalog: 'push' }),
       connect: vi.fn(async () => ({ ...connection, ...createAsyncQueue<AgentRuntimeEvent>() })),
       validateSession: vi.fn()
     })
 
-    await service.listSessionCommands('session-1')
+    await service.refreshSessionCommands('session-1')
     await service.setLocalConfigOption('session-1', 'permission_mode', 'bypassPermissions')
     await service.setLocalConfigOption('session-1', 'approval_mode', 'yolo')
     await service.setLocalConfigOption('session-1', 'permissions', 'accept-edits')
@@ -5180,7 +5186,7 @@ describe('AgentSessionRuntimeService', () => {
     replayedInfo.configOptions[2].currentValue = 'default'
     replayedInfo.configOptions[3].currentValue = 'brief'
 
-    await service.listSessionCommands('session-1')
+    await service.refreshSessionCommands('session-1')
     expect(connection.setConfigOption).toHaveBeenCalledWith('permission_mode', 'bypassPermissions')
     expect(connection.setConfigOption).toHaveBeenCalledWith('approval_mode', 'yolo')
     expect(connection.setConfigOption).toHaveBeenCalledWith('permissions', 'accept-edits')
@@ -5223,6 +5229,7 @@ describe('AgentSessionRuntimeService', () => {
     })
     runtimeDriverRegistry.register({
       type: 'local',
+      commands: () => ({ liveCatalog: 'push' }),
       connect: vi.fn().mockResolvedValue({
         ...createAsyncQueue<any>(),
         reconcile: vi.fn().mockResolvedValue('current'),
@@ -5232,7 +5239,7 @@ describe('AgentSessionRuntimeService', () => {
       validateSession: vi.fn()
     })
 
-    await service.listSessionCommands('session-1')
+    await service.refreshSessionCommands('session-1')
     await expect(service.setLocalThoughtLevel('session-1', 'claude-effort', 'high', 'opus')).rejects.toThrow(
       'no longer available'
     )
@@ -5241,7 +5248,7 @@ describe('AgentSessionRuntimeService', () => {
     await service.closeSession('session-1')
 
     replayedInfo.thoughtLevel.currentValue = 'default'
-    await service.listSessionCommands('session-1')
+    await service.refreshSessionCommands('session-1')
     expect(replayedInfo.thoughtLevel.currentValue).toBe('high')
     await service.closeSession('session-1')
   })
@@ -5277,6 +5284,7 @@ describe('AgentSessionRuntimeService', () => {
     const opened: string[] = []
     runtimeDriverRegistry.register({
       type: 'local',
+      commands: () => ({ liveCatalog: 'push' }),
       async connect(input: AgentRuntimeConnectInput) {
         const currentValue = input.localPermissionMode === 'plan' ? 'read-only' : 'workspace-write'
         opened.push(currentValue)
@@ -5358,6 +5366,7 @@ describe('AgentSessionRuntimeService', () => {
 
     runtimeDriverRegistry.register({
       type: 'local',
+      commands: () => ({ liveCatalog: 'push' }),
       async connect(input: AgentRuntimeConnectInput) {
         connects.push({ modelId: input.modelId, resumeToken: input.resumeToken })
         if (input.resumeToken && !persistedThreads.has(input.resumeToken)) {
@@ -5481,6 +5490,7 @@ describe('AgentSessionRuntimeService', () => {
 
     runtimeDriverRegistry.register({
       type: 'local',
+      commands: () => ({ liveCatalog: 'push' }),
       async connect() {
         const launchSignature = readDshConfig()
         const gatewayModel =
@@ -5542,14 +5552,15 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: 'claude-code',
+        commands: () => ({ liveCatalog: 'query' }),
         connect,
         validateSession: vi.fn()
       })
-      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'claude-code', model: baseTurnInput.modelId })
 
       const service = new AgentSessionRuntimeService()
-      await service.listSessionCommands('session-1')
+      await service.refreshSessionCommands('session-1')
 
       expect(connect).toHaveBeenCalledTimes(1)
       // The primed connection carries the session's trace context (resolved via ensureTraceId) so its
@@ -5563,7 +5574,7 @@ describe('AgentSessionRuntimeService', () => {
       const updated = [{ name: 'clear', description: 'Start a fresh conversation' }]
       mocks.cacheGetShared.mockReturnValueOnce(commands)
       connection.getSupportedCommands.mockResolvedValue(updated)
-      await expect(service.listSessionCommands('session-1', true)).resolves.toEqual(updated)
+      await expect(service.refreshSessionCommands('session-1')).resolves.toEqual(updated)
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', updated)
       expect(connect).toHaveBeenCalledTimes(1)
 
@@ -5606,7 +5617,7 @@ describe('AgentSessionRuntimeService', () => {
     it('is a no-op for a session whose agent was deleted', async () => {
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: null })
       const service = new AgentSessionRuntimeService()
-      await service.listSessionCommands('session-1')
+      await service.refreshSessionCommands('session-1')
       expect(service.inspect('session-1')).toBeUndefined()
     })
 

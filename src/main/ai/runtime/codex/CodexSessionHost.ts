@@ -16,7 +16,7 @@ import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeServic
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection, type LocalSource } from '../LocalConnection'
 import { localContent } from '../localContent'
-import type { AgentRuntimeUserInput, AgentRuntimeInput, AgentRuntimeConnectInput } from '../types'
+import type { AgentRuntimeUserInput, AgentRuntimeInput, AgentRuntimeConnectInput, RuntimeSlashCommand } from '../types'
 import { resolveCodexLaunch } from './codexLaunch'
 import { codexProcessHost } from './processHost'
 
@@ -316,6 +316,10 @@ export class CodexSessionHost extends LocalConnection {
     } catch (error) {
       this.finish(error)
     }
+  }
+
+  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+    return this.runSlashCommand(command.name, args, requestId, branchHead)
   }
 
   async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {

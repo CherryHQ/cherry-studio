@@ -6,7 +6,6 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { resolveAutomationAccess } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import {
   type McpServerSnapshotMap,
@@ -14,7 +13,7 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
-import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
+import { listPiSessionSkillSources } from '@main/ai/skills/piSessionSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -51,24 +50,6 @@ export interface PiConnectionSnapshot {
 }
 
 export class PiInvalidConnectionSnapshotError extends Error {}
-
-export async function listPiSessionSkillSources(
-  agent: AgentEntity,
-  session: AgentSessionEntity,
-  channelLinked: boolean
-) {
-  const [skills, workspaceSkillPaths] = await Promise.all([
-    skillService.list({ agentId: agent.id }),
-    skillService.listLocalSkillPaths(session.workspace.path)
-  ])
-  const access = resolveAutomationAccess(agent, {
-    channelLinked,
-    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
-    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
-  })
-  const enabledSkills = skills.filter((skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access))
-  return { enabledSkills, workspaceSkillPaths }
-}
 
 /**
  * Capture every reconcilable fact consumed while constructing a Pi connection.

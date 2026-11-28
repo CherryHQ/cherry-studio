@@ -57,7 +57,8 @@ import { AsyncEventQueue } from '@shared/utils/async'
 import { markReportingHandled } from '@shared/utils/errorReporting'
 
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
-import { isSkillCommandInput, skillCommandInputId } from '../skillCommands'
+import { buildSkillCommandPrompt, isSkillCommandInput, skillCommandInputId } from '../skillCommands'
+import type { RuntimeSlashCommand } from '../types'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -493,6 +494,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         }
       }
     }
+  }
+
+  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+    if (command.skillPath)
+      return this.runSkillCommand(buildSkillCommandPrompt(command.skillPath, args), requestId, branchHead)
+    return this.runSlashCommand(command.name, args, requestId)
   }
 
   async runSlashCommand(name: string, args: string, requestId: string) {

@@ -29,6 +29,11 @@ const logger = loggerService.withContext('LazyClaudeCodeRuntimeDriver')
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly type = 'claude-code'
+  commands() {
+    return application.get('ClaudeCodeBinaryService').getStatus().phase === 'ready'
+      ? { liveCatalog: 'query' as const }
+      : {}
+  }
 
   isForkCheckpoint(value: unknown): boolean {
     return ClaudeForkCheckpointSchema.safeParse(value).success

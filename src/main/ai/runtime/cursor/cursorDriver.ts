@@ -3,7 +3,15 @@ import { withStartupSignal } from '@cherrystudio/agent-runtime/stdio'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { LocalAgentAccount, LocalAgentConfiguration, LocalAgentRuntime } from '@shared/ai/localAgent'
 
+import type { RuntimeCommandContext } from '../types'
 import type { LocalRuntimeConnectInput } from '../types'
+import { listCursorSkillCommands } from './cursorSkillCommands'
+
+export function commands({ session }: RuntimeCommandContext) {
+  return {
+    listOffline: () => (session.workspace?.path ? listCursorSkillCommands(session.workspace.path) : Promise.resolve([]))
+  }
+}
 
 export async function connect(input: LocalRuntimeConnectInput, config: LocalAgentRuntime, cwd: string) {
   const { CursorConnection } = await import('./CursorConnection')

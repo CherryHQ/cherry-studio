@@ -12,7 +12,7 @@ import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionCostSnapshot } from '../../ai/agentSessionCost'
-import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
+import type { AgentCommandIntent, AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { McpServer } from '../types/mcpServer'
 import type { UniqueModelId } from '../types/model'
@@ -182,6 +182,7 @@ export interface CacheChatComposerDraft extends CacheComposerDraftBase {
 }
 
 export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
+  commandIntent?: AgentCommandIntent
   workspaceKey: string
   agentId: string
   shouldValidateSkills?: boolean

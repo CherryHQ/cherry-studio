@@ -6,6 +6,8 @@ import type { LocalAgentConfiguration, LocalAgentRuntime } from '@shared/ai/loca
 import type { LocalRuntimeConnectInput } from '../types'
 import { loadLocalClaudeRuntime } from './loaders'
 
+export const commands = () => ({ liveCatalog: 'query' as const })
+
 export async function connect(input: LocalRuntimeConnectInput, config: LocalAgentRuntime, cwd: string) {
   const { LocalClaudeConnection } = await loadLocalClaudeRuntime()
   const live = new LocalClaudeConnection(input, config)

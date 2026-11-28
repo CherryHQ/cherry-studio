@@ -6,7 +6,13 @@ import type { SlashCommand as CatalogCommand } from './slashCommands'
 // UI. Keep the SDK type rather than hand-mirroring it so shape changes surface at compile time.
 // `name` is the command without its leading slash (e.g. `clear`); consumers prepend `/` when rendering.
 export type AgentSessionSlashCommand = SlashCommand &
-  Pick<CatalogCommand, 'subcommands'> & { aliases?: readonly string[] }
+  Pick<CatalogCommand, 'subcommands'> & { aliases?: readonly string[]; source?: 'offline' }
+
+export interface AgentCommandIntent {
+  name: string
+  textName: string
+  generation?: string
+}
 
 export const AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY = (sessionId: string) =>
   `agent.session.slash_commands.${sessionId}` as const

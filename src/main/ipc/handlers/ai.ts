@@ -350,7 +350,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
   'ai.agent.session.commands': async ({ sessionId, refresh }) => {
-    await application.get('AgentSessionRuntimeService').listSessionCommands(sessionId, refresh, { forComposer: true })
+    if (refresh) await application.get('AgentSessionRuntimeService').refreshSessionCommands(sessionId)
   },
   'ai.agent.session.delete': ({ sessionIds, permanent }) =>
     exposeAgentSessionArchiveError(() =>
@@ -422,8 +422,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.compact': ({ sessionId, generation, instructions }) =>
     application.get('AgentSessionRuntimeService').compactSession(sessionId, generation, instructions),
-  'ai.agent.session.run_slash_command': ({ sessionId, text, generation }, { senderId }) =>
-    application.get('AgentSessionRuntimeService').runSlashCommand(sessionId, text, generation, senderId ?? undefined),
+  'ai.agent.session.run_slash_command': ({ sessionId, text, generation, commandName }, { senderId }) =>
+    application
+      .get('AgentSessionRuntimeService')
+      .runSlashCommand(sessionId, text, generation, senderId ?? undefined, commandName),
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
     application.get('AgentSessionRuntimeService').refreshContextUsageOnDemand(sessionId)
   },

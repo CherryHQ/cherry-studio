@@ -88,11 +88,12 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { subagentCall, gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type * as AgentMcpServers from '../agentMcpServers'
+import { listCursorSkillCommands } from '../cursor/cursorSkillCommands'
 import type * as GatewayBinding from '../pi/gatewayModelBinding'
+import { listPiSkillCommands } from '../pi/piCommandCatalog'
 import type * as PiConnectionSources from '../pi/piConnectionSignature'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
-import { listSkillCommands } from '../skillCommands'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
 import { prepareDurableDesktop } from './durableDesktop'
@@ -1968,11 +1969,12 @@ describe('desktop Pi Durable connection', () => {
       const descriptorPath = join(skillDir, 'SKILL.md')
       const writeDescriptor = (description: string) =>
         writeFileSync(descriptorPath, `---\nname: review\ndescription: ${description}\n---\nReview changes.\n`)
-      const catalog = () => listSkillCommands(snapshot.agent, snapshot.session, cursor)
+      const catalog = () =>
+        cursor ? listCursorSkillCommands(snapshot.session.workspace.path) : listPiSkillCommands(snapshot)
 
       writeDescriptor('Review this workspace')
       await expect(catalog()).resolves.toMatchObject([
-        { name: 'skill:review', description: 'Review this workspace', descriptorPath }
+        { name: 'skill:review', description: 'Review this workspace', skillPath: descriptorPath }
       ])
       writeDescriptor('Review the current changes')
       await expect(catalog()).resolves.toMatchObject([{ description: 'Review the current changes' }])

@@ -64,7 +64,12 @@ import { enrichLocalAgentModels } from '../localAgentModelMetadata'
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { stopLocalAgentProcess } from '../stdioProcess'
-import type { AgentRuntimeInput, AgentRuntimeReconcileResult, AgentRuntimeUserInput } from '../types'
+import type {
+  AgentRuntimeInput,
+  AgentRuntimeReconcileResult,
+  AgentRuntimeUserInput,
+  RuntimeSlashCommand
+} from '../types'
 import { acpContent } from './acpContent'
 import { acpError } from './acpError'
 import { acpModelSelection, prepareAcpChatLaunch, resolveConfiguredAcpModel } from './acpLaunch'
@@ -1267,6 +1272,10 @@ export class AcpConnection extends LocalConnection {
   async send(input: AgentRuntimeUserInput) {
     const prompt = await acpContent(input, this.promptCapabilities)
     await this.runPrompt(input.message.id, prompt, input)
+  }
+
+  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+    return this.runSlashCommand(command.name, args, requestId, branchHead)
   }
 
   async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {

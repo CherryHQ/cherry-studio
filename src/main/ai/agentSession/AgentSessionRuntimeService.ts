@@ -121,7 +121,6 @@ import { recoverDurableReplies } from '../runtime/piDurable/recoverDurableReplie
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
-import { buildSkillCommandPrompt, listSkillCommands, SKILL_COMMAND_PREFIX } from '../runtime/skillCommands'
 import type {
   AgentRuntimeConnectInput,
   AgentControlChunk,
@@ -1259,50 +1258,87 @@ export class AgentSessionRuntimeService extends BaseService {
     return (await this.currentConnection(entry)?.changeFollowups?.(change)) ?? false
   }
 
-  async listSessionCommands(
-    sessionId: string,
-    refresh = false,
-    { forComposer = false } = {}
-  ): Promise<AgentSessionSlashCommand[]> {
+  async listSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
+    const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)
+    const cached = application.get('CacheService').getShared(key)
+    if (cached) return cached.filter((command) => command.source !== 'offline' || command.builtin)
     const session = agentSessionService.getById(sessionId)
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-    if (!agent) return []
-    const cache = application.get('CacheService')
-    const config = forComposer && agent.type === 'local' ? this.localConfigForSession(sessionId, agent.id) : undefined
-    const cursor = !!config?.enabled && getLocalAgentProtocol(config.presetId) === 'cursor'
-    if (cursor || (agent.type !== 'claude-code' && agent.type !== 'local')) {
-      const builtins: readonly SlashCommand[] = AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands
-      const commands: AgentSessionSlashCommand[] = builtins.map(({ command, description, subcommands }) => ({
-        name: command.replace(/^\//, ''),
-        description: description ?? '',
-        builtin: true,
-        argumentHint: '',
-        ...(subcommands && { subcommands })
-      }))
-      if (
-        forComposer &&
-        !session.deletedAt &&
-        session.workspace?.path &&
-        (cursor || agent.type === 'pi' || agent.type === 'pi-durable')
-      ) {
-        const skills = await listSkillCommands(agent, session, cursor)
-        commands.push(
-          ...skills.map(({ name, description, argumentHint }) => ({ name, description, argumentHint, builtin: false }))
-        )
-        cache.setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId), commands)
-      }
-      return commands
-    }
-    const cached = cache.getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId))
-    if (cached && agent.type !== 'local' && !refresh) return cached
-    if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
+    return agent ? this.builtinCommands(agent.type) : []
+  }
+
+  private builtinCommands(type: AgentEntity['type']): AgentSessionSlashCommand[] {
+    const builtins: readonly SlashCommand[] = AGENT_RUNTIME_CAPABILITIES[type].slashCommands
+    return builtins.map(({ command, description, subcommands }) => ({
+      name: command.slice(1),
+      description: description ?? '',
+      argumentHint: '',
+      builtin: true,
+      ...(subcommands && { subcommands })
+    }))
+  }
+
+  async refreshSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
+    const session = agentSessionService.getById(sessionId)
+    const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
+    if (!agent || session.deletedAt || !session.workspace?.path || this.isShuttingDown || this.isWriteQuiesced)
       return []
-    const connection = await this.ensureSessionConnection(sessionId)
-    const commands = await connection?.getSupportedCommands?.(refresh)
-    const entry = this.entries.get(sessionId)
-    if (!entry || !connection || this.currentConnection(entry) !== connection || entry.closing) return []
-    if (commands) this.publishSupportedCommands(entry, commands)
-    return commands ?? []
+    const head = agentSessionMessageService.captureHead(sessionId)
+    const capabilities = await runtimeDriverRegistry.getAgentSessionDriver(agent.type)?.commands?.({
+      agent,
+      session,
+      branchHead: head
+    })
+    const offline = await capabilities?.listOffline?.()
+    const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)
+    const cache = application.get('CacheService')
+    if (agentSessionMessageService.captureHead(sessionId) !== head) return cache.getShared(key) ?? []
+    if (offline) {
+      const live = (cache.getShared(key) ?? []).filter((command) => command.source !== 'offline')
+      const displayCommands = [
+        ...this.builtinCommands(agent.type),
+        ...offline.map((descriptor) => {
+          const command = { ...descriptor }
+          delete command.skillPath
+          return command
+        })
+      ]
+      cache.setShared(
+        key,
+        this.mergeCommandCatalog(
+          live,
+          displayCommands.map((command) => ({
+            ...command,
+            source: 'offline'
+          }))
+        )
+      )
+    }
+    if (capabilities?.liveCatalog) {
+      await this.prepareBranch(sessionId, head)
+      if (agentSessionMessageService.captureHead(sessionId) !== head) return []
+      const previousEntry = this.entries.get(sessionId)
+      const previousConnection = previousEntry && this.currentConnection(previousEntry)
+      const connection = await this.ensureSessionConnection(sessionId)
+      const entry = this.entries.get(sessionId)
+      if (entry && connection && this.currentConnection(entry) === connection && !entry.closing) {
+        const forceReload = capabilities.liveCatalog === 'query' && previousConnection === connection
+        const commands = await connection.getSupportedCommands?.(forceReload || undefined)
+        if (
+          this.currentConnection(entry) !== connection ||
+          entry.closing ||
+          agentSessionMessageService.captureHead(sessionId) !== head
+        )
+          return []
+        if (commands) return this.publishSupportedCommands(entry, commands) ?? []
+      }
+    }
+    return cache.getShared(key) ?? this.builtinCommands(agent.type)
+  }
+
+  private mergeCommandCatalog(live: AgentSessionSlashCommand[], offline: AgentSessionSlashCommand[]) {
+    const liveNames = new Set(live.map(({ name }) => name))
+    return [...live, ...offline.filter(({ name }) => !liveNames.has(name))]
   }
 
   async setLocalSessionInteractive(windowId: WindowId, sessionId: string, active: boolean): Promise<void> {
@@ -1322,7 +1358,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     if (entry) this.clearIdleTimer(entry)
     await this.closingSessions.get(sessionId)?.promise
-    if (this.interactiveLocalSessions.get(windowId) === sessionId) await this.listSessionCommands(sessionId)
+    if (this.interactiveLocalSessions.get(windowId) === sessionId) await this.refreshSessionCommands(sessionId)
   }
 
   private releaseLocalSessionInterest(windowId: WindowId): void {
@@ -3355,35 +3391,37 @@ export class AgentSessionRuntimeService extends BaseService {
     sessionId: string,
     text: string,
     expectedConnection?: string,
-    senderId?: WindowId
-  ): Promise<{ completed: boolean; notice?: LocalAgentNotice }> {
+    senderId?: WindowId,
+    commandName?: string
+  ): Promise<{ accepted: boolean; notice?: LocalAgentNotice }> {
     this.assertSessionWritable(sessionId)
     const invocation = parseAgentSlashCommand(text)
-    if (!invocation) return { completed: false }
+    if (!invocation) return { accepted: false }
     const branchHead = agentSessionMessageService.captureHead(sessionId)
+    await this.prepareBranch(sessionId, branchHead)
+    if (agentSessionMessageService.captureHead(sessionId) !== branchHead) return { accepted: false }
     const connection = await this.ensureSessionConnection(sessionId)
     const entry = this.entries.get(sessionId)
     const generation = entry?.connectionGeneration
     if (!entry || !connection || !generation || (expectedConnection && generation !== expectedConnection))
-      return { completed: false }
+      return { accepted: false }
 
     const agent = agentService.getAgent(entry.agentId)
-    const agentType = agent?.type
-    const isSkillCommand = invocation.name.startsWith(SKILL_COMMAND_PREFIX) && !!connection.runSkillCommand
-    const skill =
-      isSkillCommand && agent
-        ? (await listSkillCommands(agent, agentSessionService.getById(sessionId), agentType === 'local')).find(
-            ({ name }) => name === invocation.name
-          )
-        : undefined
-    const catalog =
-      (await connection.getSupportedCommands?.()) ??
-      (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].slashCommands : [])
-    const command = catalog.find((item) =>
-      'name' in item
-        ? item.name === invocation.name || item.aliases?.includes(invocation.name)
-        : item.command === `/${invocation.name}`
-    )
+    if (!agent) return { accepted: false }
+    const session = agentSessionService.getById(sessionId)
+    const capabilities = await runtimeDriverRegistry.getAgentSessionDriver(agent.type)?.commands?.({
+      agent,
+      session,
+      branchHead
+    })
+    const matches = (item: AgentSessionSlashCommand) =>
+      (item.name === invocation.name || item.aliases?.includes(invocation.name)) &&
+      (!commandName || item.name === commandName)
+    const live = capabilities?.liveCatalog ? await connection.getSupportedCommands?.() : undefined
+    const command =
+      live?.find(matches) ??
+      (await capabilities?.listOffline?.())?.find(matches) ??
+      this.builtinCommands(agent.type).find(matches)
     if (
       !this.isCurrentGeneration(entry, generation) ||
       this.currentConnection(entry) !== connection ||
@@ -3392,32 +3430,25 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.slashCommandRequestId ||
       agentSessionMessageService.captureHead(sessionId) !== branchHead
     )
-      return { completed: false }
+      return { accepted: false }
 
     if (
       invocation.name === 'compact' &&
+      (!commandName || commandName === 'compact') &&
       connection.compact &&
       (!invocation.args || connection.compactWithInstructions) &&
       !(command && 'builtin' in command && command.builtin === false)
     )
-      return { completed: await this.compactSession(sessionId, generation, invocation.args || undefined) }
-    if (isSkillCommand ? !skill || this.isSessionBusy(sessionId) : !command || !connection.runSlashCommand)
-      return { completed: false }
+      return { accepted: await this.compactSession(sessionId, generation, invocation.args || undefined) }
+    if (!command || !connection.executeCommand || ('skillPath' in command && this.isSessionBusy(sessionId)))
+      return { accepted: false }
     if (senderId) entry.interactionWindowId = senderId
     const requestId = uuidv7()
     entry.slashCommandRequestId = requestId
     this.clearIdleTimer(entry)
     try {
-      if (skill && connection.runSkillCommand) {
-        await connection.runSkillCommand(
-          buildSkillCommandPrompt(skill.descriptorPath, invocation.args),
-          requestId,
-          branchHead
-        )
-        return { completed: true }
-      }
-      const notice = await connection.runSlashCommand?.(invocation.name, invocation.args, requestId, branchHead)
-      return { completed: notice?.severity !== 'error', ...(notice && { notice }) }
+      const notice = await connection.executeCommand({ command, args: invocation.args, requestId, branchHead })
+      return { accepted: notice?.severity !== 'error', ...(notice && { notice }) }
     } finally {
       if (entry.slashCommandRequestId === requestId) delete entry.slashCommandRequestId
       if (this.isCurrentGeneration(entry, generation)) {
@@ -3735,9 +3766,14 @@ export class AgentSessionRuntimeService extends BaseService {
     this.refreshContextUsage(entry, connection, connection.inspectContextUsage ?? connection.getContextUsage)
   }
 
-  private publishSupportedCommands(entry: AgentSessionRuntimeEntry, commands: AgentSessionSlashCommand[]): void {
+  private publishSupportedCommands(entry: AgentSessionRuntimeEntry, commands: AgentSessionSlashCommand[]) {
     if (this.entries.get(entry.sessionId) !== entry || entry.closing) return
-    application.get('CacheService').setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId), commands)
+    const cache = application.get('CacheService')
+    const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId)
+    const offline = (cache.getShared(key) ?? []).filter((command) => command.source === 'offline')
+    const catalog = this.mergeCommandCatalog(commands, offline)
+    cache.setShared(key, catalog)
+    return catalog
   }
 
   /**
@@ -4013,7 +4049,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const cache = application.get('CacheService')
     if (this.entries.get(entry.sessionId) === entry) {
-      cache.deleteShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId))
+      const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId)
+      const offline = cache.getShared(key)?.filter((command) => command.source === 'offline')
+      if (offline?.length) cache.setShared(key, offline)
+      else cache.deleteShared(key)
     }
     if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])

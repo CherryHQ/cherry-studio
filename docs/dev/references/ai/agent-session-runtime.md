@@ -335,10 +335,14 @@ Goal controls and `/plan off` when the corresponding native command is available
 Pi and Pi Durable also offer `/skill:<name>` for the managed and workspace Skills
 available to the session. Cherry uses the same eligibility rules as the runtime
 and rereads the descriptor for the candidate's name and description.
+Drivers declare offline and live catalog sources. Passive readers use the published
+catalog. Explicit activation or refresh can connect a driver with a live catalog.
 
 The Agent composer sends recognized slash commands through `ai.agent.session.run_slash_command`
-before ordinary conversation admission. Main resolves the current branch and command catalog.
-Local results return as feedback. Native work with an assistant reply uses the receive-only
+before ordinary conversation admission. The draft retains the command's identity when its
+catalog entry disappears. Main revalidates the current branch and catalog before accepting it.
+Local results return as feedback. An accepted native submission can release the draft while
+the model continues to run. Native work with an assistant reply uses the receive-only
 runtime turn, while a confirmed context switch saves a boundary and its native binding together.
 Cherry skips the command text in conversation messages and composer input recall.
 

@@ -84,7 +84,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
-import { parseAgentSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import { parseAgentSlashCommand, type AgentCommandIntent } from '@shared/ai/agentSessionSlashCommands'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { getLocalAgentProtocol, getLocalSessionPermission } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -722,21 +722,11 @@ const AgentComposerInner = ({
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const requestCommands = useCallback(() => {
-    if (
-      (agent?.type === 'claude-code' ||
-        agent?.type === 'local' ||
-        agent?.type === 'pi' ||
-        agent?.type === 'pi-durable') &&
-      sessionId
-    )
+    if (sessionId)
       void ipcApi
-        .request('ai.agent.session.commands', { sessionId })
+        .request('ai.agent.session.commands', { sessionId, refresh: true })
         .catch((error) => logger.warn('Could not load session commands', { error }))
-  }, [agent?.type, sessionId])
-  const usingSlash = text.trimStart().startsWith('/')
-  useEffect(() => {
-    if (usingSlash) requestCommands()
-  }, [usingSlash, requestCommands])
+  }, [sessionId])
   const usesCherryPermissionMode = (capabilities?.permissionModes.length ?? 0) > 0
   const supportsPlan = capabilities?.permissionModes.some((mode) => mode === 'plan') ?? false
   const localEffort = localInfo?.thoughtLevel
@@ -842,12 +832,34 @@ const AgentComposerInner = ({
     if (model?.supportsFastMode !== true) setFastMode(false)
   }, [model?.supportsFastMode])
 
+  const commandIntentRef = useRef<AgentCommandIntent | undefined>(initialDraft.commandIntent)
+  const commandIntentFor = useCallback(
+    (value: string): AgentCommandIntent | undefined => {
+      const invocation = parseAgentSlashCommand(value)
+      if (!invocation) return
+      if (commandIntentRef.current?.textName === invocation.name) return commandIntentRef.current
+      const item = (sessionData?.slashCommands ?? capabilities?.slashCommands)?.find(
+        (item) =>
+          item.command === `/${invocation.name}` ||
+          ('aliases' in item && Array.isArray(item.aliases) && item.aliases.includes(invocation.name))
+      )
+      if (!item) return
+      return { name: item.command.slice(1), textName: invocation.name, generation: runtimeControls?.generation }
+    },
+    [capabilities?.slashCommands, runtimeControls?.generation, sessionData?.slashCommands]
+  )
+
+  useEffect(() => {
+    commandIntentRef.current = commandIntentFor(text)
+  }, [text, commandIntentFor])
+
   const setText = useCallback(
     (nextText: string) => {
       clearTimeoutTimer('agentComposerSendMessage')
+      commandIntentRef.current = commandIntentFor(nextText)
       setTextState(nextText)
     },
-    [clearTimeoutTimer]
+    [clearTimeoutTimer, commandIntentFor]
   )
 
   useEffect(() => {
@@ -969,6 +981,7 @@ const AgentComposerInner = ({
     writeAgentDraftCache(draftCacheKey, {
       text: draft.text,
       tokens: draft.tokens,
+      commandIntent: commandIntentFor(draft.text),
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,
@@ -978,6 +991,7 @@ const AgentComposerInner = ({
   }, [
     actionsRef,
     agentId,
+    commandIntentFor,
     draftCacheKey,
     draftPersistenceEnabled,
     draftTokens,
@@ -999,6 +1013,7 @@ const AgentComposerInner = ({
     writeAgentDraftCache(draftCacheKey, {
       text: draft.text,
       tokens: draft.tokens,
+      commandIntent: commandIntentFor(draft.text),
       files: filesRef.current,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,
@@ -1750,26 +1765,22 @@ const AgentComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
-      const command = parseAgentSlashCommand(payload.text)
-      const knownCommand =
-        command &&
-        (sessionData?.slashCommands ?? capabilities?.slashCommands)?.some(
-          (item) => item.command === `/${command.name}` || ('aliases' in item && item.aliases?.includes(command.name))
-        )
-      if (knownCommand && !payload.attachments?.length && !launchOptions?.editing) {
+      const command = commandIntentFor(payload.text)
+      if (command && !payload.attachments?.length && !launchOptions?.editing) {
         directSendInFlightRef.current = true
         setIsDirectSending(true)
         try {
           const result = await ipcApi.request('ai.agent.session.run_slash_command', {
             sessionId,
             text: payload.text,
-            generation: runtimeControls?.generation
+            generation: command.generation,
+            commandName: command.name
           })
           if (result.notice) {
             const { severity, title, description } = result.notice
             toast[severity]({ title, description })
           }
-          if (result.completed) clearCurrentDraft()
+          if (result.accepted) clearCurrentDraft()
           else if (!result.notice) toast.error(t('error.unknown'))
         } catch (error) {
           toast.errorFromException(error)
@@ -1804,16 +1815,14 @@ const AgentComposerInner = ({
     [
       agent,
       buildQueuedPayload,
-      capabilities,
       clearCurrentDraft,
+      commandIntentFor,
       enqueueFollowup,
       isStreaming,
       model,
       hasDurableFollowUp,
-      runtimeControls,
       launchOptions?.editing,
       sessionId,
-      sessionData,
       sendDisabled,
       sendQueuedPayload,
       steerWhileBusy,

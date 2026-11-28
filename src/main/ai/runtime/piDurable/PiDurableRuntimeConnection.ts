@@ -46,7 +46,8 @@ import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import { PiTurnUsage } from '../pi/PiTurnUsage'
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
-import { isSkillCommandInput, skillCommandInputId } from '../skillCommands'
+import { buildSkillCommandPrompt, isSkillCommandInput, skillCommandInputId } from '../skillCommands'
+import type { RuntimeSlashCommand } from '../types'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -218,6 +219,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   async predictPrompt(signal: AbortSignal): Promise<string> {
     if (!this.handle || this.closing) return ''
     return this.handle.durable.predictPrompt(PROMPT_SUGGESTION_INSTRUCTION, signal)
+  }
+
+  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+    if (command.skillPath)
+      return this.runSkillCommand(buildSkillCommandPrompt(command.skillPath, args), requestId, branchHead)
+    return this.runSlashCommand(command.name, args, requestId, branchHead)
   }
 
   async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {

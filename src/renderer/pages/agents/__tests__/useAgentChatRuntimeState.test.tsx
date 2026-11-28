@@ -650,7 +650,7 @@ describe('useAgentChatRuntimeState', () => {
     toast.closeAll()
     mocks.controllerOptions.mockReset()
     mocks.streamOpen.mockReset()
-    mocks.runSlashCommand.mockReset().mockResolvedValue({ completed: false })
+    mocks.runSlashCommand.mockReset().mockResolvedValue({ accepted: false })
     mocks.streamListeners.clear()
     MockCacheUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
@@ -968,7 +968,7 @@ describe('useAgentChatRuntimeState', () => {
         expect(await result.current.sendMessage({ text: 'ordinary message' })).toBe(false)
       })
       const original = toast.getToastQueue().toasts[0]
-      const receipt = Promise.withResolvers<{ completed: boolean }>()
+      const receipt = Promise.withResolvers<{ accepted: boolean }>()
       mocks.runSlashCommand.mockReturnValueOnce(receipt.promise)
       let recovery!: Promise<void>
       await act(async () => {
@@ -980,7 +980,7 @@ describe('useAgentChatRuntimeState', () => {
       if (dismiss) toast.closeToast(original.key)
       await act(async () => {
         if (outcome === 'failure') receipt.reject(new Error('compact execution failed'))
-        else receipt.resolve({ completed: outcome === 'success' })
+        else receipt.resolve({ accepted: outcome === 'success' })
         await recovery
       })
       if (dismiss || outcome === 'declined') expect(toast.getToastQueue().toasts).toEqual([])

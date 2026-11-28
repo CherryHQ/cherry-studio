@@ -59,6 +59,7 @@ import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
+  RuntimeSlashCommand,
   AgentRuntimeInput,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
@@ -262,6 +263,10 @@ export abstract class ClaudeSdkConnection<
     const result = await operation.submit({ inputId: draft.inputId, content: sdkMessage.message.content })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+  }
+
+  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+    return this.runSlashCommand(command.name, args, requestId, branchHead)
   }
 
   async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {

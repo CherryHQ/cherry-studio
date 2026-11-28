@@ -2790,7 +2790,7 @@ describe('AgentComposer', () => {
     'runs $runtime command $command outside the message queue and input history',
     async ({ runtime, command, streaming }) => {
       seedInputHistory(['previous message'])
-      mocks.ipcApiRequest.mockResolvedValue({ completed: true })
+      mocks.ipcApiRequest.mockResolvedValue({ accepted: true })
       if (command.startsWith('/skill:')) {
         MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1'), [
           { name: 'skill:review', description: 'Review changed files', argumentHint: '' }
@@ -2819,12 +2819,49 @@ describe('AgentComposer', () => {
 
       expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.run_slash_command', {
         sessionId: 'session-1',
-        text: command
+        text: command,
+        commandName: command.split(' ')[0].slice(1)
       })
       expect(mocks.sendMessage).not.toHaveBeenCalled()
       expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['previous message'])
     }
   )
+
+  it('keeps a recognized Skill draft on the command route after its catalog entry disappears', async () => {
+    seedInputHistory(['previous message'])
+    const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1')
+    MockUseCacheUtils.setSharedCacheValue(key, [
+      { name: 'skill:review', description: 'Review changes', argumentHint: '' }
+    ])
+    mocks.ipcApiRequest.mockResolvedValue({ accepted: false })
+    const composer = () => (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const { rerender } = render(composer())
+    const text = '/skill:review changes'
+    act(() => mocks.surfaceProps?.onTextChange(text))
+    MockUseCacheUtils.setSharedCacheValue(key, [])
+    rerender(composer())
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+    })
+
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.run_slash_command', {
+      sessionId: 'session-1',
+      text,
+      commandName: 'skill:review'
+    })
+    expect(mocks.surfaceProps?.text).toBe(text)
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual(['previous message'])
+  })
 
   it('strips the knowledge sentence from input history but keeps a skill sentence', async () => {
     // Input history is the one composer path backed by localStorage, so it is the only place a

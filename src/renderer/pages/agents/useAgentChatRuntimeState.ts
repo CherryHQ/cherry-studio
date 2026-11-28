@@ -596,7 +596,7 @@ export function useAgentChatRuntimeState({
       ? async () => {
           if (isPending || editBusy) return false
           const result = await ipcApi.request('ai.agent.session.run_slash_command', { sessionId, text: '/compact' })
-          return result.completed
+          return result.accepted
         }
       : undefined
   })

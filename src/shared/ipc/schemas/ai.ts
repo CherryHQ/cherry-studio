@@ -780,10 +780,11 @@ export const aiRequestSchemas = {
     input: z.strictObject({
       sessionId: z.string().min(1),
       text: z.string().min(1),
-      generation: z.string().min(1).optional()
+      generation: z.string().min(1).optional(),
+      commandName: z.string().min(1).optional()
     }),
     output: z.strictObject({
-      completed: z.boolean(),
+      accepted: z.boolean(),
       notice: z
         .strictObject({
           severity: z.enum(['info', 'warning', 'error']),

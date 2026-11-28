@@ -19,9 +19,16 @@ import { resolveLocalLaunch, type LocalLaunchTarget } from '../agentSession/loca
 import { prepareAgentSessionWorkspaceDirectory } from './agentSessionWorkspace'
 import { enrichLocalAgentModels } from './localAgentModelMetadata'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
-import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver, LocalRuntimeConnectInput } from './types'
+import type {
+  AgentRuntimeConnectInput,
+  AgentSessionRuntimeDriver,
+  LocalRuntimeConnectInput,
+  RuntimeCommandCapabilities,
+  RuntimeCommandContext
+} from './types'
 
 interface LocalRuntimeAdapter {
+  commands?(context: RuntimeCommandContext): RuntimeCommandCapabilities
   connect(
     input: LocalRuntimeConnectInput,
     config: LocalAgentRuntime,
@@ -40,6 +47,13 @@ const localRuntimeAdapters: Record<LocalAgentProtocol, () => Promise<LocalRuntim
 }
 
 export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
+  async commands(context: RuntimeCommandContext): Promise<RuntimeCommandCapabilities> {
+    const launch = resolveLocalLaunch(context.session.id, context.agent.id, context.branchHead)
+    if (!launch?.config.enabled) return {}
+    const adapter = await localRuntimeAdapters[getLocalAgentProtocol(launch.config.presetId)]()
+    return adapter.commands?.(context) ?? {}
+  }
+
   getExecutionId(agent: AgentEntity): `runtime:${string}` | undefined {
     return agent.localRuntime?.enabled ? `runtime:${agent.id}` : undefined
   }

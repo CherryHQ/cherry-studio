@@ -14,7 +14,8 @@ import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeServic
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { localContent } from '../localContent'
-import type { AgentRuntimeInput, AgentRuntimeUserInput } from '../types'
+import { buildSkillCommandPrompt } from '../skillCommands'
+import type { AgentRuntimeInput, AgentRuntimeUserInput, RuntimeSlashCommand } from '../types'
 import { cursorCredentialSelection } from './cursorDriver'
 
 export class CursorConnection extends LocalConnection {
@@ -131,11 +132,22 @@ export class CursorConnection extends LocalConnection {
     )
   }
 
-  async runSkillCommand(prompt: string, _requestId: string, branchHead: string) {
-    await this.sendPrompt({ text: prompt, images: [] }, branchHead)
+  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+    if (!command.skillPath) throw new Error('Cursor Skill is unavailable')
+    await this.runSkillCommand(buildSkillCommandPrompt(command.skillPath, args), requestId, branchHead)
   }
 
-  private async sendPrompt(prompt: Parameters<typeof sendCursorTurn>[1], input: AgentRuntimeUserInput | string) {
+  async runSkillCommand(prompt: string, _requestId: string, branchHead: string) {
+    const receipt = Promise.withResolvers<void>()
+    void this.sendPrompt({ text: prompt, images: [] }, branchHead, receipt.resolve).catch(receipt.reject)
+    await receipt.promise
+  }
+
+  private async sendPrompt(
+    prompt: Parameters<typeof sendCursorTurn>[1],
+    input: AgentRuntimeUserInput | string,
+    acknowledge?: () => void
+  ) {
     const agent = this.agent
     if (!agent) throw new Error('Cursor SDK session is unavailable')
     const command = typeof input === 'string'
@@ -177,6 +189,7 @@ export class CursorConnection extends LocalConnection {
         effort && this.modelForEffort?.(effort.currentValue)
       )
       const run = await this.pendingRun
+      acknowledge?.()
       const steer = bindCursorSteer(run, (inputId) => {
         const contextId = this.contextId
         if (!this.active || signal.aborted || !contextId) return false
@@ -251,10 +264,8 @@ export class CursorConnection extends LocalConnection {
       this.finish(undefined, completed.status === 'cancelled' || signal.aborted ? 'cancelled' : 'stop')
     } catch (error) {
       if (signal.aborted) this.finish(undefined, 'cancelled')
-      else {
-        this.finish(error)
-        if (command) throw error
-      }
+      else this.finish(error)
+      if (command) throw error
     } finally {
       this.steerInput = undefined
       this.pendingRun = undefined
