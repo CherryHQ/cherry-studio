@@ -86,15 +86,27 @@ const binaryApplicationSchema: z.ZodType<BinaryApplication> = z.discriminatedUni
   })
 ])
 
+const binaryInstallStageSchema = z.enum(['queued', 'downloading', 'verifying', 'installing', 'migrating'])
+
 const binaryOperationSchema: z.ZodType<BinaryOperation> = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('installing') }),
+  z.object({
+    status: z.literal('installing'),
+    stage: binaryInstallStageSchema.optional(),
+    startedAt: z.number().optional(),
+    currentVersion: z.string().optional(),
+    targetVersion: z.string().optional()
+  }),
   z.object({ status: z.literal('removing') }),
   z.object({
     status: z.literal('failed'),
     action: z.enum(['install', 'remove']),
     error: z.string(),
     // Retained only for a failed one-shot update so Retry repeats the same target.
-    targetVersion: z.string().optional()
+    targetVersion: z.string().optional(),
+    stage: binaryInstallStageSchema.optional(),
+    startedAt: z.number().optional(),
+    elapsedMs: z.number().optional(),
+    currentVersion: z.string().optional()
   })
 ])
 
