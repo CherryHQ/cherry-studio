@@ -601,6 +601,40 @@ describe('useAgentMessageListProviderValue', () => {
     expect(messages[0].metadata?.messageSnapshot).toEqual(snapshot)
   })
 
+  it('hides generated WorkBuddy mode and clock reminders while keeping user quotations and other system context', () => {
+    const reminder =
+      '<system-reminder data-role="user-context">\n<craft_mode>You are now in Agent mode.</craft_mode>\n</system-reminder>\n<system-reminder data-role="additional-data"><current_time>Thursday, November 5</current_time></system-reminder>'
+    const row = (id: string, role: CherryUIMessage['role'], text: string): CherryUIMessage => ({
+      id,
+      role,
+      parts: [{ type: 'text', text }],
+      metadata: { provenance: { source: 'workbuddy', sourceOrder: 1 } }
+    })
+    const messages = [
+      row('task', 'user', 'Start'),
+      row('generated', 'system', reminder),
+      row('quoted', 'user', reminder),
+      row('other', 'system', reminder + ' More context')
+    ]
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic: {
+          id: 'agent-session:source',
+          assistantId: 'agent-1',
+          name: 'Source',
+          messages: [],
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          lastActivityAt: '2026-01-01T00:00:00.000Z'
+        },
+        messages,
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+    )
+    expect(result.current.state.messages.map((message) => message.id)).toEqual(['task', 'quoted', 'other'])
+  })
   it('hides only the imported preamble at the actual start, keeping mid-turn pages and normal messages', () => {
     const imported = (id: string, role: CherryUIMessage['role'], text: string): CherryUIMessage => ({
       id,

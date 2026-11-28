@@ -148,6 +148,201 @@ describe('local history atomic import', () => {
     ).toEqual([expect.objectContaining({ status: 'existing', sessionId: imported.sessionId })])
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
   })
+  function writeWorkBuddyIndex(sourceRoot: string, timestamp: number, withCloud = false) {
+    const sourceDb = new Database(path.join(sourceRoot, 'workbuddy.db'))
+    try {
+      sourceDb.pragma('journal_mode = WAL')
+      sourceDb.exec(
+        'CREATE TABLE sessions (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, custom_title TEXT, transport TEXT, deleted_at INTEGER, created_at INTEGER, updated_at INTEGER, last_activity_at INTEGER)'
+      )
+      const insert = sourceDb.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      insert.run('wb', root, 'WorkBuddy', '', 'local', null, timestamp, timestamp, timestamp)
+      if (withCloud) insert.run('cloud', '', 'Cloud only', '', 'cloud', -1, timestamp, timestamp, timestamp)
+    } finally {
+      sourceDb.close()
+    }
+  }
+
+  it.each([
+    { marker: { status: 'incomplete' }, accepted: true },
+    { marker: { providerData: { isPartialAborted: true } }, accepted: true },
+    { marker: { status: 'incomplete', arguments: '{' }, accepted: false },
+    { marker: {}, accepted: false }
+  ])(
+    'imports an unmatched WorkBuddy tool call only with an interruption marker: $marker',
+    async ({ marker, accepted }) => {
+      const source = path.join(root, 'source')
+      const project = path.join(source, 'projects', 'project')
+      await mkdir(project, { recursive: true })
+      const timestamp = Date.UTC(2026, 0, 1)
+      writeWorkBuddyIndex(source, timestamp)
+      const user = {
+        sessionId: 'wb',
+        timestamp,
+        id: 'user',
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: 'Inspect' }]
+      }
+      const call = {
+        sessionId: 'wb',
+        timestamp: timestamp + 1,
+        id: 'call',
+        parentId: 'user',
+        type: 'function_call',
+        callId: 'tool-1',
+        name: 'inspect',
+        arguments: '{"file":"notes.md"}',
+        ...marker
+      }
+      await writeFile(path.join(project, 'wb.jsonl'), [user, call].map((row) => JSON.stringify(row)).join('\n'))
+      const scan = await service.discover('window', 'workbuddy', source)
+      const { ref } = scan.candidates[0]
+      const preview = await service.preview('window', scan.scanId, 'pi', [{ ref }])
+      const [outcome] = await service.commit('window', preview.previewId, [ref])
+      if (!accepted) {
+        expect(preview.items[0].diagnostics).toContainEqual(
+          expect.objectContaining({ code: 'unsupported_tool_history', severity: 'error' })
+        )
+        expect(outcome).toMatchObject({ status: 'failed', reason: 'preview_blocked' })
+        expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(0)
+        return
+      }
+      expect(outcome.status).toBe('imported')
+      const stored = readStoredAgentSessionPath(dbh.db, outcome.sessionId!)
+      expect(stored.at(-1)).toMatchObject({ role: 'system', status: 'paused' })
+      expect(stored.at(-1)?.data.parts).toEqual([{ type: 'text', text: expect.stringContaining('tool-1') }])
+    }
+  )
+
+  it('imports WorkBuddy backward intervals atomically and sends causal history to Pi', async () => {
+    const sourceRoot = path.join(root, 'source')
+    const project = path.join(sourceRoot, 'projects', 'project')
+    await mkdir(project, { recursive: true })
+    const timestamp = Date.UTC(2026, 0, 1)
+    const rows: Record<string, unknown>[] = [
+      {
+        type: 'message',
+        role: 'user',
+        id: 'user',
+        sessionId: 'wb',
+        timestamp,
+        content: [{ type: 'input_text', text: 'WB user' }]
+      }
+    ]
+    const labels = ['WB user']
+    for (const [index, delta] of [191, 8, 40, 90, 120].entries()) {
+      const call = 'call-' + index
+      const result = 'result-' + index
+      rows.push({
+        type: 'function_call',
+        id: call,
+        parentId: rows.at(-1)!.id,
+        sessionId: 'wb',
+        timestamp: timestamp + (index + 1) * 200,
+        name: 'inspect',
+        callId: call,
+        arguments: JSON.stringify({ label: 'WB call ' + index })
+      })
+      rows.push({
+        type: 'function_call_result',
+        id: result,
+        parentId: call,
+        sessionId: 'wb',
+        timestamp: timestamp + (index + 1) * 200 - delta,
+        name: 'inspect',
+        callId: call,
+        status: 'completed',
+        output: { type: 'text', text: 'WB result ' + index }
+      })
+      labels.push('WB call ' + index, 'WB result ' + index)
+    }
+    rows.push({
+      type: 'message',
+      role: 'assistant',
+      id: 'answer',
+      parentId: rows.at(-1)!.id,
+      sessionId: 'wb',
+      timestamp: timestamp + 500,
+      status: 'completed',
+      content: [{ type: 'output_text', text: 'WB answer' }],
+      providerData: { model: 'actual-history-model', requestModelId: 'fast-model', requestModelName: 'Fast' }
+    })
+    labels.push('WB answer')
+    await writeFile(path.join(project, 'wb.jsonl'), rows.map((row) => JSON.stringify(row)).join('\n'))
+    writeWorkBuddyIndex(sourceRoot, timestamp, true)
+    const scan = await service.discover('window', 'workbuddy', sourceRoot)
+    expect(await readdir(sourceRoot)).not.toContain('workbuddy.db-wal')
+    expect(await readdir(sourceRoot)).not.toContain('workbuddy.db-shm')
+    const prepared = await service.preview(
+      'window',
+      scan.scanId,
+      'pi',
+      scan.candidates.map(({ ref }) => ({ ref }))
+    )
+    const valid = prepared.items.find((item) => item.originalSessionId === 'wb')!
+    expect(prepared.items.find((item) => item.originalSessionId === 'cloud')?.title).toBe('Cloud only')
+    expect(valid.diagnostics).toEqual([])
+    expect(valid.endedAt).toBe(new Date(timestamp + 1000).toISOString())
+    const outcomes = await service.commit(
+      'window',
+      prepared.previewId,
+      prepared.items.map(({ ref }) => ref)
+    )
+    expect(outcomes.map((outcome) => outcome.status).sort()).toEqual(['failed', 'imported'])
+    const created = outcomes.find((outcome) => outcome.status === 'imported')!
+    expect(created.initialization).toBe('ready')
+    const stored = agentSessionMessageService.listSessionMessages(created.sessionId!).items.reverse()
+    expect(stored.map((row) => row.provenance)).toEqual(
+      rows.map((_, sourceOrder) => ({ source: 'workbuddy', sourceOrder }))
+    )
+    expect(stored.map((row) => Date.parse(row.createdAt))).toEqual(rows.map((row) => row.timestamp))
+    expect(stored.at(-1)?.messageSnapshot?.model).toEqual({
+      id: 'actual-history-model',
+      name: 'actual-history-model',
+      provider: 'workbuddy'
+    })
+    const directory = path.join(root, 'feature.agents.pi.sessions')
+    const manager = SessionManager.open(path.join(directory, (await readdir(directory))[0]), directory)
+    const { model } = scriptedModel([[...textParts('response', 'Continued'), finish('stop')]])
+    const { upstream: port, requests } = gatewayModel(model)
+    const session = await createTestSession({
+      port,
+      sessionManager: manager,
+      builtinTools: [],
+      systemPrompt: 'Current agent rules'
+    })
+    await session.prompt('WB continue')
+    const input = JSON.stringify(requests[0].messages)
+    labels.push('WB continue')
+    for (let i = 1; i < labels.length; i++) {
+      expect(input.indexOf(labels[i - 1])).toBeGreaterThanOrEqual(0)
+      expect(input.indexOf(labels[i - 1])).toBeLessThan(input.indexOf(labels[i]))
+    }
+    expect(requests[0].tools).not.toHaveProperty('inspect')
+    expect(
+      requests[0].messages.every(
+        (message) => typeof message.content === 'string' || message.content.every((part) => part.type === 'text')
+      )
+    ).toBe(true)
+    const again = await service.preview('window', scan.scanId, 'pi', [{ ref: valid.ref }])
+    expect((await service.commit('window', again.previewId, [valid.ref]))[0].status).toBe('existing')
+    const backup = path.join(root, 'workbuddy-backup.sqlite')
+    snapshotTo(dbh.sqlite, backup)
+    const restored = new Database(backup, { readonly: true })
+    try {
+      const history = restored
+        .prepare(
+          "SELECT s.value AS provenance, m.created_at FROM agent_session_message m JOIN app_state s ON s.key = 'conversation-import:message:' || m.session_id || ':' || m.id WHERE m.session_id = ? ORDER BY json_extract(s.value, '$.sourceOrder')"
+        )
+        .all(created.sessionId!) as { provenance: string; created_at: number }[]
+      expect(history.map((row) => JSON.parse(row.provenance).sourceOrder)).toEqual(rows.map((_, index) => index))
+      expect(history.map((row) => row.created_at)).toEqual(rows.map((row) => row.timestamp))
+    } finally {
+      restored.close()
+    }
+  })
+
   it('imports Codex threads independently and skips existing identities after index changes', async () => {
     const sourceRoot = path.join(root, 'source')
     for (const id of ['one', 'two'])

@@ -64,6 +64,10 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   return popup.show({ title, messages, processingMethod: '1' })
 }
 
+// WorkBuddy stores generated mode and clock reminders separately from the user's query.
+const workBuddyReminder =
+  /^(?:\s*(?:<system-reminder data-role="user-context">\s*<craft_mode>[^<]*<\/craft_mode>|<system-reminder data-role="additional-data">\s*<current_time>[^<]*<\/current_time>)\s*<\/system-reminder>)+\s*$/
+
 const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
 
 const legacySetupHeaders = new Map([
@@ -293,7 +297,17 @@ export function useAgentMessageListProviderValue({
     }
   }, [streamingLayers, timeline])
   const visibleRows = useMemo(
-    () => timeline.rows.filter(({ parts }) => !parts.length || parts.some((part) => !hasPartParentToolCallId(part))),
+    () =>
+      timeline.rows.filter(({ message, parts }) => {
+        if (!parts.length) return true
+        if (
+          message.role === 'system' &&
+          message.metadata?.provenance?.source === 'workbuddy' &&
+          parts.every((part) => part.type === 'text' && workBuddyReminder.test(part.text))
+        )
+          return false
+        return parts.some((part) => !hasPartParentToolCallId(part))
+      }),
     [timeline.rows]
   )
   const messageItems = useMemo(
