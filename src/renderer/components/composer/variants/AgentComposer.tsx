@@ -65,6 +65,7 @@ import { useMcpSkills } from '@renderer/hooks/useMcpSkills'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useUserReasoningEffortMap } from '@renderer/hooks/useUserReasoningEffortMap'
 import { ipcApi } from '@renderer/ipc'
 import { subscribeAgentDraftHandoff, takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -1958,6 +1959,7 @@ const AgentComposerInner = ({
     workspaceChanging
   })
 
+  const userEffortMap = useUserReasoningEffortMap(model)
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {model ? (
@@ -1969,6 +1971,7 @@ const AgentComposerInner = ({
           onReasoningEffortChange={handleReasoningEffortChange}
           onServiceTierChange={handleServiceTierChange}
           onFastModeChange={setFastMode}
+          userEffortMap={userEffortMap}
         />
       ) : null}
       {agent?.type === 'local' && !launchOptions?.editing ? (
