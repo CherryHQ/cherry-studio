@@ -328,16 +328,19 @@ async function sourceAudioMap(
   signal: AbortSignal,
   logger: Logger,
   pidRegistryPath?: string
-): Promise<string | undefined> {
+): Promise<{ map?: string; audioStartMs?: number }> {
   try {
     const probe = await probeJson(filePath, signal, logger, pidRegistryPath)
-    if (!probe || typeof probe !== 'object') return undefined
-    return audioExtractStreamMap((probe as FfprobeResult).streams ?? [])
+    if (!probe || typeof probe !== 'object') return {}
+    return {
+      map: audioExtractStreamMap((probe as FfprobeResult).streams ?? []),
+      audioStartMs: classifyFfprobeResult(probe).audioStartMs
+    }
   } catch (error) {
     signal.throwIfAborted()
     if (!isUnavailableProbeMetadata(error)) throw error
     logger.warn(`audio stream map unavailable: ${error instanceof Error ? error.message : String(error)}`)
-    return undefined
+    return {}
   }
 }
 
@@ -444,7 +447,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     mkdirSync(outputDir, { recursive: true })
     const prefix = await fileHashPrefix(filePath)
     const wavPath = join(outputDir, `${prefix}-16k-mono.wav`)
-    const map = await sourceAudioMap(filePath, signal, logger, pidRegistryPath)
+    const { map, audioStartMs } = await sourceAudioMap(filePath, signal, logger, pidRegistryPath)
     const args = ['-y', '-i', filePath]
     if (map) args.push('-map', map)
     args.push(
@@ -469,7 +472,8 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
       return {
         chunks: [{ path: wavPath, startMs: 0, endMs: totalMs, byteLength: wavSize }],
         sampleRateHz: 16000,
-        channels: 1
+        channels: 1,
+        audioStartMs
       }
     }
 
@@ -517,7 +521,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
       chunks.push({ path: chunkPath, startMs, endMs: startMs + durationMs, byteLength })
     }
     rmSync(wavPath, { force: true })
-    return { chunks, sampleRateHz: 16000, channels: 1 }
+    return { chunks, sampleRateHz: 16000, channels: 1, audioStartMs }
   },
 
   async extractFrames(

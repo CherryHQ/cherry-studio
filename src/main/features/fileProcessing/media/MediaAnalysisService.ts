@@ -189,6 +189,8 @@ export class MediaAnalysisService extends BaseService {
         { filePath, outputDir, maxChunkBytes: MAX_AUDIO_CHUNK_BYTES },
         signal
       )
+      // Extraction re-probes the streams, so its own offset matches the track it actually mapped.
+      const audioStartMs = extracted.audioStartMs ?? probe.audioStartMs
 
       for (const chunk of extracted.chunks) {
         signal?.throwIfAborted()
@@ -217,15 +219,15 @@ export class MediaAnalysisService extends BaseService {
             const text = segment.text.trim()
             if (!text) continue
             segments.push({
-              startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.startSecond),
-              endMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.endSecond),
+              startMs: sourceAudioMs(audioStartMs, chunk.startMs, segment.startSecond),
+              endMs: sourceAudioMs(audioStartMs, chunk.startMs, segment.endSecond),
               text
             })
           }
         } else if (result.text.trim()) {
           segments.push({
-            startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs),
-            endMs: sourceAudioMs(probe.audioStartMs, chunk.endMs),
+            startMs: sourceAudioMs(audioStartMs, chunk.startMs),
+            endMs: sourceAudioMs(audioStartMs, chunk.endMs),
             text: result.text.trim()
           })
         }

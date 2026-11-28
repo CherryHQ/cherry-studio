@@ -1773,6 +1773,60 @@ describe('mediaFfmpegHandlers frame destinations', () => {
     }
   })
 
+  it('reports the timeline offset of the audio track it extracts', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-audio-offset-'))
+    const filePath = join(outputDir, 'two-tracks.mp4')
+    writeFileSync(filePath, 'media')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    const streams = (packets: boolean) => [
+      { index: 0, codec_type: 'video', start_time: '0.000000' },
+      {
+        index: 1,
+        codec_type: 'audio',
+        channels: 2,
+        start_time: '0.000000',
+        disposition: { default: 1 },
+        ...(packets && { nb_read_packets: '0' })
+      },
+      { index: 2, codec_type: 'audio', channels: 2, start_time: '7.000000', ...(packets && { nb_read_packets: '300' }) }
+    ]
+    let mappedStream: string | undefined
+    spawnControl.replacement = (_binary: unknown, args: unknown) => {
+      const argv = args as string[]
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        const input = argv[argv.indexOf('-i') + 1]
+        if (argv.includes('pcm_s16le')) {
+          mappedStream = argv[argv.indexOf('-map') + 1]
+          writeFileSync(argv[argv.length - 1], 'RIFF')
+        } else if (input === filePath) {
+          const json = {
+            format: { duration: '20.000000', start_time: '0.000000' },
+            streams: streams(argv.includes('-count_packets'))
+          }
+          child.stdout.emit('data', JSON.stringify(json))
+        } else {
+          child.stdout.emit('data', '{"format":{"duration":"13.000000"},"streams":[]}')
+        }
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractAudio(
+        { filePath, outputDir, maxChunkBytes: 1_000_000 },
+        context()
+      )
+
+      expect(mappedStream).toBe('0:2')
+      expect(result.audioStartMs).toBe(7_000)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
   it('keeps a later frame when an earlier seek exits without an image', async () => {
     const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-partial-frame-'))
     applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
