@@ -1,9 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { preferenceService } from '@data/PreferenceService'
-import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import { getTopicMessages } from '@renderer/utils/message/getTopicMessages'
 
 import {
   exportMessageAsMarkdown,
@@ -33,7 +33,7 @@ beforeAll(() => {
   }
 })
 
-vi.mock('@renderer/hooks/useTopic', () => ({
+vi.mock('@renderer/utils/message/getTopicMessages', () => ({
   getTopicMessages: vi.fn()
 }))
 

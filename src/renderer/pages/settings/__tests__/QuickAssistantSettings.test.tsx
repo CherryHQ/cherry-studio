@@ -137,7 +137,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => null
 }))
 
-vi.mock('@renderer/windows/quickAssistant/home/HomeWindow', () => ({
+vi.mock('@renderer/components/quickAssistant/home/QuickAssistantView', () => ({
   default: () => <div data-testid="quick-assistant-preview" />
 }))
 

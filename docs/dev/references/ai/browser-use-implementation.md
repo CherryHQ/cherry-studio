@@ -1048,7 +1048,9 @@ show recent visits on focus and search titles/URLs while typing, with debounced 
 unique URL suggestions. Arrow keys and Enter select a result; Escape dismisses suggestions. Direct URL
 submission remains available. Preview and artifact surfaces do not expose ordinary browser history. Clearing uses one confirmation dialog with independently
 selectable history, website data and cache; only cache is selected initially. After partial failure,
-uncheck completed categories so retry affects only the remaining selection.
+uncheck completed categories so retry affects only the remaining selection. Browser settings and
+Settings → Data → Clear Cache share the ordinary browser cache operation. It clears HTTP cache,
+CacheStorage, shader cache, generated code and favicons while retaining history, cookies and site storage.
 
 Add `resources/skills/cherry-browser/SKILL.md` through the existing built-in skill installer; update
 `cherry-tool-guide/SKILL.md` and its `references/web.md` to route interaction to it. Keep the skill

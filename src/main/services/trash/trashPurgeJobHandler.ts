@@ -2,6 +2,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantDataService } from '@data/services/AssistantService'
 import { fileEntryService } from '@data/services/FileEntryService'
+import { jobService } from '@data/services/JobService'
 import { paintingService } from '@data/services/PaintingService'
 import { promptService } from '@data/services/PromptService'
 import { topicService } from '@data/services/TopicService'
@@ -124,8 +125,10 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     const retentionDisabled = !emptyAll && retentionDays === 0
     if (retentionDisabled) logger.info('Trash auto-purge disabled (retention_days = 0) — sweeping residue only')
 
-    // MAX_SAFE_INTEGER + strict `deletedAt < cutoff` captures rows moved to the Recycle Bin "now".
-    const cutoffMs = emptyAll ? Number.MAX_SAFE_INTEGER : Date.now() - retentionDays * DAY_MS
+    // A queued or recovered Empty Trash request covers only rows already in the bin when it was enqueued.
+    const job = emptyAll ? jobService.getById(ctx.jobId) : null
+    if (emptyAll && !job) throw new Error(`Missing Empty Trash job: ${ctx.jobId}`)
+    const cutoffMs = job ? Date.parse(job.createdAt) : Date.now() - retentionDays * DAY_MS
     const totalSteps = PURGE_DOMAINS.length + 3 // + task schedule, file, and agent-dir sweeps
     const purged: Record<string, number> = {}
 
@@ -147,7 +150,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       purged[domain.name] = purgedIds.length
       ctx.reportProgress(Math.round(((index + 1) / totalSteps) * 100))
     }
-    const retainedReferencedFileCount = emptyAll ? fileEntryService.getStats().trashTotal : 0
+    const retainedReferencedFileCount = emptyAll ? fileEntryService.countTrashedBefore(cutoffMs) : 0
 
     // Schedule reconciliation strictly AFTER all transactions committed. It runs even
     // when retention is disabled so an interrupted event cleanup heals on the next pass.

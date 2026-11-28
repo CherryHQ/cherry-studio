@@ -9,14 +9,6 @@ import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import type { McpToolResponseStatus } from '@renderer/types/mcpTool'
 import { formatFileSize } from '@renderer/utils/file'
 
-export {
-  getReadableToolActivity,
-  getReadableToolDescription,
-  type ToolActivity,
-  default as ToolHeader,
-  type ToolHeaderProps
-} from '../ToolHeader'
-
 // Streaming context - 用于传递流式状态给子组件
 export const StreamingContext = createContext<boolean>(false)
 export const useIsStreaming = () => use(StreamingContext)

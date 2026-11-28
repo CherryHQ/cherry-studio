@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
 
 import { AgentToolsType, type SkillToolInput, type SkillToolOutput } from '../shared/agentToolTypes'
-import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { SkeletonValue, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 
 export function SkillTool({ input, output }: { input?: SkillToolInput; output?: SkillToolOutput }): ToolDisclosureItem {
   const { t } = useTranslation()

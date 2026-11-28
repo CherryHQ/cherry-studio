@@ -1,17 +1,16 @@
-import { ArrowLeft, ArrowUpNarrowWide, Check, FilePlus2, FolderPlus, Search, Star, X } from 'lucide-react'
+import { ArrowLeft, ArrowUpNarrowWide, FilePlus2, FolderPlus, Search, Star, X } from 'lucide-react'
 import type { ComponentPropsWithRef, FC, ReactNode } from 'react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
-  MenuDivider,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -63,7 +62,6 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
   onSelectSortType
 }) => {
   const { t } = useTranslation()
-  const [sortOpen, setSortOpen] = useState(false)
 
   const sortMenuItems: Array<{ label: string; key: NotesSortType } | { type: 'divider'; key: string }> = [
     { label: t('notes.sort_a2z'), key: 'sort_a2z' },
@@ -92,33 +90,29 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
               <FolderPlus size={18} />
             </HeaderIconButton>
 
-            <Popover open={sortOpen} onOpenChange={setSortOpen}>
-              <PopoverTrigger asChild>
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
                 <HeaderIconButton label={t('assistants.presets.sorting.title')}>
                   <ArrowUpNarrowWide size={18} />
                 </HeaderIconButton>
-              </PopoverTrigger>
-              <PopoverContent align="center" className="w-52 p-1.5">
-                <MenuList>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="w-52 p-1.5">
+                <DropdownMenuRadioGroup value={sortType}>
                   {sortMenuItems.map((item) =>
                     'type' in item ? (
-                      <MenuDivider key={item.key} />
+                      <DropdownMenuSeparator key={item.key} />
                     ) : (
-                      <MenuItem
+                      <DropdownMenuRadioItem
                         key={item.key}
-                        label={item.label}
-                        active={sortType === item.key}
-                        suffix={sortType === item.key ? <Check size={14} /> : undefined}
-                        onClick={() => {
-                          onSelectSortType(item.key)
-                          setSortOpen(false)
-                        }}
-                      />
+                        value={item.key}
+                        onSelect={() => onSelectSortType(item.key)}>
+                        {item.label}
+                      </DropdownMenuRadioItem>
                     )
                   )}
-                </MenuList>
-              </PopoverContent>
-            </Popover>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <HeaderIconButton label={t('notes.show_starred')} onClick={onToggleStarredView}>
               <Star size={18} />

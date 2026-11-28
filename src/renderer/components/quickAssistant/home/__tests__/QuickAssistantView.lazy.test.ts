@@ -22,11 +22,11 @@ vi.mock('../../translate/TranslateWindow', () => {
  * must not statically evaluate the chat/translate branches (they carry the
  * heavy message rendering chain).
  */
-describe('HomeWindow lazy boundaries', () => {
+describe('QuickAssistantView lazy boundaries', () => {
   it(
-    'importing HomeWindow does not evaluate the chat/translate branches',
+    'importing QuickAssistantView does not evaluate the chat/translate branches',
     async () => {
-      await import('../HomeWindow')
+      await import('../QuickAssistantView')
       expect(chatWindowEvaluated).not.toHaveBeenCalled()
       expect(translateWindowEvaluated).not.toHaveBeenCalled()
     },

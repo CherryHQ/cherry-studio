@@ -1,7 +1,7 @@
 import type { ComponentProps, JSX } from 'react'
 import type { Components, ExtraProps } from 'streamdown'
 
-import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
+import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/NavigateTool'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { useMarkdownCode } from '@renderer/components/markdown'
 import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'

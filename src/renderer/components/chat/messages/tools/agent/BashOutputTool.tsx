@@ -5,9 +5,10 @@ import { Badge } from '@cherrystudio/ui'
 
 import type { BashOutputToolInput, BashOutputToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
-import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 import { TerminalOutput } from './TerminalOutput'
 
 interface ParsedBashOutput {

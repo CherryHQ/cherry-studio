@@ -38,8 +38,9 @@ export class AcpManagement {
   listModels(cwd: string): Promise<LocalAgentModelCatalog> {
     return this.run(cwd, resolveAcpModelLaunch, async (agent, launch) => {
       const id = this.config.presetId
+      const preset = acpPreset(id)
       const { models, activeModel, closeSession } = await agent.readModels(cwd, {
-        read: acpPreset(id)?.readModelCatalog,
+        read: preset?.readModelCatalog,
         legacyModes: id ? localCliPresetById.get(id)?.legacyModes : undefined
       })
       this.closeSession = closeSession
@@ -48,7 +49,8 @@ export class AcpManagement {
         models,
         activeModel: activeModel ?? (implicit ? { id: implicit } : undefined),
         authMethods: acpAuthMethods(agent.response),
-        ...(advertisesAcpSubscriptionUsage(agent.response) && { subscriptionUsage: true })
+        ...(preset?.subscriptionUsage !== 'unsupported' &&
+          advertisesAcpSubscriptionUsage(agent.response) && { subscriptionUsage: true })
       }
     })
   }

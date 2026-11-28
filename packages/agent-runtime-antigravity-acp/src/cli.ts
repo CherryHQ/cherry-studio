@@ -46,7 +46,6 @@ export const antigravityCli = {
   },
   name: 'Google Antigravity',
   protocol: 'acp',
-  subscriptionUsage: true,
   executable: 'agy',
   managedPackage: 'google-antigravity/antigravity-cli',
   nativeCliInstall: true,

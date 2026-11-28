@@ -301,17 +301,21 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    for an interactive input on the current config. When the connected operation declares durable
    persistence, the Composer sends Enter with `followUp: true` while busy. Other runtimes keep
    the draft in the dock until idle. Pi Durable persists those submissions in its native queue.
-   The dock shows the native waiting order and supports editing, reordering and withdrawing queued
-   inputs. Main saves the complete product input before native submission and keeps it off the
+   The dock shows the native waiting order and supports reordering and withdrawing queued inputs.
+   Editing opens the Work composer after Durable marks the waiting entry. Earlier follow-ups can
+   run while that entry and later follow-ups wait. Saving updates the original entry and clears
+   the edit mark in one native commit. Main saves the complete product input before native submission and keeps it off the
    conversation branch while it waits. Placement publishes the input and reserves its reply
    in the same transaction. Admission records the original request ID for recovery in Durable.
    Startup reconciles those IDs with their committed submissions. Opening the session also checks
    inputs saved before admission. When Durable places the input, the driver emits `run-started` after the preceding
    answer. Main gives it a distinct Run and holds the handoff until the source reply has an open
-   stream and any earlier handoff settles. Steers keep the existing Run and reply. The preceding reply settles as answered at the boundary; Durable reports its
-   input's outcome when the run ends, and the host then replaces a reply whose input did not
-   complete. An autonomous reply settles at that boundary, and a deferred user turn resumes
-   there. Only explicit refusal permits fallback to Main’s queue.
+   stream and any earlier handoff settles. Steers keep the existing Run and reply. The host uses
+   the input outcomes associated with its reply, including steers spanning native runs.
+   When a provider failure leaves follow-ups queued, the failed reply settles and the follow-ups
+   remain available in the dock.
+   An autonomous reply settles at that boundary, and a deferred user turn resumes there.
+   Only explicit refusal permits fallback to Main’s queue.
    An input queued before a restart has no entry-side context; the host reads its bound user
    message instead. If that input starts native work by itself, it also gets a new reply.
 3. **No eligible native operation** —
@@ -392,7 +396,7 @@ positions retain their order independently of the canonical assistant row.
 
 A `run-checkpoint` event identifies its owning Run through the stable input association and native
 context. Main retains evidence received before placement creates a reply, attaches it to an active
-Run, or updates only the private checkpoint of an already successful Run. A later session-wide
+Run, or updates only the private checkpoint of an already successful Run. A later foreground
 completion cannot replace that exact answer position. Pi Durable obtains these positions from
 committed submission answers, independently of foreground inactivity; cold pending-reply recovery
 commits the same evidence with its terminal body. Receiving a checkpoint does not terminate a Run.
@@ -408,6 +412,11 @@ no assistant header, action footer or selection checkbox. In-loop compaction rem
 group. A paused Run projects one stable interrupted marker from its persisted terminal status,
 after both its last content and its latest placed input. Unplaced queue inputs and
 inputs owned by other Runs do not move that marker.
+
+Once a steer joins a Run, process groups in segments before that input use the completed
+disclosure when their parts settle. Unfinished thinking, tool calls, and approvals keep their
+group active. A focused tool stays mounted until focus leaves its group. Assistant prose remains
+inline before and after the steer, including when the Run ends as paused.
 
 The segment layout selects stable part IDs from the shared projection reader. Text and tool progress
 continue through keyed part subscriptions; only new membership or a baseline changes the list projection.

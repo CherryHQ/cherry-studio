@@ -362,6 +362,51 @@ test.describe('Pi Durable turn authority in Electron', () => {
     })
   }
 
+  test('shows the failed reply while its follow-up remains queued', async ({ mainWindow: page }, testInfo) => {
+    test.setTimeout(180_000)
+    const server = await startMockChatServer()
+    const route = routeRequests(server)
+    try {
+      const session = await createSession(page, server)
+      const chat = await openSession(page, session)
+      await chat.send('FIRST_QUESTION')
+      const first = await route.next('FIRST_QUESTION')
+      first.sendText('FIRST_PARTIAL')
+      first.completeToolCall({ id: 'call-read', name: 'read', arguments: { path: 'provider-error-probe.txt' } })
+      await page.getByRole('button', { name: 'Allow', exact: true }).click()
+      const afterTool = await route.next('FIRST_QUESTION')
+      await expect(chat.message('FIRST_PARTIAL')).toBeVisible()
+      await chat.send('QUEUED_QUESTION')
+      const queuedPanel = chat.view.getByRole('button', { name: 'Queued (1)', exact: true })
+      await expect(queuedPanel).toBeVisible()
+
+      afterTool.fail('Insufficient Balance')
+      await expect(uiLocator(chat.composer, 'chat.composer.action.pause')).toBeHidden()
+      await expect(chat.message('FIRST_PARTIAL').getByRole('button', { name: /^Error occurred/ })).toBeVisible()
+      await expect(queuedPanel).toBeVisible()
+      await expect(chat.message('QUEUED_QUESTION')).toHaveCount(0)
+      await expect
+        .poll(async () => (await rows(page, session.sessionId)).filter((row) => row.role === 'assistant'))
+        .toMatchObject([
+          {
+            status: 'error',
+            parts: expect.arrayContaining([
+              expect.objectContaining({ type: 'text', text: has('FIRST_PARTIAL') }),
+              expect.objectContaining({
+                type: 'data-error',
+                data: expect.objectContaining({ message: has('Insufficient Balance') })
+              })
+            ])
+          }
+        ])
+      expect(route.unclaimed()).toEqual([])
+      await capture(page, testInfo, 'failed-reply-with-queued-input')
+    } finally {
+      route.close()
+      await server.close()
+    }
+  })
+
   for (const source of ['composer', 'queue'] as const) {
     test(`steers a running turn from the ${source} while preserving the original reply owner`, async ({
       mainWindow: page

@@ -73,7 +73,8 @@ import {
   followupSteerPlacement,
   readFollowups,
   type DurableFollowup,
-  type DurableFollowupChange
+  type DurableFollowupChange,
+  type DurableFollowupEdit
 } from './followups'
 import { productInputId, readDurableInput, submissionState } from './inputLookup'
 import { previewContentIndices, previewTextAppends } from './previewTextAppends'
@@ -97,7 +98,7 @@ export interface PiDurableRuntimeOptions {
   /** Synchronous placement notification before the scheduler can issue the next model request. */
   readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId, promotion?: { replyId?: string }) => void
   readonly onFollowupsChanged?: (thread: ThreadId, queue: readonly DurableFollowup[], paused: boolean) => void
-  readonly onFollowupEdit?: (thread: ThreadId, inputId: InputId, textPart: string) => void
+  readonly onFollowupEdit?: (thread: ThreadId, inputId: InputId, edit: DurableFollowupEdit) => void
   readonly onError?: (error: unknown) => void
 }
 export interface PiDurableRuntimeBehavior {
@@ -558,10 +559,10 @@ export async function createPiDurableRuntime(
             function restoreEdit(source: { kind: string; data?: unknown } | undefined) {
               if (!options.onFollowupEdit || source?.kind !== 'cherry.user-input') return
               const id = productInputId(source.data)
-              const { textPart } = followupEdit(source.data)
-              if (!id || textPart === undefined) return
+              const edit = followupEdit(source.data)
+              if (!id || edit.revision === 0) return
               try {
-                options.onFollowupEdit(refFor(conversation.id).id, id, textPart)
+                options.onFollowupEdit(refFor(conversation.id).id, id, edit)
               } catch (cause) {
                 report(cause)
               }
@@ -692,14 +693,10 @@ export async function createPiDurableRuntime(
                         change.ops.length > 0 &&
                         change.ops.every((op) => Array.isArray(op[1]) && op[1][0] === 'tools'))
                   ) &&
-                  projection.commitToolResult(previous, after, records[0], publication.seq, toolSlot)
+                  projection.commitToolResult(previous, after, records[0], toolSlot)
                 )
                   return
-                projection.update(
-                  after,
-                  { type: 'commit', revision: publication.seq, changes: changed, answers },
-                  fold.history
-                )
+                projection.update(after, { type: 'commit', changes: changed, answers }, fold.history)
               },
               end() {}
             }).detach
@@ -841,7 +838,6 @@ export async function createPiDurableRuntime(
       project = false
     ): Promise<SubmitResult> {
       if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
-      entry.projection.beginAdmission(input.inputId)
       const attempt = entry.admission.then(async (): Promise<SubmitResult> => {
         if (unavailable()) {
           return { ...rejected('submit', 'closed'), inputId: input.inputId }
@@ -939,7 +935,8 @@ export async function createPiDurableRuntime(
       })
       const completed = attempt.then((result) => {
         if (result.status === 'unknown') entry.projection.input({ inputId: input.inputId, facts: ['dispatch-started'] })
-        entry.projection.endAdmission(input.inputId, result.status === 'acknowledged')
+        if (result.status === 'acknowledged' && result.facts.includes('locally-handled'))
+          entry.projection.completeLocalInput(input.inputId)
         return result
       })
       entry.admission = completed.then(() => {})
@@ -1001,9 +998,7 @@ export async function createPiDurableRuntime(
         resumeFollowups: () =>
           unavailable() ? Promise.resolve(false) : track(entry.conversation.resumeFollowUps(context)),
         changeFollowups: (change) =>
-          unavailable()
-            ? Promise.resolve(false)
-            : track(changeFollowups(native, entry.conversation.id, change, context)),
+          unavailable() ? Promise.resolve(false) : track(changeFollowups(entry.conversation, change, context)),
         observe: (sink, knownSources) => observeCaptured(() => entry.projection.observe(sink, knownSources)),
         relation: () =>
           track(

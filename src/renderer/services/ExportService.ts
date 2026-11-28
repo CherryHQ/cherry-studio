@@ -10,11 +10,6 @@ import { visit } from 'unist-util-visit'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-// Known same-tier soft-edge (inherited from the former utils/export):
-// `getTopicMessages` is a non-React data accessor that happens to live in the
-// `useTopic` hook module, so this is a service -> hook import. Sinking the
-// accessor below the hooks tier is deferred as out of scope here.
-import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
@@ -45,6 +40,7 @@ import {
   getThinkingContent,
   getToolCitationExport
 } from '@renderer/utils/message/find'
+import { getTopicMessages } from '@renderer/utils/message/getTopicMessages'
 import type { ContentHash } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema, type FileVersion } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'

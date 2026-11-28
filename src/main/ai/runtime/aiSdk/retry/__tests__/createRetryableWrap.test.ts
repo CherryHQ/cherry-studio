@@ -1,5 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, generateText, type ModelMessage, wrapLanguageModel } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -83,6 +84,75 @@ function budgetError(message: string, body: unknown, statusCode = 400, responseB
 }
 
 describe('createRetryableWrap', () => {
+  it('reports a terminal provider failure without starting retry status', async () => {
+    const rejection = makeApiError(400)
+    const onRetryEvent = vi.fn()
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy(),
+      diagnosticContext: { messageId: 'terminal-rejection' },
+      onRetryEvent
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(rejection)))
+
+    await expect(model.doGenerate({ prompt: [] })).rejects.toBe(rejection)
+    expect(mockMainLoggerService.debug).toHaveBeenCalledWith('model retry attempt failed', {
+      messageId: 'terminal-rejection',
+      modelId: 'primary',
+      attempt: 1,
+      statusCode: 400
+    })
+    expect(onRetryEvent).not.toHaveBeenCalled()
+  })
+
+  it('settles live status when a retried stream is cancelled before completion', async () => {
+    const events: string[] = []
+    const doStream = vi
+      .fn()
+      .mockRejectedValueOnce(makeApiError(401))
+      .mockResolvedValueOnce({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', id: 'text', delta: 'partial' })
+          }
+        })
+      })
+    const wrap = createRetryableWrap({
+      apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('primary', vi.fn(), doStream))],
+      fallbacks: [],
+      onRetryEvent: (event) => events.push(event.state),
+      retryPolicy: policy({ enabled: false })
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+
+    const result = await model.doStream({ prompt: [] })
+    const reader = result.stream.getReader()
+    expect(await reader.read()).toMatchObject({ value: { type: 'text-delta', delta: 'partial' } })
+    expect(events).toEqual(['retrying'])
+    await reader.cancel()
+    expect(events).toEqual(['retrying', 'settled'])
+  })
+
+  it('only activates a fallback when the selected model is dispatched', async () => {
+    const order: string[] = []
+    const primary = makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(400)))
+    const fallback = makeFakeLanguageModel(
+      'fallback',
+      vi.fn(async () => {
+        order.push('dispatch')
+        throw makeApiError(400)
+      })
+    )
+    const wrap = createRetryableWrap({
+      fallbacks: [fallbackOf(fallback)],
+      onFallbackActivated: () => order.push('activate'),
+      retryPolicy: policy()
+    })!
+
+    await expect(wrap(primary).doGenerate({ prompt: [] })).rejects.toThrow()
+    expect(order).toEqual(['activate', 'dispatch'])
+  })
+
   it.each([
     ['max_tokens', 'Invalid max_tokens value, the valid range of max_tokens is [1, 4096]', 4096],
     ['max_tokens', 'Range of max_tokens should be [1, 4096]', 4096],

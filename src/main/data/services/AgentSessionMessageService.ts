@@ -385,9 +385,11 @@ type SavedAgentSessionMessage = {
 function replaceAgentSessionMessageFileRefsTx(
   tx: DbOrTx,
   messageId: string,
-  data: AgentSessionMessageEntity['data']
+  data: AgentSessionMessageEntity['data'],
+  retainCurrentRefs = false
 ): void {
-  tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
+  if (!retainCurrentRefs)
+    tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
 
   const snapshot = tx
     .select({ snapshot: sessionMessagesTable.messageSnapshot })
@@ -428,6 +430,9 @@ function replaceAgentSessionMessageFileRefsTx(
         : [])
     ])
 
+  if (retainCurrentRefs && [...attachmentIds].some((id) => !existingIds.has(id))) {
+    throw new AgentSessionEditError('attachment_unavailable')
+  }
   if (existingIds.size !== ids.length) {
     logger.warn('Dropped agent-session message file refs without matching file_entry', {
       messageId,
@@ -437,9 +442,9 @@ function replaceAgentSessionMessageFileRefsTx(
   }
 
   for (let index = 0; index < rows.length; index += SQLITE_INARRAY_CHUNK) {
-    tx.insert(agentSessionMessageFileRefTable)
-      .values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
-      .run()
+    const insert = tx.insert(agentSessionMessageFileRefTable).values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
+    if (retainCurrentRefs) insert.onConflictDoNothing().run()
+    else insert.run()
   }
 }
 
@@ -1247,6 +1252,7 @@ export class AgentSessionMessageService {
       .set({ parentId, data: sql`json_remove(${sessionMessagesTable.data}, '$.stagedFollowup')` })
       .where(eq(sessionMessagesTable.id, messageId))
       .run()
+    this.releaseNativeFollowupFilesTx(tx, sessionId, messageId)
     advanceAgentSessionHeadTx(tx, sessionId, parentId, messageId)
     agentSessionService.advanceLastActivityAtTx(tx, sessionId, Date.now())
     return true
@@ -2784,29 +2790,74 @@ export class AgentSessionMessageService {
     if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
   }
 
+  protectNativeFollowupFiles(
+    sessionId: string,
+    contextId: string,
+    messageId: string,
+    parts: CherryMessagePart[]
+  ): boolean {
+    return application.get('DbService').withWriteTx((tx) => {
+      const row = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (row?.role !== 'user' || row.inputContextId !== contextId || row.delivery || !row.data.stagedFollowup)
+        return false
+      // Keep new files reachable if the native commit succeeds before desktop projection.
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, { parts }, true)
+      return true
+    })
+  }
+
+  releaseNativeFollowupFiles(sessionId: string, messageId: string): void {
+    application.get('DbService').withWriteTx((tx) => this.releaseNativeFollowupFilesTx(tx, sessionId, messageId))
+  }
+
+  private releaseNativeFollowupFilesTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (row) replaceAgentSessionMessageFileRefsTx(tx, messageId, row.data)
+  }
+
   applyNativeFollowupEdit(
     sessionId: string,
     contextId: string,
     messageId: string,
-    text: Extract<CherryMessagePart, { type: 'text' }>
+    edit: CherryMessagePart[] | Extract<CherryMessagePart, { type: 'text' }>
   ): void {
     const changed = application.get('DbService').withWriteTx((tx) => {
-      const row = this.findExistingMessageRow(tx, sessionId, messageId)
-      if (row?.role !== 'user' || row.inputContextId !== contextId || row.delivery) return false
-      const parts = [...(row.data.parts ?? [])]
-      const index = parts.findIndex((part) => part.type === 'text')
-      if (index < 0 || JSON.stringify(parts[index]) === JSON.stringify(text)) return false
-      parts[index] = text
+      const row = this.findExistingMessageRow(tx, sessionId, messageId, true)
+      if (
+        row?.role !== 'user' ||
+        row.inputContextId !== contextId ||
+        row.delivery ||
+        row.status !== 'success' ||
+        row.pos != null ||
+        row.replyId
+      )
+        return false
+      const previous = row.data.parts
+      const previousIds = row.partIds!
+      let parts: CherryMessagePart[]
+      let partIds: string[]
+      if (Array.isArray(edit)) {
+        parts = edit
+        const idsByPart = new Map<string, string[]>()
+        previous.forEach((part, index) => {
+          const key = JSON.stringify(part)
+          const ids = idsByPart.get(key) ?? []
+          ids.push(previousIds[index])
+          idsByPart.set(key, ids)
+        })
+        partIds = parts.map((part) => idsByPart.get(JSON.stringify(part))?.shift() ?? uuidv7())
+      } else {
+        const index = previous.findIndex((part) => part.type === 'text')
+        if (index < 0) return false
+        parts = previous.map((part, i) => (i === index ? edit : part))
+        partIds = previousIds
+      }
+      if (JSON.stringify(previous) === JSON.stringify(parts)) return false
       const updatedAt = Date.now()
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       tx.update(sessionMessagesTable).set({ updatedAt }).where(eq(sessionMessagesTable.id, messageId)).run()
-      replaceAgentSessionMessagePartsTx(tx, {
-        sessionId,
-        messageId,
-        parts,
-        partIds: readAgentSessionMessagePartIdsTx(tx, messageId),
-        timestampMs: updatedAt
-      })
+      replaceAgentSessionMessagePartsTx(tx, { sessionId, messageId, parts, partIds, timestampMs: updatedAt })
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, { parts })
       return true
     })
     if (changed) this.publishDeliveryChange(sessionId, messageId, 'projection')
