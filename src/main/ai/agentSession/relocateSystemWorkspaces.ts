@@ -17,6 +17,7 @@ import {
 } from '@main/ai/agents/agentDataDirectory'
 import {
   digestRelocationArtifact as digest,
+  isSameRelocationArtifact as sameArtifact,
   relocationArtifactExists as exists
 } from '@main/ai/agents/agentRelocationFiles'
 import {
@@ -240,7 +241,8 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       artifactPath(root, targetRelative, newPath)
       await assertNoPendingRelocation(sourceRelative, targetRelative)
       await assertAgentStoragePath(root, target)
-      if (source !== target && (await exists(target))) throw new Error(`Relocation target already exists: ${target}`)
+      if ((await exists(target)) && !(await sameArtifact(source, target)))
+        throw new Error(`Relocation target already exists: ${target}`)
       const before = await digest(root, source)
       const staged = path.join(directory, 'staged', String(journal.operations.length))
       if (prepared) {
@@ -308,7 +310,8 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       }
       const target = artifactPath(root, operation.target, newPath)
       await ensureAgentStorageDirectory(root, path.dirname(target))
-      if (source !== target && (await exists(target))) throw new Error('Runtime history target conflict')
+      if ((await exists(target)) && !(await sameArtifact(source, target)))
+        throw new Error('Runtime history target conflict')
       await rename(source, path.join(directory, 'backup', String(index)))
       if (await exists(target)) throw new Error('Runtime history target conflict')
       await rename(path.join(directory, 'staged', String(index)), target)

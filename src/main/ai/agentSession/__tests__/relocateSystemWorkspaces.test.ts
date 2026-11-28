@@ -1228,4 +1228,93 @@ describe('system workspace relocation', () => {
       projects: { [first.newPath]: { allowedTools: ['Read'] }, [second.newPath]: { allowedTools: ['Edit'] } }
     })
   })
+
+  it.each(['single', 'merge', 'rollback'] as const)(
+    'relocates Claude project history when old and new keys differ only in case: %s',
+    async (scenario) => {
+      const workspace = await createWorkspace('claude-code')
+      const oldKey = `D--Cherry-Studio-data-${workspace.id}`
+      const newKey = `D--Cherry-Studio-Data-${workspace.id}`
+      workerMocks.keys = { oldKey, newKey }
+
+      const primaryId = randomUUID()
+      const primaryFile = await writeHistory('claude-code', workspace.id, primaryId, oldKey)
+      const primaryContents = await readFile(primaryFile, 'utf8')
+      const oldConfigDir = path.join(temporaryRoot, 'old', 'Data', 'Agents', '.claude')
+      persistClaudeTurn(workspace.sessionId, primaryId, 'paused', oldConfigDir)
+
+      let extraId: string | undefined
+      let extraFile: string | undefined
+      let extraContents: string | undefined
+      if (scenario === 'merge') {
+        extraId = randomUUID()
+        extraFile = await writeHistory('claude-code', workspace.id, extraId, `canonical-${workspace.id}`)
+        extraContents = await readFile(extraFile, 'utf8')
+        persistClaudeTurn(workspace.sessionId, extraId, 'paused', oldConfigDir)
+      }
+
+      const configFile = path.join(root, '.claude', '.claude.json')
+      await writeFile(configFile, JSON.stringify({ projects: { [workspace.oldPath]: { allowedTools: ['Read'] } } }))
+
+      const txSpy =
+        scenario === 'rollback'
+          ? vi.spyOn(agentWorkspaceService, 'relocateSystemWorkspaceTx').mockImplementationOnce(() => {
+              throw new Error('Database transaction failed')
+            })
+          : undefined
+
+      const projectsDir = path.join(root, '.claude', 'projects')
+      const blocked = scenario === 'rollback'
+      expect(await relocateSystemWorkspaces()).toEqual(new Set(blocked ? [workspace.sessionId] : []))
+      if (txSpy) expect(txSpy).toHaveBeenCalledTimes(1)
+      expect(workspacePath(workspace.id)).toBe(blocked ? workspace.oldPath : workspace.newPath)
+
+      if (scenario === 'rollback') {
+        expect(await readdir(projectsDir)).toEqual([oldKey])
+        expect(await readFile(path.join(projectsDir, oldKey, `${primaryId}.jsonl`), 'utf8')).toBe(primaryContents)
+        expect(JSON.parse(await readFile(configFile, 'utf8'))).toEqual({
+          projects: { [workspace.oldPath]: { allowedTools: ['Read'] } }
+        })
+        expect(await relocateSystemWorkspaces()).toEqual(new Set())
+      }
+
+      expect(workspacePath(workspace.id)).toBe(workspace.newPath)
+      expect(await readdir(projectsDir)).toEqual([newKey])
+      expect(await readFile(path.join(projectsDir, newKey, `${primaryId}.jsonl`), 'utf8')).toBe(primaryContents)
+      if (extraId && extraFile && extraContents) {
+        expect(await readFile(path.join(projectsDir, newKey, `${extraId}.jsonl`), 'utf8')).toBe(extraContents)
+        await expect(readFile(extraFile, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+      expect(JSON.parse(await readFile(configFile, 'utf8'))).toEqual({
+        projects: { [workspace.newPath]: { allowedTools: ['Read'] } }
+      })
+      expect(await readdir(path.join(root, '.relocation'))).toEqual([])
+    }
+  )
+
+  it('still rejects relocation when a genuinely distinct target project directory already exists', async () => {
+    const workspace = await createWorkspace('claude-code')
+    const oldKey = `old-distinct-${workspace.id}`
+    const newKey = `new-distinct-${workspace.id}`
+    workerMocks.keys = { oldKey, newKey }
+
+    const nativeId = randomUUID()
+    const sourceFile = await writeHistory('claude-code', workspace.id, nativeId, oldKey)
+    const sourceContents = await readFile(sourceFile, 'utf8')
+    persistClaudeTurn(
+      workspace.sessionId,
+      nativeId,
+      'paused',
+      path.join(temporaryRoot, 'old', 'Data', 'Agents', '.claude')
+    )
+
+    const targetDir = path.join(root, '.claude', 'projects', newKey)
+    await mkdir(targetDir, { recursive: true })
+    await writeFile(path.join(targetDir, 'existing.txt'), 'do not overwrite')
+
+    expect(await relocateSystemWorkspaces()).toEqual(new Set([workspace.sessionId]))
+    expect(workspacePath(workspace.id)).toBe(workspace.oldPath)
+    expect(await readFile(sourceFile, 'utf8')).toBe(sourceContents)
+    expect(await readFile(path.join(targetDir, 'existing.txt'), 'utf8')).toBe('do not overwrite')
+  })
 })

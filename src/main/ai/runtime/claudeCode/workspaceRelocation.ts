@@ -7,6 +7,7 @@ import { application } from '@application'
 import { assertAgentStorageDirectory, assertAgentStoragePath } from '@main/ai/agents/agentDataDirectory'
 import {
   digestRelocationArtifact as digest,
+  isSameRelocationArtifact as sameArtifact,
   relocationArtifactExists as exists
 } from '@main/ai/agents/agentRelocationFiles'
 import { atomicWriteFile } from '@main/utils/file'
@@ -77,7 +78,8 @@ export const claudeWorkspaceRelocation: RuntimeWorkspaceRelocation = {
           if (await exists(path.join(candidate, id + '.jsonl'))) candidates.push(candidate)
           if (candidates.length > 1) throw new Error('Ambiguous Claude project history')
         }
-        if (candidates[0] === newProject) throw new Error('Relocation target already exists')
+        if (candidates[0] && (await sameArtifact(candidates[0], newProject)))
+          throw new Error('Relocation target already exists')
         if (!candidates.length) throw new Error('Claude history missing')
         owner = candidates[0]
       }
@@ -114,8 +116,12 @@ export const claudeWorkspaceRelocation: RuntimeWorkspaceRelocation = {
       if (projects && typeof projects === 'object' && !Array.isArray(projects)) {
         const keys = Object.keys(projects).filter((key) => path.isAbsolute(key) && path.relative(key, oldPath) === '')
         if (keys.length > 1) throw new Error('Ambiguous Claude project configuration')
-        if (keys.length) {
-          if (Object.keys(projects).some((key) => path.isAbsolute(key) && path.relative(key, newPath) === ''))
+        if (keys.length && keys[0] !== newPath) {
+          if (
+            Object.keys(projects).some(
+              (key) => key !== keys[0] && path.isAbsolute(key) && path.relative(key, newPath) === ''
+            )
+          )
             throw new Error('Claude project configuration conflict')
           projects[newPath] = projects[keys[0]]
           delete projects[keys[0]]
