@@ -11,8 +11,9 @@ import type {
 import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
@@ -27,7 +28,7 @@ interface AgentChatMainProps {
   messages: CherryUIMessage[]
   historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   activeAgent: GetAgentResponse | undefined
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
@@ -42,6 +43,8 @@ interface AgentChatMainProps {
   startEditing: (messageId: string) => Promise<void>
   editBusy: boolean
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
+  readOnly?: boolean
+  onLocalRestoreChecked?: (unavailable: boolean) => void
 }
 
 export default function AgentChatMain({
@@ -67,7 +70,9 @@ export default function AgentChatMain({
   setActiveBranch,
   startEditing,
   editBusy,
-  respondToolApproval
+  respondToolApproval,
+  readOnly,
+  onLocalRestoreChecked
 }: AgentChatMainProps) {
   const navigate = useNavigate()
   const navigateToForkSource = useCallback<NavigateToForkSource>(
@@ -101,11 +106,12 @@ export default function AgentChatMain({
           openDiagnosticReport={openDiagnosticReport}
           getMessageSiblings={getMessageSiblings}
           setActiveBranch={setActiveBranch}
-          deleteMessage={agentId ? deleteMessage : undefined}
-          startEditing={agentId ? startEditing : undefined}
+          deleteMessage={agentId && !readOnly ? deleteMessage : undefined}
+          startEditing={agentId && !readOnly ? startEditing : undefined}
           editBusy={editBusy}
           respondToolApproval={agentId ? respondToolApproval : undefined}
           navigateToForkSource={navigateToForkSource}
+          onLocalRestoreChecked={onLocalRestoreChecked}
         />
       </div>
     </div>

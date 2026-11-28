@@ -86,11 +86,12 @@ interface ToolCallState {
   arguments: string
 }
 
-/** An open `reasoning` output item, accumulating its summary text. */
+/** An open `reasoning` output item. */
 interface ReasoningState {
   itemId: string
   outputIndex: number
   text: string
+  rawText: string
   native: boolean
   encryptedContent?: string
 }
@@ -114,6 +115,8 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private messageOutputIndex: number | null = null
   private reasoning: ReasoningState | null = null
   private reasoningCount = 0
+  private readonly toClientToolName?: StreamAdapterOptions['toClientToolName']
+  private readonly resolveClientToolCall?: StreamAdapterOptions['resolveClientToolCall']
 
   override getMessageId(): string {
     return `resp_${this.state.messageId}`
@@ -123,6 +126,8 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     super(options)
     this.createdAt = Math.floor(Date.now() / 1000)
     this.outputItemId = `msg_${this.state.messageId}`
+    this.toClientToolName = options.toClientToolName
+    this.resolveClientToolCall = options.resolveClientToolCall
   }
 
   /**
@@ -283,7 +288,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
 
       case 'reasoning-delta':
         this.ensureReasoningItem(chunk.providerMetadata)
-        this.emitReasoningDelta(chunk.delta || '')
+        this.emitReasoningDelta(chunk.delta || '', chunk.providerMetadata)
         break
 
       case 'reasoning-end':
@@ -357,17 +362,23 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     this.emit(event)
   }
 
-  /**
-   * Append to the open `reasoning` item, opening one on the first delta.
-   *
-   * The chain rides in `summary` (what clients render and echo back) and is mirrored into
-   * `content` as `reasoning_text` — the model gives us raw reasoning, not a summary, but
-   * `summary` is the field every Responses client reads.
-   */
-  private emitReasoningDelta(delta: string): void {
+  private emitReasoningDelta(delta: string, metadata?: ProviderMetadata): void {
     if (!delta) return
 
     this.ensureReasoningItem(undefined, true)
+    const native = metadata?.openai ?? metadata?.azure ?? metadata?.xai
+    if (native?.rawReasoningContent === true) {
+      this.reasoning!.rawText += delta
+      this.emit({
+        type: 'response.reasoning_text.delta',
+        item_id: this.reasoning!.itemId,
+        output_index: this.reasoning!.outputIndex,
+        content_index: 0,
+        delta,
+        sequence_number: this.nextSequence()
+      })
+      return
+    }
     this.reasoning!.text += delta
     this.emit({
       type: 'response.reasoning_summary_text.delta',
@@ -380,7 +391,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   }
 
   private ensureReasoningItem(metadata?: ProviderMetadata, hasText = false): void {
-    const native = metadata?.openai ?? metadata?.azure
+    const native = metadata?.openai ?? metadata?.azure ?? metadata?.xai
     const itemId = typeof native?.itemId === 'string' ? native.itemId : undefined
     const encryptedContent =
       typeof native?.reasoningEncryptedContent === 'string' ? native.reasoningEncryptedContent : undefined
@@ -391,6 +402,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         itemId: itemId ?? `rs_${this.state.messageId}_${this.reasoningCount++}`,
         outputIndex,
         text: '',
+        rawText: '',
         native: !!itemId
       }
 
@@ -416,7 +428,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   /** Close the open reasoning item, if any. Idempotent — several paths may reach it. */
   private closeReasoningItem(): void {
     if (!this.reasoning) return
-    const { itemId, outputIndex, text, encryptedContent } = this.reasoning
+    const { itemId, outputIndex, text, rawText, native, encryptedContent } = this.reasoning
     this.reasoning = null
 
     this.emit({
@@ -436,11 +448,24 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       sequence_number: this.nextSequence()
     })
 
+    if (rawText) {
+      this.emit({
+        type: 'response.reasoning_text.done',
+        item_id: itemId,
+        output_index: outputIndex,
+        content_index: 0,
+        text: rawText,
+        sequence_number: this.nextSequence()
+      })
+    }
+
+    // Preserve the legacy projection when adapting a protocol without Responses items.
+    const content = rawText || (!native ? text : '')
     const item: ResponseReasoningItem = {
       type: 'reasoning',
       id: itemId,
       summary: text ? [{ type: 'summary_text', text }] : [],
-      ...(text && { content: [{ type: 'reasoning_text' as const, text }] }),
+      ...(content && { content: [{ type: 'reasoning_text' as const, text: content }] }),
       ...(encryptedContent !== undefined && { encrypted_content: encryptedContent }),
       status: 'completed'
     }
@@ -468,6 +493,11 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       return
     }
 
+    const resolved = this.resolveClientToolCall?.(toolName) ?? {
+      name: this.toClientToolName?.(toolName) ?? toolName
+    }
+    const clientName = resolved.name
+
     // The reasoning that led to this call belongs before it in `output[]`.
     this.closeReasoningItem()
     const outputIndex = this.nextOutputIndex++
@@ -480,18 +510,19 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       outputIndex,
       itemId,
       callId: toolCallId,
-      name: toolName,
+      name: clientName,
       arguments: argsString
     })
 
-    const inProgressItem: ResponseFunctionToolCall = {
+    const inProgressItem = {
       type: 'function_call',
       id: itemId,
       call_id: toolCallId,
-      name: toolName,
+      name: clientName,
+      ...(resolved.namespace ? { namespace: resolved.namespace } : {}),
       arguments: '',
       status: 'in_progress'
-    }
+    } as ResponseFunctionToolCall
 
     this.emit({
       type: 'response.output_item.added',
@@ -512,7 +543,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       type: 'response.function_call_arguments.done',
       item_id: itemId,
       output_index: outputIndex,
-      name: toolName,
+      name: clientName,
       arguments: argsString,
       sequence_number: this.nextSequence()
     })

@@ -2,7 +2,7 @@ import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { gatewayUsageNormalizeFeature, normalizeGatewayUsage } from '../gatewayUsageNormalize'
+import { gatewayUsageNormalizeFeature } from '../gatewayUsageNormalize'
 
 async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddleware> {
   const [plugin] = gatewayUsageNormalizeFeature.contributeModelAdapters!({} as never)
@@ -32,13 +32,6 @@ describe('gatewayUsageNormalizeFeature', () => {
     expect(result.usage).toMatchObject({
       inputTokens: { total: 100, noCache: 60, cacheRead: 40 },
       outputTokens: { total: 20 }
-    })
-  })
-
-  it('re-exports normalizeGatewayUsage for existing callers', () => {
-    expect(normalizeGatewayUsage({ inputTokens: 1000, cachedInputTokens: 800, outputTokens: 50 })).toEqual({
-      inputTokens: { total: 1000, noCache: 200, cacheRead: 800, cacheWrite: undefined },
-      outputTokens: { total: 50, text: undefined, reasoning: undefined }
     })
   })
 })

@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
@@ -16,6 +17,7 @@ import { application } from '@application'
 import type * as RemoteProtocol from '@cherrystudio/remote-protocol'
 import { jsonRpcResponseSchema, remoteLimits } from '@cherrystudio/remote-protocol'
 import {
+  agentCheckpointPageSchema as legacyPageSchema,
   agentEventBatchSchema as legacyBatchSchema,
   applyAgentEvents as applyLegacyEvents,
   installAgentCheckpoint as installLegacyCheckpoint
@@ -72,6 +74,7 @@ import { FileManager, FileIntakeService } from '@main/services/file'
 import type { FileManagerDeps } from '@main/services/file/internal/deps'
 import { createInternal } from '@main/services/file/internal/entry/create'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -86,6 +89,17 @@ import { RemoteTokens } from '../RemoteTokens'
 
 const fake = vi.hoisted(() => {
   const streams = new Map<string, StreamListener[]>()
+  const cloudReceipt: {
+    models: {
+      freshness: 'unknown' | 'fresh' | 'stale'
+      observedRevision?: number
+      error?: string | null
+      value?: {
+        availableModelIds: { agent: string[]; general: string[] }
+        quotaExhaustedModelIds: string[]
+      }
+    }
+  } = { models: { freshness: 'unknown', error: null } }
   return {
     streams,
     files: {
@@ -94,6 +108,10 @@ const fake = vi.hoisted(() => {
       createInternalEntry: vi.fn(),
       getUrl: vi.fn(),
       getPhysicalPath: vi.fn()
+    },
+    cloud: {
+      receipt: cloudReceipt,
+      syncEntitledModelsIfStale: vi.fn(async (): Promise<unknown> => undefined)
     },
     replayBudget: undefined as number | undefined,
     onStarted: undefined as undefined | ((listeners: StreamListener[]) => Promise<void>),
@@ -144,6 +162,10 @@ vi.mock('@cherrystudio/remote-protocol', async (importOriginal) => {
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
+    CherryCloudService: {
+      getAccountReceipt: () => fake.cloud.receipt,
+      syncEntitledModelsIfStale: () => fake.cloud.syncEntitledModelsIfStale()
+    },
     FileManager: fake.files,
     AiStreamManager: fake.manager,
     AgentSessionRuntimeService: fake.runtime,
@@ -325,6 +347,8 @@ describe('remote agent access', () => {
   })
 
   beforeEach(async () => {
+    fake.cloud.receipt = { models: { freshness: 'unknown', error: null } }
+    fake.cloud.syncEntitledModelsIfStale.mockReset().mockResolvedValue(undefined)
     fake.streams.clear()
     fake.replayBudget = undefined
     fake.onStarted = undefined
@@ -641,7 +665,7 @@ describe('remote agent access', () => {
       const bytes = Buffer.from('managed attachment')
       const uploadId = randomUUID()
       const presence = new AttachmentPresenceService()
-      for (const name of ['present', 'submitting', 'list'] as const)
+      for (const name of ['present', 'submitting', 'list', 'disconnect'] as const)
         Object.assign(application.get('AttachmentPresenceService'), { [name]: presence[name].bind(presence) })
       const selectionId = randomUUID()
       await call('agent.attachments.present', {
@@ -727,6 +751,103 @@ describe('remote agent access', () => {
       expect(await call('agent.messages.send', params)).toEqual(receipt)
       expect(vi.mocked(startAgentSessionRun).mock.calls.length).toBe(before)
     } finally {
+      await intake.drain()
+      paths.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('clears abandoned presented attachments when a remote connection disconnects without sending', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-attachment-disconnect-'))
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key, filename) => path.join(root, key, filename ?? ''))
+    const intake = new FileIntakeService()
+    MockFileIntakeUtils.setImplementation(intake)
+    const files = new FileManager()
+    Object.assign(application.get('FileManager'), { intakes: files.intakes })
+    fake.files.publishIntake.mockImplementation((input) => files.publishIntake(input))
+    fake.files.getById.mockImplementation((id) => files.getById(id))
+    const presence = new AttachmentPresenceService()
+    MockApplicationUtils.setService('AttachmentPresenceService', presence)
+    let remote: RemoteConnection | undefined
+    try {
+      await mkdir(application.getPath('feature.files.data'), { recursive: true })
+      const { device, authorization } = apiGatewayPairedDeviceService.approveRemote({
+        name: 'Disconnect Phone',
+        platform: 'ios',
+        peerIdentity: 'disconnect-phone',
+        capabilities: ['agent']
+      })
+      remote = new RemoteConnection(
+        makeChannel('disconnect-phone', []),
+        new RemotePairing(),
+        new RemoteTokens(),
+        () => {},
+        hub,
+        async () => ({ desktopIdentity: 'desktop', endpoints: [] })
+      )
+      const request = async (method: string, params: unknown): Promise<any> => {
+        const response = (await remote!.rpc.receive(
+          { jsonrpc: '2.0', id: randomUUID(), method, params },
+          undefined
+        )) as {
+          result?: unknown
+          error?: unknown
+        }
+        if (response.error)
+          throw Object.assign(new Error(), response.error, { message: `${method}: ${JSON.stringify(response.error)}` })
+        return response.result
+      }
+      await request('connection.hello', { protocolVersions: [1] })
+      await request('connection.authenticate', { deviceId: device.id })
+      const bytes = Buffer.from('abandoned attachment')
+      const uploadId = randomUUID()
+      await request('agent.uploads.prepare', {
+        uploadId,
+        filename: 'abandoned.txt',
+        mediaType: 'text/plain',
+        byteLength: bytes.length
+      })
+      await remote.receiveUpload({
+        kind: 'upload',
+        requestId: randomUUID(),
+        uploadId,
+        writerEpoch: '0',
+        offset: '0',
+        bytes
+      })
+      await request('agent.uploads.complete', { uploadId, writerEpoch: '0' })
+      await expect.poll(async () => (await request('agent.uploads.get', { uploadId })).state).toBe('ready')
+      await request('agent.attachments.present', {
+        selectionId: randomUUID(),
+        sessionId,
+        sequence: '1',
+        items: [
+          {
+            attachmentId: uploadId,
+            uploadId,
+            filename: 'abandoned.txt',
+            mediaType: 'text/plain',
+            byteLength: bytes.length
+          }
+        ]
+      })
+      expect(await presence.list(sessionId)).toMatchObject([
+        { sessionId, items: [{ uploadId, upload: { state: 'ready' } }] }
+      ])
+
+      remote.dispose()
+      expect(await presence.list(sessionId)).toEqual([])
+      const scope = hub.uploads.scope({
+        deviceId: device.id,
+        grantId: authorization.grants[0].grantId,
+        peerIdentity: 'disconnect-phone'
+      })
+      expect((await intake.get(scope, uploadId)).state).toBe('ready')
+    } finally {
+      remote?.dispose()
+      MockApplicationUtils.resetServices()
       await intake.drain()
       paths.mockRestore()
       await rm(root, { recursive: true, force: true })
@@ -1142,6 +1263,134 @@ describe('remote agent access', () => {
       providerId: 'provider',
       name: 'Original display name'
     })
+  })
+
+  it('persists the selected provider model on the new session and rejects a model disabled after browsing', async () => {
+    seedModel('model-picker-test', 'chat', 'Picker test chat')
+    dbh.db
+      .update(userProviderTable)
+      .set({ isEnabled: true })
+      .where(eq(userProviderTable.providerId, 'model-picker-test'))
+      .run()
+    const model = { providerId: 'model-picker-test', modelId: 'chat' }
+    const uniqueId = 'model-picker-test::chat'
+    const catalog = await call('agent.models.list', { agentId: 'agent-1', search: 'picker test' })
+    expect(catalog.items).toEqual([{ ...model, name: 'Picker test chat', providerName: 'Desktop provider' }])
+    const syncCallsBeforeCreate = fake.cloud.syncEntitledModelsIfStale.mock.calls.length
+    const create = { agentId: 'agent-1', workspace: { kind: 'system' as const }, commandId: randomUUID(), model }
+    const receipt = await call('agent.sessions.create', create)
+    expect(fake.cloud.syncEntitledModelsIfStale).toHaveBeenCalledTimes(syncCallsBeforeCreate)
+    expect(agentSessionService.getById(receipt.sessionId).model).toBe(uniqueId)
+    expect(agentSessionService.getById(sessionId).model).toBeNull()
+    dbh.db.update(userModelTable).set({ isEnabled: false }).where(eq(userModelTable.id, uniqueId)).run()
+    expect(await call('agent.sessions.create', create)).toEqual(receipt)
+    expect(await call('agent.sessions.create', { ...create, commandId: randomUUID() })).toMatchObject({
+      status: 'rejected',
+      error: { reason: 'MODEL_UNAVAILABLE' }
+    })
+  })
+
+  it('refreshes Cherry Cloud eligibility on new session creation, rejects stale or failed refreshes, and preserves replays', async () => {
+    const model = { providerId: CHERRY_CLOUD_PROVIDER_ID, modelId: 'cloud-chat' }
+    const uniqueId = `${CHERRY_CLOUD_PROVIDER_ID}::cloud-chat`
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: CHERRY_CLOUD_PROVIDER_ID, name: 'Cherry Cloud', isEnabled: true, orderKey: 'a0' })
+      .onConflictDoUpdate({ target: userProviderTable.providerId, set: { isEnabled: true } })
+      .run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: uniqueId,
+        providerId: CHERRY_CLOUD_PROVIDER_ID,
+        modelId: 'cloud-chat',
+        name: 'Cloud Chat',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        orderKey: 'a0'
+      })
+      .run()
+
+    const entitled = { availableModelIds: { agent: [uniqueId], general: [] }, quotaExhaustedModelIds: [] }
+    const revoked = { availableModelIds: { agent: [], general: [] }, quotaExhaustedModelIds: [] }
+    fake.cloud.receipt = { models: { freshness: 'fresh', observedRevision: 1, value: entitled } }
+
+    const createFresh = { agentId: 'agent-1', workspace: { kind: 'system' as const }, commandId: randomUUID(), model }
+    const applied = await call('agent.sessions.create', createFresh)
+    expect(fake.cloud.syncEntitledModelsIfStale).toHaveBeenCalledTimes(1)
+    expect(applied.status).toBe('applied')
+    expect(agentSessionService.getById(applied.sessionId).model).toBe(uniqueId)
+
+    // Replay with the same commandId must preserve the recorded receipt even after entitlement ends.
+    fake.cloud.receipt = { models: { freshness: 'fresh', observedRevision: 2, value: revoked } }
+    expect(await call('agent.sessions.create', createFresh)).toEqual(applied)
+    expect(fake.cloud.syncEntitledModelsIfStale).toHaveBeenCalledTimes(1)
+
+    const sessionCountBeforeReject = dbh.db.select().from(agentSessionTable).all().length
+
+    // New command when cached receipt is stale and refresh drops entitlement must reject with MODEL_UNAVAILABLE.
+    fake.cloud.receipt = { models: { freshness: 'fresh', observedRevision: 1, value: entitled } }
+    fake.cloud.syncEntitledModelsIfStale.mockImplementationOnce(async () => {
+      fake.cloud.receipt = { models: { freshness: 'fresh', observedRevision: 3, value: revoked } }
+    })
+    expect(await call('agent.sessions.create', { ...createFresh, commandId: randomUUID() })).toMatchObject({
+      status: 'rejected',
+      error: { reason: 'MODEL_UNAVAILABLE' }
+    })
+    expect(fake.cloud.syncEntitledModelsIfStale).toHaveBeenCalledTimes(2)
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(sessionCountBeforeReject)
+
+    // Refresh failure must also reject instead of trusting a stale Cloud snapshot.
+    fake.cloud.receipt = { models: { freshness: 'stale', observedRevision: 1, error: 'offline', value: entitled } }
+    fake.cloud.syncEntitledModelsIfStale.mockRejectedValueOnce(new Error('offline'))
+    expect(await call('agent.sessions.create', { ...createFresh, commandId: randomUUID() })).toMatchObject({
+      status: 'rejected',
+      error: { reason: 'MODEL_UNAVAILABLE' }
+    })
+    expect(fake.cloud.syncEntitledModelsIfStale).toHaveBeenCalledTimes(3)
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(sessionCountBeforeReject)
+  })
+
+  it('keeps models with overlong display names discoverable and creatable with surrogate-safe wire labels', async () => {
+    const providerId = 'long-name-provider'
+    const modelId = 'long-name-model'
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId, name: 'P'.repeat(4097), isEnabled: true, orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: `${providerId}::${modelId}`,
+        providerId,
+        modelId,
+        name: `${'A'.repeat(2047)}😀`,
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        orderKey: 'a0'
+      })
+      .run()
+
+    const catalog = await call('agent.models.list', { agentId: 'agent-1', search: modelId })
+    expect(catalog.items).toEqual([
+      {
+        providerId,
+        modelId,
+        name: 'A'.repeat(2047),
+        providerName: 'P'.repeat(4096)
+      }
+    ])
+
+    const receipt = await call('agent.sessions.create', {
+      agentId: 'agent-1',
+      workspace: { kind: 'system' as const },
+      commandId: randomUUID(),
+      model: { providerId, modelId }
+    })
+    expect(receipt.status).toBe('applied')
+    expect(agentSessionService.getById(receipt.sessionId).model).toBe(`${providerId}::${modelId}`)
   })
 
   it('lists the current agent model display name and represents no configured model explicitly', async () => {
@@ -1686,6 +1935,89 @@ describe('remote agent access', () => {
     other.dispose()
   })
 
+  it.each([
+    [20, 20],
+    [20_000, 20],
+    [20, 20_000]
+  ])(
+    'appends through the desktop journal without reading %i old messages or %i sibling IDs',
+    async (history, siblings) => {
+      const journal = hub.journal(sessionId)
+      await journal.startRun('hi', 'agent-1', () => {})
+      const sink = [...(fake.streams.get(`agent-session:${sessionId}`) ?? [])].find(
+        (listener) => listener.content
+      )?.content
+      if (!sink) throw new Error('Missing live feed')
+      const answer = randomUUID()
+      sink.snapshot({ id: answer, role: 'assistant', parts: [] }, 'messages')
+      sink.part({ type: 'part-open', messageId: answer, partId: 'tail', pos: 1, kind: 'text' })
+      const state = journal.projection
+      const row = Object.values(state.messages).find((message) => message.role === 'assistant')!
+      const active = row.partIds[0]
+      for (let i = 0; i < history; i++) {
+        const id = `prior-${i}`
+        state.messages[id] = { ...row, messageId: id, partIds: [] }
+        state.parts[id] = { ...state.parts[active], partId: id }
+      }
+      const visited = () => {
+        throw new Error('Unrelated projection data was visited')
+      }
+      const guard = {
+        ownKeys: visited,
+        get<T extends object>(target: T, key: PropertyKey, receiver: unknown) {
+          if (typeof key === 'string' && key.startsWith('prior-')) visited()
+          return Reflect.get(target, key, receiver)
+        }
+      }
+      state.messages = new Proxy<typeof state.messages>(state.messages, guard)
+      state.parts = new Proxy<typeof state.parts>(state.parts, guard)
+      row.partIds = new Proxy([...Array.from({ length: siblings }, (_, i) => `sibling-${i}`), active], { get: visited })
+      sink.part({ type: 'part-append', partId: 'tail', text: '世界' })
+      expect(journal.projection.parts[active]).toMatchObject({ content: { text: '世界' } })
+    }
+  )
+
+  it('replays a targeted insertion, suffix and tool output with stable remote identities', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const epoch = journal.epoch
+    const answer = randomUUID()
+    const call = { type: 'dynamic-tool', toolCallId: 'tool', toolName: 'Read', input: {} } as const
+    for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
+      const sink = listener.content
+      if (!sink) continue
+      sink.snapshot(
+        {
+          id: answer,
+          role: 'assistant',
+          partIds: ['tool', 'tail'],
+          parts: [
+            { ...call, state: 'input-available' },
+            { type: 'text', text: 'Tail', state: 'done' }
+          ]
+        },
+        'messages'
+      )
+      sink.part({ type: 'part-open', messageId: answer, partId: 'answer', pos: 3, kind: 'text' })
+      sink.part({ type: 'part-append', partId: 'answer', text: '界'.repeat(4200) })
+      sink.part({ type: 'part-finish', partId: 'answer' })
+      sink.part({
+        type: 'part-put',
+        archiveMessageId: answer,
+        partId: 'tool',
+        part: { ...call, state: 'output-available', output: 'result' }
+      })
+    }
+    const parts = journal.projection.messages[answer].partIds.map((id) => journal.projection.parts[id])
+    expect(parts).toMatchObject([
+      { kind: 'tool-input' },
+      { kind: 'tool-output', content: { text: '"result"' } },
+      { kind: 'text', content: { text: 'Tail' } },
+      { kind: 'text', content: { text: '界'.repeat(4200) }, state: 'completed' }
+    ])
+    expect(journal.epoch).toBe(epoch)
+  })
+
   it('keeps streaming replacements across the content-reference threshold in the same journal epoch', async () => {
     const journal = hub.journal(sessionId)
     await journal.startRun('hi', 'agent-1', () => {})
@@ -1694,9 +2026,8 @@ describe('remote agent access', () => {
     for (const length of [4096, 4097, 5000]) {
       const text = '界'.repeat(length)
       for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
-        listener.onMessage?.(
+        listener.content?.snapshot(
           { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
-          undefined,
           'messages'
         )
       expect(journal.epoch).toBe(epoch)
@@ -1729,9 +2060,8 @@ describe('remote agent access', () => {
     const answerId = randomUUID()
     const text = '界'.repeat(5000)
     for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
-      listener.onMessage?.(
+      listener.content?.snapshot(
         { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
-        undefined,
         'messages'
       )
     }
@@ -1776,7 +2106,7 @@ describe('remote agent access', () => {
     await journal.startRun('hi', 'agent-1', () => {})
     const publish = (parts: CherryMessagePart[]) => {
       for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
-        listener.onMessage?.({ id: 'answer', role: 'assistant', parts }, undefined, 'messages')
+        listener.content?.snapshot({ id: 'answer', role: 'assistant', parts }, 'messages')
     }
     publish([
       { type: 'text', text: 'Withdrawn', state: 'streaming' },
@@ -1807,7 +2137,12 @@ describe('remote agent access', () => {
       state: 'completed'
     })
     expect(applyAgentEvents(applied.projection, batch, {}, integrity)).toEqual(applied)
-    const legacy = installLegacyCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    const legacy = installLegacyCheckpoint(
+      checkpoint.descriptor,
+      checkpoint.pages.map((page) => legacyPageSchema.parse(page)),
+      {},
+      integrity
+    )
     if (!legacy.ok) throw new Error(legacy.reason)
     expect(applyLegacyEvents(legacy.projection, legacyBatchSchema.parse(batch), {}, integrity).ok).toBe(true)
   })

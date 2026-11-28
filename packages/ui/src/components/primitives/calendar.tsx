@@ -41,7 +41,7 @@ function Calendar({
         dropdown_root: cn(defaultClassNames.dropdown_root, 'relative'),
         dropdown: cn(
           defaultClassNames.dropdown,
-          'h-8 rounded-md border border-border bg-background px-2 text-sm transition-colors outline-none focus-visible:border-primary'
+          'h-8 rounded-md border border-border bg-background px-2 text-sm transition-colors focus-visible:border-ring'
         ),
         nav: cn(defaultClassNames.nav, 'absolute inset-x-0 top-3 flex items-center justify-between px-3'),
         button_previous: cn(
@@ -59,7 +59,7 @@ function Calendar({
         day: cn(defaultClassNames.day, 'size-8 p-0 text-center text-sm'),
         day_button: cn(
           defaultClassNames.day_button,
-          'inline-flex size-8 items-center justify-center rounded-md text-sm font-normal transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40'
+          'inline-flex size-8 items-center justify-center rounded-md text-sm font-normal transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground disabled:pointer-events-none disabled:opacity-40'
         ),
         selected: cn(
           defaultClassNames.selected,
