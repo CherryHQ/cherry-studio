@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -114,6 +113,11 @@ const MISE_NPM_SHELL_OUT_TOOLS = new Set(
 const MISE_REQUIRED_PEERS = new Map(
   CODE_CLI_TOOL_PRESETS.flatMap((preset) =>
     preset.requiredPeer ? [[preset.miseTool, preset.requiredPeer] as const] : []
+  )
+)
+const MISE_INSTALL_TIMEOUT_OVERRIDES = new Map(
+  CODE_CLI_TOOL_PRESETS.flatMap((preset) =>
+    preset.installTimeoutMs ? [[preset.miseTool, preset.installTimeoutMs] as const] : []
   )
 )
 
@@ -237,9 +241,11 @@ type FixedToolDefinition = {
   pipDependencies?: readonly string[]
   /** Version prefix the latest-version query is scoped to (`<tool>@<prefix>`). */
   latestVersionPrefix?: string
+  /** Install timeout override in ms for large dependency trees (#19313). */
+  installTimeoutMs?: number
 }
 type InstallableToolDefinition = CustomToolDefinition &
-  Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies' | 'latestVersionPrefix'>
+  Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies' | 'latestVersionPrefix' | 'installTimeoutMs'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -326,7 +332,8 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
       name: preset.executable,
       tool: preset.miseTool,
       ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
-      ...(preset.latestVersionPrefix ? { latestVersionPrefix: preset.latestVersionPrefix } : {})
+      ...(preset.latestVersionPrefix ? { latestVersionPrefix: preset.latestVersionPrefix } : {}),
+      ...(preset.installTimeoutMs ? { installTimeoutMs: preset.installTimeoutMs } : {})
     }
   ])
 ])
@@ -678,7 +685,7 @@ export class BinaryManager extends BaseService {
         if (!(await this.isWithinInstall(activeEntry, runnable.canonical))) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
-        if (!this.hasRequiredRuntimeDependencies(tool, runnable.canonical)) {
+        if (!this.hasRequiredRuntimeDependencies(tool, runnable.canonical, activeEntry.install_path)) {
           return { application: { status: 'broken', ...(version ? { version } : {}) } }
         }
         return {
@@ -1278,6 +1285,13 @@ export class BinaryManager extends BaseService {
       if (opts.shellOutNpm) {
         env['MISE_NPM_SHELL_OUT'] = '1'
         env['MISE_NPM_PACKAGE_MANAGER'] = 'npm'
+        // DSH's only transitive peer (dsh-scope) is silently skipped when npm
+        // resolves with legacy peer semantics. The isolated HOME already blocks
+        // user .npmrc, but an explicit opt-out makes the install deterministic
+        // even if mise forwards extra npm config in the future (#19313).
+        env['NPM_CONFIG_LEGACY_PEER_DEPS'] = 'false'
+        env['NPM_CONFIG_FUND'] = 'false'
+        env['NPM_CONFIG_AUDIT'] = 'false'
       }
       if (opts.prependPath) {
         const pathSeparator = isWin ? ';' : path.delimiter
@@ -1424,7 +1438,7 @@ export class BinaryManager extends BaseService {
     return (
       runnable !== null &&
       (await this.isWithinInstall(activeEntry, runnable.canonical)) &&
-      this.hasRequiredRuntimeDependencies(tool, runnable.canonical)
+      this.hasRequiredRuntimeDependencies(tool, runnable.canonical, activeEntry.install_path)
     )
   }
 
@@ -1432,29 +1446,176 @@ export class BinaryManager extends BaseService {
    * Whether a recipe declaring a required peer still has it, resolved the way the
    * tool's own runtime would. A recipe declaring none passes untouched, so this
    * costs nothing for the tools that install completely.
+   *
+   * Filesystem-based on purpose: `createRequire(...).resolve` caches misses in
+   * the current process (observed on Node 24.22.2), so a Retry that reinstalls
+   * the same version into the same directory would still read the pre-repair
+   * miss and report failure until restart. Walking `node_modules` with
+   * `fs.existsSync` observes package-tree changes within the same app session.
+   *
+   * The launcher path alone is not a reliable base on Windows: the default npm
+   * global layout puts the launcher at the install prefix while the host can live
+   * under the top package's own `node_modules`. The walk starts from the
+   * launcher and from the top package's own entry so a nested host still
+   * resolves and a missing peer still fails closed (#19313).
    */
-  private hasRequiredRuntimeDependencies(tool: string, entryPath: string): boolean {
+  private hasRequiredRuntimeDependencies(tool: string, entryPath: string, installPath?: string): boolean {
     const required = MISE_REQUIRED_PEERS.get(tool)
     if (!required) return true
-    let hostEntry: string
-    try {
-      hostEntry = createRequire(entryPath).resolve(required.host)
-    } catch {
+    const topPackage = tool
+      .split(':')
+      .slice(1)
+      .join(':')
+      .replace(/\[[^\]]*\]/g, '')
+    if (!topPackage || !topPackage.includes('/')) {
+      // Non-scoped or unparseable spec: no package-entry fallback to try.
+      return true
+    }
+    const hostDir =
+      this.resolvePackageDirViaFilesystem(entryPath, required.host) ??
+      this.resolvePackageDirFromTop(entryPath, installPath, topPackage, required.host)
+    if (!hostDir) {
       // An absent host means the recipe restructured its packages, which is not
       // evidence that THIS install lost the peer — never fail a tool closed on it.
       return true
     }
+    const peerDir =
+      this.resolvePackageDirViaFilesystem(path.join(hostDir, 'package.json'), required.peer) ??
+      this.resolvePackageDirFromTop(entryPath, installPath, topPackage, required.peer, hostDir)
+    if (peerDir) return true
+    logger.warn('Managed tool dependency tree is incomplete', {
+      tool,
+      ...required,
+      hostDir
+    })
+    return false
+  }
+
+  /**
+   * Node-style `node_modules` walk without Node's resolution cache. Starts at
+   * `startFile`'s directory and checks `<dir>/node_modules/<packageName>/package.json`
+   * at each ancestor so a same-process reinstall is observed immediately.
+   */
+  private resolvePackageDirViaFilesystem(startFile: string, packageName: string): string | null {
+    let dir: string
     try {
-      createRequire(hostEntry).resolve(required.peer)
-      return true
-    } catch (error) {
-      logger.warn('Managed tool dependency tree is incomplete', {
-        tool,
-        ...required,
-        error: this.errorMessage(error)
-      })
+      dir = path.dirname(startFile)
+    } catch {
+      return null
+    }
+    for (let depth = 0; depth < 12; depth++) {
+      const candidate = path.join(dir, 'node_modules', packageName)
+      try {
+        if (fs.existsSync(path.join(candidate, 'package.json'))) return candidate
+      } catch {
+        // Unreadable level: keep walking up rather than failing closed.
+      }
+      const parent = path.dirname(dir)
+      if (parent === dir) break
+      dir = parent
+    }
+    return null
+  }
+
+  /**
+   * Locate a package that may live under the top-level npm package rather than
+   * alongside the launcher (Windows npm prefix: launcher at the prefix, host
+   * nested under `<prefix>/node_modules/<top>/node_modules`). Checks the top
+   * package dir itself plus a walk from it so nested, sibling-hoisted, and
+   * prefix-hoisted layouts all resolve.
+   */
+  private resolvePackageDirFromTop(
+    entryPath: string,
+    installPath: string | undefined,
+    topPackage: string,
+    packageName: string,
+    excludeDir?: string
+  ): string | null {
+    const candidateBases: string[] = []
+    if (typeof installPath === 'string' && installPath) candidateBases.push(installPath)
+    try {
+      const launcherDir = path.dirname(entryPath)
+      candidateBases.push(launcherDir, path.dirname(launcherDir))
+    } catch {
+      // entryPath without a dirname: fall back to installPath candidates only.
+    }
+    // The walk from the launcher already covers hoisted layouts; this pass
+    // covers the nested-under-top layout the launcher walk cannot descend into.
+    for (const base of candidateBases) {
+      for (const topDir of [
+        path.join(base, 'node_modules', topPackage),
+        path.join(base, 'lib', 'node_modules', topPackage)
+      ]) {
+        let isTop = false
+        try {
+          isTop = fs.existsSync(path.join(topDir, 'package.json'))
+        } catch {
+          continue
+        }
+        if (!isTop) continue
+        // Nested directly under the top package first (exact Windows layout).
+        const nested = path.join(topDir, 'node_modules', packageName)
+        try {
+          if (fs.existsSync(path.join(nested, 'package.json')) && nested !== excludeDir) return nested
+        } catch {
+          // Fall through to the walk below.
+        }
+        const walked = this.resolvePackageDirViaFilesystem(path.join(topDir, 'package.json'), packageName)
+        if (walked && walked !== excludeDir) return walked
+      }
+    }
+    // Last resort: the top package itself may be resolvable from the launcher
+    // walk (e.g. `<prefix>/node_modules/<top>`), then the nested check above
+    // applies on the next call. Directly walking for the target from the top
+    // entry keeps that path single-hop.
+    const topDir =
+      this.resolvePackageDirViaFilesystem(entryPath, topPackage) ??
+      (typeof installPath === 'string' && installPath
+        ? this.resolvePackageDirViaFilesystem(path.join(installPath, 'package.json'), topPackage)
+        : null)
+    if (topDir && topDir !== excludeDir) {
+      const nested = path.join(topDir, 'node_modules', packageName)
+      try {
+        if (fs.existsSync(path.join(nested, 'package.json'))) return nested
+      } catch {
+        // Fall through to null below.
+      }
+    }
+    return null
+  }
+
+  /**
+   * Whether the required peer is verified missing (not just a missing shim).
+   * Returns true only when a runnable target resolves but its peer does not;
+   * a missing shim or unreadable backend returns false so callers keep the
+   * generic runnable failure and avoid destructive repair of an intact tree.
+   */
+  private async isPeerMissing(definition: InstallableToolDefinition): Promise<boolean> {
+    if (!MISE_REQUIRED_PEERS.has(definition.tool)) return false
+    try {
+      const { stdout } = await this.runMise(['ls', '--json', definition.tool])
+      const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+      const activeEntry = entries.find((entry) => entry.active)
+      if (!activeEntry) return false
+      const runnable = await this.resolveRunnableShim(definition.name, definition.tool)
+      if (!runnable) return false
+      if (!(await this.isWithinInstall(activeEntry, runnable.canonical))) return false
+      return !this.hasRequiredRuntimeDependencies(definition.tool, runnable.canonical, activeEntry.install_path)
+    } catch {
       return false
     }
+  }
+
+  /**
+   * Public peer verification for launchers (e.g. DeepSeek Harness) that only
+   * hold a snapshot. Snapshots collapse a missing shim and a verified peer
+   * loss to the same `broken` + `none` shape, so launch must not name the peer
+   * from the snapshot alone — it asks here whether the peer is actually gone.
+   */
+  public async isToolPeerMissing(name: string): Promise<boolean> {
+    const definition = this.resolveDefinition(name)
+    if (!definition) return false
+    return this.isPeerMissing(definition)
   }
 
   private async resolveMiseBinaryForTool(
@@ -1519,7 +1680,12 @@ export class BinaryManager extends BaseService {
     return runtimeBin
   }
 
-  private async installPipxTool(args: string[], pythonPath: string, includePrerelease: boolean): Promise<void> {
+  private async installPipxTool(
+    args: string[],
+    pythonPath: string,
+    includePrerelease: boolean,
+    timeoutMs: number = MISE_INSTALL_TIMEOUT_MS
+  ): Promise<void> {
     // mise's pipx backend shells out to uv, which honours UV_PYTHON — so mise
     // never needs a Python of its own, and none is passed to `mise use`.
     const pythonEnv = {
@@ -1532,7 +1698,7 @@ export class BinaryManager extends BaseService {
     // the user chose is used as-is, since retrying elsewhere would silently pull
     // packages from somewhere they did not ask for.
     const snapshot = await this.getIsolatedEnv()
-    const opts = { timeoutMs: MISE_INSTALL_TIMEOUT_MS, includePrerelease, snapshot }
+    const opts = { timeoutMs, includePrerelease, snapshot }
     if (!snapshot.usesDefaultChinaPipIndex) {
       await this.runMise(args, { ...opts, env: pythonEnv })
       return
@@ -1604,7 +1770,8 @@ export class BinaryManager extends BaseService {
   private async installWithMise(
     definition: InstallableToolDefinition,
     targetVersion: string | undefined,
-    definitions: CustomToolDefinition[]
+    definitions: CustomToolDefinition[],
+    opts?: { forceCleanReinstall?: boolean; cleanVersion?: string }
   ): Promise<string> {
     const requested = targetVersion ?? definition.requestedVersion ?? 'latest'
     const backend = definition.tool.split(':')[0]
@@ -1651,8 +1818,44 @@ export class BinaryManager extends BaseService {
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
+    // DSH's 455-package graph needs ~12 min for resolution alone; the shared
+    // 15 min budget truncates downloads on Windows + AV and drops the
+    // transitive dsh-scope peer (#19313).
+    const installTimeoutMs =
+      definition.installTimeoutMs ?? MISE_INSTALL_TIMEOUT_OVERRIDES.get(definition.tool) ?? MISE_INSTALL_TIMEOUT_MS
 
+    // Provision the npm runtime before any destructive repair: if Node lookup
+    // fails, Retry must keep the existing tree so the base path still applies.
+    // A missing shim alone must not wipe an otherwise intact install.
     const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
+
+    // A truncated tree still reports an active version, so a plain `mise use`
+    // can no-op on the same version and leave the missing peer behind. Wipe
+    // the affected install first so the retry below performs a full reinstall
+    // (#19313). Scoped to the broken version when known; `--all` is only the
+    // fallback when the active version cannot be proven.
+    // `--no-prune` keeps `unuse` to the config file: without it pinned mise
+    // `2026.7.14` with `MISE_YES=1` also uninstalls every cached version, so a
+    // failed download would delete an unreferenced version the scoped uninstall
+    // below would have preserved.
+    if (opts?.forceCleanReinstall) {
+      try {
+        await this.runMise(['unuse', '-g', '--no-prune', definition.tool], { timeoutMs: installTimeoutMs })
+      } catch (error) {
+        logger.warn('Failed to unuse incomplete tool before reinstall', {
+          name: definition.name,
+          error: this.errorMessage(error)
+        })
+      }
+      if (opts.cleanVersion) {
+        await this.runMise(['uninstall', `${definition.tool}@${opts.cleanVersion}`], {
+          timeoutMs: installTimeoutMs
+        })
+      } else {
+        await this.runMise(['uninstall', '--all', definition.tool], { timeoutMs: installTimeoutMs })
+      }
+      await this.runMise(['reshim'])
+    }
     // Cherry provisions Python itself, so the pipx runtime stays out of `mise
     // use` — naming it there is what makes mise fetch its own Python.
     const pythonPath =
@@ -1668,14 +1871,14 @@ export class BinaryManager extends BaseService {
     ]
 
     if (pythonPath) {
-      await this.installPipxTool(useArgs, pythonPath, includePrerelease)
+      await this.installPipxTool(useArgs, pythonPath, includePrerelease, installTimeoutMs)
       await this.releaseMisePythonSelection()
       if (definition.pipDependencies?.length) {
         await this.enforcePipDependencies(definition, definition.pipDependencies)
       }
     } else {
       await this.runMise(useArgs, {
-        timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+        timeoutMs: installTimeoutMs,
         includePrerelease,
         shellOutNpm,
         prependPath: runtimeBin
@@ -1859,7 +2062,8 @@ export class BinaryManager extends BaseService {
   private async applyDefinition(
     definition: InstallableToolDefinition,
     targetVersion: string | undefined,
-    definitions: CustomToolDefinition[]
+    definitions: CustomToolDefinition[],
+    opts?: { forceCleanReinstall?: boolean; cleanVersion?: string }
   ): Promise<void> {
     const isRuntime = isRuntimeDependency(definition.tool)
     // Adoption stays deliberately looser than the post-install gate: it only asks
@@ -1879,8 +2083,17 @@ export class BinaryManager extends BaseService {
 
     // installWithMise resolves the installed version as verification that mise
     // actually applied the request; the value itself is not consumed.
-    await this.installWithMise(definition, targetVersion, definitions)
+    await this.installWithMise(definition, targetVersion, definitions, opts)
     if (!(await this.isRecipeRunnable(definition.name, definition.tool))) {
+      const required = MISE_REQUIRED_PEERS.get(definition.tool)
+      // A missing shim alone leaves an otherwise intact tree: report the
+      // runnable failure, not a peer failure, so Retry does not mislabel it.
+      // Only a verified peer loss names the missing package.
+      if (required && (await this.isPeerMissing(definition))) {
+        throw new Error(
+          `Tool installed but incomplete: missing '${required.peer}' required by '${required.host}'. Retry the install; if it persists, remove the tool and install again`
+        )
+      }
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
     }
 
@@ -2007,7 +2220,24 @@ export class BinaryManager extends BaseService {
           // Invalidate before invoking mise: a failed command may still have made a
           // partial backend change, which must also stale any in-flight latest batch.
           this.bumpMutationRevision()
-          await this.applyDefinition(definition, targetVersion, definitions)
+          // A broken required-peer install (e.g. DSH missing dsh-scope) still
+          // reports an active version, so a plain `mise use` would no-op.
+          // Force a clean reinstall so Retry actually repairs the tree (#19313).
+          // Only a verified peer loss wipes: a missing shim alone keeps its tree
+          // so a later Node failure does not delete versions the base path kept.
+          let forceCleanReinstall = false
+          let cleanVersion: string | undefined
+          if (status === 'broken' && MISE_REQUIRED_PEERS.has(definition.tool)) {
+            if (await this.isPeerMissing(definition)) {
+              forceCleanReinstall = true
+              cleanVersion = snapshot.application?.status === 'broken' ? snapshot.application.version : undefined
+            } else {
+              logger.info('Skipping clean reinstall; required peer is present (likely a shim failure)', {
+                name: definition.name
+              })
+            }
+          }
+          await this.applyDefinition(definition, targetVersion, definitions, { forceCleanReinstall, cleanVersion })
           return { kind: 'done' }
         } catch (err) {
           return { kind: 'failed', error: err instanceof Error ? err.message : String(err) }

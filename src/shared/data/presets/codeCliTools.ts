@@ -26,6 +26,12 @@ export interface CodeCliToolPreset {
   latestVersionPrefix?: string
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
+  /**
+   * Install timeout override in ms. Defaults to the shared install budget.
+   * DSH resolves ~455 packages (~12 min for resolution alone), so a truncated
+   * download leaves a peer-less tree that reports success (#19313).
+   */
+  installTimeoutMs?: number
   /** Exact npm packages whose lifecycle scripts mise may run during installation. */
   npmAllowBuilds?: readonly string[]
   /**
@@ -95,6 +101,9 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     misePrerelease: true,
     // mise 2026.7.14 aube exceeds its 16-pass fixed-point limit on DSH's recursive peer graph.
     miseNpmShellOut: true,
+    // 30 min: the recursive peer graph needs ~12 min for resolution alone;
+    // a 15 min budget truncates downloads on Windows + AV and drops dsh-scope.
+    installTimeoutMs: 30 * 60_000,
     // dsh-scope is nowhere a real dependency, only a transitive peer, so an install
     // reports success without it (#19313).
     requiredPeer: { host: '@deepseek-ai/dsh-agent-loop', peer: '@deepseek-ai/dsh-scope' }

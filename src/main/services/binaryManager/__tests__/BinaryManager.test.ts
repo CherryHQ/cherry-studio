@@ -638,19 +638,56 @@ describe('BinaryManager', () => {
         }
         return { stdout: '', stderr: '' }
       })
-      mockCreateRequire.mockImplementation((filename: string) => ({
-        resolve: (request: string) => {
-          if (request === '@deepseek-ai/dsh-agent-loop') {
-            return '/opt/mise/installs/npm-deepseek-ai-dsh/0.1.1-rc.2/node_modules/@deepseek-ai/dsh-agent-loop/lib/index.js'
-          }
-          if (request === '@deepseek-ai/dsh-scope') {
-            throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
-              code: 'MODULE_NOT_FOUND'
-            })
-          }
-          throw new Error(`Unexpected package resolution: ${request}`)
+      // Filesystem-based peer probe (no Node resolution cache): top + host
+      // present, peer absent → truncated install fails closed.
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => {
+        const normalized = String(candidate)
+        if (normalized.endsWith(path.join('@deepseek-ai', 'dsh', 'package.json'))) return true
+        if (normalized.endsWith(path.join('@deepseek-ai', 'dsh-agent-loop', 'package.json'))) return true
+        return false
+      })
+
+      await expect(service.getToolSnapshots(['dsh'])).resolves.toMatchObject({
+        dsh: {
+          availability: { source: 'none' },
+          application: { status: 'broken', version: '0.1.1-rc.2' }
         }
-      }))
+      })
+    })
+
+    it('detects a truncated Windows npm prefix install via the package entry, not the launcher', async () => {
+      // Windows npm global layout: launcher at the install prefix, host nested
+      // under the top package's own node_modules. The filesystem walk from the
+      // launcher plus the top-package pass must still fail closed when the
+      // peer is absent, without relying on Node's cached resolver.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      const prefix = '/mock/mise/installs/npm-deepseek-ai-dsh/0.1.1-rc.2'
+      const launcher = `${prefix}/dsh`
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true, install_path: prefix }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') {
+          return { stdout: `${launcher}\n`, stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      // Precise package matching: top + nested host present, peer absent.
+      // A broad `includes('node_modules/@deepseek-ai/dsh')` would also match
+      // `dsh-scope` and falsely report the truncated tree as healthy.
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) => {
+        const normalized = String(candidate)
+        if (normalized.endsWith(path.join('@deepseek-ai', 'dsh', 'package.json'))) return true
+        if (normalized.endsWith(path.join('@deepseek-ai', 'dsh-agent-loop', 'package.json'))) return true
+        return false
+      })
 
       await expect(service.getToolSnapshots(['dsh'])).resolves.toMatchObject({
         dsh: {
@@ -4221,7 +4258,8 @@ describe('BinaryManager', () => {
       expect(shellOutEnv).toMatchObject({
         MISE_DATA_DIR: '/isolated',
         MISE_NPM_SHELL_OUT: '1',
-        MISE_NPM_PACKAGE_MANAGER: 'npm'
+        MISE_NPM_PACKAGE_MANAGER: 'npm',
+        NPM_CONFIG_LEGACY_PEER_DEPS: 'false'
       })
       expect(shellOutEnv).not.toHaveProperty('MISE_PRERELEASES')
     })
