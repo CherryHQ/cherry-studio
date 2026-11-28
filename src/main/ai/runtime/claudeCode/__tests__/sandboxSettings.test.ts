@@ -102,7 +102,7 @@ describe('checkClaudeCodeSandboxAvailability', () => {
   it.each([
     [
       'a missing dependency',
-      { FAKE_OUTPUT: status({ unavailableReason: 'bubblewrap is not installed' }) },
+      { FAKE_OUTPUT: status({ enabled: false, unavailableReason: 'bubblewrap is not installed' }) },
       'bubblewrap'
     ],
     ['another status version', { FAKE_OUTPUT: status({ statusVersion: 4 }) }, 'version 4'],

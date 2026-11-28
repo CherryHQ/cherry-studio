@@ -72,9 +72,9 @@ function parseSandboxStatus(stdout: string): ClaudeCodeSandboxAvailability {
   if (status.statusVersion !== 3) {
     return { available: false, reason: `unknown sandbox status version ${String(status.statusVersion)}` }
   }
+  if (status.unavailableReason !== null) return { available: false, reason: String(status.unavailableReason) }
   if (status.supported !== true) return { available: false, reason: 'the CLI does not support a sandbox here' }
   if (status.enabled !== true) return { available: false, reason: 'the CLI did not enable the sandbox' }
-  if (status.unavailableReason !== null) return { available: false, reason: String(status.unavailableReason) }
   return { available: true }
 }
 
