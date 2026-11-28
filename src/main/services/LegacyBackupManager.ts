@@ -47,6 +47,7 @@ import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
+import type { BackupAnalyticsTarget } from '@shared/ipc/schemas/analytics'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
@@ -61,7 +62,10 @@ import {
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { hasReportingOwner, markReportingHandled } from '@shared/utils/errorReporting'
+import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
+import { queueStagedRestore } from './analyticsPendingReports'
+import { trackMainProductEvent } from './productAnalytics'
 import type S3Storage from './S3Storage'
 import type WebDav from './WebDav'
 
@@ -752,10 +756,23 @@ class BackupManager {
    * @param backupPath - Path to the backup ZIP file
    */
   async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<void> {
-    return this.runBackupWorkflow(async () => {
-      await this.restoreUnlocked(backupPath)
-      application.relaunch()
-    })
+    return this.restoreFile(backupPath, 'file')
+  }
+
+  private async restoreFile(backupPath: string, target: BackupAnalyticsTarget): Promise<void> {
+    return this.runBackupWorkflow(() => this.stageRestoreAndRelaunch(target, () => this.restoreUnlocked(backupPath)))
+  }
+
+  // A staged restore finishes after the relaunch, so its result is reported once the restore gate settles it.
+  private async stageRestoreAndRelaunch(target: BackupAnalyticsTarget, stage: () => Promise<void>): Promise<void> {
+    try {
+      await stage()
+    } catch (error) {
+      trackMainProductEvent({ event: 'restore_run', target, status: 'failed' })
+      throw error
+    }
+    queueStagedRestore(target)
+    application.relaunch()
   }
 
   private async restoreUnlocked(backupPath: string): Promise<void> {
@@ -1320,7 +1337,7 @@ class BackupManager {
         throw new Error(`Backup file not found: ${backupPath}`)
       }
 
-      return await this.restore(_, backupPath)
+      return await this.restoreFile(backupPath, 'local_dir')
     } catch (error) {
       logFailure(
         logger,
@@ -1341,29 +1358,31 @@ class BackupManager {
    * @returns Result from restore operation
    */
   async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    return this.runBackupWorkflow(async () => {
-      const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-      const webdavClient = await this.getWebDavInstance(webdavConfig)
-      const downloadDir = await this.createOperationDir('webdav-download')
-      const backupedFilePath = path.join(downloadDir, path.basename(filename))
-      try {
-        await pipeline(webdavClient.createReadStream(filename), fs.createWriteStream(backupedFilePath))
-        await this.restoreUnlocked(backupedFilePath)
-      } catch (error: any) {
-        logFailure(
-          logger,
-          'Failed to restore from WebDAV:',
-          error,
-          'backup.restore_webdav',
-          classifyBackupFailure(error)
-        )
-        const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
-        throw reportedError
-      } finally {
-        await fs.remove(downloadDir).catch(() => {})
-      }
-      application.relaunch()
-    })
+    const target = webdavConfig.webdavHost === NUTSTORE_HOST ? 'nutstore' : 'webdav'
+    return this.runBackupWorkflow(() =>
+      this.stageRestoreAndRelaunch(target, async () => {
+        const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
+        const webdavClient = await this.getWebDavInstance(webdavConfig)
+        const downloadDir = await this.createOperationDir('webdav-download')
+        const backupedFilePath = path.join(downloadDir, path.basename(filename))
+        try {
+          await pipeline(webdavClient.createReadStream(filename), fs.createWriteStream(backupedFilePath))
+          await this.restoreUnlocked(backupedFilePath)
+        } catch (error: any) {
+          logFailure(
+            logger,
+            'Failed to restore from WebDAV:',
+            error,
+            'backup.restore_webdav',
+            classifyBackupFailure(error)
+          )
+          const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
+          throw reportedError
+        } finally {
+          await fs.remove(downloadDir).catch(() => {})
+        }
+      })
+    )
   }
 
   /**
@@ -1374,34 +1393,35 @@ class BackupManager {
    * @returns Result from restore operation
    */
   async restoreFromS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    return this.runBackupWorkflow(async () => {
-      const filename = s3Config.fileName || 'cherry-studio.backup.zip'
+    return this.runBackupWorkflow(() =>
+      this.stageRestoreAndRelaunch('s3', async () => {
+        const filename = s3Config.fileName || 'cherry-studio.backup.zip'
 
-      logger.debug(`Starting restore from S3: ${filename}`)
+        logger.debug(`Starting restore from S3: ${filename}`)
 
-      const s3Client = await this.getS3Storage(s3Config)
-      const downloadDir = await this.createOperationDir('s3-download')
-      const backupedFilePath = path.join(downloadDir, path.basename(filename))
-      try {
-        await pipeline(await s3Client.getFileStream(filename), fs.createWriteStream(backupedFilePath))
+        const s3Client = await this.getS3Storage(s3Config)
+        const downloadDir = await this.createOperationDir('s3-download')
+        const backupedFilePath = path.join(downloadDir, path.basename(filename))
+        try {
+          await pipeline(await s3Client.getFileStream(filename), fs.createWriteStream(backupedFilePath))
 
-        logger.info(`S3 restore file downloaded successfully: ${filename}`)
-        await this.restoreUnlocked(backupedFilePath)
-      } catch (error: any) {
-        logFailure(
-          logger,
-          '[BackupManager] Failed to restore from S3:',
-          error,
-          'backup.restore_s3',
-          classifyBackupFailure(error)
-        )
-        const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
-        throw reportedError
-      } finally {
-        await fs.remove(downloadDir).catch(() => {})
-      }
-      application.relaunch()
-    })
+          logger.info(`S3 restore file downloaded successfully: ${filename}`)
+          await this.restoreUnlocked(backupedFilePath)
+        } catch (error: any) {
+          logFailure(
+            logger,
+            '[BackupManager] Failed to restore from S3:',
+            error,
+            'backup.restore_s3',
+            classifyBackupFailure(error)
+          )
+          const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
+          throw reportedError
+        } finally {
+          await fs.remove(downloadDir).catch(() => {})
+        }
+      })
+    )
   }
 
   // ==================== File Utility Methods ====================

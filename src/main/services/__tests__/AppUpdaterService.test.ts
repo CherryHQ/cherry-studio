@@ -68,6 +68,8 @@ vi.mock('@main/utils/appEdition', () => ({
 vi.mock('@main/core/macElectronBridge', () => ({
   isMacElectronBridgePackage: () => appEditionState.bridge
 }))
+// Analytics is covered by the scheduler suite; this one mocks the lifecycle base the module graph needs.
+vi.mock('@main/services/productAnalytics', () => ({ trackMainProductEvent: vi.fn() }))
 
 vi.mock('@main/services/RegionService', () => ({
   regionService: { getCountry: vi.fn(async () => 'US') }

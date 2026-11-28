@@ -10,6 +10,7 @@ import {
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
   BACKUP_DISK_FULL_ERROR_CODE
 } from '@shared/types/backup'
+import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
 // Mock path module to normalize all paths to POSIX format for cross-platform consistency
 // This ensures path operations work the same way regardless of the actual OS
@@ -328,6 +329,10 @@ vi.mock('../WebDav', () => ({
 vi.mock('../S3Storage', () => ({
   default: vi.fn()
 }))
+
+const restoreAnalytics = vi.hoisted(() => ({ queueStagedRestore: vi.fn(), trackMainProductEvent: vi.fn() }))
+vi.mock('../analyticsPendingReports', () => ({ queueStagedRestore: restoreAnalytics.queueStagedRestore }))
+vi.mock('../productAnalytics', () => ({ trackMainProductEvent: restoreAnalytics.trackMainProductEvent }))
 
 vi.mock('archiver', () => ({
   ZipArchive: vi.fn()
@@ -1039,6 +1044,57 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(restoreUnlocked).toHaveBeenCalledWith('/mock/temp/backup/webdav-download-operation-id/backup.zip')
     expect(createReadStream).toHaveBeenCalledWith('backup.zip')
     expect(events).toEqual(['remove:/mock/temp/backup/webdav-download-operation-id', 'relaunch'])
+  })
+
+  it('keeps a staged Nutstore restore for the next launch before relaunching', async () => {
+    mockDownloadedFileWrite()
+    vi.spyOn(backupManager as any, 'getWebDavInstance').mockReturnValue({
+      createReadStream: vi.fn(() => Readable.from(Buffer.from('backup')))
+    })
+    vi.spyOn(backupManager as any, 'restoreUnlocked').mockResolvedValue(undefined)
+    restoreAnalytics.queueStagedRestore.mockClear()
+    restoreAnalytics.trackMainProductEvent.mockClear()
+
+    await backupManager.restoreFromWebdav({} as Electron.IpcMainInvokeEvent, {
+      webdavHost: NUTSTORE_HOST,
+      fileName: 'backup.zip'
+    })
+
+    expect(restoreAnalytics.queueStagedRestore).toHaveBeenCalledWith('nutstore')
+    expect(restoreAnalytics.queueStagedRestore.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRelaunch.mock.invocationCallOrder.at(-1)!
+    )
+    expect(restoreAnalytics.trackMainProductEvent).not.toHaveBeenCalled()
+  })
+
+  it('reports a restore that fails before staging right away, without relaunching', async () => {
+    vi.spyOn(backupManager as any, 'getS3Storage').mockReturnValue({
+      getFileStream: vi.fn().mockRejectedValue(new Error('access denied'))
+    })
+    vi.spyOn(backupManager as any, 'withAvailableDiskSpace').mockImplementation(async (error) => error)
+    restoreAnalytics.queueStagedRestore.mockClear()
+    restoreAnalytics.trackMainProductEvent.mockClear()
+    mockRelaunch.mockClear()
+
+    await expect(
+      backupManager.restoreFromS3({} as Electron.IpcMainInvokeEvent, {
+        endpoint: 'https://s3.example.com',
+        region: 'test',
+        bucket: 'backups',
+        accessKeyId: 'access-key',
+        secretAccessKey: 'secret-key',
+        fileName: 'backup.zip',
+        autoSync: false,
+        syncInterval: 0,
+        maxBackups: 1
+      })
+    ).rejects.toThrow('access denied')
+
+    expect(restoreAnalytics.trackMainProductEvent.mock.calls).toEqual([
+      [{ event: 'restore_run', target: 's3', status: 'failed' }]
+    ])
+    expect(restoreAnalytics.queueStagedRestore).not.toHaveBeenCalled()
+    expect(mockRelaunch).not.toHaveBeenCalled()
   })
 
   it('removes the S3 download directory before relaunching', async () => {

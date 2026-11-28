@@ -30,6 +30,19 @@ interface VersionRecord {
  */
 class VersionService {
   private versionLogPath: string | null = null
+  private launchKind: 'first' | 'upgraded' | 'same' | null = null
+
+  /**
+   * How this launch relates to the last recorded run ('upgraded' covers any version change).
+   * Fixed by the first call, so recording this launch's version later does not change it.
+   */
+  getLaunchKind(): 'first' | 'upgraded' | 'same' {
+    if (this.launchKind) return this.launchKind
+    const lines = this.readLastVersionLines()
+    const lastRecord = lines.length > 0 ? this.parseVersionLine(lines[lines.length - 1]) : null
+    this.launchKind = lines.length === 0 ? 'first' : lastRecord?.version !== app.getVersion() ? 'upgraded' : 'same'
+    return this.launchKind
+  }
 
   /**
    * Gets the full path to version.log file
@@ -206,6 +219,7 @@ class VersionService {
    */
   recordCurrentVersion(): void {
     try {
+      this.getLaunchKind()
       const currentLine = this.generateCurrentVersionLine()
       const lines = this.readLastVersionLines()
 

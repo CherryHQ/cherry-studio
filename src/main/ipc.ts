@@ -12,6 +12,7 @@ import {
 import { isSameOrInside } from '@main/utils/file'
 import { hasWritePermission, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
+import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
 import { copilotService } from './services/CopilotService'
 import { fileStorage as fileManager } from './services/FileStorage'
@@ -77,11 +78,12 @@ export async function registerIpc() {
 
   // backup
   handleGuarded(IpcChannel.Backup_Backup, (event, fileName, destinationPath, slimBackup) =>
-    runManualBackup(() => backupManager.backup(event, fileName, destinationPath, slimBackup))
+    runManualBackup('file', () => backupManager.backup(event, fileName, destinationPath, slimBackup))
   )
   handleGuarded(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
-    const { result, cleanupError } = await runManualBackup(() => backupManager.backupToWebdav(event, config))
+    const target = config.webdavHost === NUTSTORE_HOST ? 'nutstore' : 'webdav'
+    const { result, cleanupError } = await runManualBackup(target, () => backupManager.backupToWebdav(event, config))
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
@@ -90,7 +92,7 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToLocalDir, async (event, fileName, config) => {
-    const { result, cleanupError } = await runManualBackup(() =>
+    const { result, cleanupError } = await runManualBackup('local_dir', () =>
       backupManager.backupToLocalDir(event, fileName, config)
     )
     return { result, cleanupFailed: cleanupError !== null }
@@ -99,7 +101,7 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToS3, async (event, config) => {
-    const { result, cleanupError } = await runManualBackup(() => backupManager.backupToS3(event, config))
+    const { result, cleanupError } = await runManualBackup('s3', () => backupManager.backupToS3(event, config))
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))

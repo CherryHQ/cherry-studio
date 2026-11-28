@@ -107,6 +107,11 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
   let scheduler: SchedulerService
   let appUpdater: AppUpdaterService
   let prefValues: Record<string, unknown>
+  let trackProductEvent: ReturnType<typeof vi.fn>
+  const updateEvents = () =>
+    trackProductEvent.mock.calls.map(([event]) => event).filter(({ event }) => event.startsWith('update_'))
+  const listener = (name: string) =>
+    vi.mocked(autoUpdater.on).mock.calls.find(([event]) => event === name)?.[1] as (...args: unknown[]) => void
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -125,7 +130,8 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
       subscribeMultipleChanges: vi.fn(() => vi.fn())
     }
     const powerStub = { registerShutdownHandler: vi.fn() }
-    const analyticsStub = { trackAppUpdate: vi.fn() }
+    trackProductEvent = vi.fn()
+    const analyticsStub = { trackAppUpdate: vi.fn(), trackProductEvent }
     const windowManagerStub = { broadcastToType: vi.fn() }
 
     scheduler = new SchedulerService()
@@ -305,5 +311,77 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
 
     await vi.advanceTimersByTimeAsync(INTERVAL * 2)
     expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+  })
+
+  describe('update analytics', () => {
+    const release = {
+      version: '2.0.0',
+      path: 'test-update.zip',
+      sha512: 'test-checksum',
+      releaseDate: new Date().toISOString(),
+      files: [],
+      releaseNotes: 'A useful update.'
+    }
+
+    it('reports a failed automatic check once, though the updater also emits its error event', async () => {
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementation(async () => {
+        listener('error')(new Error('network'))
+        throw new Error('network')
+      })
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      await appUpdater._doAllReady()
+
+      await vi.advanceTimersByTimeAsync(INITIAL_DELAY)
+
+      expect(updateEvents()).toEqual([{ event: 'update_checked', source: 'auto', result: 'error' }])
+    })
+
+    it('follows a manual check through a successful download', async () => {
+      vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue({
+        isUpdateAvailable: true,
+        updateInfo: release
+      } as never)
+
+      await appUpdater.checkForUpdates()
+      listener('update-available')(release)
+      listener('update-downloaded')(release)
+      // A later failure belongs to another check, not to the finished download.
+      listener('error')(new Error('later check failed'))
+
+      expect(updateEvents()).toEqual([
+        { event: 'update_checked', source: 'manual', result: 'available' },
+        { event: 'update_downloaded', status: 'success' }
+      ])
+    })
+
+    it('reports a download that fails after the update was found', async () => {
+      listener('update-available')(release)
+      listener('error')(new Error('download interrupted'))
+
+      expect(updateEvents()).toEqual([{ event: 'update_downloaded', status: 'error' }])
+    })
+
+    it('does not blame a cancelled download for the next failed check', async () => {
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementation(async () => {
+        listener('error')(new Error('network'))
+        throw new Error('network')
+      })
+      listener('update-available')(release)
+      listener('update-cancelled')(release)
+
+      await appUpdater.checkForUpdates()
+
+      expect(updateEvents()).toEqual([{ event: 'update_checked', source: 'manual', result: 'error' }])
+    })
+
+    it('reports a check that finds no update, and the start of an install', async () => {
+      await appUpdater.checkForUpdates()
+      appUpdater.quitAndInstall()
+
+      expect(updateEvents()).toEqual([
+        { event: 'update_checked', source: 'manual', result: 'not_available' },
+        { event: 'update_install_started' }
+      ])
+    })
   })
 })

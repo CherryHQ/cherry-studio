@@ -173,9 +173,35 @@ export const rendererAnalyticsEventSchema = z.discriminatedUnion('event', [
 ])
 export type RendererAnalyticsEvent = z.infer<typeof rendererAnalyticsEventSchema>
 
+export type BackupAnalyticsTarget = 'file' | 'local_dir' | 'webdav' | 'nutstore' | 's3'
+
 /** Events produced inside the main process; typed only, since they never cross IPC. */
 export type MainAnalyticsEvent =
-  | { event: 'app_opened'; onboardingStatus: 'pending' | 'completed' | 'skipped' }
+  | {
+      event: 'app_opened'
+      onboardingStatus: 'pending' | 'completed' | 'skipped'
+      // 'upgraded' is any version change since the last recorded run.
+      launch: 'first' | 'upgraded' | 'same'
+      migratedFromV1: boolean
+      lastExit: 'clean' | 'unclean' | 'unknown'
+    }
+  // Process start to the first main window being ready to show.
+  | { event: 'app_started'; startupMs: number; launchToTray: boolean }
+  // Once per local day while the app runs, so long-running sessions count as daily activity.
+  | { event: 'app_active' }
+  | { event: 'update_checked'; source: 'manual' | 'auto'; result: 'available' | 'not_available' | 'error' }
+  | { event: 'update_downloaded'; status: 'success' | 'error' }
+  | { event: 'update_install_started' }
+  | {
+      event: 'backup_run'
+      target: BackupAnalyticsTarget
+      mode: 'manual' | 'auto'
+      status: 'success' | 'warning' | 'error'
+      durationMs: number
+    }
+  // Restores and relocations end in a relaunch, so their results are reported on the next launch.
+  | { event: 'restore_run'; target?: BackupAnalyticsTarget; status: 'completed' | 'failed' }
+  | { event: 'data_relocation_run'; copy: boolean; status: 'completed' | 'failed' | 'abandoned' }
   | {
       event: 'agent_turn_finished'
       status: 'success' | 'error' | 'stopped'

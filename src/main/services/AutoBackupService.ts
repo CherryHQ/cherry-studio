@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
 import { WindowType } from '@main/core/window/types'
-import { publishBackupResult } from '@main/services/backupNotifications'
+import { publishBackupResult, trackBackupRun } from '@main/services/backupNotifications'
 import { isSameOrInside } from '@main/utils/file'
 import { hasWritePermission, untildify } from '@main/utils/legacyFile'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
@@ -239,6 +239,8 @@ export class AutoBackupService extends BaseService {
       this.emit({ type, status: 'running' })
     }
 
+    const startedAt = Date.now()
+    const analyticsTarget = type === 'local' ? 'local_dir' : type
     try {
       logger.info('Starting automatic backup', { type, attempt: state.retryCount + 1, maxAttempts: MAX_ATTEMPTS })
       const cleanupError = await this.runBackup(type, signal)
@@ -261,6 +263,7 @@ export class AutoBackupService extends BaseService {
       } else {
         this.emit({ type, status: 'succeeded', timestamp })
       }
+      trackBackupRun(analyticsTarget, 'auto', cleanupError ? 'warning' : 'succeeded', startedAt)
       this.scheduleNext(type, 'fromNow', generation)
     } catch (error) {
       if (!this.isEnabled(type, generation)) {
@@ -305,6 +308,7 @@ export class AutoBackupService extends BaseService {
         classifyBackupFailure(error)
       )
       this.emit({ type, status: 'failed', timestamp, errorMessage })
+      trackBackupRun(analyticsTarget, 'auto', 'failed', startedAt)
       this.scheduleNext(type, 'fromNow', generation)
     }
   }

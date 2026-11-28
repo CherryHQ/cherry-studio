@@ -26,6 +26,7 @@ import { runLegacyUpgradeGate } from '@main/core/preboot/legacyUpgradeGate'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/protocol'
+import { settlePendingRestore } from '@main/services/analyticsPendingReports'
 import { runDataReset } from '@main/services/dataReset'
 import { initSentry } from '@main/services/errorReporting'
 import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
@@ -69,7 +70,7 @@ const startApp = async () => {
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
   // migration gate reads the DB. An isolated restore launch must relaunch
   // before services can use the path registry's original session snapshot.
-  const restoreResult = await runBackupRestoreGate(isolatedRestoreSession)
+  const restoreResult = await runBackupRestoreGate(isolatedRestoreSession, settlePendingRestore)
   if (restoreResult === 'handled') return
 
   const upgradeResult = await runLegacyUpgradeGate()

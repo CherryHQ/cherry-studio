@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   BackupActiveWritersError: class extends Error {},
   BackupOperationBusyError: class extends Error {},
   applicationGet: vi.fn(),
+  trackProductEvent: vi.fn(),
   applicationGetPath: vi.fn((key: string) => (key === 'app.userdata' ? '/mock/userData' : '/mock/install')),
   broadcastToType: vi.fn(),
   decryptToken: vi.fn(async () => ({ username: 'user', access_token: 'token' })),
@@ -138,6 +139,7 @@ describe('AutoBackupService', () => {
       if (name === 'CacheService') return MockMainCacheServiceExport.cacheService
       if (name === 'IpcApiService') return { broadcastToType: mocks.broadcastToType }
       if (name === 'NotificationService') return mockNotificationService
+      if (name === 'AnalyticsService') return { trackProductEvent: mocks.trackProductEvent }
       throw new Error(`Unexpected service: ${name}`)
     })
 
@@ -177,20 +179,48 @@ describe('AutoBackupService', () => {
 
   it('preserves manual backup outcomes while recording success, cleanup warning, and failure', async () => {
     const result = { result: '/backups/saved.zip', cleanupError: null }
-    await expect(runManualBackup(async () => result)).resolves.toBe(result)
+    await expect(runManualBackup('file', async () => result)).resolves.toBe(result)
     const warning = { result: '/backups/saved.zip', cleanupError: new Error('cleanup') }
-    await expect(runManualBackup(async () => warning)).resolves.toBe(warning)
+    await expect(runManualBackup('nutstore', async () => warning)).resolves.toBe(warning)
     const failure = new Error('upload failed')
     await expect(
-      runManualBackup(async () => {
+      runManualBackup('s3', async () => {
         throw failure
       })
     ).rejects.toBe(failure)
+    await expect(runManualBackup('webdav', async () => ({ result: false, cleanupError: null }))).resolves.toEqual({
+      result: false,
+      cleanupError: null
+    })
     expect(mockNotificationService.publish.mock.calls.map(([record]) => record.kind)).toEqual([
       'backup-success',
       'backup-warning',
+      'backup-failed',
       'backup-failed'
     ])
+    expect(mocks.trackProductEvent.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'backup_run', target: 'file', mode: 'manual', status: 'success', durationMs: expect.any(Number) },
+      { event: 'backup_run', target: 'nutstore', mode: 'manual', status: 'warning', durationMs: expect.any(Number) },
+      { event: 'backup_run', target: 's3', mode: 'manual', status: 'error', durationMs: expect.any(Number) },
+      { event: 'backup_run', target: 'webdav', mode: 'manual', status: 'error', durationMs: expect.any(Number) }
+    ])
+  })
+
+  it('reports each automatic backup once with its target and outcome', async () => {
+    await vi.advanceTimersByTimeAsync(60_000)
+    const reports = mocks.trackProductEvent.mock.calls.map(([event]) => event)
+    expect(reports).toHaveLength(4)
+    expect(reports).toEqual(
+      expect.arrayContaining(
+        (['webdav', 's3', 'local_dir', 'nutstore'] as const).map((target) => ({
+          event: 'backup_run',
+          target,
+          mode: 'auto',
+          status: 'success',
+          durationMs: expect.any(Number)
+        }))
+      )
+    )
   })
 
   it('does not publish backup failure while a retry can still succeed', async () => {
@@ -332,6 +362,9 @@ describe('AutoBackupService', () => {
     await vi.advanceTimersByTimeAsync(7_000)
 
     expect(legacyBackupManager.backupToLocalDir).toHaveBeenCalledOnce()
+    expect(mocks.trackProductEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'backup_run', target: 'local_dir', mode: 'auto', status: 'warning' })
+    )
     expect(mocks.broadcastToType).toHaveBeenCalledWith(
       expect.anything(),
       'backup.auto_sync_state_changed',
@@ -472,6 +505,10 @@ describe('AutoBackupService', () => {
     await vi.advanceTimersByTimeAsync(60_000 + 7_000 + 17_000 + 37_000)
 
     expect(mocks.backupToWebdav).toHaveBeenCalledTimes(4)
+    // Retries stay silent; only the exhausted run reports a failure.
+    expect(mocks.trackProductEvent.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'backup_run', target: 'webdav', mode: 'auto', status: 'error', durationMs: expect.any(Number) }
+    ])
     expect(mocks.broadcastToType).toHaveBeenCalledWith(
       expect.anything(),
       'backup.auto_sync_state_changed',

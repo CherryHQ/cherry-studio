@@ -96,6 +96,10 @@ export function buildPathRegistry() {
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
     'app.userdata.data': appUserDataData,
+    // How this profile's last run ended; outside Data/ so a restore cannot roll it back.
+    'app.last_exit_marker_file': path.join(appUserData, 'last-exit'),
+    // This profile's analytics client id, kept across a restore that replaces the database holding it.
+    'app.restore_client_id_file': path.join(appUserData, 'restore-client-id'),
     'app.database.file': path.join(appUserDataData, 'cherrystudio.sqlite'),
     // Dev: relative to __dirname; packaged: shipped via extraResources
     'app.database.migrations': app.isPackaged

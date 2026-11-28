@@ -144,6 +144,28 @@ describe('runBackupRestoreGate', () => {
     expect(showErrorBoxMock).toHaveBeenCalledOnce()
   })
 
+  it.each([
+    ['completed', 'completed'],
+    ['failed', 'failed'],
+    ['expired', 'failed']
+  ] as const)('hands a %s restore outcome to the caller once, as %s', async (state, outcome) => {
+    setJournalState(state)
+    const onSettled = vi.fn()
+
+    await runBackupRestoreGate(false, onSettled)
+
+    expect(onSettled.mock.calls).toEqual([[outcome]])
+  })
+
+  it.each([['staged'], ['promoting']] as const)('reports no outcome while a restore is still %s', async (state) => {
+    setJournalState(state)
+    const onSettled = vi.fn()
+
+    await runBackupRestoreGate(false, onSettled)
+
+    expect(onSettled).not.toHaveBeenCalled()
+  })
+
   it('delegates to the promotion logic and skips the crash net on success', async () => {
     runRestorePromotionMock.mockResolvedValue(undefined)
 

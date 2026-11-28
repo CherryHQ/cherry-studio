@@ -3,6 +3,9 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
+import type { BackupAnalyticsTarget } from '@shared/ipc/schemas/analytics'
+
+import { trackMainProductEvent } from './productAnalytics'
 
 const logger = loggerService.withContext('BackupNotifications')
 
@@ -39,19 +42,35 @@ export function publishBackupResult(
   }
 }
 
-export async function runManualBackup<T>(operation: () => Promise<T>): Promise<T> {
+export function trackBackupRun(
+  target: BackupAnalyticsTarget,
+  mode: 'manual' | 'auto',
+  status: 'succeeded' | 'warning' | 'failed',
+  startedAt: number
+): void {
+  trackMainProductEvent({
+    event: 'backup_run',
+    target,
+    mode,
+    status: status === 'succeeded' ? 'success' : status === 'failed' ? 'error' : 'warning',
+    durationMs: Math.max(0, Date.now() - startedAt)
+  })
+}
+
+export async function runManualBackup<T>(target: BackupAnalyticsTarget, operation: () => Promise<T>): Promise<T> {
   const eventKey = `backup:manual:${randomUUID()}`
+  const startedAt = Date.now()
   try {
     const result = await operation()
     const workflow =
       result && typeof result === 'object' ? (result as { result?: unknown; cleanupError?: unknown }) : undefined
-    publishBackupResult(
-      eventKey,
-      workflow?.result === false ? 'failed' : workflow?.cleanupError ? 'warning' : 'succeeded'
-    )
+    const status = workflow?.result === false ? 'failed' : workflow?.cleanupError ? 'warning' : 'succeeded'
+    publishBackupResult(eventKey, status)
+    trackBackupRun(target, 'manual', status, startedAt)
     return result
   } catch (error) {
     publishBackupResult(eventKey, 'failed')
+    trackBackupRun(target, 'manual', 'failed', startedAt)
     throw error
   }
 }

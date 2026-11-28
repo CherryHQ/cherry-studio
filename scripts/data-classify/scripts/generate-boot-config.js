@@ -109,6 +109,40 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '',
       'Consumer: src/main/services/userDataRelocation'
     ]
+  },
+  {
+    source: 'preboot',
+    sourceCategory: 'transient',
+    originalKey: 'analyticsPendingReports',
+    targetKey: 'temp.analytics.pending_reports',
+    zodType:
+      'z.array(\n' +
+      '    z.union([\n' +
+      '      z.object({\n' +
+      "        event: z.literal('restore_run'),\n" +
+      "        target: z.enum(['file', 'local_dir', 'webdav', 'nutstore', 's3']).optional(),\n" +
+      "        status: z.enum(['staged', 'completed', 'failed'])\n" +
+      '      }),\n' +
+      '      z.object({\n' +
+      "        event: z.literal('data_relocation_run'),\n" +
+      '        copy: z.boolean(),\n' +
+      '        taskId: z.string().optional(),\n' +
+      "        status: z.enum(['staged', 'completed', 'failed', 'abandoned'])\n" +
+      '      })\n' +
+      '    ])\n' +
+      '  )',
+    defaultValue: 'VALUE: []',
+    jsdoc: [
+      'Product analytics results of work that ends in a relaunch (backup',
+      'restore, userData relocation), held until the next launch reports them.',
+      '',
+      'A relaunch exits without flushing analytics, and a restore replaces the',
+      'database and cache, so these results live in BootConfig. Entries carry',
+      "only static values; a 'staged' restore or relocation waits until its",
+      'outcome is known on a later launch.',
+      '',
+      'Consumer: src/main/services/analyticsPendingReports.ts'
+    ]
   }
 ]
 

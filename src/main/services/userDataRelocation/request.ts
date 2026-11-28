@@ -4,6 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { canonicalizeUserDataPath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
+import { queueStagedRelocation } from '@main/services/analyticsPendingReports'
 import type { UserDataRelocationInspection } from '@shared/types/userDataRelocation'
 
 import type { PendingRelocation } from './types'
@@ -55,5 +56,6 @@ export function requestUserDataRelocation(targetPath: string, copy: boolean): vo
     bootConfigService.set('temp.user_data_relocation', previous)
     throw error
   }
+  queueStagedRelocation(pending.taskId, copy)
   logger.info('userData relocation requested; relaunch required', pending)
 }
