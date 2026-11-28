@@ -104,7 +104,9 @@ pnpm tsx scripts/feishu-notify.ts issue \
 
 ## Usage in GitHub Actions
 
-The `issue` command can be called from a GitHub Actions step:
+The `issue` command can be called from a GitHub Actions step. Pass issue metadata through
+environment variables and quote their shell expansions so titles and labels remain literal
+arguments, even when they contain quotes, dollar signs, or newlines:
 
 ```yaml
 - name: Install dependencies
@@ -113,13 +115,18 @@ The `issue` command can be called from a GitHub Actions step:
 - name: Send notification
   run: |
     pnpm tsx scripts/feishu-notify.ts issue \
-      -u "${{ github.event.issue.html_url }}" \
-      -n "${{ github.event.issue.number }}" \
-      -t "${{ github.event.issue.title }}" \
-      -a "${{ github.event.issue.user.login }}" \
-      -l "${{ join(github.event.issue.labels.*.name, ',') }}" \
+      -u "$ISSUE_URL" \
+      -n "$ISSUE_NUMBER" \
+      -t "$ISSUE_TITLE" \
+      -a "$ISSUE_AUTHOR" \
+      -l "$ISSUE_LABELS" \
       -m "Issue summary content"
   env:
+    ISSUE_URL: ${{ github.event.issue.html_url }}
+    ISSUE_NUMBER: ${{ github.event.issue.number }}
+    ISSUE_TITLE: ${{ github.event.issue.title }}
+    ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+    ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
     FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
     FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
 ```
