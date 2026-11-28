@@ -15,10 +15,12 @@ import {
   ToolTask,
   ProviderDoc,
   type AgentChange,
+  type ConversationId,
   type EntryRecord,
   type Extension,
   type Harness,
   type TaskId,
+  pauseFollowUpsForStop,
   type Tx,
   type HookApi,
   CompactionTask
@@ -26,6 +28,8 @@ import {
 
 import {
   callKeyOf,
+  needsReopen,
+  subagentMessageKey,
   encodeEntry,
   goalForRequest,
   TOOL_INTENT_GUIDE,
@@ -45,6 +49,8 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type JsonValue, type InputId, type ThreadId } from '@cherrystudio/agent-runtime'
 
+import { childInputRoute } from '../inputLookup'
+import { recoveryIndex, type DurableRecoveryWork } from '../recovery'
 import { conversationId, nativeSummaryUsage, pages, readFacts, threadId, type DurableFolds } from './history'
 
 export interface PiDurableBehaviorOptions {
@@ -64,6 +70,7 @@ export interface PiDurableBehaviorOptions {
 /** Native ports are installed before opening the Harness; recovery runs before enabling its scheduler. */
 export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   const { folds } = options
+  const opened = new Set<ThreadId>()
   const abandoned = new Set<TaskId>()
   const admissions = new Map<ThreadId, Promise<unknown>>()
   const messages = new Map<TaskId, Set<Promise<unknown>>>()
@@ -166,7 +173,8 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     const inbox = await harness.snapshot(InboxDoc, id, context)
     if (live?.run) await harness.abortTask(live.run.taskId, context)
     for (const item of inbox?.items ?? [])
-      if (item.mode !== 'write') await harness.abortSubmission(item.id, context, id)
+      if (item.mode !== 'write' && !(inbox?.followUpsPaused && item.mode === 'followUp'))
+        await harness.abortSubmission(item.id, context, id)
   }
   function admit<T>(thread: ThreadId, operation: () => Promise<T>): Promise<T> {
     const work = (admissions.get(thread) ?? Promise.resolve()).then(operation)
@@ -352,13 +360,38 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
               for (const op of step.ops)
                 if (op.type === 'spawn-child' && op.spec.fork)
                   forkPoints.set(op.key, await tx.entry(Number(op.spec.fork.at) as never))
+              if (
+                facts.lineage.kind !== 'subagent' &&
+                step.ops.some(
+                  (op) =>
+                    op.type === 'append-record' &&
+                    op.record.type === 'turn-stop' &&
+                    op.record.value.cause === 'user' &&
+                    !facts.keysSeen.has(op.key)
+                ) &&
+                step.effects.some((effect) => effect.type === 'stop-turn' && effect.thread === thread)
+              )
+                await pauseFollowUpsForStop(tx, id)
               const spawned: { key: Key; child: ThreadId }[] = []
               const seen = new Set(facts.keysSeen)
               for (const op of step.ops) {
                 if (seen.has(op.key)) continue
                 seen.add(op.key)
-                if (op.type === 'append-record')
+                if (op.type === 'append-record') {
                   await tx.appendEntry(conversationId(op.thread), nativeValue(encodeEntry(op.record, op.key)))
+                  if (op.record.type === 'goal' || op.record.type === 'subagent-run') {
+                    const index = await tx.doc(recoveryIndex)
+                    index.behavior[op.thread] = true
+                    if (op.record.type === 'subagent-run') index.archives[op.record.value.sessionId] = true
+                  }
+                  if (scope.input && (op.record.type === 'subagent-steer' || op.record.type === 'subagent-run')) {
+                    const { sessionId: child, run } = op.record.value
+                    if (scope.input.thread === child) {
+                      const requestId = op.record.type === 'subagent-steer' ? op.key : subagentMessageKey(child, run)
+                      await tx.doc(childInputRoute, id, scope.input.id, { child, requestId })
+                    }
+                  }
+                }
                 if (op.type === 'append-quiet')
                   await tx.appendEntry(conversationId(op.thread), {
                     kind: op.input.kind,
@@ -438,6 +471,9 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                       )
                     )
                   )
+                  const index = await tx.doc(recoveryIndex)
+                  index.behavior[thread] = true
+                  index.archives[threadId(child.id)] = true
                   spawned.push({ key: op.key, child: threadId(child.id) })
                 }
               }
@@ -445,9 +481,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
             })
           ),
         modelContext: (thread) =>
-          enter(scope, async () =>
-            JSON.parse(JSON.stringify((await (await native(thread)).context(scope.context)).messages))
-          )
+          enter(scope, async () => (await (await native(thread)).context(scope.context)).messages)
       },
       turns: {
         start: (thread, input, key) =>
@@ -874,36 +908,55 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     withCall,
     consumeRequest,
     providerThread,
-    async bind(value: Harness) {
+    async bind(value: Harness, work: DurableRecoveryWork) {
       harness = value
       unsubscribeClose = harness.subscribeClose(() => {
         closed = true
         stopWaiting.abort()
       })
       recovering = true
-      const tasks = await harness.commit((tx) => pages((cursor) => tx.scanTasks({}, 256, cursor)), context)
-      for (const task of tasks) if (task.abandonOnRestart && task.state.status !== 'terminal') abandoned.add(task.id)
-      const conversations = await harness.commit(
-        (tx) => pages((cursor) => tx.scanConversations({}, 256, cursor)),
-        context
-      )
-      for (const conversation of conversations) {
-        const thread = threadId(conversation.id)
+      for (const task of work.abandoned) abandoned.add(task)
+      const threads = [...work.roots.keys()]
+      for (const thread of threads) {
+        const id = conversationId(thread)
         if (options.owns && !options.owns(thread)) continue
         const facts = await read(thread)
         if (facts.lineage.kind === 'subagent') {
           const change = await options.configureChild(thread, facts.lineage.parent, facts.lineage.origin)
-          await harness.commit((tx) => configure(tx, conversation.id, change), context)
+          await harness.commit((tx) => configure(tx, id, change), context)
         } else if (options.configureRoot) {
           const change = await options.configureRoot(thread)
-          await harness.commit((tx) => configure(tx, conversation.id, change), context)
+          await harness.commit((tx) => configure(tx, id, change), context)
         }
         await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: true }, ports) ?? Promise.resolve())
+        opened.add(thread)
       }
+      if (work.needsInventory)
+        await harness.commit(async (tx) => {
+          const index = await tx.doc(recoveryIndex)
+          if (!index.initialized) {
+            for (const thread of work.legacyBehavior) index.behavior[thread] = true
+            for (const thread of threads) if (work.roots.get(thread) !== thread) index.archives[thread] = true
+            index.initialized = true
+          }
+        }, context)
       recovering = false
       unsubscribe = harness.observeCommits({
         advance(publication) {
           for (const change of publication.changes) {
+            if (
+              change.type === 'document' &&
+              change.kind === 'change' &&
+              change.record.kind === ProviderDoc.definition.kind &&
+              change.record.key === undefined &&
+              change.conversationId !== undefined
+            ) {
+              const sessionId = change.value.sessionId
+              if (typeof sessionId === 'string' && sessionId) {
+                providers.set(sessionId, threadId(change.conversationId))
+              }
+              continue
+            }
             if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
             const thread = threadId(change.value.conversationId)
             void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(
@@ -916,18 +969,22 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     },
     async open(thread: ThreadId) {
       await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: false }, ports) ?? Promise.resolve())
+      opened.add(thread)
     },
     async close() {
       unsubscribe?.()
-      const conversations = await harness.commit(
-        (tx) => pages((cursor) => tx.scanConversations({}, 256, cursor)),
-        context
-      )
-      for (const conversation of conversations) {
-        const thread = threadId(conversation.id)
+      await harness.commit(async (tx) => {
+        const index = await tx.doc(recoveryIndex)
+        const touched = Object.keys(index.behavior).map((id) => threadId(Number(id) as ConversationId))
+        for (const thread of touched) {
+          if (!needsReopen((await folds.advance(tx, conversationId(thread))).history)) delete index.behavior[thread]
+        }
+      }, context)
+      for (const thread of opened) {
         if (options.owns && !options.owns(thread)) continue
         await withCall(thread, (ports) => lifecycle?.onClose(thread, ports) ?? Promise.resolve())
       }
+      opened.clear()
       closed = true
       await Promise.all([...admissions.values()])
       stopWaiting.abort()

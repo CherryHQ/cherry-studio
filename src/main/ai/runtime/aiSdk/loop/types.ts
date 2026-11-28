@@ -13,6 +13,7 @@ import type {
 
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import type { EndpointType } from '@shared/data/types/model'
 
 import type { MediaCapabilities } from '../../../messages/messageCapabilities'
 import type { AppProviderSettingsMap, CallOverrides, ContextOwner } from '../../../types'
@@ -106,6 +107,7 @@ export interface AgentOptions {
 
 export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   contextOwner?: ContextOwner
+  endpointType?: EndpointType
   providerId: T
   providerSettings: AppProviderSettingsMap[T]
   modelId: string

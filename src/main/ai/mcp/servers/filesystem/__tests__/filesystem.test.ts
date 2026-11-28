@@ -335,6 +335,48 @@ describe('filesystem MCP security', () => {
       await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('keep-me')
     })
 
+    it('delete removes an in-root directory link itself, not the directory it points to', async () => {
+      const workspaceRoot = await createTempDir('delete-dir-link-root-')
+      const realDir = path.join(workspaceRoot, 'data')
+      await fs.mkdir(realDir)
+      await fs.writeFile(path.join(realDir, 'keep.txt'), 'keep-me')
+      await fs.symlink(realDir, path.join(workspaceRoot, 'alias'), process.platform === 'win32' ? 'junction' : 'dir')
+
+      await deleteTool({ path: 'alias', recursive: true }, workspaceRoot)
+
+      await expect(fs.lstat(path.join(workspaceRoot, 'alias'))).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(fs.readFile(path.join(realDir, 'keep.txt'), 'utf-8')).resolves.toBe('keep-me')
+    })
+
+    it('delete removes an in-root file link itself, not the file it points to', async () => {
+      const workspaceRoot = await createTempDir('delete-file-link-root-')
+      const realFile = path.join(workspaceRoot, 'real.txt')
+      await fs.writeFile(realFile, 'keep-me')
+      await fs.symlink(realFile, path.join(workspaceRoot, 'alias.txt'))
+
+      await deleteTool({ path: 'alias.txt' }, workspaceRoot)
+
+      await expect(fs.lstat(path.join(workspaceRoot, 'alias.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(fs.readFile(realFile, 'utf-8')).resolves.toBe('keep-me')
+    })
+
+    it('delete rejects a link whose own entry sits outside the root even if it points inside', async () => {
+      const workspaceRoot = await createTempDir('delete-outside-entry-root-')
+      const outsideRoot = await createTempDir('delete-outside-entry-outside-')
+      const junction = process.platform === 'win32' ? 'junction' : 'dir'
+      const realDir = path.join(workspaceRoot, 'data')
+      await fs.mkdir(realDir)
+      await fs.writeFile(path.join(realDir, 'keep.txt'), 'keep-me')
+      await fs.symlink(outsideRoot, path.join(workspaceRoot, 'escape-dir'), junction)
+      await fs.symlink(realDir, path.join(outsideRoot, 'back-link'), junction)
+
+      await expect(deleteTool({ path: 'escape-dir/back-link', recursive: true }, workspaceRoot)).rejects.toThrow(
+        ESCAPE_ERROR
+      )
+      await expect(fs.lstat(path.join(outsideRoot, 'back-link'))).resolves.toBeTruthy()
+      await expect(fs.readFile(path.join(realDir, 'keep.txt'), 'utf-8')).resolves.toBe('keep-me')
+    })
+
     it('read rejects ../escape and a symlink pointing outside the root', async () => {
       const workspaceRoot = await createTempDir('read-escape-root-')
       const outsideRoot = await createTempDir('read-escape-outside-')

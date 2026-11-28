@@ -16,6 +16,19 @@ export class OAuthSignInCancelledError extends OAuthServiceError {
   }
 }
 
+export class OAuthAuthenticationRequiredError extends OAuthServiceError {
+  readonly statusCode = 401
+  readonly i18nKey = 'chat.provider_sign_in_required'
+
+  constructor(
+    public readonly providerId: string,
+    detail = 'Sign in again in provider settings.'
+  ) {
+    super(`Authentication required for provider "${providerId}". ${detail}`, undefined, 'OAUTH_AUTHENTICATION_REQUIRED')
+    this.name = 'OAuthAuthenticationRequiredError'
+  }
+}
+
 /**
  * A token refresh failed transiently (network, 5xx, 408/425/429) — the stored
  * session is still valid and the caller should retry, not re-authenticate.

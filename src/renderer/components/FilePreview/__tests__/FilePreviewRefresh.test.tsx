@@ -52,6 +52,7 @@ const readResult = (revision: number) => ({
 beforeEach(async () => {
   mocks.request.mockReset()
   await i18n.changeLanguage('en-US')
+  vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.stubGlobal('Worker', WorkbookWorker)
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(500)
@@ -59,8 +60,11 @@ beforeEach(async () => {
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
 })
 
-afterEach(() => {
+afterEach(async () => {
   cleanup()
+  // Flush the virtualizer's scroll-end debounce before jsdom teardown.
+  await act(() => vi.runOnlyPendingTimersAsync())
+  vi.useRealTimers()
   vi.restoreAllMocks()
   globalThis.Worker = originalWorker
 })

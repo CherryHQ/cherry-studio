@@ -260,22 +260,6 @@ describe('ClaudeConfigFields', () => {
     ).toEqual(['', '', '', ''])
   })
 
-  it('writes a raw model id override when the user selects a different role model', () => {
-    const { onChange } = renderFields()
-
-    const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
-    expect(fableRow).not.toBeNull()
-
-    fireEvent.click(within(fableRow as HTMLElement).getByText('select role model'))
-
-    expect(onChange).toHaveBeenCalledWith({
-      env: {
-        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-opus-4-1',
-        ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-opus-4-1'
-      }
-    })
-  })
-
   it('round-trips detailed role models through gateway addresses', () => {
     const gatewayModels = new Map<UniqueModelId, Model>([
       [

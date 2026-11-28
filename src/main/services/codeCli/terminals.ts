@@ -73,15 +73,17 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Command Prompt',
     command: (_: string, fullCommand: string) => ({
       command: 'cmd',
-      args: ['/c', fullCommand]
+      // `start ""` opens a visible interactive console with live CONIN$ even when spawned with stdio: 'ignore'.
+      args: ['/c', 'start', '""', 'cmd', '/c', fullCommand]
     })
   },
   {
     id: TerminalApp.POWERSHELL,
     name: 'PowerShell',
     command: (_: string, fullCommand: string) => ({
-      command: 'powershell',
-      args: ['-NoExit', '-Command', `& "${fullCommand}"`]
+      command: 'cmd',
+      // Single quotes prevent $ expansion and CreateProcess quote-stripping; `start ""` avoids NUL stdin EOF exit.
+      args: ['/c', 'start', '""', 'powershell', '-NoExit', '-Command', `& '${fullCommand.replace(/'/g, "''")}'`]
     })
   },
   {
@@ -97,7 +99,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'WSL (Ubuntu/Debian)',
     command: (_: string, fullCommand: string) => ({
       command: 'wsl',
-      args: ['bash', '-c', `cmd.exe /c '${fullCommand}' ; read -p 'Press Enter to exit'`]
+      args: ['bash', '-c', `cmd.exe /c '${fullCommand.replace(/'/g, "'\\''")}' ; read -p 'Press Enter to exit'`]
     })
   },
   {
@@ -142,7 +144,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       command: 'sh',
       args: [
         '-c',
-        `open -na Terminal && sleep 0.5 && osascript -e 'tell application "Terminal" to activate' -e 'tell application "Terminal" to do script "${escapeForAppleScript(fullCommand)}" in front window'`
+        `osascript -e 'tell application "Terminal" to activate' -e 'tell application "Terminal" to do script "${escapeForAppleScript(fullCommand)}"'`
       ]
     })
   },

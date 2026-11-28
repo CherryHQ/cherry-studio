@@ -1,4 +1,5 @@
-import type { JSONContent, MarkdownToken } from '@tiptap/core'
+import { getHTMLFromFragment, type JSONContent, type MarkdownToken } from '@tiptap/core'
+import { Fragment, type Schema } from '@tiptap/pm/model'
 
 import { Table } from '@cherrystudio/extension-table-plus'
 
@@ -13,60 +14,68 @@ import { Table } from '@cherrystudio/extension-table-plus'
  * Alignment metadata is intentionally not serialized (parity with the previous turndown-based
  * conversion, which also emitted plain `---` separators).
  */
-export const MarkdownTable = Table.extend({
-  markdownTokenName: 'table',
+export const createMarkdownTable = (getSchema: () => Schema) =>
+  Table.extend({
+    markdownTokenName: 'table',
 
-  parseMarkdown(token, helpers) {
-    const tableToken = token as MarkdownToken & {
-      header?: Array<{ tokens?: MarkdownToken[] }>
-      rows?: Array<Array<{ tokens?: MarkdownToken[] }>>
-    }
-    const cell = (type: 'tableHeader' | 'tableCell', tokens?: MarkdownToken[]) =>
-      helpers.createNode(type, {}, [helpers.createNode('paragraph', {}, helpers.parseInline(tokens || []))])
+    parseMarkdown(token, helpers) {
+      const tableToken = token as MarkdownToken & {
+        header?: Array<{ tokens?: MarkdownToken[] }>
+        rows?: Array<Array<{ tokens?: MarkdownToken[] }>>
+      }
+      const cell = (type: 'tableHeader' | 'tableCell', tokens?: MarkdownToken[]) =>
+        helpers.createNode(type, {}, [helpers.createNode('paragraph', {}, helpers.parseInline(tokens || []))])
 
-    const headerRow = helpers.createNode(
-      'tableRow',
-      {},
-      (tableToken.header || []).map((c) => cell('tableHeader', c.tokens))
-    )
-    const bodyRows = (tableToken.rows || []).map((row) =>
-      helpers.createNode(
+      const headerRow = helpers.createNode(
         'tableRow',
         {},
-        row.map((c) => cell('tableCell', c.tokens))
+        (tableToken.header || []).map((c) => cell('tableHeader', c.tokens))
       )
-    )
-    return helpers.createNode('table', {}, [headerRow, ...bodyRows])
-  },
-
-  renderMarkdown(node, helpers) {
-    const rows = (node.content || []).filter((n) => n.type === 'tableRow')
-    if (rows.length === 0) return ''
-
-    const renderRow = (row: JSONContent) =>
-      `| ${(row.content || [])
-        .map((cellNode) =>
-          helpers
-            .renderChildren(cellNode.content || [])
-            .replace(/\r?\n+/g, ' ')
-            .replace(/\|/g, '\\|')
-            .trim()
+      const bodyRows = (tableToken.rows || []).map((row) =>
+        helpers.createNode(
+          'tableRow',
+          {},
+          row.map((c) => cell('tableCell', c.tokens))
         )
-        .join(' | ')} |`
+      )
+      return helpers.createNode('table', {}, [headerRow, ...bodyRows])
+    },
 
-    const columns = (rows[0].content || []).length
-    const separator = `| ${Array.from({ length: columns }, () => '---').join(' | ')} |`
+    renderMarkdown(node, helpers) {
+      const rows = (node.content || []).filter((n) => n.type === 'tableRow')
+      if (rows.length === 0) return ''
 
-    // GFM tables require a header row. Only treat the first row as the header when it actually
-    // contains header cells — a table can lose its header via the row action menu, leaving a
-    // `tableCell`-only first row. Emitting that as the header would silently promote a body row to
-    // a header on reload, so for headerless tables synthesize an empty header and keep every row as
-    // a body row.
-    const firstRowIsHeader = (rows[0].content || []).some((cell) => cell.type === 'tableHeader')
-    if (firstRowIsHeader) {
-      return `${[renderRow(rows[0]), separator, ...rows.slice(1).map(renderRow)].join('\n')}\n\n`
+      // Pipe tables have no cell spans. Keep the HTML table so a narrower header
+      // cannot truncate body cells and a rowspan cannot shift their columns.
+      if (rows.some((row) => row.content?.some((cell) => cell.attrs?.colspan > 1 || cell.attrs?.rowspan > 1))) {
+        const schema = getSchema()
+        return `${getHTMLFromFragment(Fragment.from(schema.nodeFromJSON(node)), schema)}\n\n`
+      }
+
+      const renderRow = (row: JSONContent) =>
+        `| ${(row.content || [])
+          .map((cellNode) =>
+            helpers
+              .renderChildren(cellNode.content || [])
+              .replace(/\r?\n+/g, ' ')
+              .replace(/\|/g, '\\|')
+              .trim()
+          )
+          .join(' | ')} |`
+
+      const columns = (rows[0].content || []).length
+      const separator = `| ${Array.from({ length: columns }, () => '---').join(' | ')} |`
+
+      // GFM tables require a header row. Only treat the first row as the header when it actually
+      // contains header cells — a table can lose its header via the row action menu, leaving a
+      // `tableCell`-only first row. Emitting that as the header would silently promote a body row to
+      // a header on reload, so for headerless tables synthesize an empty header and keep every row as
+      // a body row.
+      const firstRowIsHeader = (rows[0].content || []).some((cell) => cell.type === 'tableHeader')
+      if (firstRowIsHeader) {
+        return `${[renderRow(rows[0]), separator, ...rows.slice(1).map(renderRow)].join('\n')}\n\n`
+      }
+      const emptyHeader = `| ${Array.from({ length: columns }, () => '').join(' | ')} |`
+      return `${[emptyHeader, separator, ...rows.map(renderRow)].join('\n')}\n\n`
     }
-    const emptyHeader = `| ${Array.from({ length: columns }, () => '').join(' | ')} |`
-    return `${[emptyHeader, separator, ...rows.map(renderRow)].join('\n')}\n\n`
-  }
-})
+  })

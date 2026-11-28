@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-25-pi-durable-recover-interrupted-generation.md
+2026-11-25-pi-durable-recover-interrupted-generation.md: de8d07095d42925927bbc175176ba651593d037f
+2026-11-25-pi-durable-recover-interrupted-generation.zh.md: be3acfdad0771747363a12e4abb60437f82b9b26

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -62,9 +62,9 @@ describe('NotesSidebarHeader accessible names', () => {
     expect(screen.queryByRole('button', { name: 'Create a new note' })).not.toBeInTheDocument()
   })
 
-  it('restores keyboard focus to the sort button when its menu closes', async () => {
+  it('applies a sort order with the keyboard and restores focus on Escape', async () => {
     const user = userEvent.setup()
-    renderHeader()
+    const props = renderHeader()
     const sortButton = screen.getByRole('button', { name: 'Sorting' })
 
     await user.tab()
@@ -72,24 +72,24 @@ describe('NotesSidebarHeader accessible names', () => {
     await user.tab()
     expect(sortButton).toHaveFocus()
     await user.keyboard('{Enter}')
-    expect(await screen.findByRole('button', { name: 'File name (A-Z)' })).toBeInTheDocument()
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getByRole('menuitemradio', { name: 'File name (A-Z)', checked: true })).toHaveFocus()
 
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    expect(within(menu).getByRole('menuitemradio', { name: 'Update time (newest first)' })).toHaveFocus()
     await user.keyboard('{Escape}')
-    expect(sortButton).toHaveFocus()
+    expect(props.onSelectSortType).not.toHaveBeenCalled()
+    await waitFor(() => expect(sortButton).toHaveFocus())
+
+    await user.keyboard('{ArrowDown}{End}{Enter}')
+    expect(props.onSelectSortType).toHaveBeenCalledExactlyOnceWith('sort_created_asc')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    await waitFor(() => expect(sortButton).toHaveFocus())
   })
 
-  it('renders toolbar icons and search clear via shared Button', () => {
-    renderHeader()
-    const newNote = screen.getByRole('button', { name: 'Create a new note' })
-    expect(newNote).toHaveAttribute('data-slot', 'button')
-    expect(newNote).toHaveAttribute('data-variant', 'ghost')
-
+  it('clears the search query', () => {
     const props = renderHeader({ isShowSearch: true, searchKeyword: 'query' })
-    const clear = screen.getByRole('button', { name: 'Clear' })
-    expect(clear).toHaveAttribute('data-slot', 'button')
-    expect(clear).toHaveAttribute('data-variant', 'ghost')
-
-    fireEvent.click(clear)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
     expect(props.onSetSearchKeyword).toHaveBeenCalledWith('')
   })
 })

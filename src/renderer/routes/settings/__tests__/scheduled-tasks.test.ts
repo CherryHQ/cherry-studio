@@ -11,6 +11,10 @@ describe('legacy scheduled task links', () => {
     {
       path: '/settings/scheduled-tasks/task-1?notificationId=notice',
       search: { taskId: 'task-1', notificationId: 'notice' }
+    },
+    {
+      path: '/settings/scheduled-tasks/task-1?notificationId=notice&runId=original-run',
+      search: { taskId: 'task-1', notificationId: 'notice', runId: 'original-run' }
     }
   ])('opens the dedicated task page from $path', async ({ path, search }) => {
     const root = createRootRoute()

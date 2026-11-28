@@ -1,12 +1,12 @@
 const { execFileSync } = require('node:child_process')
 const fs = require('node:fs')
-const path = require('node:path')
 
 const CREATE_COMMIT_MUTATION =
   'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}}}'
 
 function listStagedPaths(diffFilter) {
-  return execFileSync('git', ['diff', '--cached', '--name-only', '-z', `--diff-filter=${diffFilter}`])
+  // GitHub represents a rename as deleting the old path and adding the new one.
+  return execFileSync('git', ['diff', '--cached', '--no-renames', '--name-only', '-z', `--diff-filter=${diffFilter}`])
     .toString()
     .split('\0')
     .filter(Boolean)
@@ -23,7 +23,10 @@ function buildRegistrySyncRequest({
 }) {
   const additions = additionPaths.map((filePath) => ({
     path: filePath,
-    contents: fs.readFileSync(path.resolve(rootDirectory, filePath)).toString('base64')
+    contents: execFileSync('git', ['cat-file', 'blob', `:0:${filePath}`], {
+      cwd: rootDirectory,
+      maxBuffer: Infinity
+    }).toString('base64')
   }))
   const deletions = deletionPaths.map((filePath) => ({ path: filePath }))
 
@@ -53,7 +56,7 @@ function main() {
   const rootDirectory = process.cwd()
   const request = buildRegistrySyncRequest({
     rootDirectory,
-    additionPaths: listStagedPaths('ACMR'),
+    additionPaths: listStagedPaths('AM'),
     deletionPaths: listStagedPaths('D'),
     refId: requiredEnvironment('REGISTRY_SYNC_REF_ID'),
     expectedHeadOid: requiredEnvironment('REGISTRY_SYNC_EXPECTED_HEAD_OID'),

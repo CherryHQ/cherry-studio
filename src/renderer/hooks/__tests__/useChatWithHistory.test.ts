@@ -2,11 +2,9 @@ import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import type { CherryUIMessage } from '@shared/data/types/message'
-
 import { useChatWithHistory } from '../useChatWithHistory'
+import { useStreamCommands } from '../useStreamCommands'
 
-const EMPTY: CherryUIMessage[] = []
 afterEach(() => vi.restoreAllMocks())
 
 // Dropping body selections would silently call a different model or lose the branch anchor.
@@ -21,7 +19,7 @@ it('sends explicit user input and request controls without opening a chunk strea
     }
     return fallback(route, input)
   })
-  const hook = renderHook(() => useChatWithHistory('commands', EMPTY, async () => EMPTY))
+  const hook = renderHook(() => useChatWithHistory('commands', async () => {}))
   await act(async () => {
     await hook.result.current.sendMessage(
       { text: 'question' },
@@ -47,7 +45,6 @@ it('sends explicit user input and request controls without opening a chunk strea
       reasoningEffort: undefined
     }
   ])
-  expect(hook.result.current.messages[0]).toMatchObject({ role: 'user', parts: [{ type: 'text', text: 'question' }] })
   expect(ipc.request.mock.calls.map(([route]) => route)).not.toContain('ai.stream.attach')
   hook.unmount()
 })
@@ -71,7 +68,8 @@ it('fences old dispatch errors and waits for the Main stop barrier', async () =>
     }
     return fallback(route, input)
   })
-  const hook = renderHook(({ topic }) => useChatWithHistory(topic, EMPTY, async () => EMPTY), {
+  const onError = vi.fn()
+  const hook = renderHook(({ topic }) => useStreamCommands(topic, onError), {
     initialProps: { topic: 'old-command' }
   })
   let sent!: Promise<void>
@@ -83,8 +81,7 @@ it('fences old dispatch errors and waits for the Main stop barrier', async () =>
     reject(new Error('old failure'))
     await sent
   })
-  expect(hook.result.current.error).toBeUndefined()
-  expect(hook.result.current.messages).toEqual([])
+  expect(onError).not.toHaveBeenCalled()
   let settled = false
   let stopping!: Promise<void>
   act(() => {
