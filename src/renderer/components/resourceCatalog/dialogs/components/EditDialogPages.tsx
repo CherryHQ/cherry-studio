@@ -13,7 +13,8 @@ import {
   FormField,
   FormItem,
   FormMessage,
-  Input
+  Input,
+  ScrollArea
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
@@ -100,11 +101,12 @@ export function EditDialogPageShell<TValues extends FieldValues>({
               ) : null}
               <DialogTitle className={resourceDialogTitleClassName}>{title}</DialogTitle>
             </div>
-            <div
-              ref={scrollRef}
-              className={cn('min-h-0 flex-1 overflow-y-auto px-6 pt-6 pb-2', fill && 'flex flex-col')}>
+            <ScrollArea
+              className="min-h-0 flex-1"
+              viewportProps={{ ref: scrollRef }}
+              contentProps={{ className: cn('px-6 pt-6 pb-2', fill && 'flex h-full flex-col') }}>
               {children}
-            </div>
+            </ScrollArea>
             <div className="flex min-h-5 shrink-0 items-center px-6 pb-3" aria-live="polite">
               {rootError ? <p className="text-destructive text-xs">{rootError}</p> : null}
             </div>
