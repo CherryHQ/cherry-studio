@@ -312,9 +312,9 @@ class BackupManager {
 
     try {
       signal?.throwIfAborted()
-      const suffix = `.${getHostname() || 'unknown'}.${getDeviceType() || 'unknown'}.zip`
+      const device = `${getHostname() || 'unknown'}.${getDeviceType() || 'unknown'}.zip`
       const files = (await listFiles(signal)).filter(
-        (file) => file.fileName.startsWith('cherry-studio.') && file.fileName.endsWith(suffix)
+        (file) => /^cherry-studio\.\d{14}(?:\d{3})?\.(.+)$/.exec(file.fileName)?.[1] === device
       )
       for (const file of files.slice(maxBackups)) {
         await this.deleteWithRetry(file.fileName, deleteFile, signal, deleteAttempts)

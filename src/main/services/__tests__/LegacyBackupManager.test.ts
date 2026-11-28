@@ -1212,7 +1212,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     const getDirectoryContents = vi.fn().mockResolvedValue([
       {
         type: 'file',
-        basename: 'cherry-studio.20260804020000.test-host.mac.zip',
+        basename: 'cherry-studio.20260804020000123.test-host.mac.zip',
         lastmod: '2026-08-04T02:00:00.000Z',
         size: 1
       },
@@ -1220,6 +1220,12 @@ describe('BackupManager direct v2 data compatibility', () => {
         type: 'file',
         basename: 'cherry-studio.20260804015000.other-test-host.mac.zip',
         lastmod: '2026-08-04T01:50:00.000Z',
+        size: 1
+      },
+      {
+        type: 'file',
+        basename: 'cherry-studio.20260804014500.office.test-host.mac.zip',
+        lastmod: '2026-08-04T01:45:00.000Z',
         size: 1
       },
       {
