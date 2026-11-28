@@ -75,6 +75,7 @@ interface BuilderContext {
   baseConfig: BaseConfig
   resolvedBaseUrl: string
   apiKeyOverride?: string
+  utilityTask?: boolean
   routeOnly?: boolean
   endpointType?: EndpointType
   endpoint?: string
@@ -87,6 +88,7 @@ type ApiKeyBuilderContext = BuilderContext & {
 
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
+  utilityTask?: boolean
   routeOnly?: boolean
   resolvedEndpoint?: ResolvedEndpoint
 }
@@ -237,6 +239,7 @@ export async function resolveProviderAiSdkConfig(
     // for a key they never serve with.
     baseConfig: { baseURL, apiKey: '' },
     apiKeyOverride: options?.apiKeyOverride,
+    utilityTask: options?.utilityTask,
     routeOnly: options?.routeOnly,
     endpointType,
     endpoint,
@@ -589,9 +592,11 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-        // The built-in free model is offered only to signed-in Cherry AI accounts.
-        const { phase } = await application.get('CherryCloudService').getStatus()
-        if (phase !== 'signed-in') throw new ModelUnavailableError(t('chat.cherryai.sign_in_required'))
+        // The built-in free model needs a Cherry AI sign-in for conversations; utility tasks run signed out.
+        if (!ctx.utilityTask) {
+          const { phase } = await application.get('CherryCloudService').getStatus()
+          if (phase !== 'signed-in') throw new ModelUnavailableError(t('chat.cherryai.sign_in_required'))
+        }
         const signature = generateSignature({
           method: 'POST',
           path: '/chat/completions',

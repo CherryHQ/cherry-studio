@@ -16,6 +16,7 @@ import type {
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
+import { CliConfigError } from '@shared/utils/cliConfig'
 import { getSafeLocalErrorMessage } from '@shared/utils/localError'
 import { safeSerialize } from '@shared/utils/serialize'
 
@@ -25,6 +26,7 @@ import { parseJSON } from './json'
 export { getErrorDetails } from './errorDetails'
 
 export function formatErrorMessage(error: unknown): string {
+  if (error instanceof CliConfigError) return t(error.key, error.params)
   if (error instanceof ZodError) {
     return formatZodError(error)
   }
@@ -41,6 +43,7 @@ export function formatErrorMessage(error: unknown): string {
 export function getErrorMessage(error: unknown): string {
   const actionableMessage = getActionableAiErrorMessage(error)
   if (actionableMessage) return actionableMessage
+  if (error instanceof CliConfigError) return t(error.key, error.params)
   if (error instanceof Error && error.message) {
     return error.message
   } else {

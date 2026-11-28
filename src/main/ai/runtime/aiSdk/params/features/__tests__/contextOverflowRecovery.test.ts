@@ -3,10 +3,13 @@ import { APICallError, stepCountIs, streamText, tool, wrapLanguageModel } from '
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { ProviderContextOverflowError } from '@shared/ai/providerError'
+
 import { createOverflowRecoveryMiddleware } from '../contextOverflowRecovery'
+import { providerErrorBoundaryMiddleware } from '../providerErrorBoundary'
 
 const overflow = () =>
-  new APICallError({
+  new ProviderContextOverflowError({
     message: 'context_length_exceeded',
     url: 'https://example.com',
     requestBodyValues: {},
@@ -38,7 +41,7 @@ async function collect(stream: ReadableStream<LanguageModelV3StreamPart>): Promi
 }
 
 describe('context overflow recovery', () => {
-  it('retries only the failed model step after a completed tool call', async () => {
+  it.each(['http', 'sse', 'stream rejection'] as const)('retries only the failed %s model step', async (mode) => {
     let calls = 0
     let toolExecutions = 0
     const prompts: LanguageModelV3Prompt[] = []
@@ -53,7 +56,26 @@ describe('context overflow recovery', () => {
       async doStream({ prompt }) {
         prompts.push(prompt)
         calls++
-        if (calls === 2) throw overflow()
+        if (calls === 2) {
+          if (mode === 'http') {
+            throw new APICallError({
+              message: 'context_length_exceeded',
+              url: 'test',
+              requestBodyValues: {},
+              statusCode: 400
+            })
+          }
+          const error = { code: 'context_length_exceeded', message: 'The request cannot be processed.' }
+          if (mode === 'stream rejection') {
+            return { stream: new ReadableStream({ start: (controller) => controller.error(error) }) }
+          }
+          return {
+            stream: modelStream([
+              { type: 'stream-start', warnings: [] },
+              { type: 'error', error }
+            ])
+          }
+        }
         if (calls === 1) {
           return {
             stream: modelStream([
@@ -76,10 +98,13 @@ describe('context overflow recovery', () => {
     }
     const wrapped = wrapLanguageModel({
       model,
-      middleware: createOverflowRecoveryMiddleware(async (prompt) => [
-        { role: 'user', content: [{ type: 'text', text: 'earlier summary' }] },
-        ...prompt.slice(2)
-      ])
+      middleware: [
+        createOverflowRecoveryMiddleware(async (prompt) => [
+          { role: 'user', content: [{ type: 'text', text: 'earlier summary' }] },
+          ...prompt.slice(2)
+        ]),
+        providerErrorBoundaryMiddleware
+      ]
     })
     const result = streamText({
       model: wrapped,

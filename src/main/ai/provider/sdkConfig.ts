@@ -29,10 +29,12 @@ export async function resolveSdkConfig(
   provider: Provider,
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string
+  apiKeyOverride?: string,
+  utilityTask?: boolean
 ): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
   const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
+    utilityTask,
     resolvedEndpoint
   })
   return {

@@ -10,6 +10,7 @@ import {
   messageObservation,
   textEdits,
   type RuntimePartEdit,
+  type Activity,
   runtimeId,
   ThreadFeed,
   type InputId,
@@ -404,7 +405,14 @@ export class DurableProjection {
     }
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.preview = preview
-    const activity = { state: live?.run ? ('active' as const) : ('idle' as const) }
+    const retry = generation?.retry
+    const activity: Activity = {
+      state: live?.run ? 'active' : 'idle',
+      ...(retry?.model !== undefined &&
+        retry.nextAttempt !== undefined && {
+          modelRetry: { modelId: retry.model, attempt: retry.nextAttempt, reason: retry.error }
+        })
+    }
     // A run start sends a snapshot so observers see its inputs and activity in one frame; so do the first
     // publication and a reset. Other updates carry only changes.
     const messages =
@@ -420,7 +428,7 @@ export class DurableProjection {
     ]
     if (
       messages &&
-      (previousState.activity.state !== activity.state ||
+      (!isDeepStrictEqual(previousState.activity, activity) ||
         (!events.length &&
           (completion || answers.length || !isDeepStrictEqual(previousResults, this.backgroundResults))))
     )

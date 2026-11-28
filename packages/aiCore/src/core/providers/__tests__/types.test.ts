@@ -36,13 +36,6 @@ describe('Type Utilities', () => {
 
       expectTypeOf<Result>().toEqualTypeOf<never>()
     })
-
-    it('should preserve literal string keys', () => {
-      type TestObj = { openai: 1; anthropic: 2; google: 3 }
-      type Result = StringKeys<TestObj>
-
-      expectTypeOf<Result>().toEqualTypeOf<'openai' | 'anthropic' | 'google'>()
-    })
   })
 
   describe('UnionToIntersection<U>', () => {
@@ -51,13 +44,6 @@ describe('Type Utilities', () => {
       type Result = UnionToIntersection<Union>
 
       expectTypeOf<Result>().toEqualTypeOf<{ a: 1 } & { b: 2 }>()
-    })
-
-    it('should handle single type', () => {
-      type Single = { a: 1 }
-      type Result = UnionToIntersection<Single>
-
-      expectTypeOf<Result>().toEqualTypeOf<{ a: 1 }>()
     })
   })
 

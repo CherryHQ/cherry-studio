@@ -32,7 +32,7 @@ The runtime row is removed. The plan and small model fields are removed; changin
 
 Cards, each with rows that show the name on the left and the control or a summary on the right:
 
-- **Capabilities.** Built-in tools ›, Skills ›, Knowledge bases ›, MCP servers ›, Channels ›, Scheduled tasks ›. Each row shows `Enabled X / Y`; knowledge bases show `Linked X / Y`.
+- **Capabilities.** Built-in tools ›, Skills ›, Knowledge bases ›, MCP servers ›, Channels ›, Scheduled tasks ›. Each row shows `Enabled X / Y`; knowledge bases show `Linked X / Y`. For a built-in Agent whose skills are sealed (Cherry Support, Cherry Doctor) the Skills row carries a read-only hint instead of a drill-in: the list is fixed by the system, so the absence of the user's installed skills reads as a declared boundary rather than a failed install.
 - **Run.** Permission mode and reply language.
 - **Heartbeat.** The heartbeat switch; when on, interval and maximum run time; and "Edit heartbeat tasks", which shows how many tasks the heartbeat document holds.
 - **Advanced.** System Prompt › (filled or not filled), Memory ›, and environment variables.

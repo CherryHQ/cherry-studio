@@ -275,4 +275,40 @@ describe('automation run authority', () => {
     await second.finish()
     expect(leases).toBe(0)
   })
+
+  it('allows read operations and blocks mutating browser actions when browserReadOnly is enabled', async () => {
+    const run = service.beginRun(owner, 'readonly-run', () => ({
+      browser: true,
+      computer: false,
+      browserReadOnly: true
+    }))
+
+    const readResult = await run.execute(
+      JSON.stringify([
+        { name: 'getTab', args: {} },
+        { name: 'getAXState', args: {} }
+      ])
+    )
+    expect(readResult.isError).not.toBe(true)
+    expect(effects).toBe(2)
+
+    const mutatingResult = await run.execute(
+      JSON.stringify([{ name: 'goto', args: { url: 'https://example.com' }, target: 'tab-1' }])
+    )
+    expect(mutatingResult.isError).toBe(true)
+    expect(mutatingResult.structuredContent).toMatchObject({
+      execution: {
+        events: [
+          expect.objectContaining({
+            domain: 'browser',
+            operation: 'goto',
+            status: 'failed',
+            error: expect.objectContaining({ code: 'READ_ONLY', effect: 'none' })
+          })
+        ]
+      }
+    })
+    expect(effects).toBe(2)
+    await run.finish()
+  })
 })

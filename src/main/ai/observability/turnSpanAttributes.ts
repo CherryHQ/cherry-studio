@@ -2,7 +2,8 @@ import type { Span } from '@opentelemetry/api'
 import type { UIMessage } from 'ai'
 
 import { loggerService } from '@logger'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { getProviderModelId, type ExecutionId } from '@shared/ai/executionIdentity'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { KB } from '@shared/utils/constants'
 
 import type { CherryUIMessage } from '../streamManager'
@@ -33,7 +34,7 @@ export const MAX_TURN_INPUT_CHARS = 8 * KB
 export const MAX_TURN_OUTPUT_CHARS = 512 * KB
 
 export interface TurnInputInfo {
-  modelId: UniqueModelId
+  modelId: ExecutionId
   topicId: string
   /** `chat` for a plain turn, `invoke_agent` when the turn drives an agent session. */
   operation: 'chat' | 'invoke_agent'
@@ -51,7 +52,9 @@ export function applyTurnInputAttributes(span: Span, info: TurnInputInfo): void 
     if (prompt) span.setAttribute('inputs', truncate(prompt, MAX_TURN_INPUT_CHARS))
     // Parse model id AFTER unconditional attributes — a malformed model id
     // must not wipe the attributes already set.
-    const { providerId, modelId } = parseUniqueModelId(info.modelId)
+    const providerModel = getProviderModelId(info.modelId)
+    if (!providerModel) return
+    const { providerId, modelId } = parseUniqueModelId(providerModel)
     if (providerId) span.setAttribute('gen_ai.provider.name', providerId)
     if (modelId) span.setAttribute('gen_ai.request.model', modelId)
   } catch (error) {

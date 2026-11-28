@@ -4,17 +4,17 @@ icon: search
 
 # Web search and page reading
 
-Search finds relevant pages; page reading extracts a particular link's content. Mobile **0.3.0** can use a model provider's native web capabilities or separately configured search and reading services.
+Search finds relevant pages; page reading extracts a particular link's content. Mobile can use a model provider's native web capabilities or separately configured search and reading services.
 
 <a id="try-a-search"></a>
 
 ## Try a search first
 
-1. Enable **Web search** in the current agent's editor in Standard mode. If you prefer Minimal mode, switch to it after enabling the capability.
+1. Choose Standard mode and a working model. Minimal mode only uses supported native model web tools. The old agent Web search switch is no longer required or present.
 2. Choose a model supporting the relevant route and ask “Search for recent project updates and include sources,” or “Read this link and summarize three points: [link].”
 3. Inspect web activity and sources, then open original pages to check them.
 
-The composer has no separate web-search switch. Enabling access permits it; it does not force every message to search. Look for actual web activity and sources.
+Neither the composer nor agent editor uses a separate built-in web switch now. Available routes follow model/service configuration, without forcing every message to search. Look for actual web activity and sources.
 
 <div data-mobile-gallery="single">
 <figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/web-search.webp"><img src="../../../assets/mobile/en/web-search.webp" alt="Ask for a sourced web search, then open Sources to see the pages cited"></a><figcaption><p><strong>iPhone walkthrough</strong> · Ask for a sourced web search, then open Sources to see the pages cited</p></figcaption></figure>
@@ -24,7 +24,7 @@ The composer has no separate web-search switch. Enabling access permits it; it d
 
 | Route | When to use it | Requirements |
 | --- | --- | --- |
-| Native model web access | The model, API, and authentication support provider-executed search or reading | A usable model connection and enabled agent web access |
+| Native model web access | The model, API, and authentication support provider-executed search or reading | A usable model connection with actual model/API/authentication support |
 | External search and reading | You want a particular service, or the model lacks the capability | A tool-capable text model and configured search/reading services |
 
 Configure the source preference and external services through **Plugins → Built-in tools → Web search / URL fetch**. Fresh installs prefer supported native capabilities; existing installs may retain an external-first preference.
@@ -43,7 +43,7 @@ Support depends on the exact model, API, and authentication, not just the provid
 
 Options save through their respective actions. If a service form offers **Save**, submit it before checking. Model credentials and search credentials are usually different; follow the page for services such as Zhipu that share model-provider keys.
 
-Initial external choices remain Exa MCP search and Jina reading, usually without a personal key. This does not mean every web request uses them. Other choices include key-based services, self-hosted SearXNG and Crawl4AI, and Querit; follow the actual list and requirements.
+Initial external choices remain Exa MCP search and Jina reading, usually without a personal key. This does not mean every web request uses them. Search options include SearchApi, Desearch, Yuanbao, StepFun, and SerpKite. URL reading also supports options such as Exa and self-hosted Crawl4AI. Follow the actual list, regional availability, and configuration requirements.
 
 ## What is local webpage extraction?
 
@@ -63,7 +63,7 @@ Page reading has its own content limit. Open original pages for exact checks; re
 
 ## Why does chat work but search fail?
 
-1. Check the agent's Web search capability and whether it is in Minimal mode.
+1. Check the mode. Minimal cannot call external search tools; the old agent Web search switch has been removed.
 2. For native access, check the exact model, API, and account support.
 3. For external services, check model tool calling, service configuration, and its connection check.
 4. Read errors and address network, key, permission, credit, or site restrictions separately.

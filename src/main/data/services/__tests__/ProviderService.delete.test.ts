@@ -9,7 +9,7 @@
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -32,7 +32,10 @@ vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataA
 describe('ProviderService.delete — preset protection boundary', () => {
   const dbh = setupTestDatabase()
 
+  beforeEach(() => vi.stubEnv('CHERRY_EDITION', 'global'))
+
   afterEach(() => {
+    vi.unstubAllEnvs()
     vi.restoreAllMocks()
   })
 

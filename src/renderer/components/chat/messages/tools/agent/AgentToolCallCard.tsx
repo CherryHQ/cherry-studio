@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import type { LocalAcpTool } from '@shared/ai/localAgent'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -18,6 +19,7 @@ import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { useToolOutputReference } from '../useToolResponsePreview'
+import { getAcpToolDisclosure, readAcpTool } from './AcpTool'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { SessionCreateTool } from './SessionCreateTool'
 import { SessionSendTool } from './SessionSendTool'
@@ -51,18 +53,7 @@ function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | 
   return toolName
 }
 
-export function AgentToolCallCard({
-  toolCallId,
-  toolName,
-  input,
-  output: rawOutput,
-  isStreaming = false,
-  status,
-  hasError = false,
-  isCherrySessionTool = false,
-  openFlowOnClick = false,
-  showInlineDetails = true
-}: {
+type AgentToolCallCardProps = {
   toolCallId?: string
   toolName?: string
   input?: ToolInput | Record<string, unknown>
@@ -73,14 +64,37 @@ export function AgentToolCallCard({
   isCherrySessionTool?: boolean
   openFlowOnClick?: boolean
   showInlineDetails?: boolean
-}) {
+}
+
+export function AgentToolCallCard(props: AgentToolCallCardProps) {
+  const acp = readAcpTool(props.toolName, props.input)
+  // Tool-specific renderers may use different hooks as a call gains metadata.
+  const renderer = acp ? 'acp' : JSON.stringify([props.toolName, props.isCherrySessionTool])
+  return <AgentToolCallCardContent key={renderer} {...props} acp={acp} />
+}
+
+function AgentToolCallCardContent({
+  toolCallId,
+  toolName,
+  input,
+  output: rawOutput,
+  isStreaming = false,
+  status,
+  hasError = false,
+  isCherrySessionTool = false,
+  openFlowOnClick = false,
+  showInlineDetails = true,
+  acp
+}: AgentToolCallCardProps & { acp: LocalAcpTool | undefined }) {
   const deferredOutput = useToolOutputReference(rawOutput, toolCallId)
   const output = isDeferredToolOutput(rawOutput) || isPersistedToolOutput(rawOutput) ? undefined : rawOutput
   const actions = useOptionalMessageListActions()
   const { t } = useTranslation()
-  const renderedItem =
-    isCherrySessionTool &&
-    (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
+  const displayStatus = status === 'invoking' && acp?.status === 'pending' ? 'pending' : status
+  const renderedItem = acp
+    ? getAcpToolDisclosure({ tool: acp, output: output ?? acp.rawOutput })
+    : isCherrySessionTool &&
+        (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
       ? SessionCreateTool({ input, output, hasError, isStreaming, status })
       : isCherrySessionTool &&
           (toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`)
@@ -173,8 +187,13 @@ export function AgentToolCallCard({
         label={
           <div className="flex min-w-0 items-center gap-1.5">
             <div className="min-w-0">{renderedItem.label}</div>
-            {status && (status !== 'done' || hasError || openFlowOnClick) && (
-              <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
+            {acp?.turnEnded ? (
+              <span className="text-muted-foreground text-xs">{t('local_agents.tool_result_unknown')}</span>
+            ) : (
+              status &&
+              (status !== 'done' || hasError || openFlowOnClick) && (
+                <ToolStatusIndicator status={displayStatus ?? status} hasError={hasError} errorText={errorText} />
+              )
             )}
           </div>
         }
@@ -191,7 +210,7 @@ export function AgentToolCallCard({
     <AgentToolDisclosure
       className="w-full max-w-full rounded-none border-0 bg-transparent"
       defaultActiveKey={isStreaming && toolName === AgentToolsType.Workflow ? [String(renderedItem.key)] : []}
-      isStreaming={isStreaming}
+      isStreaming={isStreaming && !acp?.turnEnded}
       item={toolContentItem}
       onOpenDetails={openToolFlow}
       stateId={toolCallId}

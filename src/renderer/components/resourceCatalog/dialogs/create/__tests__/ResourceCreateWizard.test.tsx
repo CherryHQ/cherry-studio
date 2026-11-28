@@ -1937,6 +1937,7 @@ describe('ResourceCreateWizard result page', () => {
         onOpenChange={vi.fn()}
         resource={{
           ...command,
+          localRuntime: undefined,
           id: 'agent-1',
           orderKey: 'a0',
           modelName: 'Picked model',

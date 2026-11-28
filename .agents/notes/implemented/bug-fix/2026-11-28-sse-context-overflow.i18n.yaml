@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-28-sse-context-overflow.md
+2026-11-28-sse-context-overflow.md: afca1c6b971866555f5ef383fb71ec1d42ac237c
+2026-11-28-sse-context-overflow.zh.md: d7246fce9bbbb11d48fd22683e9639c68d8eb4d6

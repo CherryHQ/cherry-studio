@@ -22,8 +22,7 @@ export function confirmed<T>(result: OperationResult<T>): T {
 export const configuration = { cwd: '/fixture/workspace', mcpServers: [] }
 export const input = (text = 'hello', id = text) => ({
   inputId: runtimeId<'input'>(id),
-  text,
-  whenBusy: 'reject' as const
+  text
 })
 
 export function fixture(handlers: Partial<AgentRequestHandlersByMethod> = {}, host: Partial<AcpRuntimeOptions> = {}) {
