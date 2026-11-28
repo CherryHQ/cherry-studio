@@ -127,6 +127,7 @@ All methods above are main-process APIs. The renderer has a deliberately narrowe
 | `window.get_init_data` | renderer → main | void | Read the caller's stored init data, or `null` for an unmanaged sender. |
 | `window.reused` | main → renderer | `unknown` | Directed event sent on reuse/live init-data update. |
 | `window.maximized_changed` / `window.fullscreen_changed` | main → renderer | `boolean` | Directed state-change events for the affected window. |
+| `window.visibility_changed` | main → renderer | `boolean` | Directed event: `false` on minimize or hide, `true` on restore or show. |
 
 `window.main.*` and `window.sub.*` routes in the same schema are explicit domain operations delegated to `MainWindowService` or `SubWindowService`; they are not generic cross-window targeting. Opening named windows remains a navigation/domain capability rather than part of the caller-window surface.
 

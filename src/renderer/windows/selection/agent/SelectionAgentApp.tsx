@@ -19,6 +19,7 @@ import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreference
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import { useSelectionAgents } from '@renderer/hooks/useSelectionAgents'
+import { useUiClickTracking } from '@renderer/hooks/useUsageAnalytics'
 import { useAppPathSnapshot, useDayjsLocaleSync } from '@renderer/hooks/useWindowRuntime'
 import { parseSelectionActions } from '@renderer/utils/selectionAction'
 import { type AskAgentSelectionAction, SELECTION_BUILTIN_ACTION_ID } from '@shared/types/selection'
@@ -29,6 +30,7 @@ import SelectionAgentWindow from './SelectionAgentWindow'
 // window draws its own rounded surface.
 function SelectionAgentRuntime(): null {
   useLanguageSync()
+  useUiClickTracking('selection')
   useCustomCss()
   useDayjsLocaleSync()
   useAppPathSnapshot()

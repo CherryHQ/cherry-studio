@@ -21,6 +21,7 @@ const PRODUCT_EVENT_SCHEMA_VERSION = 1
 const MAX_PENDING_PRODUCT_EVENTS = 200
 const ANONYMOUS_ID_KEY = 'analytics.anonymous_id'
 const DEVICE_EVENTS: ReadonlySet<string> = new Set(['app_opened'])
+const SETTING_CHANGE_COALESCE_MS = 2_000
 
 // Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
 function resolvePostHogKey(): string {
@@ -75,6 +76,7 @@ export class AnalyticsService extends BaseService implements Activatable {
   /** Consented product events raised while the clients are still starting, with the account and time they were raised. */
   private pendingProductEvents: { event: ProductAnalyticsEvent; accountId: string | null; at: Date }[] = []
   private productEventsReady = false
+  private readonly pendingSettingChanges = new Map<string, { value: unknown; timer: ReturnType<typeof setTimeout> }>()
   /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
   /**
@@ -103,7 +105,10 @@ export class AnalyticsService extends BaseService implements Activatable {
       preferenceService.get('app.privacy.data_collection.enabled'),
       preferenceService.get('app.privacy.policy_version')
     )
-    if (!this.desiredEnabled) this.pendingProductEvents = []
+    if (!this.desiredEnabled) {
+      this.pendingProductEvents = []
+      this.clearPendingSettingChanges()
+    }
     this.reconciler.request()
   }
 
@@ -119,6 +124,12 @@ export class AnalyticsService extends BaseService implements Activatable {
       preferenceService.subscribeChange('app.privacy.data_collection.enabled', refreshDesiredEnabled)
     )
     this.registerDisposable(preferenceService.subscribeChange('app.privacy.policy_version', refreshDesiredEnabled))
+    this.registerDisposable(
+      preferenceService.onRendererPreferencesChanged((changes) => {
+        for (const [key, value] of changes) this.recordSettingChange(key, value)
+      })
+    )
+    this.registerDisposable(() => this.clearPendingSettingChanges())
   }
 
   protected async onReady() {
@@ -248,6 +259,28 @@ export class AnalyticsService extends BaseService implements Activatable {
     }
     if (this.pendingProductEvents.length >= MAX_PENDING_PRODUCT_EVENTS) this.pendingProductEvents.shift()
     this.pendingProductEvents.push({ event, accountId: this.productAccountId, at: new Date() })
+  }
+
+  // Rapid edits of one setting (sliders, typing) report once with the last value; text values stay out.
+  private recordSettingChange(key: string, value: unknown): void {
+    // A change made without consent stays out even if consent arrives before the report fires.
+    if (!this.desiredEnabled) return
+    const pending = this.pendingSettingChanges.get(key)
+    if (pending) clearTimeout(pending.timer)
+    const timer = setTimeout(() => {
+      const latest = this.pendingSettingChanges.get(key)?.value
+      this.pendingSettingChanges.delete(key)
+      const value =
+        typeof latest === 'boolean' || (typeof latest === 'number' && Number.isFinite(latest)) ? latest : undefined
+      this.trackProductEvent({ event: 'setting_changed', key, ...(value !== undefined && { value }) })
+    }, SETTING_CHANGE_COALESCE_MS)
+    timer.unref?.()
+    this.pendingSettingChanges.set(key, { value, timer })
+  }
+
+  private clearPendingSettingChanges(): void {
+    for (const { timer } of this.pendingSettingChanges.values()) clearTimeout(timer)
+    this.pendingSettingChanges.clear()
   }
 
   /** Binds later product events to the signed-in Cherry AI account; null returns them to a fresh anonymous id. */

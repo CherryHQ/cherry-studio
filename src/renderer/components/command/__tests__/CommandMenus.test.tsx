@@ -596,6 +596,26 @@ describe('CommandContextMenu', () => {
     })
   })
 
+  it.each([
+    { location: 'chat.input.tools.context', source: 'menu' },
+    { location: 'command.palette', source: 'palette' }
+  ] as const)('reports a command run from $location with the $source source', async ({ location, source }) => {
+    const request = vi.fn().mockResolvedValue(undefined)
+    window.api = { command: { showNativePopupMenu: showNativePopupMenuMock }, ipcApi: { request } } as never
+    showNativePopupMenuMock.mockResolvedValueOnce({ type: 'command', command: 'topic.create' })
+
+    renderMenu({ location })
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
+
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('analytics.track', {
+        event: 'command_executed',
+        command: 'topic.create',
+        source
+      })
+    )
+  })
+
   it('triggers onOpenChange around native context menus', async () => {
     const onOpenChange = vi.fn()
     showNativePopupMenuMock.mockResolvedValueOnce(null)

@@ -97,7 +97,7 @@ export class ShortcutService extends BaseService {
   private registerBuiltInHandlers(): void {
     for (const rule of mainKeybindings) {
       this.handlers.set(rule.command, (window) => {
-        application.get('CommandService').execute(rule.command, window)
+        application.get('CommandService').execute(rule.command, window, undefined, 'shortcut')
       })
     }
   }

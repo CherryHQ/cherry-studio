@@ -206,7 +206,7 @@ describe('ShortcutService', () => {
     })
 
     expect(event.preventDefault).toHaveBeenCalledOnce()
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', mainWindow)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', mainWindow, undefined, 'shortcut')
   })
 
   it.each([
@@ -247,7 +247,7 @@ describe('ShortcutService', () => {
     })
 
     expect(event.preventDefault).toHaveBeenCalledOnce()
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', mainWindow)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', mainWindow, undefined, 'shortcut')
   })
 
   it('releases an attached webview guest registration when the guest is destroyed', async () => {
@@ -299,7 +299,7 @@ describe('ShortcutService', () => {
     const showMainHandler = showMainRegistration?.[1] as (() => void) | undefined
     showMainHandler?.()
 
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.window.show', mainWindow)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.window.show', mainWindow, undefined, 'shortcut')
   })
 
   it('executes the settings command through CommandService', async () => {
@@ -308,7 +308,7 @@ describe('ShortcutService', () => {
     const handler = (service as any).handlers.get('app.settings.open') as (() => void) | undefined
     handler?.()
 
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined, undefined, 'shortcut')
     expect(windowServiceMock.showMainWindow).not.toHaveBeenCalled()
   })
 
@@ -335,7 +335,7 @@ describe('ShortcutService', () => {
     })
 
     expect(event.preventDefault).toHaveBeenCalledOnce()
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', mainWindow)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', mainWindow, undefined, 'shortcut')
     expect(globalShortcutMock.register).not.toHaveBeenCalled()
     expect(globalShortcutMock.unregister).not.toHaveBeenCalled()
   })
@@ -401,7 +401,7 @@ describe('ShortcutService', () => {
     const showMainHandler = showMainRegistration?.[1] as (() => void) | undefined
     showMainHandler?.()
 
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.window.show', nextWindow)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.window.show', nextWindow, undefined, 'shortcut')
   })
 
   it('registers the window-local shortcut listener after the service restarts', async () => {

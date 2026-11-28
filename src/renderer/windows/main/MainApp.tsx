@@ -27,6 +27,7 @@ import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRequired'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
+import { useTabDwellTracking, useUiClickTracking } from '@renderer/hooks/useUsageAnalytics'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
@@ -66,9 +67,12 @@ function BootFallback(): React.ReactElement {
 // Headless: it runs hooks and renders nothing. The popup/toast hosts are explicit
 // siblings in the App JSX below, so a window's host composition is visible there.
 function MainWindowRuntime(): null {
+  const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
   useWindowRuntime()
   useAutoReadPreferenceSync()
   useMainWindowNavigation()
+  useUiClickTracking()
+  useTabDwellTracking(providerSetupStatus !== 'pending')
 
   // Register the real (component-layer) image-mode popup behind the services seam.
   // subWindow registers the same effect (SubWindowApp) — detached tabs render the
