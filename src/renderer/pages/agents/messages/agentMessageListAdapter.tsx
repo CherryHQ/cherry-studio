@@ -343,7 +343,7 @@ export function useAgentMessageListProviderValue({
   const messageCreatedAtById = useMemo(() => {
     const map = new Map<string, number>()
     for (const message of messages) {
-      const createdAt = message.createdAt ? Date.parse(message.createdAt) : NaN
+      const createdAt = message.metadata?.createdAt ? Date.parse(message.metadata.createdAt) : NaN
       if (!Number.isNaN(createdAt)) map.set(message.id, createdAt)
     }
     return map

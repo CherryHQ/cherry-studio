@@ -135,7 +135,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
         unresolvedTargetPath,
         {
           // targetPath already carries the message-era workspace: the pane receives it resolved.
-          openArtifactFile: openArtifactFile ? (path, location) => openArtifactFile(targetPath, location) : undefined,
+          openArtifactFile: openArtifactFile ? (_path, location) => openArtifactFile(targetPath, location) : undefined,
           openPath: openPath ? (path) => openPath(path, scopeMessageId) : undefined,
           isDirectory: isDirectory ? (path) => isDirectory(path, scopeMessageId) : undefined,
           onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
