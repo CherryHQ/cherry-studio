@@ -158,7 +158,7 @@ describe('native Pi through the production gateway', () => {
     return handle
   }
   async function sendUser(text: string) {
-    expect(await session!.input.submit({ inputId: runtimeId(text), text, whenBusy: 'reject' })).toMatchObject({
+    expect(await session!.input.submit!({ inputId: runtimeId(text), text })).toMatchObject({
       status: 'acknowledged'
     })
     await session!.pi.settled()
@@ -944,10 +944,10 @@ describe('native Pi through the production gateway', () => {
         })
       )
       confirmed(await durable.resume())
-      await handle.input.submit({ inputId: runtimeId('first'), text: 'Earlier conversation', whenBusy: 'reject' })
+      await handle.input.submit!({ inputId: runtimeId('first'), text: 'Earlier conversation' })
       await durable.settled()
       rejectUpstream = () => (requests.length === 2 ? { message, code } : undefined)
-      await handle.input.submit({ inputId: runtimeId('second'), text: 'Continue the task', whenBusy: 'reject' })
+      await handle.input.submit!({ inputId: runtimeId('second'), text: 'Continue the task' })
       await durable.settled()
       const facts = await handle.durable.facts()
       const compaction = facts.history.findIndex((entry) => entry.kind === 'compaction')
@@ -981,7 +981,7 @@ describe('native Pi through the production gateway', () => {
       compaction: { enabled: false, reserveTokens: 16_384, keepRecentTokens: 1 }
     })
     await sendUser('Conversation to summarize')
-    confirmed(await session.pi.compact())
+    confirmed(await session.compact!())
     expect(session.pi.history().some((entry) => entry.type === 'compaction')).toBe(true)
     const charges = dbh.db.select().from(aiUsageRecordTable).all()
     expect(charges).toHaveLength(2)

@@ -20,6 +20,8 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentProviderService } from '@data/services/AgentProviderService'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -74,6 +76,7 @@ vi.mock('../runAgentTask', () => ({ runAgentTask: vi.fn(async () => ({})) }))
 
 import { AgentJobsService } from '../AgentJobsService'
 import { AgentLifecycleService } from '../AgentLifecycleService'
+import { runAgentTask } from '../runAgentTask'
 
 const AGENT_ID = 'agent-1'
 const OTHER_AGENT_ID = 'agent-2'
@@ -172,6 +175,8 @@ describe('AgentJobsService', () => {
           return service
         case 'AgentLifecycleService':
           return lifecycle
+        case 'AgentDelegationService':
+          return { cancelOwnedBy: async () => {} }
         case 'AiStreamManager':
           return {
             isWriteQuiesced: false,
@@ -225,6 +230,79 @@ describe('AgentJobsService', () => {
   })
 
   // ---------------------------------------------------------------- create
+
+  it('suspends existing local tasks on disable and re-arms only previously active schedules', async () => {
+    const id = OTHER_AGENT_ID
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id,
+        type: 'local',
+        name: 'Local ACP',
+        instructions: '',
+        orderKey: id
+      })
+      .run()
+    application.get('DbService').withWriteTx((tx) =>
+      agentProviderService.setBindingTx(tx, id, {
+        executableOverride: '/custom/acp',
+        enabled: true
+      })
+    )
+    const active = service.createTask(id, form)
+    const paused = service.createTask(id, { ...form, name: 'paused task' })
+    await service.pauseTask(id, paused.id)
+
+    agentService.updateAgent(id, { localRuntime: { enabled: false } })
+    expect(agentTaskService.getTaskById(active.id)).toMatchObject({ status: 'paused', enabled: false })
+    expect(scheduler.has(`schedule:${active.id}`)).toBe(false)
+    await expect(service.runTask(id, active.id)).rejects.toThrow('Scheduled tasks require an enabled local agent')
+    expect(() => service.resumeTask(id, active.id)).toThrow('Scheduled tasks require an enabled local agent')
+    expect(jobService.list({ scheduleId: active.id })).toEqual([])
+
+    agentService.updateAgent(id, { localRuntime: { enabled: true } })
+    expect(scheduler.has(`schedule:${active.id}`)).toBe(true)
+    expect(scheduler.has(`schedule:${paused.id}`)).toBe(false)
+  })
+
+  it('restores a custom ACP with repaired launch settings and its original schedule', async () => {
+    const id = OTHER_AGENT_ID
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id,
+        type: 'local',
+        name: 'Custom ACP',
+        instructions: '',
+        orderKey: id
+      })
+      .run()
+    application.get('DbService').withWriteTx((tx) =>
+      agentProviderService.setBindingTx(tx, id, {
+        enabled: true,
+        executableOverride: '/old/acp',
+        args: ['old'],
+        env: {},
+        nativeModel: 'saved-model'
+      })
+    )
+    const task = service.createTask(id, form)
+    const session = agentSessionService.create({ agentId: id, name: 'Owned', workspace: { type: 'system' } })
+    await lifecycle.archiveAgent(id, { archiveSessions: true })
+
+    const settings = { executableOverride: '/new/acp', args: ['new'], env: {} }
+    const restored = await lifecycle.restoreAgent(id, settings)
+
+    expect(restored.id).toBe(id)
+    expect(restored.localRuntime).toMatchObject({
+      ...settings,
+      nativeModel: 'saved-model',
+      enabled: true
+    })
+    expect(agentSessionService.getById(session.id).deletedAt).toBeUndefined()
+    expect(agentTaskService.getTaskById(task.id)).toMatchObject({ id: task.id, status: 'active' })
+    expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+  })
 
   it('refreshes workspace visibility after task creation, workspace changes and deletion', async () => {
     const workspace = agentWorkspaceService.findOrCreateByPath('/tmp/heartbeat-task-visibility')
@@ -302,7 +380,7 @@ describe('AgentJobsService', () => {
     }
   })
 
-  it('keeps an overdue once missed until a deduplicated explicit run completes', async () => {
+  it('keeps an overdue one-shot eligible for a deduplicated retry after its first catch-up is skipped', async () => {
     vi.useFakeTimers()
     try {
       const task = service.createTask(AGENT_ID, { ...form, trigger: { kind: 'once', at: Date.now() + 60_000 } })
@@ -315,14 +393,23 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
 
       const hold = jobManager.pause('test manual admission')
+      vi.mocked(runAgentTask).mockResolvedValueOnce({ kind: 'skipped', result: 'Skipped (session busy)' })
       await Promise.all([service.runTask(AGENT_ID, task.id), service.runTask(AGENT_ID, task.id)])
       expect(jobService.list({ scheduleId: task.id })).toHaveLength(1)
       expect(agentTaskService.getTask(AGENT_ID, task.id)?.status).toBe('missed')
       hold.dispose()
+      await vi.waitFor(() =>
+        expect(agentTaskService.getTaskDetail(task.id)).toMatchObject({
+          status: 'missed',
+          runSummary: { status: 'skipped' }
+        })
+      )
+
+      expect(await service.runTask(AGENT_ID, task.id)).toBe(true)
       await vi.waitFor(() => expect(agentTaskService.getTask(AGENT_ID, task.id)?.status).toBe('completed'))
       expect(jobScheduleService.getById(task.id)?.metadata).not.toHaveProperty('missed')
       expect(await service.runTask(AGENT_ID, task.id)).toBe(false)
-      expect(jobService.list({ scheduleId: task.id })).toHaveLength(1)
+      expect(jobService.list({ scheduleId: task.id })).toHaveLength(2)
     } finally {
       clearScheduleDisposables()
       vi.useRealTimers()
@@ -344,6 +431,41 @@ describe('AgentJobsService', () => {
   })
 
   describe('createTask', () => {
+    it.each([
+      ['codex', true, true],
+      ['codex', false, false],
+      ['opencode', true, true],
+      ['claude', true, true],
+      [undefined, false, false]
+    ] as const)('allows scheduling the %s preset only when supported and enabled', (presetId, enabled, supported) => {
+      dbh.db
+        .insert(agentTable)
+        .values({
+          id: OTHER_AGENT_ID,
+          type: 'local',
+          name: presetId ?? 'Custom ACP',
+          instructions: '',
+          orderKey: OTHER_AGENT_ID
+        })
+        .run()
+      application.get('DbService').withWriteTx((tx) =>
+        agentProviderService.setBindingTx(tx, OTHER_AGENT_ID, {
+          presetId,
+          ...(presetId === undefined ? { executableOverride: '/custom/acp' } : {}),
+          enabled
+        })
+      )
+
+      if (supported) {
+        const task = service.createTask(OTHER_AGENT_ID, form)
+        expect(task.agentId).toBe(OTHER_AGENT_ID)
+        expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+      } else {
+        expect(() => service.createTask(OTHER_AGENT_ID, form)).toThrow('Scheduled tasks require an enabled local agent')
+        expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+      }
+    })
+
     it('stores an explicitly empty timeout as unlimited', () => {
       const task = service.createTask(AGENT_ID, { ...form, timeoutMinutes: null })
 
@@ -791,10 +913,10 @@ describe('AgentJobsService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
 
       const binding = { scheduleId: task.id, reuseRevision: 0 }
-      service.releaseOverflowedTaskSession({ ...binding, reuseRevision: 1 }, session.id)
-      service.releaseOverflowedTaskSession(binding, 'stale-session')
+      service.releaseTaskSessionReuse({ ...binding, reuseRevision: 1 }, session.id)
+      service.releaseTaskSessionReuse(binding, 'stale-session')
       expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
-      service.releaseOverflowedTaskSession(binding, session.id)
+      service.releaseTaskSessionReuse(binding, session.id)
       expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
       expect(agentSessionService.listTaskSessionIds(task.id)).toContain(session.id)
     })

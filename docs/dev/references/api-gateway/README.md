@@ -217,6 +217,7 @@ guard, described below.
 | `POST /v1/messages` | Anthropic | `anthropic` → `anthropic` |
 | `POST /v1/messages/count_tokens` | Anthropic | token estimate over the converted request; anthropic-dialect endpoints forward it to the provider's own `count_tokens` (via the app proxy/auth), other dialects stay local; no stream |
 | `POST /v1/chat/completions` | OpenAI Chat | `openai` → `openai` |
+| `POST /v1/agents/grok-build/session-summary/chat/completions` | Grok Build session summary | OpenAI Chat with a route-specific reasoning default for the forced `session_title` tool |
 | `POST /v1/responses` | OpenAI Responses | `openai-responses` → `openai-responses` |
 | `POST /v1beta/models/{provider:model}:generateContent` | Gemini | `gemini` → Gemini JSON |
 | `POST /v1beta/models/{provider:model}:streamGenerateContent?alt=sse` | Gemini | `gemini` → Gemini SSE |
@@ -231,6 +232,10 @@ guard, described below.
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
+
+Agent-specific routes share authentication, model resolution and protocol conversion
+with the standard gateway routes. The Grok Build route requests reasoning effort
+`none` for its title tool. The selected model's adapter owns the upstream wire format.
 
 Gemini routes carry a separate local auth guard because Gemini clients use
 `x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.
@@ -288,7 +293,10 @@ verifies that credential against the claimed session before opening its replay
 checkpoint. Calling `ensureInternalGateway` without a session ID returns the
 general internal key, which grants no checkpoint access.
 `createScopedCredential({ path, model })` issues a key for a single consumer run
-that only calls that path with that model and is revoked by `dispose`. The
+that only calls that path with that model and is revoked by `dispose`. Local
+Agent connections may additionally bind `agentSessionId` in this in-memory scope;
+request headers cannot override that binding or attribute an unbound scoped key.
+The runtime host resolves the active assistant message at request start. The
 internal listener accepts only those keys, sent in a header, and the public
 listener accepts only the user's key. Enabled CherryAI subscription chat models
 are listed and served by the public gateway as `cherryai-subscription:<apiModelId>`,
@@ -597,6 +605,11 @@ token is hashed and looked up only by the local guard on
 `/v1beta` routes. Future mobile-only endpoints opt into this guard explicitly.
 
 ## Error handling
+
+OAuth-only providers without an access token return HTTP 401 with sign-in guidance,
+including after a rejected refresh has disabled the provider. A disabled provider
+with saved credentials still follows the ordinary availability check. Providers
+that also support API keys keep their existing authentication path.
 
 One root `onError` (`gatewayErrorHandler`) selects the response envelope by
 request **path**, so every endpoint speaks its caller's dialect:

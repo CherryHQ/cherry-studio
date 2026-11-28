@@ -507,3 +507,32 @@ describe('terminal failure reasons', () => {
     }
   })
 })
+
+it('restores name and namespace for flattened namespace tool calls in SSE and non-streaming output', async () => {
+  const adapter = new AiSdkToOpenAiResponsesSse({
+    model: 'cherryin:anthropic/claude-haiku-4.5',
+    resolveClientToolCall: (toolName) =>
+      toolName === 'mcp__automation__js' ? { name: 'js', namespace: 'mcp__automation' } : { name: toolName }
+  })
+  const stream = createMockStream([
+    { type: 'tool-input-available', toolCallId: 'call_ns_1', toolName: 'mcp__automation__js', input: { code: '1+1' } },
+    createFinish('tool-calls')
+  ])
+  const events = await collectEvents(adapter.transform(stream))
+
+  const itemDone = events.find((e) => e.type === 'response.output_item.done' && e.item.type === 'function_call')
+  expect(itemDone && 'item' in itemDone ? itemDone.item : undefined).toMatchObject({
+    type: 'function_call',
+    call_id: 'call_ns_1',
+    name: 'js',
+    namespace: 'mcp__automation',
+    arguments: '{"code":"1+1"}'
+  })
+  const nonStreaming = adapter.buildNonStreamingResponse()
+  expect(nonStreaming.output[0]).toMatchObject({
+    type: 'function_call',
+    call_id: 'call_ns_1',
+    name: 'js',
+    namespace: 'mcp__automation'
+  })
+})

@@ -18,6 +18,7 @@ import { getPermissionModeCards } from '@renderer/utils/agent'
 import { diffAssistantUpdate, initialAssistantFormState } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import { type AgentFormState, buildInitialAgentFormState, diffAgentUpdate } from '@shared/ai/agentForm'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -128,30 +129,34 @@ export function AgentProfileSettings({
 
   return (
     <ProfileSettingsSection onOpenAll={() => openResourceEditDialog({ kind: 'agent', id: agent.id, sessionId })}>
-      <ProfileSettingsRow label={modelLabel}>
-        <ModelPill
-          label={modelLabel}
-          model={model}
-          fallbackName={agent.modelName}
-          filter={modelFilter}
-          includeAgentOnlyModels
-          onSelect={onModelChange}
-        />
-      </ProfileSettingsRow>
-      <ProfileSettingsRow label={permissionLabel}>
-        <PermissionModeSelect
-          cards={permissionCards}
-          value={permissionMode}
-          onValueChange={(next: PermissionMode) => saveForm({ permissionMode: next })}
-          portalContainer={null}
-          ariaLabel={permissionLabel}
-          scopeName={agent.name}
-          standalone
-          compact
-          triggerClassName={cn(pillClassName, 'w-auto justify-between font-normal')}
-          t={t}
-        />
-      </ProfileSettingsRow>
+      {agent.type !== 'local' && (
+        <ProfileSettingsRow label={modelLabel}>
+          <ModelPill
+            label={modelLabel}
+            model={model}
+            fallbackName={agent.modelName}
+            filter={modelFilter}
+            includeAgentOnlyModels
+            onSelect={onModelChange}
+          />
+        </ProfileSettingsRow>
+      )}
+      {AGENT_RUNTIME_CAPABILITIES[agent.type].permissionModes.length > 0 && (
+        <ProfileSettingsRow label={permissionLabel}>
+          <PermissionModeSelect
+            cards={permissionCards}
+            value={permissionMode}
+            onValueChange={(next: PermissionMode) => saveForm({ permissionMode: next })}
+            portalContainer={null}
+            ariaLabel={permissionLabel}
+            scopeName={agent.name}
+            standalone
+            compact
+            triggerClassName={cn(pillClassName, 'w-auto justify-between font-normal')}
+            t={t}
+          />
+        </ProfileSettingsRow>
+      )}
       <ReplyLanguageRow
         value={{ languageMode: baseline.languageMode, languageCustom: baseline.languageCustom }}
         onSave={saveForm}

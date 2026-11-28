@@ -178,7 +178,7 @@ existing path.
 ## Capability resolution
 
 `resolveNativeFileSupport`
-(`src/main/ai/runtime/aiSdk/params/nativeFileSupport.ts`) derives the
+(`src/main/ai/messages/nativeFileSupport.ts`) derives the
 "native" column from `(provider, model, resolved endpoint/runtime converter)`:
 image rides on the model capability (`isVision`, `@shared/utils/model`);
 audio/video require both the model capability and support from the selected AI
