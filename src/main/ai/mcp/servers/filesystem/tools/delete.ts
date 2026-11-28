@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { expandHome, logger, validatePath } from '../types'
+import { expandHome, logger, relativeToRoots, validatePath } from '../types'
 
 // Schema definition
 export const DeleteToolSchema = z.object({
@@ -21,23 +21,23 @@ export const deleteToolDefinition = {
 // Handler implementation
 export async function handleDeleteTool(
   args: z.infer<typeof DeleteToolSchema>,
-  baseDir: string
+  roots: string[]
 ): Promise<CallToolResult> {
   const targetPath = args.path
-  const validPath = await validatePath(targetPath, baseDir)
+  const validPath = await validatePath(targetPath, roots)
   const recursive = args.recursive || false
 
   // validatePath resolves symlinks to their target; deleting a link must remove only the link entry.
-  const requestedPath = path.resolve(baseDir, expandHome(targetPath))
+  const requestedPath = path.resolve(expandHome(roots[0]), expandHome(targetPath))
   if ((await fs.lstat(requestedPath).catch(() => undefined))?.isSymbolicLink()) {
-    const linkPath = path.join(await validatePath(path.dirname(requestedPath), baseDir), path.basename(requestedPath))
+    const linkPath = path.join(await validatePath(path.dirname(requestedPath), roots), path.basename(requestedPath))
     try {
       await fs.unlink(linkPath)
     } catch (error: any) {
       throw new Error(`Failed to delete: ${error.message}`)
     }
     logger.info('Path deleted', { path: linkPath, type: 'symlink' })
-    return { content: [{ type: 'text', text: `Symlink deleted: ${path.relative(baseDir, requestedPath)}` }] }
+    return { content: [{ type: 'text', text: `Symlink deleted: ${relativeToRoots(roots, requestedPath)}` }] }
   }
 
   // Check if path exists and get stats
@@ -52,7 +52,7 @@ export async function handleDeleteTool(
   }
 
   const isDirectory = stats.isDirectory()
-  const relativePath = path.relative(baseDir, validPath)
+  const relativePath = relativeToRoots(roots, validPath)
 
   // Perform deletion
   try {

@@ -84,9 +84,28 @@ describe('filesystem MCP preset root', () => {
 
 describe('filesystem MCP security', () => {
   it('prefers WORKSPACE_ROOT and falls back to args for filesystem root', () => {
-    expect(resolveFilesystemBaseDir(['C:/args-root'], {})).toBe('C:/args-root')
-    expect(resolveFilesystemBaseDir(['C:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toBe('C:/env-root')
-    expect(resolveFilesystemBaseDir([], {})).toBeUndefined()
+    expect(resolveFilesystemBaseDir(['C:/args-root'], {})).toEqual(['C:/args-root'])
+    expect(resolveFilesystemBaseDir(['C:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toEqual(['C:/env-root'])
+    expect(resolveFilesystemBaseDir([], {})).toEqual([])
+  })
+
+  it('allows every configured root and still rejects paths outside them', async () => {
+    const rootA = await createTempDir('filesystem-multi-a-')
+    const rootB = await createTempDir('filesystem-multi-b-')
+    const outside = await createTempDir('filesystem-multi-outside-')
+    await fs.writeFile(path.join(rootB, 'b.txt'), 'in b')
+    await fs.writeFile(path.join(outside, 'o.txt'), 'out')
+    const roots = resolveFilesystemBaseDir([rootA, rootB], {})
+
+    const ok = await callBuiltinTool(() => createFileSystemServer(roots), 'read', {
+      file_path: path.join(rootB, 'b.txt')
+    })
+    expect(toolText(ok)).toContain('in b')
+
+    const denied = await callBuiltinTool(() => createFileSystemServer(roots), 'read', {
+      file_path: path.join(outside, 'o.txt')
+    })
+    expect(denied.isError).toBe(true)
   })
 
   it('allows paths inside the configured root and rejects paths outside it', async () => {
