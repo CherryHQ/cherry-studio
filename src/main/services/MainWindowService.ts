@@ -581,16 +581,15 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
-    // Repair Windows tray appearance on show/restore paths that bypass showMainWindow.
+    // Restore the taskbar entry when show or restore bypasses showMainWindow.
     if (isWin) {
-      const restoreOpacity = () => {
+      const restoreTaskbarEntry = () => {
         if (!mainWindow.isDestroyed()) {
-          mainWindow.setOpacity(1)
           mainWindow.setSkipTaskbar(false)
         }
       }
-      mainWindow.on('restore', restoreOpacity)
-      mainWindow.on('show', restoreOpacity)
+      mainWindow.on('restore', restoreTaskbarEntry)
+      mainWindow.on('show', restoreTaskbarEntry)
     }
 
     // `will-resize` only fires on Win & Mac; Linux uses `resize` instead (which
@@ -811,9 +810,8 @@ export class MainWindowService extends BaseService {
 
     const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
-      // Repair tray appearance before exposing the window; listeners cover out-of-band restores.
+      // Restore the taskbar entry before showing the main window.
       if (isWin) {
-        mainWindow.setOpacity(1)
         mainWindow.setSkipTaskbar(false)
       }
       if (mainWindow.isMinimized()) {
@@ -894,7 +892,7 @@ export class MainWindowService extends BaseService {
       return
     }
 
-    // isVisible() true for minimized; focus() can't restore it (opacity 0 on Windows) — treat as hidden.
+    // isVisible() true for minimized; focus() can't restore it — treat as hidden.
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()) {
       if (mainWindow.isFocused()) {
         // Same pattern as the close handler when the user opted into tray-close:
@@ -918,9 +916,8 @@ export class MainWindowService extends BaseService {
   }
 
   private hideToTrayOnWindows(win: BrowserWindow) {
-    // Retain the minimize step used for Windows focus handoff (#14370).
-    // Hide afterward to remove native window visibility in tray mode.
-    win.setOpacity(0)
+    // Minimize for Windows focus handoff (#14370). Setting opacity adds
+    // WS_EX_LAYERED, which excludes the window from some native app detectors.
     win.setSkipTaskbar(true)
     win.minimize()
     win.hide()

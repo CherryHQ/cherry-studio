@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-24-windows-main-window-native-detection.md
+2026-11-24-windows-main-window-native-detection.md: dacf4e6d8066fefa2e96c47aca8f4b93dce25fbe
+2026-11-24-windows-main-window-native-detection.zh.md: e87c8085f3e704f12152d27d429e3b23cf31b392
