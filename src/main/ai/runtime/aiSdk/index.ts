@@ -12,4 +12,10 @@ export type { RequestFeature } from './params/feature'
 export { buildApiKeyFallbackModels } from './retry/buildApiKeyFallbackModels'
 export { buildFallbackModels } from './retry/buildFallbackModels'
 export { createRetryableWrap } from './retry/createRetryableWrap'
-export { planModelTransportRetry, readRetryPolicy, resolveModelRetryPolicy } from './retry/retryPolicy'
+export { MAX_OUTPUT_TOKEN_RETRIES } from './retry/outputTokenRetry'
+export {
+  planModelTransportRetry,
+  readImageMaxRetries,
+  readRetryPolicy,
+  resolveModelRetryPolicy
+} from './retry/retryPolicy'

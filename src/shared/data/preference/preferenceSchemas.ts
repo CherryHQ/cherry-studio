@@ -599,6 +599,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'feature.voice.speech.voice_id': string
     // target-key-definitions/complex/complex
+    'image.retry.max_attempts': number
+    // target-key-definitions/complex/complex
     'menu.presentation_mode': PreferenceTypes.MenuPresentationMode
     // target-key-definitions/complex/complex
     'shortcut.agent.workspace.open': PreferenceTypes.PreferenceShortcutType
@@ -1023,6 +1025,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.voice.speech.model_id': '',
     'feature.voice.speech.speed': 1,
     'feature.voice.speech.voice_id': '',
+    'image.retry.max_attempts': 2,
     'menu.presentation_mode': 'cherry',
     'shortcut.agent.workspace.open': { binding: ['CommandOrControl', 'O'], enabled: true },
     'shortcut.app.fullscreen.exit': { binding: ['Escape'], enabled: true },
