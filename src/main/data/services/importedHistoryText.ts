@@ -99,7 +99,7 @@ export function presentImportedTools(
         return part
       }
     }
-    if (source === 'workbuddy' && (status === 'error' || status === 'paused'))
+    if ((source === 'workbuddy' || source === 'dsh') && (status === 'error' || status === 'paused'))
       errorText = text || '[Historical interrupted tool]'
     return {
       type: 'dynamic-tool' as const,

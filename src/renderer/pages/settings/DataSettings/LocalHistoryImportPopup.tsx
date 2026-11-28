@@ -53,6 +53,7 @@ const sourceLabels = {
   'claude-code': 'history_import.source.claude_code',
   codex: 'history_import.source.codex',
   opencode: 'history_import.source.opencode',
+  dsh: 'code.cli_tools.deepseek_harness',
   workbuddy: 'history_import.source.workbuddy'
 } as const
 
@@ -220,17 +221,9 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
       !completedRefs.has(item.ref) && (item.title + item.sourcePath).toLowerCase().includes(filter.toLowerCase())
   )
   const visibleCandidates = matchingCandidates.slice(0, displayLimit)
-  const filteredCounts: ImportFilterCounts = {
-    codex_guardian_review: scan?.filtered?.codex_guardian_review ?? 0,
-    claude_no_user_task: scan?.filtered?.claude_no_user_task ?? 0
-  }
-  for (const result of results ?? [])
-    if (
-      result.status === 'filtered' &&
-      (result.reason === 'codex_guardian_review' || result.reason === 'claude_no_user_task')
-    )
-      filteredCounts[result.reason]++
-  const filteredTotal = filteredCounts.codex_guardian_review + filteredCounts.claude_no_user_task
+  const filteredTotal =
+    Object.values(scan?.filtered ?? {}).reduce((sum, count) => sum + count, 0) +
+    (results ?? []).filter((result) => result.status === 'filtered').length
   const selectedRefs = new Set(selections.map((item) => item.ref))
   const matchingSelected = matchingCandidates.filter((item) => selectedRefs.has(item.ref)).length
   async function importSelected() {

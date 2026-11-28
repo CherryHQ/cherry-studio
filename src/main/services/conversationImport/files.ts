@@ -38,12 +38,22 @@ export async function readJsonl(
   const stat = await lstat(file)
   if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('source_changed')
   if (stat.size > IMPORT_LIMITS.session) throw new Error('session_limit')
+  const lines: { text: string; line: number }[] = []
+  const input = await scanJsonl(createReadStream(file, { signal }), signal, (text, line) => lines.push({ text, line }))
+  return { ...input, lines }
+}
+
+export async function scanJsonl(
+  chunks: AsyncIterable<Buffer | string>,
+  signal: AbortSignal,
+  onLine: (text: string, line: number) => void
+) {
   const hash = createHash('sha256')
   let bytes = 0
   let remainder = Buffer.alloc(0)
   let number = 0
-  const lines: { text: string; line: number }[] = []
-  for await (const chunk of createReadStream(file, { signal })) {
+  for await (const chunk of chunks) {
+    signal.throwIfAborted()
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     bytes += buffer.length
     if (bytes > IMPORT_LIMITS.session) throw new Error('session_limit')
@@ -52,12 +62,12 @@ export async function readJsonl(
     let offset = 0
     for (let end = pending.indexOf(10); end >= 0; end = pending.indexOf(10, offset)) {
       if (end - offset > IMPORT_LIMITS.line) throw new Error('line_limit')
-      lines.push({ text: pending.toString('utf8', offset, end), line: ++number })
+      onLine(pending.toString('utf8', offset, end), ++number)
       offset = end + 1
     }
     remainder = pending.subarray(offset)
     if (remainder.length > IMPORT_LIMITS.line) throw new Error('line_limit')
   }
-  if (remainder.length) lines.push({ text: remainder.toString('utf8'), line: ++number })
-  return { lines, unterminatedLine: remainder.length ? number : undefined, fingerprint: hash.digest('hex'), bytes }
+  if (remainder.length) onLine(remainder.toString('utf8'), ++number)
+  return { unterminatedLine: remainder.length ? number : undefined, fingerprint: hash.digest('hex'), bytes }
 }
