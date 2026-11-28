@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   updateAgent: vi.fn(),
   ipcRequest: vi.fn(),
   toastError: vi.fn(),
-  permissionMode: 'default',
+  permissionMode: 'default' as string | undefined,
   agent: { id: 'agent-1', name: 'Support Bot' } as { id: string; name: string } | undefined
 }))
 
@@ -290,7 +290,9 @@ describe('permissionModeTool submenu', () => {
     })
   })
 
-  it('keeps Muse approval choices with the same Cherry policy independently selectable', () => {
+  it('writes the shared Agent permission for Muse native choices', () => {
+    mocks.agent = { id: 'agent-local', name: 'Muse' }
+    mocks.permissionMode = undefined
     const Runtime = permissionModeTool.composer!.runtime!
     const context = {
       t,
@@ -302,7 +304,7 @@ describe('permissionModeTool submenu', () => {
         localPermission: {
           mode: {
             id: 'mode',
-            currentValue: 'onRequest',
+            currentValue: 'denyUnmatched',
             nativePermissionNames: true,
             options: [
               { value: 'onRequest', name: 'Ask on request', permissionMode: 'default' },
@@ -318,23 +320,17 @@ describe('permissionModeTool submenu', () => {
 
     const launchers = mocks.registerLaunchers.mock.calls.at(-1)?.[0] ?? []
     const submenu = launchers.find((item) => item.id === 'permission-mode')?.submenu ?? []
-    expect(submenu.map(({ label, active }) => [label, active])).toEqual([
-      ['Ask on request', true],
-      ['Ask before unmatched actions', false],
-      ['Deny unmatched actions', false],
-      ['Allow all', false]
-    ])
-    submenu.find(({ label }) => label === 'Deny unmatched actions')?.action?.({} as any)
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
-      sessionId: 'session-muse',
-      configId: 'mode',
-      value: 'denyUnmatched'
-    })
+    submenu.find(({ label }) => label === 'Ask on request')?.action?.({} as any)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-local', configuration: { permission_mode: 'default' } },
+      { showSuccessToast: false }
+    )
   })
 
-  it('keeps local Plan in the root panel and maps permission choices to native values', async () => {
+  it('saves local Plan and permission choices on the Agent', async () => {
     const user = userEvent.setup()
     mocks.agent = { id: 'agent-local', name: 'ZCode Local' }
+    mocks.permissionMode = 'acceptEdits'
     const Runtime = permissionModeTool.composer!.runtime!
     const zcodeMode = {
       id: 'mode',
@@ -371,35 +367,32 @@ describe('permissionModeTool submenu', () => {
     expect(submenu.find((item) => item.id === 'permission-mode-acceptEdits')?.active).toBe(true)
 
     submenu.find((item) => item.id === 'permission-mode-default')?.action?.({} as any)
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
-      sessionId: 'session-zcode',
-      configId: 'mode',
-      value: 'guarded'
-    })
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-local', configuration: { permission_mode: 'default' } },
+      { showSuccessToast: false }
+    )
 
-    mocks.ipcRequest.mockClear()
+    mocks.updateAgent.mockClear()
     expect(plan?.sources).toContain('root-panel')
     plan?.action?.({} as any)
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
-      sessionId: 'session-zcode',
-      configId: 'mode',
-      value: 'plan'
-    })
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-local', configuration: { permission_mode: 'plan' } },
+      { showSuccessToast: false }
+    )
 
-    // High-risk mode requires confirmation and sends native 'yolo' only when confirmed.
-    mocks.ipcRequest.mockClear()
+    // Full Access requires confirmation.
+    mocks.updateAgent.mockClear()
     submenu.find((item) => item.id === 'permission-mode-bypassPermissions')?.action?.({} as any)
-    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
     expect(await screen.findByRole('dialog')).toHaveTextContent('ZCode Local')
     await user.click(screen.getByRole('button', { name: 'Enable Full Access' }))
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
-      sessionId: 'session-zcode',
-      configId: 'mode',
-      value: 'yolo'
-    })
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-local', configuration: { permission_mode: 'bypassPermissions' } },
+      { showSuccessToast: false }
+    )
 
     // Streaming disables submenu choices and blocks mode switches.
-    mocks.ipcRequest.mockClear()
+    mocks.updateAgent.mockClear()
     rerender(
       <Runtime
         context={
@@ -416,10 +409,10 @@ describe('permissionModeTool submenu', () => {
     const disabledSubmenu = mocks.registerLaunchers.mock.calls.at(-1)?.[0]?.[0]?.submenu ?? []
     expect(disabledSubmenu.every((item) => item.disabled === true)).toBe(true)
     disabledSubmenu.find((item) => item.id === 'permission-mode-default')?.action?.({} as any)
-    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
 
-    // Config-backed permissions (e.g. MiniMax / Amp) dispatch set_config_option instead of set_mode.
-    mocks.ipcRequest.mockClear()
+    // Config-backed permissions use the same Agent update.
+    mocks.updateAgent.mockClear()
     const ampConfigPermission = {
       id: 'permissions',
       currentValue: 'default',
@@ -449,10 +442,9 @@ describe('permissionModeTool submenu', () => {
       ampSubmenu.find((item) => item.id === 'permission-mode-bypassPermissions')?.action?.({} as any)
     })
     await user.click(await screen.findByRole('button', { name: 'Enable Full Access' }))
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
-      sessionId: 'session-amp',
-      configId: 'permissions',
-      value: 'bypass'
-    })
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-amp', configuration: { permission_mode: 'bypassPermissions' } },
+      { showSuccessToast: false }
+    )
   })
 })

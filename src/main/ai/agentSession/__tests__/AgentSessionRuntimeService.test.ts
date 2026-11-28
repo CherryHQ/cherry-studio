@@ -29,10 +29,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 import {
   ACP_HOST_PERMISSION_MODE_ID,
-  ACP_LAUNCH_BYPASS_VALUE,
-  ACP_LAUNCH_PERMISSION_ID,
   getAcpHostPermissionModeSelection,
-  getAcpLaunchPermission,
   isAcpHostPermissionMode,
   type AcpHostPermissionMode,
   type LocalAgentSelection
@@ -156,6 +153,7 @@ vi.mock('@data/services/AgentSessionMessageService', async (importOriginal) => {
       findStoredToolOwners: mocks.findStoredToolOwners,
       hasSessionMessages: mocks.hasSessionMessages,
       hasSessionMessage: mocks.hasSessionMessage,
+      hasContextModelInput: agentSessionMessageService.hasContextModelInput.bind(agentSessionMessageService),
       applyToolApprovalDecision: mocks.applyToolApprovalDecision,
       retireAbandonedApproval: mocks.retireAbandonedApproval,
       getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
@@ -5071,131 +5069,15 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  it('reads idle permission choices without starting the runtime and rejects changes during a turn', async () => {
-    const connect = vi.fn()
-    runtimeDriverRegistry.register({ type: 'local', connect, validateSession: vi.fn() })
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'local',
-      model: baseTurnInput.modelId,
-      localRuntime: { providerId: 'provider-fixture', presetId: 'codex', enabled: true, args: [], env: {} }
-    })
-
-    const service = new AgentSessionRuntimeService()
-    expect(service.getLocalSessionView('session-1')).toMatchObject({
-      info: null,
-      idleMode: { id: 'codex-mode', currentValue: 'workspace' }
-    })
-    await expect(service.setLocalMode('session-1', 'codex-mode', 'readOnly')).resolves.toMatchObject({
-      info: null,
-      idleMode: { currentValue: 'readOnly' }
-    })
-    expect(connect).not.toHaveBeenCalled()
-    service.beginTurn({ ...baseTurnInput, agentType: 'local' })
-    await expect(service.setLocalMode('session-1', 'codex-mode', 'workspace')).rejects.toThrow('busy')
-  })
-
-  it('stores a pre-connect ACP host permission choice for the selected agent only', async () => {
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'local',
-      localRuntime: { providerId: 'provider-fixture', presetId: 'opencode', enabled: true, args: [], env: {} }
-    })
-
-    const service = new AgentSessionRuntimeService()
-    await service.setLocalMode('session-1', ACP_HOST_PERMISSION_MODE_ID, 'bypassPermissions')
-    expect(service.getLocalSessionView('session-1').idleHostPermission?.currentValue).toBe('bypassPermissions')
-
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-2',
-      type: 'local',
-      localRuntime: { providerId: 'provider-fixture', presetId: 'kimi', enabled: true, args: [], env: {} }
-    })
-    expect(service.getLocalSessionView('session-1').idleHostPermission?.currentValue).toBe('default')
-  })
-
-  it('restarts the selected ACP session for launch bypass and removes the override before Plan', async () => {
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'local',
-      model: baseTurnInput.modelId,
-      localRuntime: { providerId: 'provider-fixture', presetId: 'antigravity-acp', enabled: true, args: [], env: {} }
-    })
-    const launches: Array<string | undefined> = []
-    const closed: number[] = []
-    const resumes: Array<string | undefined> = []
-    runtimeDriverRegistry.register({
-      type: 'local',
-      async connect(input: AgentRuntimeConnectInput) {
-        expect(closed).toHaveLength(launches.length)
-        launches.push(input.localLaunchBypass)
-        resumes.push(input.resumeToken)
-        const generation = launches.length
-        const events = createAsyncQueue<AgentRuntimeEvent>(() => {
-          closed.push(generation)
-        })
-        events.push({ type: 'resume-token', token: 'native-antigravity-session' })
-        const mode: LocalAgentSelection = {
-          id: 'mode',
-          application: 'session',
-          currentValue: 'default',
-          options: [
-            { value: 'default', name: 'Default', permissionMode: 'default' },
-            { value: 'auto', name: 'Auto', permissionMode: 'auto' },
-            { value: 'plan', name: 'Plan', permissionMode: 'plan' }
-          ]
-        }
-        const info = () => ({
-          models: [],
-          images: true,
-          resume: true,
-          mode,
-          launchPermission: getAcpLaunchPermission(mode, !!input.localLaunchBypass)
-        })
-        return {
-          ...events,
-          send: vi.fn(),
-          async reconcile() {
-            return 'current' as const
-          },
-          get localSessionInfo() {
-            return info()
-          },
-          async setMode(_id: string, value: string) {
-            mode.currentValue = value
-            return info()
-          }
-        }
-      },
-      validateSession: vi.fn()
-    })
-    const service = new AgentSessionRuntimeService()
-    expect(service.getLocalSessionView('session-1').idleLaunchPermission?.currentValue).toBe('default')
-    await service.listSessionCommands('session-1')
-    const enabled = await service.setLocalMode('session-1', ACP_LAUNCH_PERMISSION_ID, ACP_LAUNCH_BYPASS_VALUE)
-    expect(enabled.info?.launchPermission?.currentValue).toBe(ACP_LAUNCH_BYPASS_VALUE)
-    expect(launches).toEqual([undefined, 'antigravity-acp'])
-    expect(closed).toEqual([1])
-    const planned = await service.setLocalMode('session-1', ACP_LAUNCH_PERMISSION_ID, 'plan')
-    expect(planned.info?.launchPermission?.currentValue).toBe('plan')
-    expect(launches).toEqual([undefined, 'antigravity-acp', undefined])
-    expect(closed).toEqual([1, 2])
-    expect(resumes).toEqual([undefined, 'native-antigravity-session', 'native-antigravity-session'])
-    await service.closeSession('session-1')
-  })
-
   it('enters native OpenCode Plan and returns to Build through the shared permission menu', async () => {
     mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
-    mocks.getAgent.mockReturnValue({
+    const agent = {
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
       localRuntime: { providerId: 'provider-fixture', presetId: 'opencode', enabled: true, args: [], env: {} }
-    })
+    }
+    mocks.getAgent.mockReturnValue(agent)
 
     const mode: LocalAgentSelection = {
       id: 'mode',
@@ -5230,99 +5112,15 @@ describe('AgentSessionRuntimeService', () => {
 
     const service = new AgentSessionRuntimeService()
     await service.listSessionCommands('session-1')
-    const planned = await service.setLocalMode('session-1', ACP_HOST_PERMISSION_MODE_ID, 'plan')
-    expect(planned.info?.hostPermission?.currentValue).toBe('plan')
-
-    const acting = await service.setLocalMode('session-1', ACP_HOST_PERMISSION_MODE_ID, 'acceptEdits')
-    expect(acting.info?.mode?.currentValue).toBe('build')
-    expect(acting.info?.hostPermission?.currentValue).toBe('acceptEdits')
-  })
-
-  it('persists local session mode and security overrides, replays them on reconnect, and supports pre-connect mode selection', async () => {
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'local',
-      model: baseTurnInput.modelId,
-      localRuntime: { providerId: 'provider-fixture', presetId: 'claude', enabled: true, args: [], env: {} }
-    })
-
-    const service = new AgentSessionRuntimeService()
-
-    // Blank session with no registered driver yet still accepts and persists valid Claude default mode.
-    const preConnect = await service.setLocalMode('session-1', 'claude-mode', 'plan')
-    expect(preConnect.idleMode?.currentValue).toBe('plan')
-    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
-      sessionId: 'session-1',
-      info: null,
-      idleMode: expect.objectContaining({ id: 'claude-mode', currentValue: 'plan' })
-    })
-
-    // Reconnecting replays both persisted mode and security config options before publishing capabilities.
-    const replayedInfo = {
-      models: [],
-      images: true,
-      resume: true,
-      mode: {
-        id: 'claude-mode',
-        currentValue: 'default',
-        options: [
-          { value: 'default', name: 'Default' },
-          { value: 'plan', name: 'Plan' }
-        ]
-      },
-      configOptions: [
-        {
-          id: 'allow_all',
-          name: 'Allow All',
-          type: 'boolean' as const,
-          currentValue: false,
-          application: 'session' as const
-        }
-      ]
+    for (const permission_mode of ['plan', 'acceptEdits'] as const) {
+      const configuration = { permission_mode }
+      const updated = { ...agent, configuration }
+      mocks.getAgent.mockReturnValue(updated)
+      await (service as any).handleAgentUpdated('agent-1', { configuration }, updated)
+      const info = service.getLocalSessionView('session-1').info
+      expect(info?.hostPermission?.currentValue).toBe(permission_mode)
+      expect(info?.mode?.currentValue).toBe(permission_mode === 'plan' ? 'plan' : 'build')
     }
-    const connection = {
-      ...createAsyncQueue<any>(),
-      send: vi.fn(),
-      reconcile: vi.fn().mockResolvedValue('current'),
-      localSessionInfo: replayedInfo,
-      setMode: vi.fn(async (_configId: string, value: string) => {
-        replayedInfo.mode.currentValue = value
-        return replayedInfo
-      }),
-      setConfigOption: vi.fn(async (_configId: string, value: string | boolean) => {
-        replayedInfo.configOptions[0].currentValue = Boolean(value)
-        return replayedInfo
-      })
-    }
-    runtimeDriverRegistry.register({
-      type: 'local',
-      connect: vi.fn(async () => ({ ...connection, ...createAsyncQueue<AgentRuntimeEvent>() })),
-      validateSession: vi.fn()
-    })
-
-    // Save an allow_all security override after connecting, then simulate disconnect + reconnect.
-    await service.listSessionCommands('session-1')
-    expect(connection.setMode).toHaveBeenCalledWith('claude-mode', 'plan')
-    await service.setLocalConfigOption('session-1', 'allow_all', true)
-    await service.closeSession('session-1')
-
-    connection.setMode.mockClear()
-    connection.setConfigOption.mockClear()
-    replayedInfo.mode.currentValue = 'default'
-    replayedInfo.configOptions[0].currentValue = false
-    mocks.broadcast.mockClear()
-
-    await service.listSessionCommands('session-1')
-    expect(connection.setMode).toHaveBeenCalledWith('claude-mode', 'plan')
-    expect(connection.setConfigOption).toHaveBeenCalledWith('allow_all', true)
-    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
-      sessionId: 'session-1',
-      info: expect.objectContaining({
-        mode: expect.objectContaining({ currentValue: 'plan' }),
-        configOptions: [expect.objectContaining({ id: 'allow_all', currentValue: true })]
-      })
-    })
   })
 
   it('persists and replays generic permission config option IDs across reconnect while leaving non-permission configs ephemeral', async () => {
@@ -5500,25 +5298,20 @@ describe('AgentSessionRuntimeService', () => {
         orderKey: 'a0'
       })
       .run()
-    mocks.getAgent.mockReturnValue({
+    const agent = {
       id: 'agent-dsh',
       type: 'local',
       model: baseTurnInput.modelId,
       localRuntime: { providerId: 'provider-fixture', presetId: 'deepseek-harness', enabled: true, args: [], env: {} }
-    })
+    }
+    mocks.getAgent.mockReturnValue(agent)
     mocks.hasSessionMessages.mockReturnValue(true)
     mocks.getSessionById.mockReturnValue({ id: 'session-dsh', agentId: 'agent-dsh', workspace: { path: '/workspace' } })
-    const storedMode = () =>
-      (
-        mocks.cachePersist.get('local_agent.session_overrides') as
-          | Record<string, { mode?: { value: string } }>
-          | undefined
-      )?.['session-dsh']?.mode?.value
     const opened: string[] = []
     runtimeDriverRegistry.register({
       type: 'local',
-      async connect() {
-        const currentValue = storedMode() ?? 'workspace-write'
+      async connect(input: AgentRuntimeConnectInput) {
+        const currentValue = input.localPermissionMode === 'plan' ? 'read-only' : 'workspace-write'
         opened.push(currentValue)
         return {
           ...createAsyncQueue<AgentRuntimeEvent>(),
@@ -5535,8 +5328,8 @@ describe('AgentSessionRuntimeService', () => {
               application: 'reconnect' as const,
               currentValue,
               options: [
-                { value: 'read-only', name: 'Read Only' },
-                { value: 'workspace-write', name: 'Workspace' }
+                { value: 'read-only', name: 'Read Only', permissionMode: 'plan' as const },
+                { value: 'workspace-write', name: 'Workspace', permissionMode: 'acceptEdits' as const }
               ]
             }
           }
@@ -5546,8 +5339,13 @@ describe('AgentSessionRuntimeService', () => {
     })
     const service = new AgentSessionRuntimeService()
     await service.setLocalSessionInteractive('window', 'session-dsh', true)
-    const updatedDsh = await service.setLocalMode('session-dsh', 'dsh-mode', 'read-only')
-    expect(updatedDsh.info?.mode?.currentValue).toBe('read-only')
+    const configuration = { permission_mode: 'plan' as const }
+    const updated = { ...agent, configuration }
+    mocks.getAgent.mockReturnValue(updated)
+    await (service as any).handleAgentUpdated('agent-dsh', { configuration }, updated)
+    await vi.waitFor(() =>
+      expect(service.getLocalSessionView('session-dsh').info?.mode?.currentValue).toBe('read-only')
+    )
     expect(opened).toEqual(['workspace-write', 'read-only'])
     await service.closeSession('session-dsh')
   })
@@ -6626,7 +6424,6 @@ describe('AgentSessionRuntimeService', () => {
 
       await vi.waitFor(() =>
         expect(connection.send).toHaveBeenCalledWith({
-          inputId: 'user-2',
           message: userMessage('user-2'),
           systemReminder: true
         })
@@ -6825,6 +6622,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('treats a reordered knowledge scope as unchanged and still folds the steer', async () => {
+      const steerId = randomUUID()
       // Scope identity is a set, not a sequence. If it ever degrades to an index-wise comparison this
       // steer gets queued as a whole new turn and the warm connection is torn down for nothing.
       const events = createAsyncQueue<any>()
@@ -6832,7 +6630,7 @@ describe('AgentSessionRuntimeService', () => {
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2', ['kb-2', 'kb-1'])),
+        contextId: saveSteerInputs(userMessage(steerId, ['kb-2', 'kb-1'])),
         threadInput: steering(submitSteer),
         close: vi.fn(async () => {
           events.end()
@@ -6854,7 +6652,7 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const reorderedScopeMessage = userMessage('user-2', ['kb-2', 'kb-1'])
+      const reorderedScopeMessage = userMessage(steerId, ['kb-2', 'kb-1'])
       service.enqueueUserMessage('session-1', reorderedScopeMessage)
 
       expect(submitSteer).toHaveBeenCalledWith({
@@ -6918,6 +6716,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('lets a static Agent binding override different composer selections for steer matching', async () => {
+      const steerId = randomUUID()
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         type: 'test-runtime',
@@ -6929,7 +6728,7 @@ describe('AgentSessionRuntimeService', () => {
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2', ['kb-2'])),
+        contextId: saveSteerInputs(userMessage(steerId, ['kb-2'])),
         threadInput: steering(submitSteer),
         close: vi.fn(async () => {
           events.end()
@@ -6951,7 +6750,7 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const sameEffectiveScopeMessage = userMessage('user-2', ['kb-2'])
+      const sameEffectiveScopeMessage = userMessage(steerId, ['kb-2'])
       service.enqueueUserMessage('session-1', sameEffectiveScopeMessage)
 
       expect(submitSteer).toHaveBeenCalledWith({
@@ -6965,12 +6764,13 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('folds a live steer into the current turn without opening a second turn', async () => {
+      const steerId = randomUUID()
       const events = createAsyncQueue<any>()
       const submitSteer = vi.fn<Steer>(steering().steer.submit)
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2')),
+        contextId: saveSteerInputs(userMessage(steerId)),
         threadInput: steering(submitSteer),
         close: vi.fn(async () => {
           events.end()
@@ -6999,10 +6799,10 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       // Steer on a live turn → redirect injects it into the running turn: not queued, no new turn.
-      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      service.enqueueUserMessage('session-1', userMessage(steerId))
       expect(submitSteer).toHaveBeenCalledWith({
-        inputId: 'user-2',
-        message: userMessage('user-2'),
+        inputId: steerId,
+        message: userMessage(steerId),
         systemReminder: true
       })
       expect(getEntry(service).pendingTurns).toHaveLength(0)
@@ -7012,11 +6812,12 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('queues a steer explicitly refused by the runtime with its original scope', async () => {
+      const steerId = randomUUID()
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2', ['kb-1'])),
+        contextId: saveSteerInputs(userMessage(steerId, ['kb-1'])),
         threadInput: steering(async ({ inputId }) => refuseSteer(inputId)),
         close: vi.fn(async () => {
           events.end()
@@ -7039,7 +6840,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
       // Steer redirected (stashed), but the turn calls no tool → the connection hands it back.
-      service.enqueueUserMessage('session-1', userMessage('user-2', ['kb-1']))
+      service.enqueueUserMessage('session-1', userMessage(steerId, ['kb-1']))
       expect(getEntry(service).pendingTurns).toHaveLength(0)
 
       await vi.waitFor(() => expect(getEntry(service).pendingTurns).toHaveLength(1))
@@ -7054,11 +6855,12 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('retains unknown input context across reconnect, resolves once, and fences retired callbacks', async () => {
+      const steerId = randomUUID()
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
       const lookup = createDeferred<any>()
       const commands: string[] = []
-      const contextId = saveSteerInputs(userMessage('unknown-input'))
+      const contextId = saveSteerInputs(userMessage(steerId))
       const original = {
         events: oldEvents.iterable,
         send: (input: any) => {
@@ -7112,7 +6914,7 @@ describe('AgentSessionRuntimeService', () => {
         name: 'Captured author',
         model: { id: 'claude-sonnet-4-5', name: 'Model', provider: 'claude-code' }
       }
-      service.enqueueUserMessage('session-1', userMessage('unknown-input'), {
+      service.enqueueUserMessage('session-1', userMessage(steerId), {
         messageSnapshot: snapshot,
         headless: false
       })
@@ -7122,20 +6924,20 @@ describe('AgentSessionRuntimeService', () => {
       await service.closeSession('session-1')
       expect(getEntry(service)).toBe(entry)
       const reconnect = (service as any).ensureConnection(entry)
-      await vi.waitFor(() => expect(queried).toEqual({ contextId, inputId: 'unknown-input' }))
-      expect(entry.pendingInputs.get('unknown-input').input).toMatchObject({
+      await vi.waitFor(() => expect(queried).toEqual({ contextId, inputId: steerId }))
+      expect(entry.pendingInputs.get(steerId).input).toMatchObject({
         headless: false,
         messageSnapshot: { name: 'Captured author' }
       })
-      callbacks.onSteerInjected(['unknown-input'])
-      expect(entry.pendingInputs.get('unknown-input').contextId).toBe(contextId)
+      callbacks.onSteerInjected([steerId])
+      expect(entry.pendingInputs.get(steerId).contextId).toBe(contextId)
       expect(entry.runtimeState.execution.kind).toBe('idle')
       lookup.resolve({
         status: 'confirmed',
         value: {
           found: true,
           input: {
-            inputId: 'unknown-input',
+            inputId: steerId,
             facts: ['accepted', 'placed'],
             outcome: 'completed'
           }
@@ -7144,8 +6946,8 @@ describe('AgentSessionRuntimeService', () => {
       await reconnect
       expect(entry.pendingInputs.size).toBe(0)
       expect(entry.pendingTurns).toEqual([])
-      expect(commands).toEqual(['user-1', 'unknown-input'])
-      callbacks.onSteerInjected(['unknown-input'])
+      expect(commands).toEqual(['user-1', steerId])
+      callbacks.onSteerInjected([steerId])
       expect(entry.runtimeState.execution.kind).toBe('idle')
       await service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
@@ -7162,6 +6964,7 @@ describe('AgentSessionRuntimeService', () => {
       },
       {
         label: 'confirmed found=false',
+        resend: true,
         lookup: () => Promise.resolve({ status: 'confirmed' as const, value: { found: false as const } })
       },
       {
@@ -7181,31 +6984,36 @@ describe('AgentSessionRuntimeService', () => {
           })
       },
       {
-        label: 'confirmed unplaced input without outcome',
-        lookup: () =>
+        label: 'confirmed queued input without outcome',
+        lookup: (_contextId: string, inputId: string) =>
           Promise.resolve({
             status: 'confirmed' as const,
-            value: { found: true as const, input: { inputId: 'steer-input', facts: ['accepted', 'queued'] as const } }
+            value: { found: true as const, input: { inputId, facts: ['accepted', 'queued'] as const } }
           })
       },
       {
         label: 'lookupInput rejection',
         lookup: () => Promise.reject(new Error('lookup failed'))
       }
-    ])('recovers an unplaced steer across reconnect on $label without orphaning pendingInputs', async ({ lookup }) => {
+    ])('reconciles an unplaced steer across reconnect on $label', async ({ lookup, resend }) => {
+      const steer = userMessage(randomUUID())
+      const contextId = saveSteerInputs(steer)
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
       const sentOnSuccessor: any[] = []
       const original = {
         events: oldEvents.iterable,
         send: vi.fn(),
-        redirect: vi.fn().mockReturnValue(true),
+        contextId,
+        threadInput: steering(),
+        lookupInput: vi.fn(),
         close: vi.fn(async () => {
           oldEvents.end()
         })
       }
       const successor = {
         events: newEvents.iterable,
+        contextId,
         send: vi.fn((input: any) => {
           sentOnSuccessor.push(input)
         }),
@@ -7241,16 +7049,15 @@ describe('AgentSessionRuntimeService', () => {
         name: 'Steer author',
         model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
       } as any
-      service.enqueueUserMessage('session-1', userMessage('steer-input'), {
+      service.enqueueUserMessage('session-1', steer, {
         messageSnapshot: steerSnapshot,
         reasoningEffort: 'high',
         fastMode: true
       })
-      connect.mock.calls[0]?.[0].onInputPrepared('steer-input', 'original-context')
 
       const entry = getEntry(service)
       await service.closeSession('session-1')
-      expect(entry.pendingInputs?.has('steer-input')).toBe(true)
+      expect(entry.pendingInputs?.has(steer.id)).toBe(true)
 
       mocks.startRuntimeTurn.mockImplementationOnce((startInput: any) => {
         openChunkStream(service, {
@@ -7264,52 +7071,51 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       await (service as any).ensureConnection(entry)
-      expect(successor.lookupInput).toHaveBeenCalledWith('original-context', 'steer-input')
-      expect(entry.pendingInputs?.size ?? 0).toBe(0)
-
-      await vi.waitFor(() =>
-        expect(sentOnSuccessor).toEqual([{ message: userMessage('steer-input'), systemReminder: true }])
-      )
-      expect(mocks.startRuntimeTurn).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          request: expect.objectContaining({
-            reasoningEffort: 'high',
-            fastMode: true
+      expect(successor.lookupInput).toHaveBeenCalledWith(contextId, steer.id)
+      if (resend) {
+        expect(entry.pendingInputs?.size ?? 0).toBe(0)
+        await vi.waitFor(() => expect(sentOnSuccessor).toEqual([{ message: steer, systemReminder: true }]))
+        expect(mocks.startRuntimeTurn).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            request: expect.objectContaining({
+              reasoningEffort: 'high',
+              fastMode: true
+            })
           })
-        })
-      )
+        )
+      } else {
+        expect(entry.pendingInputs?.has(steer.id)).toBe(true)
+        expect(realMessages.inputBinding('session-1', steer.id)?.contextId).toBe(contextId)
+        expect(sentOnSuccessor).toEqual([])
+      }
       await service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
-    it('recovers a stale steer when onInputPrepared never ran or successor omits lookupInput', async () => {
+    it('retains a bound steer across reconnect when the successor cannot look it up', async () => {
+      const steer = userMessage(randomUUID())
+      const contextId = saveSteerInputs(steer)
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
-      const sentOnSuccessor: any[] = []
       const original = {
         events: oldEvents.iterable,
         send: vi.fn(),
-        redirect: vi.fn().mockReturnValue(true),
+        contextId,
+        threadInput: steering(),
         close: vi.fn(async () => {
           oldEvents.end()
         })
       }
       const successor = {
         events: newEvents.iterable,
-        send: vi.fn((input: any) => {
-          sentOnSuccessor.push(input)
-        }),
-        reconcile: vi.fn().mockResolvedValue('current'),
+        send: vi.fn(),
+        contextId,
         close: vi.fn(async () => {
           newEvents.end()
         })
       }
       const connect = vi.fn().mockResolvedValueOnce(original).mockResolvedValueOnce(successor)
-      runtimeDriverRegistry.register({
-        type: 'test-runtime',
-        connect,
-        validateSession: vi.fn()
-      })
+      runtimeDriverRegistry.register({ type: 'test-runtime', connect, validateSession: vi.fn() })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
       const reader = openChunkStream(service, {
@@ -7320,44 +7126,29 @@ describe('AgentSessionRuntimeService', () => {
       await reader.read()
       await vi.waitFor(() => expect(original.send).toHaveBeenCalledOnce())
 
-      service.enqueueUserMessage('session-1', userMessage('steer-no-context'))
-      service.enqueueUserMessage('session-1', userMessage('steer-no-lookup'))
-      connect.mock.calls[0]?.[0].onInputPrepared('steer-no-lookup', 'original-context')
-
+      service.enqueueUserMessage('session-1', steer)
       const entry = getEntry(service)
       await service.closeSession('session-1')
-
-      mocks.startRuntimeTurn.mockImplementation((startInput: any) => {
-        const nextReader = openChunkStream(service, {
-          sessionId: 'session-1',
-          turnId: startInput.request.runtime.turnId,
-          signal: new AbortController().signal
-        }).getReader()
-        void nextReader.read().catch(() => undefined)
-      })
-
       await (service as any).ensureConnection(entry)
-      expect(entry.pendingInputs?.size ?? 0).toBe(0)
-      await vi.waitFor(() =>
-        expect(sentOnSuccessor).toContainEqual({ message: userMessage('steer-no-context'), systemReminder: true })
-      )
-      service.markTurnTerminal('session-1', 'success')
-      await vi.waitFor(() =>
-        expect(sentOnSuccessor).toContainEqual({ message: userMessage('steer-no-lookup'), systemReminder: true })
-      )
-      expect(entry.pendingInputs?.size ?? 0).toBe(0)
+
+      expect(entry.pendingInputs?.has(steer.id)).toBe(true)
+      expect(realMessages.inputBinding('session-1', steer.id)?.contextId).toBe(contextId)
+      expect(successor.send).not.toHaveBeenCalled()
       await service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
     it('recovers an unplaced steer when an agent model update rebuilds the connection', async () => {
+      const steer = userMessage(randomUUID())
+      const contextId = saveSteerInputs(steer)
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
       const sentOnSuccessor: any[] = []
       const original = {
         events: oldEvents.iterable,
         send: vi.fn(),
-        redirect: vi.fn().mockReturnValue(true),
+        contextId,
+        threadInput: steering(),
         reconcile: vi.fn().mockResolvedValue('rebuild'),
         close: vi.fn(async () => {
           oldEvents.end()
@@ -7365,14 +7156,12 @@ describe('AgentSessionRuntimeService', () => {
       }
       const successor = {
         events: newEvents.iterable,
+        contextId,
         send: vi.fn((input: any) => {
           sentOnSuccessor.push(input)
         }),
         reconcile: vi.fn().mockResolvedValue('current'),
-        lookupInput: vi.fn().mockResolvedValue({
-          status: 'unknown',
-          error: { operation: 'lookup-input', code: 'unavailable', message: 'unavailable' }
-        }),
+        lookupInput: vi.fn().mockResolvedValue({ status: 'confirmed', value: { found: false } }),
         close: vi.fn(async () => {
           newEvents.end()
         })
@@ -7393,8 +7182,7 @@ describe('AgentSessionRuntimeService', () => {
       await reader.read()
       await vi.waitFor(() => expect(original.send).toHaveBeenCalledOnce())
 
-      service.enqueueUserMessage('session-1', userMessage('steer-rebuild'))
-      connect.mock.calls[0]?.[0].onInputPrepared('steer-rebuild', 'original-context')
+      service.enqueueUserMessage('session-1', steer)
 
       // Turn 1 settles without placing the steer; then an agent update triggers a rebuild.
       service.markTurnTerminal('session-1', 'success')
@@ -7415,9 +7203,7 @@ describe('AgentSessionRuntimeService', () => {
       )
 
       const entry = getEntry(service)
-      await vi.waitFor(() =>
-        expect(sentOnSuccessor).toEqual([{ message: userMessage('steer-rebuild'), systemReminder: true }])
-      )
+      await vi.waitFor(() => expect(sentOnSuccessor).toEqual([{ message: steer, systemReminder: true }]))
       expect(entry.pendingInputs?.size ?? 0).toBe(0)
       expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ modelId: switchedModelId }))
       await service.closeSession('session-1')
@@ -7425,27 +7211,28 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('recovers an unplaced steer across stop-and-resume behind the resumed turn without orphaning pendingInputs', async () => {
+      const steer = userMessage(randomUUID())
+      const contextId = saveSteerInputs(steer)
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
       const sentOnSuccessor: any[] = []
       const original = {
         events: oldEvents.iterable,
         send: vi.fn(),
-        redirect: vi.fn().mockReturnValue(true),
+        contextId,
+        threadInput: steering(),
         close: vi.fn(async () => {
           oldEvents.end()
         })
       }
       const successor = {
         events: newEvents.iterable,
+        contextId,
         send: vi.fn((input: any) => {
           sentOnSuccessor.push(input)
         }),
         reconcile: vi.fn().mockResolvedValue('current'),
-        lookupInput: vi.fn().mockResolvedValue({
-          status: 'unknown',
-          error: { operation: 'lookup-input', code: 'unavailable', message: 'unavailable' }
-        }),
+        lookupInput: vi.fn().mockResolvedValue({ status: 'confirmed', value: { found: false } }),
         close: vi.fn(async () => {
           newEvents.end()
         })
@@ -7466,8 +7253,7 @@ describe('AgentSessionRuntimeService', () => {
       await reader1.read()
       await vi.waitFor(() => expect(original.send).toHaveBeenCalledOnce())
 
-      service.enqueueUserMessage('session-1', userMessage('steer-before-stop'))
-      connect.mock.calls[0]?.[0].onInputPrepared('steer-before-stop', 'original-context')
+      service.enqueueUserMessage('session-1', steer)
       await service.stopSession('session-1', 'user-requested')
 
       const handle2 = service.beginTurn({
@@ -7503,7 +7289,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(sentOnSuccessor).toEqual([
           { message: userMessage('user-2'), systemReminder: false },
-          { message: userMessage('steer-before-stop'), systemReminder: true }
+          { message: steer, systemReminder: true }
         ])
       )
       expect(entry.pendingInputs?.size ?? 0).toBe(0)
@@ -7512,7 +7298,7 @@ describe('AgentSessionRuntimeService', () => {
       await reader2.cancel().catch(() => undefined)
     })
 
-    it('recovers stale-generation steer-undelivered without dropping it in pendingInputValues', () => {
+    it('retains an old-generation input when placement is reported by a new generation', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
       const entry = getEntry(service)
@@ -7521,22 +7307,23 @@ describe('AgentSessionRuntimeService', () => {
         ['stale-steer', { input: { message: userMessage('stale-steer'), systemReminder: true }, generation: 'old-gen' }]
       ])
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'steer-undelivered', inputIds: ['stale-steer'] })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'steer-boundary', inputIds: ['stale-steer'] })
 
-      expect(entry.pendingInputs.size).toBe(0)
-      expect(entry.pendingTurns).toEqual([
-        expect.objectContaining({ message: expect.objectContaining({ id: 'stale-steer' }), steer: true })
-      ])
+      expect(entry.pendingInputs.has('stale-steer')).toBe(true)
+      expect(entry.currentTurn.taskIds).toEqual(['user-1'])
+      expect(entry.pendingTurns).toEqual([])
       void service.closeSession('session-1')
     })
 
     it('keeps gateway attribution on the active run before and after steer placement', async () => {
+      const steerId = randomUUID()
+      const secondSteerId = randomUUID()
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
         usageCapture: { owner: 'provider-calls' as const },
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2'), userMessage('user-3')),
+        contextId: saveSteerInputs(userMessage(steerId), userMessage(secondSteerId)),
         threadInput: steering(vi.fn<Steer>(steering().steer.submit)),
         close: vi.fn(async () => {
           events.end()
@@ -7568,8 +7355,8 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const steerMessage = userMessage('user-2')
-      const secondSteerMessage = userMessage('user-3')
+      const steerMessage = userMessage(steerId)
+      const secondSteerMessage = userMessage(secondSteerId)
       const continuationSnapshot = {
         id: 'agent-1',
         name: 'Renamed Before Steer',
@@ -7594,7 +7381,6 @@ describe('AgentSessionRuntimeService', () => {
       events.push({ type: 'steer-boundary', inputIds: injected })
       await vi.waitFor(() => expect(getEntry(service).currentTurn.taskIds).toEqual(['user-1', ...injected]))
       expect(service.getActiveUsageContext('session-1')?.assistantMessageId).toBe('assistant-1')
-      expect(getEntry(service).pendingInputs.size).toBe(0)
       events.push({ type: 'turn-complete' })
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
@@ -7603,12 +7389,13 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('settles the original run when native completion arrives before the queued placement event', async () => {
+      const steerId = randomUUID()
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
         usageCapture: { owner: 'provider-calls' as const },
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2')),
+        contextId: saveSteerInputs(userMessage(steerId)),
         threadInput: steering(vi.fn<Steer>(steering().steer.submit)),
         close: vi.fn(async () => {
           events.end()
@@ -7630,7 +7417,7 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const steerMessage = userMessage('user-2')
+      const steerMessage = userMessage(steerId)
       service.enqueueUserMessage('session-1', steerMessage)
       connect.mock.calls[0]?.[0].onSteerInjected([steerMessage.id])
       expect(getEntry(service).runtimeState.execution).toMatchObject({
@@ -7648,6 +7435,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('streams post-steer updates and usage through the original run', async () => {
+      const steerId = randomUUID()
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
@@ -7668,7 +7456,7 @@ describe('AgentSessionRuntimeService', () => {
           ]
         },
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2')),
+        contextId: saveSteerInputs(userMessage(steerId)),
         threadInput: steering(vi.fn<Steer>(steering().steer.submit)),
         close: vi.fn(async () => {
           events.end()
@@ -7719,8 +7507,8 @@ describe('AgentSessionRuntimeService', () => {
         )
       )
 
-      service.enqueueUserMessage('session-1', userMessage('user-2'))
-      events.push({ type: 'steer-boundary', inputIds: ['user-2'] })
+      service.enqueueUserMessage('session-1', userMessage(steerId))
+      events.push({ type: 'steer-boundary', inputIds: [steerId] })
       events.push(turnUsage(2))
       await expect(reader.read()).resolves.toMatchObject({
         value: { type: 'message-metadata', messageMetadata: { totalTokens: 2 } },

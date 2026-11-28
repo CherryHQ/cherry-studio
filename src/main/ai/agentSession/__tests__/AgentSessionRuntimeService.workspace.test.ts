@@ -12,6 +12,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { agentProviderService } from '@data/services/AgentProviderService'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { LocalRuntimeDriver } from '@main/ai/runtime/LocalRuntimeDriver'
@@ -20,7 +21,6 @@ import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type * as ShellEnv from '@main/utils/shellEnv'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
-import { ACP_HOST_PERMISSION_MODE_ID } from '@shared/ai/localAgent'
 
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
 import { bindLocalContext, localContext, resolveLocalContext, resolveLocalLaunch } from '../localContext'
@@ -176,9 +176,6 @@ it('opens ACP only when the conversation becomes interactive and shares the conn
     workspace: { type: 'user', workspaceId: 'B' }
   })
   expect(service.getLocalSessionView(session.id)).toMatchObject({ info: null, permissionUnavailable: true })
-  await expect(service.setLocalMode(session.id, ACP_HOST_PERMISSION_MODE_ID, 'acceptEdits')).rejects.toThrow(
-    'Local agent session is unavailable'
-  )
   await expect(stat(path.join(directory, 'wire.jsonl'))).rejects.toHaveProperty('code', 'ENOENT')
 
   const activated = service.setLocalSessionInteractive('window', session.id, true)
@@ -232,7 +229,7 @@ it('opens ACP only when the conversation becomes interactive and shares the conn
   })
 })
 
-it('still accepts a permission choice for a scheduled ACP conversation before starting its runtime', async () => {
+it('saves permission for a scheduled ACP conversation before starting its runtime', async () => {
   setup('acp')
   dbh.db
     .insert(jobScheduleTable)
@@ -249,12 +246,38 @@ it('still accepts a permission choice for a scheduled ACP conversation before st
     'conversation',
     'schedule'
   )
-  await service.setLocalMode(session.id, ACP_HOST_PERMISSION_MODE_ID, 'acceptEdits')
-  expect(service.getLocalSessionView(session.id)).toMatchObject({
-    info: null,
-    idleHostPermission: { currentValue: 'acceptEdits' }
-  })
+  agentService.updateAgent('agent', { configuration: { permission_mode: 'acceptEdits' } })
+  expect(agentService.getAgent(session.agentId!)?.configuration?.permission_mode).toBe('acceptEdits')
   await expect(stat(path.join(directory, 'wire.jsonl'))).rejects.toHaveProperty('code', 'ENOENT')
+})
+
+it('applies the Agent permission change to open ACP sessions and uses it again after reconnect', async () => {
+  await service._doInit()
+  setup('acp')
+  const second = agentSessionService.create({
+    agentId: 'agent',
+    name: 'Second conversation',
+    workspace: { type: 'user', workspaceId: 'B' }
+  })
+
+  await Promise.all([
+    service.setLocalSessionInteractive('window-1', 'session', true),
+    service.setLocalSessionInteractive('window-2', second.id, true)
+  ])
+  for (const id of ['session', second.id]) {
+    expect(service.getLocalSessionView(id).info?.hostPermission?.currentValue).toBe('default')
+  }
+  agentService.updateAgent('agent', { configuration: { permission_mode: 'acceptEdits' } })
+  await vi.waitFor(() => {
+    for (const id of ['session', second.id]) {
+      expect(service.getLocalSessionView(id).info?.hostPermission?.currentValue).toBe('acceptEdits')
+    }
+  })
+  expect(connections).toHaveLength(2)
+
+  await service.closeSession(second.id)
+  await service.listSessionCommands(second.id)
+  expect(service.getLocalSessionView(second.id).info?.hostPermission?.currentValue).toBe('acceptEdits')
 })
 
 it('keeps ordinary ACP permission choices unavailable after a failed connection', async () => {

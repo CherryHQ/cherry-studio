@@ -146,6 +146,7 @@ patchedDependencies:
   pi-acp@0.0.34: patches/pi-acp@0.0.34.patch
   "@radix-ui/react-collapsible@1.1.12": patches/@radix-ui__react-collapsible@1.1.12.patch
   "@radix-ui/react-presence@1.1.5": patches/@radix-ui__react-presence@1.1.5.patch
+  ai-retry@1.11.1: patches/ai-retry@1.11.1.patch
 
 allowBuilds:
   "@google/genai": false

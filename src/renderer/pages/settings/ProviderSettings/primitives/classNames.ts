@@ -244,8 +244,8 @@ export const modelListClasses = {
   groupBodyList: 'flex flex-col gap-0',
   groupOverflowHint:
     'mt-1 rounded-lg px-3 py-2 text-left text-[13px] leading-tight text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground',
-  rowMain: 'min-w-0 flex-1 items-center gap-2.5 self-center',
-  rowBody: 'flex min-w-0 max-w-full flex-1 items-center overflow-hidden',
+  rowAvatar:
+    'inline-flex size-6.5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]',
   /** Model name opens the edit drawer; the settings icon is the explicit secondary action. */
   rowNameCopyable: 'cursor-pointer',
   modelIdBadge:
@@ -259,7 +259,6 @@ export const modelListClasses = {
   healthStatusSlot: 'shrink-0',
   /** Trailing column: health + (capability strip + enable) on one row. */
   rowActionsCluster: 'flex min-h-8 min-w-0 items-center gap-2',
-  rowActions: 'ml-auto min-w-0 shrink-0 items-center gap-2 self-center',
   rowInlineActions: 'flex shrink-0 items-center gap-1',
   rowActionButton:
     'inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg p-0 !text-muted-foreground shadow-none transition-colors hover:bg-accent/40 hover:!text-foreground',

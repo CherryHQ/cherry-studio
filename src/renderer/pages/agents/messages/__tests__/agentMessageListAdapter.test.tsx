@@ -1,4 +1,5 @@
 import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
+import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, render, renderHook, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -95,6 +96,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
+  ...MockUseCache,
   useCache: (key: string) => {
     if (key === 'chat.multi_select_mode') return [true, cacheHookMocks.setMultiSelectMode]
     if (key === 'chat.selected_message_ids')

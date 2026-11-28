@@ -1,4 +1,4 @@
-import { type CSSProperties, memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, memo, useCallback, useEffect, useId, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
@@ -100,41 +100,22 @@ const ThinkingBlock: React.FC<Props> = ({
     `reasoning-preference:${id}`,
     thoughtAutoCollapse
   )
-  // Tracks whether the user explicitly toggled this block in the current mount.
-  // While streaming the block auto-expands (effectiveExpanded) without writing
-  // to the disclosure cache, so a live `true` never leaks into the completed
-  // mount. After streaming ends the view falls back to the cached preference
-  // default (collapsed when auto-collapse is on).
-  const [hasManualOverride, setHasManualOverride] = useState(false)
   const hasContent = !!content
 
-  // A new reasoning part starts without a manual override.
-  useEffect(() => {
-    setHasManualOverride(false)
-  }, [id])
-
-  // While streaming, show the thinking expanded so the live run stays followable,
-  // unless the user explicitly collapsed it in this mount. After streaming ends,
-  // fall back to the cached disclosure (collapsed by default when auto-collapse
-  // is on), which is what auto-collapses Agent thinking into the summary bar.
-  const effectiveExpanded = isStreaming && !hasManualOverride ? true : isExpanded
-
   const toggleExpanded = useCallback(() => {
-    const next = !effectiveExpanded
-    setHasManualOverride(true)
-    setIsExpanded(next)
-  }, [effectiveExpanded, setIsExpanded])
+    setIsExpanded((expanded) => !expanded)
+  }, [setIsExpanded])
 
   useEffect(() => {
     const panel = contentRef.current
-    if (!panel || !effectiveExpanded || !isStreaming) return
+    if (!panel || !isExpanded || !isStreaming) return
     const observer = new ResizeObserver(() => {
       if (followingRef.current) panel.scrollTop = getRealBottom(panel)
     })
     observer.observe(panel)
     if (panel.firstElementChild) observer.observe(panel.firstElementChild)
     return () => observer.disconnect()
-  }, [hasContent, effectiveExpanded, isStreaming])
+  }, [hasContent, isExpanded, isStreaming])
   const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
@@ -162,7 +143,6 @@ const ThinkingBlock: React.FC<Props> = ({
   useEffect(() => {
     if (previousThoughtAutoCollapse !== thoughtAutoCollapse) {
       setIsExpanded(!thoughtAutoCollapse)
-      setHasManualOverride(false)
     }
     setPreviousThoughtAutoCollapse(thoughtAutoCollapse)
   }, [previousThoughtAutoCollapse, setIsExpanded, setPreviousThoughtAutoCollapse, thoughtAutoCollapse])
@@ -179,20 +159,20 @@ const ThinkingBlock: React.FC<Props> = ({
       <div
         role="button"
         tabIndex={0}
-        aria-expanded={effectiveExpanded}
+        aria-expanded={isExpanded}
         aria-controls={contentId}
         className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:bg-accent/50 focus-visible:outline-none"
-        onClick={() => withScrollAnchor(toggleExpanded, { enterReadingMode: !effectiveExpanded })}
+        onClick={() => withScrollAnchor(toggleExpanded, { enterReadingMode: !isExpanded })}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            withScrollAnchor(toggleExpanded, { enterReadingMode: !effectiveExpanded })
+            withScrollAnchor(toggleExpanded, { enterReadingMode: !isExpanded })
           }
         }}>
         <ThinkingEffect
           thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
-          isExpanded={effectiveExpanded}
+          isExpanded={isExpanded}
           trailing={
             isThinking ? (
               <>
@@ -226,12 +206,12 @@ const ThinkingBlock: React.FC<Props> = ({
           id: contentId,
           onScroll: () => {
             const panel = contentRef.current
-            if (!panel || !effectiveExpanded || !isStreaming) return
+            if (!panel || !isExpanded || !isStreaming) return
             followingRef.current = getDistanceToBottom(panel) <= VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX
           }
         }}
 
-        hidden={!effectiveExpanded}
+        hidden={!isExpanded}
         type="auto"
         contentProps={{ className: 'px-4 py-3' }}
         className={isStreaming ? THINKING_CONTENT_PANEL_CAPPED_CLASSNAME : THINKING_CONTENT_PANEL_BASE_CLASSNAME}>

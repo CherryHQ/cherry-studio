@@ -8,6 +8,7 @@ import {
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import {
   ACP_LAUNCH_BYPASS_VALUE,
+  getLocalPermissionChoice,
   type LocalAgentConfigChoice,
   type LocalAgentConfigOption,
   type LocalAgentSelection
@@ -58,17 +59,18 @@ export function resolveUnifiedLocalPermissionModes(mode?: LocalAgentSelection) {
       name?: string
       description?: string
     }>((canonicalMode) => {
-      const candidates = mode.options.filter((option) => option.permissionMode === canonicalMode)
-      if (mode.nativePermissionNames && canonicalMode !== 'plan') {
-        return candidates.map(({ value, name, description }) => ({
+      const choice = getLocalPermissionChoice(mode, canonicalMode)
+      if (!choice) return []
+      const { value, name, description } = choice
+      return [
+        {
           canonicalMode,
           value,
-          name: value === ACP_LAUNCH_BYPASS_VALUE ? undefined : name,
-          description
-        }))
-      }
-      const chosen = candidates.find((option) => option.value === mode.currentValue) ?? candidates[0]
-      return chosen ? [{ canonicalMode, value: chosen.value }] : []
+          ...(mode.nativePermissionNames && canonicalMode !== 'plan' && value !== ACP_LAUNCH_BYPASS_VALUE
+            ? { name, description }
+            : {})
+        }
+      ]
     })
   }
 }

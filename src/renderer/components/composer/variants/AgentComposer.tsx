@@ -2,7 +2,6 @@ import { LoaderCircle, ScanLine, Settings2, Terminal, ToolCase } from 'lucide-re
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
 import { Alert, Badge, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
@@ -72,11 +71,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import {
-  findLocalDefaultNonPlanOption,
-  findLocalPlanModeOption,
-  isUnifiedLocalPermissionMode
-} from '@renderer/utils/agent/localAgentLabels'
+import { findLocalPlanModeOption, isUnifiedLocalPermissionMode } from '@renderer/utils/agent/localAgentLabels'
 import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import {
@@ -90,7 +85,7 @@ import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
-import { getLocalAgentProtocol } from '@shared/ai/localAgent'
+import { getLocalAgentProtocol, getLocalSessionPermission } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -722,29 +717,19 @@ const AgentComposerInner = ({
   }, [usingSlash, requestCommands])
   const usesCherryPermissionMode = (capabilities?.permissionModes.length ?? 0) > 0
   const supportsPlan = capabilities?.permissionModes.some((mode) => mode === 'plan') ?? false
-  const localMode = localInfo?.mode ?? localView?.idleMode
   const localEffort = localInfo?.thoughtLevel
   const localExtraOptions = useMemo(() => {
     return localInfo?.configOptions?.filter(
       (option) => option.category !== 'model_config' && option.category !== 'model' && option.id !== localEffort?.id
     )
   }, [localInfo?.configOptions, localEffort?.id])
-  const nativePermissionSelection = isUnifiedLocalPermissionMode(localMode) ? localMode : undefined
-  const localPermissionSelection =
-    localInfo?.launchPermission ??
-    localView?.idleLaunchPermission ??
-    localInfo?.hostPermission ??
-    localView?.idleHostPermission ??
-    nativePermissionSelection
+  const localPermissionCatalog = localInfo
+    ? getLocalSessionPermission(localInfo)
+    : (localView?.idleLaunchPermission ?? localView?.idleHostPermission ?? localView?.idleMode)
+  const localPermissionSelection = isUnifiedLocalPermissionMode(localPermissionCatalog)
+    ? localPermissionCatalog
+    : undefined
   const localPlanOption = useMemo(() => findLocalPlanModeOption(localPermissionSelection), [localPermissionSelection])
-  const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
-  const localPlanSwitchInFlightRef = useRef(false)
-  useEffect(() => {
-    if (!localPermissionSelection || !localPlanOption) return
-    if (localPermissionSelection.currentValue !== localPlanOption.value) {
-      lastNonPlanLocalModeRef.current = { sessionId, value: localPermissionSelection.currentValue }
-    }
-  }, [localPermissionSelection, localPlanOption, sessionId])
   const runtimeControls = useSharedCacheValue(AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(sessionId))
   const hasDurableFollowUp = runtimeControls?.durableFollowUp ?? false
   const inputDelivery = runtimeControls?.delivery?.status
@@ -772,44 +757,6 @@ const AgentComposerInner = ({
     const launcher = getLaunchers('root-panel').find((entry) => entry.id === 'plan-mode')
     if (launcher && quickPanel) dispatchLauncher(launcher, { quickPanel, source: 'root-panel' })
   }, [dispatchLauncher, getLaunchers, quickPanel])
-  const toggleLocalPlanMode = useCallback(() => {
-    if (isStreaming || localPlanSwitchInFlightRef.current || !localPermissionSelection || !localPlanOption) return
-    const activeSelection = localPermissionSelection
-    const isCurrentlyPlan = activeSelection.currentValue === localPlanOption.value
-    let targetValue: string | undefined
-    if (!isCurrentlyPlan) {
-      targetValue = localPlanOption.value
-    } else {
-      const remembered =
-        lastNonPlanLocalModeRef.current?.sessionId === sessionId ? lastNonPlanLocalModeRef.current.value : undefined
-      const rememberedOption = remembered
-        ? activeSelection.options.find((option) => option.value === remembered)
-        : undefined
-      if (
-        rememberedOption &&
-        rememberedOption.value !== localPlanOption.value &&
-        !requiresPermissionConfirmation(rememberedOption)
-      ) {
-        targetValue = rememberedOption.value
-      } else {
-        targetValue = findLocalDefaultNonPlanOption(activeSelection, localPlanOption.value)?.value
-      }
-    }
-    if (!targetValue || targetValue === activeSelection.currentValue) return
-    localPlanSwitchInFlightRef.current = true
-    void ipcApi
-      .request('ai.local_agents.set_mode', {
-        sessionId,
-        configId: activeSelection.id,
-        value: targetValue
-      })
-      .catch((error) => {
-        toast.error(String(error))
-      })
-      .finally(() => {
-        localPlanSwitchInFlightRef.current = false
-      })
-  }, [isStreaming, localPermissionSelection, localPlanOption, sessionId])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =
@@ -2077,7 +2024,7 @@ const AgentComposerInner = ({
             launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
           }
           onPause={abortAgentSession}
-          onShiftTab={supportsPlan ? togglePlanMode : localPlanOption ? toggleLocalPlanMode : undefined}
+          onShiftTab={supportsPlan || localPlanOption ? togglePlanMode : undefined}
           queueContent={
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}

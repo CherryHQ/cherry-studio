@@ -11,6 +11,7 @@ import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/clau
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
+import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -89,7 +90,7 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
     this.context = this.prepareContext(
       request.options.env,
-      request.options.resume ?? this.input.nativeSessionId,
+      storedResume ?? request.options.resume ?? this.input.nativeSessionId,
       this.input.branchHead,
       true
     )
@@ -162,6 +163,10 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
       if (this.input.signal?.aborted) throw new Error('Claude Code connection cancelled before spawn')
       return await this.startSdk(options, this.context, request.contextWindow, consumedWarmQuery)
     } catch (error) {
+      if (error instanceof LocalAgentSessionRestoreError) {
+        this.releaseLiveSpawnPreflightIfHeld()
+        return unavailableNativeContext(this.context, error.message)
+      }
       this.releaseLiveSpawnPreflightIfHeld()
       void this.close().catch((cleanupError) => {
         logger.warn('Claude Code failed connection cleanup failed', {
