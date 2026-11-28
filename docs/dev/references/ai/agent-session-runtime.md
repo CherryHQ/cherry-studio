@@ -392,6 +392,11 @@ group. A paused Run projects one stable interrupted marker from its persisted te
 after both its last content and its latest placed input. Unplaced queue inputs and
 inputs owned by other Runs do not move that marker.
 
+Once a steer joins a Run, process groups in segments before that input use the completed
+disclosure when their parts settle. Unfinished thinking, tool calls, and approvals keep their
+group active. A focused tool stays mounted until focus leaves its group. Assistant prose remains
+inline before and after the steer, including when the Run ends as paused.
+
 The segment layout selects stable part IDs from the shared projection reader. Text and tool progress
 continue through keyed part subscriptions; only new membership or a baseline changes the list projection.
 Compaction start and completion update one DataUIPart ID at one position. An unchanged or cancelled
