@@ -22,6 +22,7 @@ import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-regi
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import { isNoUsableImageError } from '@main/ai/utils/noUsableImageError'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -49,6 +50,13 @@ export type PaintingResult = GenerateImageOutput | PaintingError
 
 /** Transient failure (provider/network hiccup) — a retry can succeed. */
 export const PAINTING_ERROR_NOTE = 'Image generation failed (provider error); retry or inform the user.'
+
+/**
+ * The request completed but yielded no usable image. The provider may already have billed it, so the
+ * note steers away from an automatic resubmission.
+ */
+export const PAINTING_NO_OUTPUT_NOTE =
+  'Image generation completed but returned no usable image; the provider may already have charged for this request. Do not resubmit automatically: tell the user first and let them decide.'
 
 /**
  * Permanent failure: no painting model is configured. Retrying can never succeed until the user picks
@@ -200,6 +208,6 @@ export async function generateImageFromPrompt(
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
     logger.error('AiService.generateImage failed', error as Error, { uniqueModelId })
-    return { error: PAINTING_ERROR_NOTE }
+    return { error: isNoUsableImageError(error) ? PAINTING_NO_OUTPUT_NOTE : PAINTING_ERROR_NOTE }
   }
 }

@@ -2,11 +2,21 @@ import { APICallError, JSONParseError, NoSuchToolError, RetryError, TypeValidati
 import { describe, expect, it } from 'vitest'
 
 import { normalizeProviderError } from '@main/ai/runtime/aiSdk/params/features/providerErrorBoundary'
+import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { createLocalError } from '@shared/utils/localError'
 
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it('serializes a PaintingGenerateError without tripping the AI SDK embedding-values branch', () => {
+    const error = new PaintingGenerateError('REMOTE_ERROR', { message: 'boom', values: { model: 'm1' } })
+
+    const serialized = serializeError(error)
+
+    expect(serialized.name).toBe('PaintingGenerateError')
+    expect(serialized.message).toBe('boom')
+  })
+
   it('retains only the allowlisted local source distinction', () => {
     const local = serializeError(createLocalError('[SQLITE_BUSY] database is locked'))
     expect(JSON.parse(JSON.stringify(local))).toMatchObject({
