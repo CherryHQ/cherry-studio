@@ -28,7 +28,7 @@ import {
   type WarmupStateInit,
   type WindowInfo,
   type WindowOptions,
-  type WindowType
+  WindowType
 } from '@main/core/window/types'
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
@@ -135,6 +135,9 @@ export class WindowManager extends BaseService {
   /** Single GC timer shared across all warmup states (null when no idle windows exist) */
   private warmupGcTimer: Disposable | null = null
 
+  /** Deferred eager warmup cleanup when waiting for the main window's first paint */
+  private deferredWarmupCleanup: (() => void) | null = null
+
   /**
    * Window types whose `idle.length > 0`. Lets `warmupGcTick` iterate only over
    * entries with actual work to do, avoiding empty-state overhead. Subset of
@@ -207,10 +210,45 @@ export class WindowManager extends BaseService {
 
   /**
    * Warm up eager pools and singletons after all services are ready.
-   * This runs after all bootstrap phases complete, ensuring domain services
-   * have already subscribed to onWindowCreated.
+   * When the main window exists and is still awaiting its initial paint,
+   * defer eager standby windows until `ready-to-show` (with a bounded fallback)
+   * so background renderers do not compete with cold-start first paint.
    */
   protected override onAllReady(): void {
+    const mainWindowId = this.windowsByType.get(WindowType.Main)?.values().next().value
+    const mainManaged = mainWindowId ? this.windows.get(mainWindowId) : undefined
+    const mainWin = mainManaged?.window
+
+    if (mainWin && !mainWin.isDestroyed() && !mainWin.isVisible()) {
+      let triggered = false
+      const trigger = () => {
+        if (triggered) return
+        triggered = true
+        cleanup()
+        this.runEagerWarmups()
+      }
+      const fallbackTimer = setTimeout(trigger, 3000)
+      fallbackTimer.unref()
+      const cleanup = () => {
+        clearTimeout(fallbackTimer)
+        if (!mainWin.isDestroyed()) {
+          mainWin.removeListener('ready-to-show', trigger)
+          mainWin.removeListener('closed', trigger)
+        }
+        if (this.deferredWarmupCleanup === cleanup) {
+          this.deferredWarmupCleanup = null
+        }
+      }
+      this.deferredWarmupCleanup = cleanup
+      mainWin.once('ready-to-show', trigger)
+      mainWin.once('closed', trigger)
+      return
+    }
+
+    this.runEagerWarmups()
+  }
+
+  private runEagerWarmups(): void {
     for (const [type, metadata] of Object.entries(WINDOW_TYPE_REGISTRY)) {
       if (metadata.lifecycle === 'pooled') {
         this.validatePoolConfig(type as WindowType, metadata.poolConfig)
@@ -307,6 +345,8 @@ export class WindowManager extends BaseService {
     this._onWindowDestroyed.dispose()
     this._onWindowReleasedToPool.dispose()
 
+    this.deferredWarmupCleanup?.()
+    this.deferredWarmupCleanup = null
     // GC timer is auto-disposed via registerInterval; just drop the reference.
     this.warmupGcTimer = null
     this.activeWarmupTypes.clear()

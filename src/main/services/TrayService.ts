@@ -56,20 +56,17 @@ export class TrayService extends BaseService implements Activatable {
 
   onActivate(): void {
     const iconPath = isMac ? (nativeTheme.shouldUseDarkColors ? iconLight : iconDark) : icon
-    const tray = isWin && shouldUseWindowsTrayGuid() ? new Tray(iconPath, getWindowsTrayGuid()) : new Tray(iconPath)
+    let trayIcon: string | Electron.NativeImage = iconPath
 
-    if (isWin) {
-      tray.setImage(iconPath)
-    } else if (isMac) {
-      const image = nativeImage.createFromPath(iconPath)
-      const resizedImage = image.resize({ width: 16, height: 16 })
+    if (isMac) {
+      const resizedImage = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
       resizedImage.setTemplateImage(true)
-      tray.setImage(resizedImage)
+      trayIcon = resizedImage
     } else if (isLinux) {
-      const image = nativeImage.createFromPath(iconPath)
-      const resizedImage = image.resize({ width: 16, height: 16 })
-      tray.setImage(resizedImage)
+      trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
     }
+
+    const tray = isWin && shouldUseWindowsTrayGuid() ? new Tray(trayIcon, getWindowsTrayGuid()) : new Tray(trayIcon)
 
     this.tray = tray
 
