@@ -2967,7 +2967,28 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "WaveSpeed - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://llm.wavespeed.ai/v1"
+        }
+      },
+      "id": "wavespeed",
+      "metadata": {
+        "website": {
+          "apiKey": "https://wavespeed.ai/accesskey",
+          "docs": "https://wavespeed.ai/docs",
+          "models": "https://wavespeed.ai/models",
+          "official": "https://wavespeed.ai"
+        }
+      },
+      "name": "WaveSpeed"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "27e2d1e5437cb1b7"
 }
