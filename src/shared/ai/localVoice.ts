@@ -10,9 +10,18 @@ export const QWEN3_TTS_MODEL_ID = 'local-voice::qwen3-tts-0.6b-customvoice' as c
 export const QWEN3_TTS_BUNDLE_ID = 'qwen3-tts-0.6b-customvoice-8bit' as const
 export const KOKORO_TTS_MODEL_ID = 'local-voice::kokoro-v1.1' as const
 export const KOKORO_TTS_BUNDLE_ID = 'kokoro-multi-lang-v1.1' as const
+export const KOKORO_V1_TTS_MODEL_ID = 'local-voice::kokoro-v1.0' as const
+export const KOKORO_V1_TTS_BUNDLE_ID = 'kokoro-int8-multi-lang-v1.0' as const
+export const PIPER_FABER_TTS_MODEL_ID = 'local-voice::piper-pt-br-faber' as const
+export const PIPER_FABER_TTS_BUNDLE_ID = 'piper-pt-br-faber-medium' as const
+export const PIPER_CADU_TTS_MODEL_ID = 'local-voice::piper-pt-br-cadu' as const
+export const PIPER_CADU_TTS_BUNDLE_ID = 'piper-pt-br-cadu-medium' as const
 export const DOWNLOADABLE_SPEECH_BUNDLES = {
   [QWEN3_TTS_MODEL_ID]: QWEN3_TTS_BUNDLE_ID,
-  [KOKORO_TTS_MODEL_ID]: KOKORO_TTS_BUNDLE_ID
+  [KOKORO_TTS_MODEL_ID]: KOKORO_TTS_BUNDLE_ID,
+  [KOKORO_V1_TTS_MODEL_ID]: KOKORO_V1_TTS_BUNDLE_ID,
+  [PIPER_FABER_TTS_MODEL_ID]: PIPER_FABER_TTS_BUNDLE_ID,
+  [PIPER_CADU_TTS_MODEL_ID]: PIPER_CADU_TTS_BUNDLE_ID
 } as const
 
 export interface LocalSpeechVoice {
@@ -62,7 +71,10 @@ export const LOCAL_VOICE_MODEL_IDS = [
   FUNASR_MODEL_ID,
   QWEN3_ASR_MODEL_ID,
   QWEN3_TTS_MODEL_ID,
-  KOKORO_TTS_MODEL_ID
+  KOKORO_TTS_MODEL_ID,
+  KOKORO_V1_TTS_MODEL_ID,
+  PIPER_FABER_TTS_MODEL_ID,
+  PIPER_CADU_TTS_MODEL_ID
 ] as const
 export type LocalVoiceModelId = (typeof LOCAL_VOICE_MODEL_IDS)[number]
 export type LocalSpeechModelId =
@@ -70,6 +82,9 @@ export type LocalSpeechModelId =
   | typeof WINDOWS_TTS_MODEL_ID
   | typeof QWEN3_TTS_MODEL_ID
   | typeof KOKORO_TTS_MODEL_ID
+  | typeof KOKORO_V1_TTS_MODEL_ID
+  | typeof PIPER_FABER_TTS_MODEL_ID
+  | typeof PIPER_CADU_TTS_MODEL_ID
 export type LocalTranscriptionModelId =
   | typeof APPLE_ASR_MODEL_ID
   | typeof WINDOWS_ASR_MODEL_ID
@@ -100,6 +115,33 @@ export const LOCAL_VOICE_MODELS: readonly LocalVoiceModelFacts[] = Object.freeze
     id: KOKORO_TTS_MODEL_ID,
     providerId: 'local-voice',
     name: 'Kokoro v1.1 (Chinese + English)',
+    capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_GENERATION]),
+    inputModalities: Object.freeze([MODALITY.TEXT]),
+    outputModalities: Object.freeze([MODALITY.AUDIO]),
+    supportsStreaming: false
+  }),
+  Object.freeze({
+    id: KOKORO_V1_TTS_MODEL_ID,
+    providerId: 'local-voice',
+    name: 'Kokoro v1.0 (Brazilian Portuguese)',
+    capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_GENERATION]),
+    inputModalities: Object.freeze([MODALITY.TEXT]),
+    outputModalities: Object.freeze([MODALITY.AUDIO]),
+    supportsStreaming: false
+  }),
+  Object.freeze({
+    id: PIPER_FABER_TTS_MODEL_ID,
+    providerId: 'local-voice',
+    name: 'Piper faber (Brazilian Portuguese)',
+    capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_GENERATION]),
+    inputModalities: Object.freeze([MODALITY.TEXT]),
+    outputModalities: Object.freeze([MODALITY.AUDIO]),
+    supportsStreaming: false
+  }),
+  Object.freeze({
+    id: PIPER_CADU_TTS_MODEL_ID,
+    providerId: 'local-voice',
+    name: 'Piper cadu (Brazilian Portuguese)',
     capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_GENERATION]),
     inputModalities: Object.freeze([MODALITY.TEXT]),
     outputModalities: Object.freeze([MODALITY.AUDIO]),

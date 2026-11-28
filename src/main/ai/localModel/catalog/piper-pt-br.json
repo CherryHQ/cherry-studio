@@ -1,0 +1,117 @@
+{
+  "upstreamRevision": "e7229f7d33a10e145e109b886d661984201ac3c4",
+  "voices": {
+    "faber": {
+      "repo": "csukuangfj/vits-piper-pt_BR-faber-medium",
+      "revision": "4f385076a8f9d5bc7b4cd9fea4dc77e6e8ca8167",
+      "files": [
+        {
+          "relPath": "espeak-ng-data/intonations",
+          "sha256": "3f8af65fd3eda9759a10f021d61361c120871f463515229c925995c7f90918cc",
+          "sizeBytes": 2040
+        },
+        {
+          "relPath": "espeak-ng-data/lang/roa/pt",
+          "sha256": "a44060072f790e41912c57b7d52f7b6438c4383e0dabdb052f6fdb7aacc23493",
+          "sizeBytes": 95
+        },
+        {
+          "relPath": "espeak-ng-data/lang/roa/pt-BR",
+          "sha256": "84dd4e34c970fadbe32211eadecfdfaab52432479c0911e43300da88a33398ba",
+          "sizeBytes": 109
+        },
+        {
+          "relPath": "espeak-ng-data/phondata",
+          "sha256": "4e0288957874029a8c3c9f41a8f517ad4bf18127046decbdd4b9d1d6807ce3a3",
+          "sizeBytes": 550424
+        },
+        {
+          "relPath": "espeak-ng-data/phondata-manifest",
+          "sha256": "7b387af0702c7cf0b61f0bead68feded0bd8e1620729b0b252e76acbc30d3813",
+          "sizeBytes": 21821
+        },
+        {
+          "relPath": "espeak-ng-data/phonindex",
+          "sha256": "3ca7b8fa3b42624e4b0f152707e7a39245fce569aa99ea47c055d9e622fcf0c4",
+          "sizeBytes": 39074
+        },
+        {
+          "relPath": "espeak-ng-data/phontab",
+          "sha256": "886f3fa402cb0ba73d483aa8ad000af47a6b7cc06293c75a97913fba68a530f6",
+          "sizeBytes": 55796
+        },
+        {
+          "relPath": "espeak-ng-data/pt_dict",
+          "sha256": "7e8398f15fa4a21db39a213381f28ec0d302b22663c644e865abb61a09c1b004",
+          "sizeBytes": 67817
+        },
+        {
+          "relPath": "pt_BR-faber-medium.onnx",
+          "sha256": "39fb6b580d6d40a3230b7a9d0851d282074537b9694892b5b3cd90ff87c6cbb3",
+          "sizeBytes": 63201428
+        },
+        {
+          "relPath": "tokens.txt",
+          "sha256": "2619c1a9de1bcf928162f40c583caf39368cfd6b2340c7bcad51dc634411ec36",
+          "sizeBytes": 907
+        }
+      ]
+    },
+    "cadu": {
+      "repo": "csukuangfj/vits-piper-pt_BR-cadu-medium",
+      "revision": "eb2a3d3b4184b5aa21dd5bfd9216225e6946284f",
+      "files": [
+        {
+          "relPath": "espeak-ng-data/intonations",
+          "sha256": "3f8af65fd3eda9759a10f021d61361c120871f463515229c925995c7f90918cc",
+          "sizeBytes": 2040
+        },
+        {
+          "relPath": "espeak-ng-data/lang/roa/pt",
+          "sha256": "a44060072f790e41912c57b7d52f7b6438c4383e0dabdb052f6fdb7aacc23493",
+          "sizeBytes": 95
+        },
+        {
+          "relPath": "espeak-ng-data/lang/roa/pt-BR",
+          "sha256": "84dd4e34c970fadbe32211eadecfdfaab52432479c0911e43300da88a33398ba",
+          "sizeBytes": 109
+        },
+        {
+          "relPath": "espeak-ng-data/phondata",
+          "sha256": "4e0288957874029a8c3c9f41a8f517ad4bf18127046decbdd4b9d1d6807ce3a3",
+          "sizeBytes": 550424
+        },
+        {
+          "relPath": "espeak-ng-data/phondata-manifest",
+          "sha256": "7b387af0702c7cf0b61f0bead68feded0bd8e1620729b0b252e76acbc30d3813",
+          "sizeBytes": 21821
+        },
+        {
+          "relPath": "espeak-ng-data/phonindex",
+          "sha256": "3ca7b8fa3b42624e4b0f152707e7a39245fce569aa99ea47c055d9e622fcf0c4",
+          "sizeBytes": 39074
+        },
+        {
+          "relPath": "espeak-ng-data/phontab",
+          "sha256": "886f3fa402cb0ba73d483aa8ad000af47a6b7cc06293c75a97913fba68a530f6",
+          "sizeBytes": 55796
+        },
+        {
+          "relPath": "espeak-ng-data/pt_dict",
+          "sha256": "7e8398f15fa4a21db39a213381f28ec0d302b22663c644e865abb61a09c1b004",
+          "sizeBytes": 67817
+        },
+        {
+          "relPath": "pt_BR-cadu-medium.onnx",
+          "sha256": "b6318f52e2c7ed8a9ac90caec529180aad581958b31e90f99cf3690a830a8ed7",
+          "sizeBytes": 62950207
+        },
+        {
+          "relPath": "tokens.txt",
+          "sha256": "e8a50ae0c75612d18cfcf3f90800dca79f961e3ed97f9574f3535194469187fd",
+          "sizeBytes": 968
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "repo": "csukuangfj/kokoro-int8-multi-lang-v1_0",
+  "revision": "57adb37fc0e8d4bd430cfc1b8f8c2294945b9af2",
+  "upstreamRevision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+  "files": [
+    {
+      "relPath": "LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "sizeBytes": 11358
+    },
+    {
+      "relPath": "espeak-ng-data/intonations",
+      "sha256": "3f8af65fd3eda9759a10f021d61361c120871f463515229c925995c7f90918cc",
+      "sizeBytes": 2040
+    },
+    {
+      "relPath": "espeak-ng-data/lang/roa/pt",
+      "sha256": "a44060072f790e41912c57b7d52f7b6438c4383e0dabdb052f6fdb7aacc23493",
+      "sizeBytes": 95
+    },
+    {
+      "relPath": "espeak-ng-data/lang/roa/pt-BR",
+      "sha256": "84dd4e34c970fadbe32211eadecfdfaab52432479c0911e43300da88a33398ba",
+      "sizeBytes": 109
+    },
+    {
+      "relPath": "espeak-ng-data/phondata",
+      "sha256": "4e0288957874029a8c3c9f41a8f517ad4bf18127046decbdd4b9d1d6807ce3a3",
+      "sizeBytes": 550424
+    },
+    {
+      "relPath": "espeak-ng-data/phondata-manifest",
+      "sha256": "7b387af0702c7cf0b61f0bead68feded0bd8e1620729b0b252e76acbc30d3813",
+      "sizeBytes": 21821
+    },
+    {
+      "relPath": "espeak-ng-data/phonindex",
+      "sha256": "3ca7b8fa3b42624e4b0f152707e7a39245fce569aa99ea47c055d9e622fcf0c4",
+      "sizeBytes": 39074
+    },
+    {
+      "relPath": "espeak-ng-data/phontab",
+      "sha256": "886f3fa402cb0ba73d483aa8ad000af47a6b7cc06293c75a97913fba68a530f6",
+      "sizeBytes": 55796
+    },
+    {
+      "relPath": "espeak-ng-data/pt_dict",
+      "sha256": "7e8398f15fa4a21db39a213381f28ec0d302b22663c644e865abb61a09c1b004",
+      "sizeBytes": 67817
+    },
+    {
+      "relPath": "model.int8.onnx",
+      "sha256": "75635ea3b85a32d00094dcdd61a258aba87c160f7c264c304a7b3ae9d734195e",
+      "sizeBytes": 114202993
+    },
+    {
+      "relPath": "tokens.txt",
+      "sha256": "6ebb6bb288f20f3ae8d004d3c2ca27697da27c037d75e81a60e2a6a663f95425",
+      "sizeBytes": 687
+    },
+    {
+      "relPath": "voices.bin",
+      "sha256": "1c5a5b983d3d50d8586d437a51f3faa2da7919ce76a013c081e65671a3447c29",
+      "sizeBytes": 28200960
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 
 import { KokoroTts } from '../utilityEntries/KokoroTts'
 
@@ -10,6 +10,7 @@ let directory: string
 const originalEspeakDataPath = process.env.ESPEAK_DATA_PATH
 
 afterEach(async () => {
+  vi.unstubAllEnvs()
   if (directory) await rm(directory, { recursive: true, force: true })
   if (originalEspeakDataPath === undefined) delete process.env.ESPEAK_DATA_PATH
   else process.env.ESPEAK_DATA_PATH = originalEspeakDataPath
@@ -67,4 +68,106 @@ it('generates a WAV through the sandbox-compatible Sherpa contract with both lex
   expect(audio.readUInt32LE(24)).toBe(24000)
   expect(audio.readUInt32LE(4) + 8).toBe(audio.length)
   expect(audio.readUInt32LE(40)).toBeGreaterThan(0)
+})
+
+it('configures the int8 pt-br model without lexicons and reloads when the model directory changes', async () => {
+  directory = await mkdtemp(join(tmpdir(), 'kokoro-runtime-v1-'))
+  const packageDir = join(directory, 'node_modules', 'sherpa-onnx-node')
+  await mkdir(packageDir, { recursive: true })
+  await writeFile(
+    join(packageDir, 'index.js'),
+    `
+    const fs = require('node:fs');
+    module.exports = {
+      OfflineTts: { createAsync: async config => {
+        fs.appendFileSync(process.env.KOKORO_TEST_LOG, JSON.stringify(config) + '\\n');
+        return { generate: () => ({ samples: new Float32Array([0, 0.5]), sampleRate: 24000 }) };
+      }},
+      writeWave: (filename) => fs.writeFileSync(filename, 'wav')
+    };
+  `
+  )
+  const log = join(directory, 'configs.log')
+  vi.stubEnv('KOKORO_TEST_LOG', log)
+  const first = join(directory, 'first')
+  const second = join(directory, 'second')
+  const tts = new KokoroTts(directory)
+  const input = {
+    architecture: 'kokoro-v1' as const,
+    modelDir: first,
+    text: 'Olá',
+    voice: '42',
+    language: 'pt-BR',
+    speed: 1,
+    outputPath: join(directory, 'speech.wav')
+  }
+  await tts.synthesize(input, new AbortController().signal)
+  await tts.synthesize(input, new AbortController().signal)
+  await tts.synthesize({ ...input, modelDir: second }, new AbortController().signal)
+  const configs = (await readFile(log, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  expect(configs).toHaveLength(2)
+  expect(configs[0]).toMatchObject({
+    ruleFsts: '',
+    model: {
+      kokoro: {
+        model: join(first, 'model.int8.onnx'),
+        voices: join(first, 'voices.bin'),
+        tokens: join(first, 'tokens.txt'),
+        dataDir: join(first, 'espeak-ng-data'),
+        lang: 'pt-br'
+      }
+    }
+  })
+  expect(configs[0].model.kokoro).not.toHaveProperty('lexicon')
+  expect(configs[1].model.kokoro.model).toBe(join(second, 'model.int8.onnx'))
+  expect(process.env.ESPEAK_DATA_PATH).toBe(join(second, 'espeak-ng-data'))
+})
+
+it('configures a Piper voice as a single-speaker VITS model with no kokoro section', async () => {
+  directory = await mkdtemp(join(tmpdir(), 'piper-runtime-'))
+  const packageDir = join(directory, 'node_modules', 'sherpa-onnx-node')
+  await mkdir(packageDir, { recursive: true })
+  await writeFile(
+    join(packageDir, 'index.js'),
+    `
+    const fs = require('node:fs');
+    module.exports = {
+      OfflineTts: { createAsync: async config => {
+        fs.appendFileSync(process.env.KOKORO_TEST_LOG, JSON.stringify(config) + '\\n');
+        return { generate: () => ({ samples: new Float32Array([0, 0.5]), sampleRate: 22050 }) };
+      }},
+      writeWave: (filename) => fs.writeFileSync(filename, 'wav')
+    };
+  `
+  )
+  const log = join(directory, 'configs.log')
+  vi.stubEnv('KOKORO_TEST_LOG', log)
+  const modelDir = join(directory, 'piper')
+  await new KokoroTts(directory).synthesize(
+    {
+      architecture: 'piper',
+      modelDir,
+      text: 'Olá',
+      voice: '0',
+      language: 'pt-BR',
+      speed: 1,
+      outputPath: join(directory, 'speech.wav')
+    },
+    new AbortController().signal
+  )
+  const [config] = (await readFile(log, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  expect(config.ruleFsts).toBe('')
+  expect(config.model).not.toHaveProperty('kokoro')
+  expect(config.model.vits).toEqual({
+    model: join(modelDir, 'model.onnx'),
+    tokens: join(modelDir, 'tokens.txt'),
+    dataDir: join(modelDir, 'espeak-ng-data')
+  })
+  expect(process.env.ESPEAK_DATA_PATH).toBe(join(modelDir, 'espeak-ng-data'))
 })
