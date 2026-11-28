@@ -99,6 +99,7 @@ import { LmstudioIcon } from './lmstudio'
 import { LongcatIcon } from './longcat'
 import { LovableIcon } from './lovable/lovable'
 import { MacosIcon } from './macos'
+import { MartllmIcon } from './martllm/martllm'
 import { McpIcon } from './mcp'
 import { McpsoIcon } from './mcpso'
 import { MetaIcon } from './meta'
@@ -167,7 +168,6 @@ import { TngIcon } from './tng'
 import { TogetherIcon } from './together'
 import { TokendanceIcon } from './tokendance'
 import { TwitterIcon } from './twitter'
-import { MartllmIcon } from './martllm/martllm'
 import { UpstageIcon } from './upstage'
 import { VercelIcon } from './vercel'
 import { VertexaiIcon } from './vertexai'
@@ -278,6 +278,7 @@ export const PROVIDER_ICON_CATALOG = {
   longcat: LongcatIcon,
   lovable: LovableIcon,
   macos: MacosIcon,
+  martllm: MartllmIcon,
   mcp: McpIcon,
   mcpso: McpsoIcon,
   meta: MetaIcon,
@@ -345,7 +346,6 @@ export const PROVIDER_ICON_CATALOG = {
   together: TogetherIcon,
   tokendance: TokendanceIcon,
   twitter: TwitterIcon,
-  martllm: MartllmIcon,
   upstage: UpstageIcon,
   vercel: VercelIcon,
   vertexai: VertexaiIcon,

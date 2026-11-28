@@ -9,7 +9,7 @@ const Martllm = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const MartllmIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Martllm, {
   Avatar: MartllmAvatar,
-  colorPrimary: '#5B4EE6'
+  colorPrimary: '#0a0a0a'
 })
 
 export default MartllmIcon
