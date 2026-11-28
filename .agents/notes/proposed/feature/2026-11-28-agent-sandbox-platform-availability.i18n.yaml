@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-28-agent-sandbox-platform-availability.md
-2026-11-28-agent-sandbox-platform-availability.md: 8676e9cdd75bdddede1db65e96bda42f738e23fc
-2026-11-28-agent-sandbox-platform-availability.zh.md: b79c6d3442aad4d16098638e96c2cefb0084a9e8
+2026-11-28-agent-sandbox-platform-availability.md: 4fb441af0f7c1dac1f726cf62d9404975a7e3cf3
+2026-11-28-agent-sandbox-platform-availability.zh.md: 3e40369c890d1f877c5f45de403b2be3f3c255e8
