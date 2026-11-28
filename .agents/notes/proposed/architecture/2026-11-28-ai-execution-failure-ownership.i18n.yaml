@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-28-ai-execution-failure-ownership.md
-2026-11-28-ai-execution-failure-ownership.md: 3831b1d37d3f1f738a9d4c74cf2fe348bd916422
-2026-11-28-ai-execution-failure-ownership.zh.md: 85eb917a4984d0d4c372f4d3636a3de37afd94c0

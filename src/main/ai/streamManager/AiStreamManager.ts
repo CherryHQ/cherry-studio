@@ -14,6 +14,7 @@ import { AcceptedToolResults } from '@main/ai/messages/AcceptedToolResults'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { classifyAiSdkFailure } from '@main/ai/runtime/aiSdk'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
+import { normalizeExecutionError } from '@main/ai/utils/normalizeExecutionError'
 import { serializeError } from '@main/ai/utils/serializeError'
 import {
   BaseService,
@@ -291,12 +292,15 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
 }
 
 function errorFromStreamChunk(errorText: string): SerializedError {
-  return {
-    name: 'StreamError',
-    message: getSafeProviderErrorMessage({ message: errorText }),
-    stack: null,
-    streamStage: 'response-stream'
-  }
+  return normalizeExecutionError(
+    {
+      name: 'StreamError',
+      message: getSafeProviderErrorMessage({ message: errorText }),
+      stack: null,
+      streamStage: 'response-stream'
+    },
+    errorText
+  )
 }
 
 function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMessageChunk | undefined {
@@ -1777,7 +1781,7 @@ export class AiStreamManager extends BaseService {
   async onExecutionError(
     topicId: string,
     modelId: ExecutionId,
-    error: SerializedError,
+    serialized: SerializedError,
     expectedExecution?: StreamExecution,
     originalError?: unknown
   ): Promise<void> {
@@ -1787,6 +1791,7 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
+    const error = normalizeExecutionError(serialized, originalError)
     exec.status = 'error'
     exec.error = error
     endRootSpan(exec, 'error', error)
@@ -1808,6 +1813,7 @@ export class AiStreamManager extends BaseService {
 
     const result: StreamErrorResult = {
       error,
+      failure: toExecutionFailure(error, exec.modelId),
       finalMessage,
       userMessageId: exec.userMessageId,
       status: 'error',
@@ -2501,15 +2507,17 @@ export class AiStreamManager extends BaseService {
       if (exec.status === 'streaming') exec.status = 'aborted'
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
+      const error = errorFromStreamChunk(result.streamErrorText)
       logger.error('AI stream error', {
         topicId,
         modelId,
         attemptId: exec.attemptId,
         stage: 'response-stream',
         origin: 'error-chunk',
-        cause: chatErrorContext({ name: 'StreamError', message: result.streamErrorText })
+        executionErrorCategory: error.executionErrorCategory,
+        cause: chatErrorContext(error)
       })
-      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+      await this.onExecutionError(topicId, modelId, error, exec)
     } else if (result.accumulationError !== undefined) {
       const error = serializeError(result.accumulationError.error)
       error.executionFailure = toExecutionFailure(error, modelId, 'host')

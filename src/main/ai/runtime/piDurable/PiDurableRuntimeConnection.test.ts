@@ -3111,8 +3111,15 @@ describe('desktop Pi Durable connection', () => {
     'repairs the original Run from its archived %s answer without opening a connection',
     async (reason) => {
       const held = gate()
+      const detail = 'At most 3 image(s) may be provided in one prompt.'
       if (reason === 'aborted') script = respondingModel(() => held.wait(assistantReply('never published')))
-      else setScript([assistantReply('Complete native text', reason)])
+      else
+        setScript([
+          {
+            ...assistantReply('Complete native text', reason),
+            ...(reason === 'error' && { errorMessage: `HTTP 400 ${detail}` })
+          }
+        ])
       const { connection, events } = await connect()
       const original = message('finish this reply')
       const run = messages.saveMessage({
@@ -3164,6 +3171,15 @@ describe('desktop Pi Durable connection', () => {
             data: expect.objectContaining({ i18nKey: 'output_token_limit_reached', finishReason: 'length' })
           })
         )
+      if (reason === 'error') {
+        const failure = row.data.parts?.find((part) => part.type === 'data-error')
+        expect(failure?.data).toMatchObject({
+          message: expect.stringContaining(detail),
+          statusCode: 400,
+          executionErrorCategory: 'bad_request',
+          executionFailure: { failure: { reasonCode: 'invalid_input', context: { statusCode: 400 } } }
+        })
+      }
       expect(messages.getStoredMessagePartFacts(input.sessionId, run.id)[0].partId).toBe(partId)
       expect(restored).toEqual([run.id])
       expect(script.calls).toHaveLength(0)

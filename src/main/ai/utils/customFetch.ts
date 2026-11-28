@@ -12,6 +12,10 @@ export class ProviderTransportError extends Error {
     super(cause.message, { cause })
     this.name = 'ProviderTransportError'
   }
+
+  get providerErrorCategory() {
+    return this.reason
+  }
 }
 
 /**

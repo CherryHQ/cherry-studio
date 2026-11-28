@@ -69,18 +69,25 @@ describe('classifyError', () => {
   })
 
   it.each(['', 'Provider unavailable', '   ', null, 'undefined'])(
-    'uses response-stream guidance only for a marked unknown failure (%j)',
+    'keeps an unexplained response-stream failure unknown (%j)',
     (message) => {
       const error = makeError({ name: 'StreamError', message, streamStage: 'response-stream' })
       expect(classifyError(error)).toEqual({
-        category: 'stream',
-        i18nKey: 'error.diagnosis.stream',
+        category: 'unknown',
+        i18nKey: 'error.diagnosis.unknown',
         navTarget: null
       })
-      expect(error.message).toBe(message)
-      expect(classifyError(makeError({ name: 'StreamError', message })).category).toBe('unknown')
     }
   )
+
+  it('uses the terminal diagnosis even when details resemble a different failure', () => {
+    const error = makeError({
+      message: 'Authentication required for provider "old-provider".',
+      executionErrorCategory: 'unknown',
+      streamStage: 'response-stream'
+    })
+    expect(classifyError(error).category).toBe('unknown')
+  })
 
   it.each(['[SQLITE_BUSY] database is locked', 'Local initialization failed — operation timed out'])(
     'keeps local diagnostics out of provider and stream guidance (%s)',
@@ -98,7 +105,7 @@ describe('classifyError', () => {
     [401, 'auth'],
     [429, 'rate_limit'],
     [503, 'server']
-  ] as const)('keeps HTTP %i recovery ahead of the stream fallback', (statusCode, category) => {
+  ] as const)('preserves HTTP %i diagnosis in a response stream', (statusCode, category) => {
     expect(classifyError(makeError({ message: '', statusCode, streamStage: 'response-stream' })).category).toBe(
       category
     )

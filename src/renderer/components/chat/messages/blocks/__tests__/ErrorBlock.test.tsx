@@ -180,6 +180,7 @@ describe('ErrorBlock', () => {
       }
 
       await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+      await act(() => vi.dynamicImportSettled())
       expect(await screen.findByText('Provider returned an incomplete response')).toBeInTheDocument()
       expect(mocks.request).toHaveBeenCalledExactlyOnceWith(
         'ai.text.generate',
@@ -201,19 +202,19 @@ describe('ErrorBlock', () => {
 
     render(<ErrorBlock partId="part-1" error={unknownError} message={{ ...message, status: 'error' }} />)
     await userEvent.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+    await act(() => vi.dynamicImportSettled())
 
     expect(await screen.findByRole('status')).toHaveTextContent(AI_DIAGNOSIS_UNAVAILABLE)
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
   it.each([
-    { language: 'en-US', detail: '' },
-    { language: 'en-US', detail: 'Provider unavailable' },
-    { language: 'zh-CN', detail: '' },
-    { language: 'zh-CN', detail: 'Provider unavailable' }
+    { language: 'en-US', detail: '', category: 'unknown' },
+    { language: 'en-US', detail: 'Provider unavailable', category: 'unknown' },
+    { language: 'zh-CN', detail: 'Upstream reader failed', category: 'stream' }
   ] as const)(
-    'shows localized response interruption for a persisted stream failure ($language, $detail)',
-    ({ language, detail }) => {
+    'shows the resolved diagnosis for a persisted streaming failure ($language, $category)',
+    ({ language, detail, category }) => {
       const catalog = language === 'en-US' ? enUS : zhCN
       mocks.language = language
       mocks.translations = new Map(Object.entries(catalog))
@@ -221,13 +222,18 @@ describe('ErrorBlock', () => {
       render(
         <ErrorBlock
           partId="message-1-part-0"
-          error={{ name: 'StreamError', message: detail, stack: null, streamStage: 'response-stream' }}
+          error={{
+            name: 'StreamError',
+            message: detail,
+            stack: null,
+            streamStage: 'response-stream',
+            executionErrorCategory: category
+          }}
           message={message}
         />
       )
 
-      expect(screen.getAllByText(catalog['error.diagnosis.stream'], { exact: true })).toHaveLength(1)
-      expect(screen.queryByText(catalog['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+      expect(screen.getByText(catalog[`error.diagnosis.${category}`], { exact: true })).toBeInTheDocument()
       if (detail) expect(screen.getByText(detail, { exact: true })).toBeInTheDocument()
     }
   )
