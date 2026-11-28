@@ -421,5 +421,10 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
 
   // A provider's validation type marks a rejected request when no structured status survived
   // (`Unexpected role "tool"` — #24238), so it must not fall through to the stream-interruption label.
-  return status === 400 || (status === undefined && msg.includes('invalid_request_error')) ? 'bad_request' : 'unknown'
+  // The stream path rebuilds the provider's error from chunk text alone, dropping the structured
+  // status, so recover an explicit HTTP-400 marker from the text as well (#25617).
+  const recoveredStatus = status ?? extractHttpStatus(text ?? '')
+  return recoveredStatus === 400 || (recoveredStatus === undefined && msg.includes('invalid_request_error'))
+    ? 'bad_request'
+    : 'unknown'
 }

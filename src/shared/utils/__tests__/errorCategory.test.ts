@@ -79,6 +79,27 @@ describe('classifyErrorCategory HTTP 400', () => {
     expect(classifyErrorCategory({ text })).toBe('bad_request')
   })
 
+  // #25617: the stream path rebuilds the provider error from chunk text, dropping the structured
+  // status; an explicit HTTP-400 marker in that text must still read as a request failure, not a
+  // stream interruption.
+  it('recovers a leading 400 marker from status-less chunk text', () => {
+    expect(
+      classifyErrorCategory({ text: '400: At most 3 image(s) may be provided in one prompt. (parameter=image)' })
+    ).toBe('bad_request')
+  })
+
+  it('recovers an HTTP-syntax 400 marker from status-less text', () => {
+    expect(classifyErrorCategory({ text: 'HTTP 400 invalid image count' })).toBe('bad_request')
+  })
+
+  it('prefers a structured status over a text marker', () => {
+    expect(classifyErrorCategory({ text: '400: rejected', status: 429 })).toBe('rate_limit')
+  })
+
+  it('leaves status-less text without an HTTP marker as unknown', () => {
+    expect(classifyErrorCategory({ text: 'At most 3 image(s) may be provided in one prompt.' })).toBe('unknown')
+  })
+
   it.each([
     ['prompt is too long', 'context_length'],
     ['Overloaded', 'server'],
