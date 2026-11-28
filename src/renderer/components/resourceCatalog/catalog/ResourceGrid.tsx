@@ -451,7 +451,11 @@ export const ResourceGrid: FC<Props> = ({
           </div>
         ) : null}
         {showGroupToolbar && (
-          <div className="flex items-center overflow-x-auto px-2 pt-1 pb-2 [&::-webkit-scrollbar]:h-0">
+          <div
+            className={cn(
+              'flex items-center overflow-x-auto pt-1 pb-2 [&::-webkit-scrollbar]:h-0',
+              !isSettings && toolbarLeading ? 'px-5' : 'px-2'
+            )}>
             <div
               className={
                 toolbarLeading

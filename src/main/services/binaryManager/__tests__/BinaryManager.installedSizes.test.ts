@@ -24,6 +24,7 @@ vi.mock('@main/utils/commandResolver', () => ({
   findMiseExecutable: vi.fn(async () => null)
 }))
 vi.mock('@main/utils/shellEnv', () => ({
+  getInteractiveShellEnv: vi.fn(async () => ({})),
   getRawShellEnv: vi.fn(async () => ({})),
   refreshShellEnv: vi.fn(async () => ({}))
 }))

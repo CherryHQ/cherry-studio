@@ -7,6 +7,7 @@ import type { ComposerSerializedDraft } from './tokens'
 
 export interface FollowupQueueItem {
   id: string
+  editing?: true
   /** Serialized draft (text + tokens) — drives the dock preview and edit-restore. */
   draft: ComposerSerializedDraft
   /** Send-ready payload (text + parts + files/models) captured at enqueue time. */

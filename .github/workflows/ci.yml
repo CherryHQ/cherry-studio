@@ -125,6 +125,7 @@ jobs:
         if: "!cancelled() && needs.changes.result == 'success' && (needs.changes.outputs.repository == 'true' || needs.changes.outputs.types == 'true' || needs.changes.outputs.lint == 'true' || needs.changes.outputs.i18n == 'true')"
         with:
           save-cache: ${{ github.event_name != 'pull_request' }}
+          build-workspace: ${{ join(fromJSON(needs.changes.outputs.plan).tasks, ',') != 'format,docs' }}
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
 
@@ -155,7 +156,7 @@ jobs:
       - name: Repository checks
         id: repository-checks
         if: needs.changes.outputs.repository == 'true'
-        run: pnpm check --group repository
+        run: pnpm check --group repository --format-checked
 
       - name: DB Migrations Check
         if: needs.changes.outputs.repository == 'true' && contains(fromJSON(needs.changes.outputs.plan).tasks, 'migrations')

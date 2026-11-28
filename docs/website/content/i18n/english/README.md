@@ -46,7 +46,7 @@ Start with common issues and troubleshooting.
 
 ## Configuration & data
 
-[Connect a model provider](pre-basic/providers/README.md) · [API gateway](advanced-basic/developer-tools/api-gateway.md) · [App settings](pre-basic/settings/README.md) · [Back up and manage data](pre-basic/data-settings/README.md)
+[Connect a model provider](pre-basic/providers/README.md) · [Unified Gateway](advanced-basic/developer-tools/api-gateway.md) · [App settings](pre-basic/settings/README.md) · [Back up and manage data](pre-basic/data-settings/README.md)
 
 ## Choosing & reference
 

@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PlantUmlRenderResponse } from '@renderer/workers/plantUml.worker'
@@ -49,14 +50,28 @@ describe('PlantUmlPreview', () => {
     const { container } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()
     await reply({
-      svg: svg(
-        '<text>Alice to Bob</text><image href="https://example.invalid/image.png"/><style>@import "https://example.invalid/diagram.css";</style>'
-      )
+      svgs: [
+        svg(
+          '<text>Alice to Bob</text><image href="https://example.invalid/image.png"/><style>@import "https://example.invalid/diagram.css";</style>'
+        )
+      ]
     })
 
     const diagram = getHost(container).shadowRoot?.querySelector('svg')
     expect(diagram).toHaveTextContent('Alice to Bob')
     expect(diagram?.querySelector('image, style')).toBeNull()
+  })
+
+  it('preserves the rendered diagram background when mounting the preview', async () => {
+    const { container } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
+    await advance()
+    await reply({
+      svgs: [svg('<text fill="#FFF">Alice to Bob</text>').replace('<svg ', '<svg style="background:#000000;" ')]
+    })
+
+    const diagram = getHost(container).shadowRoot?.querySelector('svg')
+    expect(diagram?.style.backgroundColor).toBe('rgb(0, 0, 0)')
+    expect(diagram?.querySelector('text')).toHaveAttribute('fill', '#FFF')
   })
 
   it('shows the reported PlantUML error and line when the source cannot render', async () => {
@@ -67,18 +82,49 @@ describe('PlantUmlPreview', () => {
     expect(screen.getByText('2: Cannot include diagram')).toBeInTheDocument()
   })
 
+  it('lets the user page through every page of a multi-page diagram', async () => {
+    const { container } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
+    await advance()
+    await reply({ svgs: [svg('<text>First page</text>'), svg('<text>Second page</text>')] })
+
+    expect(screen.getByText('第 1 页，共 2 页')).toBeInTheDocument()
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('First page')
+
+    await act(async () => {
+      screen.getByRole('button', { name: '下一页' }).click()
+    })
+    expect(screen.getByText('第 2 页，共 2 页')).toBeInTheDocument()
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('Second page')
+
+    await act(async () => {
+      screen.getByRole('button', { name: '上一页' }).click()
+    })
+    expect(screen.getByText('第 1 页，共 2 页')).toBeInTheDocument()
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('First page')
+  })
+
+  it('shows no pager for a single-page diagram', async () => {
+    render(<PlantUmlPreview>{source}</PlantUmlPreview>)
+    await advance()
+    await reply({ svgs: [svg('<text>Only page</text>')] })
+
+    expect(screen.queryByText(/第 \d+ 页/)).toBeNull()
+  })
+
   it.each([nextSource, ''])('discards the obsolete result when the source changes to %j', async (next) => {
     const { container, rerender } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()
     const obsoleteReply = FakeWorker.current?.onmessage
 
     rerender(<PlantUmlPreview>{next}</PlantUmlPreview>)
-    await act(async () => obsoleteReply?.(new MessageEvent('message', { data: { svg: svg('<text>Obsolete</text>') } })))
+    await act(async () =>
+      obsoleteReply?.(new MessageEvent('message', { data: { svgs: [svg('<text>Obsolete</text>')] } }))
+    )
     expect(getHost(container).shadowRoot?.querySelector('svg')).toBeFalsy()
 
     if (next) {
       await advance()
-      await reply({ svg: svg('<text>Bob to Carol</text>') })
+      await reply({ svgs: [svg('<text>Bob to Carol</text>')] })
       expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('Bob to Carol')
     }
   })
@@ -90,7 +136,9 @@ describe('PlantUmlPreview', () => {
     const host = getHost(container)
     unmount()
 
-    await act(async () => obsoleteReply?.(new MessageEvent('message', { data: { svg: svg('<text>Obsolete</text>') } })))
+    await act(async () =>
+      obsoleteReply?.(new MessageEvent('message', { data: { svgs: [svg('<text>Obsolete</text>')] } }))
+    )
     expect(host.shadowRoot?.querySelector('svg')).toBeFalsy()
   })
 
@@ -105,7 +153,34 @@ describe('PlantUmlPreview', () => {
     rerender(<PlantUmlPreview>{nextSource}</PlantUmlPreview>)
     await advance()
     expect(FakeWorker.current).not.toBe(timedOutWorker)
-    await reply({ svg: svg('<text>Bob to Carol</text>') })
+    await reply({ svgs: [svg('<text>Bob to Carol</text>')] })
     expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('Bob to Carol')
+  })
+
+  it('re-renders on the reused worker after Activity hide and show', async () => {
+    const { rerender } = render(
+      <Activity mode="visible">
+        <PlantUmlPreview>{source}</PlantUmlPreview>
+      </Activity>
+    )
+    await advance()
+    const firstWorker = FakeWorker.current
+    await reply({ error: 'cannot include <C4/C4_Context>', line: 2 })
+    expect(screen.getByText('2: cannot include <C4/C4_Context>')).toBeInTheDocument()
+
+    rerender(
+      <Activity mode="hidden">
+        <PlantUmlPreview>{source}</PlantUmlPreview>
+      </Activity>
+    )
+    rerender(
+      <Activity mode="visible">
+        <PlantUmlPreview>{source}</PlantUmlPreview>
+      </Activity>
+    )
+    await advance()
+    expect(FakeWorker.current).toBe(firstWorker)
+    await reply({ error: 'cannot include <C4/C4_Context>', line: 2 })
+    expect(screen.getByText('2: cannot include <C4/C4_Context>')).toBeInTheDocument()
   })
 })

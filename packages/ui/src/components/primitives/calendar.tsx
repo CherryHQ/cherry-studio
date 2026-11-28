@@ -59,7 +59,7 @@ function Calendar({
         day: cn(defaultClassNames.day, 'size-8 p-0 text-center text-sm'),
         day_button: cn(
           defaultClassNames.day_button,
-          'inline-flex size-8 items-center justify-center rounded-md text-sm font-normal transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40'
+          'inline-flex size-8 items-center justify-center rounded-md text-sm font-normal transition-[color] hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40'
         ),
         selected: cn(
           defaultClassNames.selected,
