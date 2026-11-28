@@ -13,7 +13,9 @@ import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/d
 import type { Provider } from '@shared/data/types/provider'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { createLocalError } from '@shared/utils/localError'
 import { getRawModelId } from '@shared/utils/model'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { needsPlainToolReasoning, ToolContinuationRouteError } from '../../provider/replayRoute'
@@ -48,7 +50,11 @@ export async function createPiGatewayModelBinding(
   onRetry?: typeof onRetry
 }> {
   if (!isPiCompatibleModel(provider, model)) {
-    throw new Error(`Provider "${provider.id}" cannot be routed through the internal gateway for pi agents`)
+    const target =
+      isExternalCliProvider(provider) || provider.id.includes(':')
+        ? `Provider "${provider.id}"`
+        : `Model "${getRawModelId(model)}" on provider "${provider.id}"`
+    throw createLocalError(`${target} cannot be routed through the internal gateway for pi agents`)
   }
   const preferredEndpoint =
     model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&

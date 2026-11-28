@@ -153,6 +153,22 @@ describe('ErrorBlock', () => {
     }
   )
 
+  it('shows a Pi internal gateway routing refusal instead of stream interruption guidance', () => {
+    const detail = 'Provider "deepseek" cannot be routed through the internal gateway for pi agents'
+    render(
+      <ErrorBlock
+        partId="part-1"
+        error={{ name: 'Error', message: detail, stack: null, streamStage: 'response-stream' }}
+        message={{ ...message, status: 'error' }}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.getByText(detail)).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.stream')).not.toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.network')).not.toBeInTheDocument()
+  })
+
   it.each([false, true])('gates model requests on privacy and a user click (data collection: %s)', async (enabled) => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', enabled)
@@ -180,6 +196,7 @@ describe('ErrorBlock', () => {
       }
 
       await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+      await act(() => vi.dynamicImportSettled())
       expect(await screen.findByText('Provider returned an incomplete response')).toBeInTheDocument()
       expect(mocks.request).toHaveBeenCalledExactlyOnceWith(
         'ai.text.generate',
