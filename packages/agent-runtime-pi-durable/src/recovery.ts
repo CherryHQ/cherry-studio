@@ -45,6 +45,12 @@ export interface FollowupProjection {
   inputId: string
 }
 
+export async function registerFollowupProjection(tx: Tx, { threadId, inputId }: FollowupProjection): Promise<void> {
+  const index = await tx.doc(recoveryIndex)
+  index.followupProjections ??= {}
+  index.followupProjections[threadId] = { ...index.followupProjections[threadId], [inputId]: true }
+}
+
 export async function readFollowupProjections(storage: Storage): Promise<FollowupProjection[]> {
   const address = await storage.findDocument(
     { scope: { kind: 'session' }, kind: recoveryIndex.definition.kind },

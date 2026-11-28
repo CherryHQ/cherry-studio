@@ -1,26 +1,46 @@
 import type { Context } from '@earendil-works/chord/context'
 import {
   InboxDoc,
+  LiveDoc,
   type ConversationId,
   type Harness,
   type InboxItem,
   type InboxState,
-  type JsonObject
+  type JsonObject,
+  type TaskId
 } from '@earendil-works/pi-durable'
 
 import { productInputId } from './inputLookup'
+import { registerFollowupProjection } from './recovery'
 
 export interface DurableFollowup {
   inputId: string
   submissionId: InboxItem['id']
   revision: number
   textPart?: string
+  steering?: true
 }
 
 export type DurableFollowupChange =
   | { type: 'edit'; inputId: string; revision: number; content: string; textPart: string }
   | { type: 'reorder'; before: string[]; after: string[] }
   | { type: 'withdraw'; inputId: string }
+  | { type: 'steer'; inputId: string; activeInputId: string; replyId: string }
+
+export function followupSteerPlacement(data: unknown, runId?: TaskId): { replyId?: string } | undefined {
+  if (!data || typeof data !== 'object' || !('steer' in data)) return
+  const steer = data.steer
+  if (
+    !steer ||
+    typeof steer !== 'object' ||
+    !('runId' in steer) ||
+    typeof steer.runId !== 'number' ||
+    !('replyId' in steer) ||
+    typeof steer.replyId !== 'string'
+  )
+    return
+  return steer.runId === runId ? { replyId: steer.replyId } : {}
+}
 
 export function followupEdit(data: unknown): Pick<DurableFollowup, 'revision' | 'textPart'> {
   if (data && typeof data === 'object' && 'queueEdit' in data) {
@@ -47,10 +67,11 @@ function followupId(item: InboxItem): string | undefined {
 
 export function readFollowups(inbox: InboxState | undefined): DurableFollowup[] {
   return (inbox?.items ?? []).flatMap((item) => {
-    const inputId = followupId(item)
-    return inputId && item.mode === 'followUp'
-      ? [{ inputId, submissionId: item.id, ...followupEdit(item.entry?.data) }]
-      : []
+    if (item.mode === 'write' || item.entry?.kind !== 'cherry.user-input') return []
+    const inputId = productInputId(item.entry.data)
+    const steering = item.mode === 'steer' && followupSteerPlacement(item.entry.data) ? true : undefined
+    if (!inputId || (item.mode === 'steer' && !steering)) return []
+    return [{ inputId, submissionId: item.id, ...followupEdit(item.entry.data), ...(steering && { steering }) }]
   })
 }
 
@@ -69,6 +90,18 @@ export async function changeFollowups(
   }
   return harness.commit(async (tx) => {
     const inbox = await tx.doc(InboxDoc, conversationId)
+    if (change.type === 'steer') {
+      const { run } = await tx.doc(LiveDoc, conversationId)
+      const item = inbox.items.find((item) => followupId(item) === change.inputId)
+      if (!run || run.afterRun || item?.mode !== 'followUp' || !item.entry) return false
+      const runId = run.id ?? run.taskId
+      const active = await tx.submissionByRequest(conversationId, change.activeInputId)
+      if (active?.type !== 'input' || active.runId !== runId || active.status !== 'placed') return false
+      item.mode = 'steer'
+      item.entry.data = { ...(item.entry.data as JsonObject), steer: { runId, replyId: change.replyId } }
+      await registerFollowupProjection(tx, { threadId: String(conversationId), inputId: change.inputId })
+      return true
+    }
     if (change.type === 'edit') {
       const item = inbox.items.find((item) => followupId(item) === change.inputId)
       if (item?.mode !== 'followUp' || !item.entry || followupEdit(item.entry.data).revision !== change.revision)
