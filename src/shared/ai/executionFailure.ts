@@ -5,7 +5,7 @@ import {
 } from '@cherrystudio/remote-protocol/failure'
 
 import type { SerializedError } from '../types/error'
-import { classifyErrorCategory, extractHttpStatus, isErrorCategory, type ErrorCategory } from '../utils/errorCategory'
+import { classifyErrorCategory, isErrorCategory, type ErrorCategory } from '../utils/errorCategory'
 import { getSafeProviderErrorMessage } from './providerError'
 
 const reasons: Partial<Record<ErrorCategory, AiFailureReason>> = {
@@ -35,6 +35,17 @@ function safeText(value: unknown, limit: number): string | undefined {
   return text ? Array.from(text).slice(0, limit).join('') : undefined
 }
 
+/**
+ * A status from the error text only when the text states it as one (`503: ...`, `429 null`, `HTTP 502`,
+ * `status code 500`). A bare number in prose ("exceeds the limit by 500 tokens") is not status evidence.
+ */
+function explicitHttpStatus(text: string): number | undefined {
+  const leading = /^\s*(?:API Error:\s*)?([45]\d\d)(?::|\s+(?:null|undefined|\[object Object\])\b)/i.exec(text)
+  const labelled = /\b(?:http|status(?:\s*code)?)\s*[:=]?\s*([45]\d\d)\b/i.exec(text)
+  const match = leading ?? labelled
+  return match ? Number(match[1]) : undefined
+}
+
 export function toExecutionFailure(
   error: SerializedError,
   modelId?: string,
@@ -43,7 +54,7 @@ export function toExecutionFailure(
   const stored = executionFailureSchema.safeParse(error.executionFailure)
   if (stored.success && !layer) return stored.data
   const raw = typeof error.message === 'string' ? error.message : ''
-  const status = typeof error.statusCode === 'number' ? error.statusCode : extractHttpStatus(raw)
+  const status = typeof error.statusCode === 'number' ? error.statusCode : explicitHttpStatus(raw)
   const category = isErrorCategory(error.providerErrorCategory)
     ? error.providerErrorCategory
     : isErrorCategory(error.claudeCodeExitCategory)
