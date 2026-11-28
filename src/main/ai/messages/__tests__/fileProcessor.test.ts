@@ -300,6 +300,43 @@ describe('attachment image padding', () => {
     expect(pixels[((15 + 5) * 15 + 5) * 3]).toBe(200)
   })
 
+  it('keeps an APNG animated when it only needs minimum-edge padding', async () => {
+    const width = 20
+    const height = 4
+    const frame = (red: number) => {
+      const rgba = new Uint8Array(width * height * 4)
+      for (let index = 0; index < rgba.length; index += 4) {
+        rgba[index] = red
+        rgba[index + 3] = 255
+      }
+      return rgba.buffer
+    }
+    const bytes = Buffer.from(UPNG.encode([frame(40), frame(200)], width, height, 0, [100, 200]))
+    const part = partFor(bytes)
+
+    const result = await materializeNativeFilePart(part)
+
+    const output = Buffer.from(result!.url.split(',')[1], 'base64')
+    const decoded = UPNG.decode(output.buffer.slice(output.byteOffset, output.byteOffset + output.byteLength))
+    expect([decoded.width, decoded.height]).toEqual([20, 15])
+    expect(decoded.frames.map((entry) => entry.delay)).toEqual([100, 200])
+    const frames = UPNG.toRGBA8(decoded)
+    expect(frames).toHaveLength(2)
+    // Frame contents survive the padding: red levels intact inside the centered content region.
+    expect(new Uint8Array(frames[0])[5 * 20 * 4]).toBe(40)
+    expect(new Uint8Array(frames[1])[5 * 20 * 4]).toBe(200)
+  })
+
+  it('drops an APNG attachment whose frame expansion exceeds the decode budget', async () => {
+    // 3000×3000×8 frames would expand to ~288 MB of RGBA buffers in the main process.
+    const big = await sharp({ create: { width: 3000, height: 3000, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const part = partFor(injectActlChunk(big, 8))
+
+    expect(await materializeNativeFilePart(part)).toBeNull()
+  })
+
   it('normalizes managed, legacy, and rescued files without altering stored bytes', async () => {
     const bytes = await input(4, 4)
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-pad-'))
@@ -347,3 +384,26 @@ describe('materializeNativeFilePart — repeated history images', () => {
     expect(first[2]).toBeNull()
   })
 })
+
+function crc32(buffer: Buffer): number {
+  let crc = 0xffffffff
+  for (const byte of buffer) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit++) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+/** Insert an animation control chunk after the IHDR, declaring the given frame count. */
+function injectActlChunk(png: Buffer, frameCount: number): Buffer {
+  const ihdrEnd = 8 + 4 + 4 + 13 + 4
+  const actl = Buffer.alloc(4 + 4 + 8 + 4)
+  actl.writeUInt32BE(8, 0)
+  actl.write('acTL', 4, 'ascii')
+  actl.writeUInt32BE(frameCount, 8)
+  actl.writeUInt32BE(0, 12)
+  actl.writeUInt32BE(crc32(actl.subarray(4, 16)), 16)
+  return Buffer.concat([png.subarray(0, ihdrEnd), actl, png.subarray(ihdrEnd)])
+}

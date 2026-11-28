@@ -2,7 +2,7 @@ import UPNG from '@pdf-lib/upng'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
-import { clampImageForModel, cropPng, transcodeToEntityWebp } from '../image'
+import { clampImageForModel, cropPng, ImageDecodeBudgetError, padApng, transcodeToEntityWebp } from '../image'
 
 /** A valid 1×1 PNG. */
 const PNG_1X1 = Buffer.from(
@@ -107,6 +107,78 @@ describe('clampImageForModel', () => {
 
   it('throws on undecodable input', async () => {
     await expect(clampImageForModel(new Uint8Array([1, 2, 3]))).rejects.toThrow()
+  })
+
+  it('refuses an APNG whose aggregate frame expansion exceeds the decode budget', async () => {
+    // A small file can declare a huge canvas and many frames: decoding would expand
+    // width × height × frames RGBA buffers in memory (here 72M pixels ≈ 288 MB).
+    // The budget must reject it from the header alone, before any decode work.
+    const big = await sharp({ create: { width: 3000, height: 3000, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const bytes = injectActlChunk(big, 8)
+
+    await expect(clampImageForModel(bytes)).rejects.toThrow(ImageDecodeBudgetError)
+  })
+})
+
+function crc32(buffer: Buffer): number {
+  let crc = 0xffffffff
+  for (const byte of buffer) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit++) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+/** Insert an animation control chunk after the IHDR, declaring the given frame count. */
+function injectActlChunk(png: Buffer, frameCount: number): Buffer {
+  const ihdrEnd = 8 + 4 + 4 + 13 + 4
+  const actl = Buffer.alloc(4 + 4 + 8 + 4)
+  actl.writeUInt32BE(8, 0)
+  actl.write('acTL', 4, 'ascii')
+  actl.writeUInt32BE(frameCount, 8)
+  actl.writeUInt32BE(0, 12)
+  actl.writeUInt32BE(crc32(actl.subarray(4, 16)), 16)
+  return Buffer.concat([png.subarray(0, ihdrEnd), actl, png.subarray(ihdrEnd)])
+}
+
+describe('padApng', () => {
+  const frame = (red: number, width: number, height: number) => {
+    const rgba = new Uint8Array(width * height * 4)
+    for (let index = 0; index < rgba.length; index += 4) {
+      rgba[index] = red
+      rgba[index + 3] = 255
+    }
+    return rgba.buffer
+  }
+
+  it('pads every frame to the target dimensions without dropping the animation', async () => {
+    const width = 20
+    const height = 4
+    const bytes = Buffer.from(
+      UPNG.encode([frame(40, width, height), frame(200, width, height)], width, height, 0, [100, 200])
+    )
+
+    const out = await padApng(bytes, width, height, 20, 15)
+
+    const decoded = UPNG.decode(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer)
+    expect(decoded.width).toBe(20)
+    expect(decoded.height).toBe(15)
+    expect(decoded.frames.map((entry) => entry.delay)).toEqual([100, 200])
+    const rgba8 = UPNG.toRGBA8(decoded)
+    expect(rgba8).toHaveLength(2)
+    // First frame keeps its red level inside the centered content region (5 padding rows on top);
+    // the padding rows themselves are white.
+    const first = new Uint8Array(rgba8[0])
+    expect(first[5 * 20 * 4]).toBe(40)
+    expect([first[0], first[1], first[2], first[3]]).toEqual([255, 255, 255, 255])
+    const paddingPixel = (15 - 1) * 20 * 4
+    expect([first[paddingPixel], first[paddingPixel + 1], first[paddingPixel + 2], first[paddingPixel + 3]]).toEqual([
+      255, 255, 255, 255
+    ])
   })
 })
 

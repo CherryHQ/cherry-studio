@@ -22,7 +22,7 @@ import mime from 'mime'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { read as fsRead } from '@main/utils/file'
-import { clampImageForModel } from '@main/utils/image'
+import { clampImageForModel, ImageDecodeBudgetError, isApng, padApng } from '@main/utils/image'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -176,24 +176,28 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
       if (padW * padH * (metadata.pages ?? 1) > MAX_ATTACHMENT_IMAGE_PIXELS) {
         throw new Error('Padded image exceeds the pixel budget')
       }
-      const horizontal = padW - width
-      const vertical = padH - height
-      const padded = await sharp(bytes, {
-        failOn: 'error',
-        limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS,
-        animated: true
-      })
-        .keepMetadata()
-        .extend({
-          left: Math.floor(horizontal / 2),
-          right: Math.ceil(horizontal / 2),
-          top: Math.floor(vertical / 2),
-          bottom: Math.ceil(vertical / 2),
-          background: { r: 255, g: 255, b: 255, alpha: 1 }
-        })
-        .toBuffer()
-      return { ...normalized, url: `data:${normalized.mediaType};base64,${padded.toString('base64')}` }
+      // sharp's multi-page input path excludes PNG, so padding APNG bytes directly would
+      // flatten the animation to a static image; pad each frame and re-encode instead.
+      const padded = isApng(bytes)
+        ? await padApng(bytes, width, height, padW, padH)
+        : await sharp(bytes, {
+            failOn: 'error',
+            limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS,
+            animated: true
+          })
+            .keepMetadata()
+            .extend({
+              left: Math.floor((padW - width) / 2),
+              right: Math.ceil((padW - width) / 2),
+              top: Math.floor((padH - height) / 2),
+              bottom: Math.ceil((padH - height) / 2),
+              background: { r: 255, g: 255, b: 255, alpha: 1 }
+            })
+            .toBuffer()
+      return { ...normalized, url: `data:${normalized.mediaType};base64,${Buffer.from(padded).toString('base64')}` }
     } catch (error) {
+      // An over-budget APNG must not reach the model at all; surface the per-file failure note.
+      if (error instanceof ImageDecodeBudgetError) throw error
       logger.warn('Failed to pad image attachment', {
         filename: normalized.filename,
         reason: error instanceof Error ? error.message : String(error)
