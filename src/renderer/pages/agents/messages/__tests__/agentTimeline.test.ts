@@ -119,9 +119,9 @@ it('shows the waiting Run identity after its latest placed input before any outp
   expect(output.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run'])
 })
 
-it('assigns one identity header and one action boundary across all content segments of a Run', () => {
+it('shows the assistant identity before and after a steer while keeping one Run action boundary', () => {
   const rows = projectAgentTimeline([input('prompt', 1), run, input('steer', 4)], (message) => message)
-  expect(rows.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run'])
+  expect(rows.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run', 'run:part:answer'])
   expect(rows.filter((row) => row.isRunBoundary).map((row) => row.id)).toEqual(['run:part:answer'])
 })
 
@@ -173,7 +173,7 @@ it('preserves an existing content segment when a marker and a continuation arriv
   const rows = projectAgentTimeline([after], (message) => message, before)
   expect(rows.map((row) => row.id)).toEqual(['run', 'run:marker:fold', 'run:part:next', 'run:interrupted'])
   expect(rows[0].partIds).toEqual(before[0].partIds)
-  expect(rows.filter((row) => row.showHeader)).toHaveLength(1)
+  expect(rows.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run', 'run:part:next'])
   expect(rows.at(-1)?.kind).toBe('interrupted')
 })
 

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 
+import { SidebarIcon } from '@renderer/components/app/sidebarIcons'
 import { type Tab, TabIdContext, TabsContext } from '@renderer/hooks/tab'
 import { HomeTabRuntime } from '@renderer/pages/home/components/HomeTabRuntime'
 
@@ -22,6 +23,17 @@ class TestImage {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+})
+
+it('uses the same glyph for the gateway tab and Launchpad tile', () => {
+  const tab: Tab = { id: 'gateway', type: 'route', url: '/app/api-gateway', title: 'Unified Gateway' }
+  const tabIcon = render(<TabIcon tab={tab} size={16} />)
+  const tileIcon = render(<SidebarIcon icon="api_gateway" size={36} />)
+
+  // Compare the decorative glyphs because a chat fallback has the same tab label.
+  const tilePath = tileIcon.container.querySelector('svg path')?.getAttribute('d')
+  expect(tilePath).toBeTruthy()
+  expect(tabIcon.container.querySelector('svg path')).toHaveAttribute('d', tilePath)
 })
 
 it('shows the website favicon and falls back to a globe when it is missing or fails to load', () => {

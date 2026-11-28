@@ -233,7 +233,7 @@ export type AgentRuntimeEvent =
   /** Steered inputs join the current Run. A native follow-up can start a distinct Run. */
   | { type: 'steer-boundary'; inputIds: readonly string[] }
   | { type: 'run-started'; inputIds: readonly string[] }
-  | { type: 'followup-queue'; queue: AgentSessionFollowup[] }
+  | { type: 'followup-queue'; queue: AgentSessionFollowup[]; restored?: true }
   | { type: 'input-state'; contextId: string; input: ProductInputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
@@ -326,6 +326,7 @@ export interface AgentRuntimeConnection {
   /** Reconcile the captured context without submitting or resuming native execution. */
   lookupInput?(contextId: string, inputId: string): Promise<OperationResult<InputLookup>>
   changeFollowups?(change: AgentSessionFollowupChange): Promise<boolean>
+  acknowledgeFollowupProjection?(contextId: string, inputId: string): void
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts, permission mode included, are patched in place before the

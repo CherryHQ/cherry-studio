@@ -302,7 +302,11 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    persistence, the Composer sends Enter with `followUp: true` while busy. Other runtimes keep
    the draft in the dock until idle. Pi Durable persists those submissions in its native queue.
    The dock shows the native waiting order and supports editing, reordering and withdrawing queued
-   inputs. When Durable places the input, the driver emits `run-started` after the preceding
+   inputs. Main saves the complete product input before native submission and keeps it off the
+   conversation branch while it waits. Placement publishes the input and reserves its reply
+   in the same transaction. Admission records the original request ID for recovery in Durable.
+   Startup reconciles those IDs with their committed submissions. Opening the session also checks
+   inputs saved before admission. When Durable places the input, the driver emits `run-started` after the preceding
    answer. Main gives it a distinct Run and holds the handoff until the source reply has an open
    stream and any earlier handoff settles. Steers keep the existing Run and reply. The preceding reply settles as answered at the boundary; Durable reports its
    input's outcome when the run ends, and the host then replaces a reply whose input did not
@@ -377,9 +381,8 @@ The first segment retains the Run's message ID; later keys combine the Run ID wi
 first part ID. `sourceMessageId` retains the durable owner for approvals, usage and fork. Only the
 last segment exposes the completed Run's fork boundary and statistics. Existing open text and tools
 stay in their original segment; a steer never cuts a string or moves a tool into a new parent.
-A pending Run without parts shows its identity header after its latest placed input. Once content
-appears, the first visible content segment owns that header. Subsequent segments keep their body
-and tool parents without repeating it. Boundary compaction parts are separate marker rows with
+A pending Run without parts shows its identity header after its latest placed input. Every visible
+content segment shows that header. Boundary compaction parts are separate marker rows with
 no assistant header, action footer or selection checkbox. In-loop compaction remains inside its process
 group. A paused Run projects one stable interrupted marker from its persisted terminal status,
 after both its last content and its latest placed input. Unplaced queue inputs and
@@ -1372,12 +1375,14 @@ files remain untouched. Restoring an older backup repeats the same conversion.
 Pi and Pi Durable model calls exchange native protocol request/event objects with Cherry's gateway
 in process, without internal HTTP/JSON/SSE codecs or a listener dependency. The gateway resolves
 the configured provider/model and owns credentials, request options and billing through Cherry's
-provider execution path. Pi remains the sole tool executor and loop owner. Desktop Pi and Pi Durable
-disable native provider retries for roots and children. Internal object requests reuse `ai-retry`
-with three retries for retryable failures before the first content chunk; partial streams are not replayed.
-AI SDK built-in retries remain disabled.
-The final upstream error is preserved. Public HTTP gateway requests retain their no-retry policy.
-A later user input can start a new run after a failure.
+provider execution path. Each harness owns its tool execution and loop. Internal object requests use
+`ai-retry` with three retries for eligible failures before content. For desktop Pi Durable roots and
+children, the AI SDK integration classifies provider errors and plans retries. The AI stream manager
+reports idle timeouts. The harness persists the plan in its generation checkpoint and resumes when
+the delay expires. An explicitly offline or suspended network waits with persisted backoff. Resets and
+truncated streams use a finite budget. Both can issue a new model request within the original run,
+retaining committed tool results and excluding interrupted drafts from model context. The final error
+retains its upstream cause. AI SDK built-in retries and public HTTP gateway request retries remain disabled.
 
 ## Internal Agent continuation normalization
 

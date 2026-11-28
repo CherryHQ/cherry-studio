@@ -3,14 +3,6 @@ import { application } from '@application'
 import { REMOTE_CONNECT_PATH } from './routes/remote'
 
 /**
- * When the gateway binds the LAN (`0.0.0.0`) the same listener serves the
- * desktop's own loopback consumers and the encrypted WebSocket upgrade used by
- * remote devices. No other HTTP route may cross the LAN: an exposed MCP proxy is
- * remote tool execution, and the chat routes leak the desktop API key over the
- * wire. This screens every request by its socket peer.
- */
-
-/**
  * A missing address is treated as loopback: it only occurs for in-process
  * `app.handle()` calls that never touch a socket, never for a real remote peer.
  */
@@ -28,19 +20,49 @@ function readRemoteAddress(request: Request): string | undefined {
   return carrier.ip ?? carrier.runtime?.node?.req?.socket?.remoteAddress
 }
 
-/** Returns a 403 body for a non-loopback request unless it is the remote-access upgrade. */
+function isModelApiRequest(request: Request, pathname: string): boolean {
+  if (request.method === 'GET') return /^\/v1\/models\/?$/.test(pathname)
+  return (
+    request.method === 'POST' &&
+    (/^\/v1\/(?:chat\/completions|responses|messages(?:\/count_tokens)?)\/?$/.test(pathname) ||
+      /^\/v1beta\/models\/.+:(?:generateContent|streamGenerateContent|countTokens)\/?$/.test(pathname))
+  )
+}
+
+export function allowsKeylessModelRequest(request: Request): boolean {
+  const peer = readRemoteAddress(request)
+  if (!peer || !isLoopbackAddress(peer)) return false
+  const url = new URL(request.url)
+  if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return false
+  const host = request.headers.get('host')
+  if (host !== null && host.toLowerCase() !== url.host) return false
+  if (!isModelApiRequest(request, url.pathname)) return false
+  const origin = request.headers.get('origin')
+  const fetchSite = request.headers.get('sec-fetch-site')
+  const hasCredential = ['authorization', 'x-api-key', 'x-goog-api-key'].some((name) => request.headers.has(name))
+  return (
+    (origin === null || origin === url.origin) &&
+    (fetchSite === null || fetchSite === 'same-origin' || fetchSite === 'none') &&
+    (!hasCredential || !application.get('ApiGatewayService').isInternalRequest(request.headers))
+  )
+}
+
 export function screenLanRequest(request: Request, pathname: string): { error: string } | undefined {
   const preferences = application.get('PreferenceService')
-  const enabled =
-    preferences.get('feature.api_gateway.enabled') && preferences.get('feature.api_gateway.host') === '0.0.0.0'
-  if (pathname === REMOTE_CONNECT_PATH && !enabled) return { error: 'Forbidden: LAN access is disabled' }
+  const enabled = preferences.get('feature.api_gateway.enabled')
+  const pairingEnabled = enabled && preferences.get('feature.api_gateway.host') === '0.0.0.0'
+  if (pathname === REMOTE_CONNECT_PATH && !pairingEnabled) return { error: 'Forbidden: LAN access is disabled' }
   if (isLoopbackAddress(readRemoteAddress(request))) return undefined
   if (!enabled) return { error: 'Forbidden: LAN access is disabled' }
   if (
+    pairingEnabled &&
     request.method === 'GET' &&
     pathname === REMOTE_CONNECT_PATH &&
     request.headers.get('upgrade')?.toLowerCase() === 'websocket'
   )
     return undefined
+  if (preferences.get('feature.api_gateway.lan_http_enabled') === true && isModelApiRequest(request, pathname)) {
+    return undefined
+  }
   return { error: 'Forbidden: this endpoint is not reachable over the LAN' }
 }
