@@ -207,12 +207,13 @@ the per-call shell approval. The Claude Code adapter turns the policy into the S
 option: writes stay in the workspace, Agent data and temp directories, the network allowlist is
 strict and empty, and sandboxed Bash runs without a card.
 
-Before a sandboxed connection starts, `assertSandboxSettingsUnchanged` resolves every other
-settings tier the CLI would load for the same cwd and setting sources. A tier with its own
-`sandbox` block, a `policyHelper`, `permissions.additionalDirectories`, or `WebFetch(domain:…)` /
-`Edit(…)` allow rules fails the build with a localized error, so the turn errors before any command
-runs. A live connection repeats the check before each turn it sends, so settings changed after
-connect fail the next turn instead of riding on the first check.
+Before each turn a sandboxed connection sends, the driver reads the settings the running CLI
+loaded through `claude.settings()` (the CLI's `get_settings` control request), so managed tiers only
+the CLI sees, such as the policy cache in its own config directory, are covered. Apart from the flag
+tier through which Cherry sets the sandbox, `assertSandboxSettingsUnchanged` fails the turn with a
+localized error before its input is submitted when a tier has its own `sandbox` block, a
+`policyHelper` or `policyHelpers`, `permissions.additionalDirectories`, or `WebFetch(domain:…)` /
+`Edit(…)` allow rules, or when the CLI does not report its settings.
 
 The connection's verified state reaches the guard table as `sandboxed`. A Bash call with
 `dangerouslyDisableSandbox` set asks through `sandbox-escape`, whose reason says the command

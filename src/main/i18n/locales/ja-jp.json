@@ -50,6 +50,7 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "以前のランタイムで無効にした一部のツールを対応付けできませんでした。実行する前に、このエージェントのツールへのアクセス権限を再設定してください。",
   "agent.session.run_status.busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",
   "agent.session.run_status.unavailable": "Agent セッションは利用できなくなりました。",
+  "agent.session.sandbox_settings_unreported": "Claude Code が読み込んだ設定を報告しなかったため、このエージェントのシェルサンドボックスを検証できません（{{reason}}）。もう一度試すか、管理者に連絡してください。",
   "agent.session.sandbox_unverifiable": "他の Claude Code 設定がこのエージェントのシェルサンドボックスを変更しているため、検証できません（{{changes}}）。それらの設定を削除するか、管理者に連絡してください。",
   "agent.session.workspace_status.inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
   "agent.session.workspace_status.missing": "ワークスペースパスが存在しません: {{path}}",

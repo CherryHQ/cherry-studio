@@ -1,5 +1,7 @@
-import { type Options, resolveSettings, type SandboxSettings, type Settings } from '@anthropic-ai/claude-agent-sdk'
+import type { SandboxSettings, Settings } from '@anthropic-ai/claude-agent-sdk'
 
+import type { OperationResult } from '@cherrystudio/agent-runtime'
+import type { ClaudeLoadedSettings } from '@cherrystudio/agent-runtime-claude-code'
 import type { SandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
 import { t } from '@main/i18n'
 
@@ -25,13 +27,17 @@ export function toClaudeCodeSandboxSettings(policy: SandboxPolicy): SandboxSetti
 }
 
 /**
- * Throws unless every other settings tier the CLI loads for these options leaves the sandbox as
- * Cherry sets it. `resolveSettings()` does not run an administrator's `policyHelper`, so a tier
- * that declares one also counts as unverifiable.
+ * Throws unless the settings the running CLI reports leave the sandbox as Cherry sets it through the
+ * flag tier. An unreported read, or a tier that declares a policy helper (which can rewrite managed
+ * settings after this check), counts as unverifiable.
  */
-export async function assertSandboxSettingsUnchanged(options: Pick<Options, 'cwd' | 'settingSources'>): Promise<void> {
-  const { sources } = await resolveSettings({ cwd: options.cwd, settingSources: options.settingSources })
-  const changes = sources.flatMap(({ source, settings }) => sandboxChanges(settings).map((key) => `${source}: ${key}`))
+export function assertSandboxSettingsUnchanged(loaded: OperationResult<ClaudeLoadedSettings>): void {
+  if (loaded.status !== 'confirmed') {
+    throw new Error(t('agent.session.sandbox_settings_unreported', { reason: loaded.error.message }))
+  }
+  const changes = loaded.value.sources
+    .filter(({ source }) => source !== 'flagSettings')
+    .flatMap(({ source, settings }) => sandboxChanges(settings).map((key) => `${source}: ${key}`))
   if (changes.length > 0) {
     throw new Error(t('agent.session.sandbox_unverifiable', { changes: changes.join('; ') }))
   }
@@ -63,6 +69,7 @@ function sandboxChanges(settings: Settings): string[] {
   return [
     ...(settings.sandbox === undefined ? [] : ['sandbox']),
     ...(settings.policyHelper === undefined ? [] : ['policyHelper']),
+    ...('policyHelpers' in settings ? ['policyHelpers'] : []),
     // These feed the sandbox's network and write allowlists.
     ...(settings.permissions?.additionalDirectories?.length ? ['permissions.additionalDirectories'] : []),
     ...(settings.permissions?.allow ?? []).filter((rule) => /^(WebFetch\(domain:|Edit\()/.test(rule))

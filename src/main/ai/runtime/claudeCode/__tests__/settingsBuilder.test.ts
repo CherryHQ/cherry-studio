@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import type * as ClaudeAgentSdk from '@anthropic-ai/claude-agent-sdk'
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -70,13 +69,7 @@ const mocks = vi.hoisted(() => ({
   getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
   platform: { isLinux: false, isMac: false },
-  isWin: false,
-  resolveSettings: vi.fn()
-}))
-
-vi.mock('@anthropic-ai/claude-agent-sdk', async (importOriginal) => ({
-  ...(await importOriginal<typeof ClaudeAgentSdk>()),
-  resolveSettings: mocks.resolveSettings
+  isWin: false
 }))
 
 vi.mock('electron', () => ({
@@ -3412,8 +3405,6 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   describe('Bash sandbox wiring', () => {
-    const NO_OTHER_SETTINGS = { effective: {}, provenance: {}, sources: [] }
-
     function useAgent(configuration: Record<string, unknown>) {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
@@ -3448,7 +3439,6 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     beforeEach(() => {
       mocks.platform.isMac = true
-      mocks.resolveSettings.mockResolvedValue(NO_OTHER_SETTINGS)
     })
 
     it('sandboxes Support Bash on macOS and runs local commands without asking (AC1, AC2)', async () => {
@@ -3462,8 +3452,6 @@ describe('buildClaudeCodeSessionSettings', () => {
         autoAllowBashIfSandboxed: true,
         network: { strictAllowlist: true, allowedDomains: [] }
       })
-      // The check must read the same settings tiers the query will load.
-      expect(mocks.resolveSettings).toHaveBeenCalledWith({ cwd: settings.cwd, settingSources: settings.settingSources })
       await expect(preToolUseDecision(settings, { command: 'ls -la' })).resolves.toBeUndefined()
     })
 
@@ -3578,17 +3566,6 @@ describe('buildClaudeCodeSessionSettings', () => {
 
         await expect(guidanceFor(settings, 'PostToolUseFailure', { command: 'gh auth status' })).resolves.toEqual([])
       })
-    })
-
-    it('fails the build before any command runs when another tier changes the sandbox (AC11)', async () => {
-      useAgent({ builtin_role: 'support', permission_mode: 'bypassPermissions' })
-      mocks.resolveSettings.mockResolvedValue({
-        effective: {},
-        provenance: {},
-        sources: [{ source: 'managed', settings: { sandbox: { enabled: false } } }]
-      })
-
-      await expect(build()).rejects.toThrow('cannot be verified')
     })
   })
 })

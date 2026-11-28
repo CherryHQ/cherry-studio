@@ -50,6 +50,7 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "이전 런타임에서 비활성화된 일부 도구를 연결할 수 없습니다. 실행하기 전에 이 에이전트의 도구 접근 권한을 다시 설정하세요.",
   "agent.session.run_status.busy": "에이전트 세션이 사용 중입니다. 잠시 후 다시 시도하세요.",
   "agent.session.run_status.unavailable": "에이전트 세션을 더 이상 사용할 수 없습니다.",
+  "agent.session.sandbox_settings_unreported": "Claude Code가 불러온 설정을 보고하지 않아 이 에이전트의 셸 샌드박스를 검증할 수 없습니다({{reason}}). 다시 시도하거나 관리자에게 문의하세요.",
   "agent.session.sandbox_unverifiable": "다른 Claude Code 설정이 이 에이전트의 셸 샌드박스를 변경하고 있어 검증할 수 없습니다({{changes}}). 해당 설정을 제거하거나 관리자에게 문의하세요.",
   "agent.session.workspace_status.inaccessible": "워크스페이스 경로에 접근할 수 없습니다: {{path}}",
   "agent.session.workspace_status.missing": "워크스페이스 경로가 존재하지 않습니다: {{path}}",

@@ -171,7 +171,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
-  private sandboxSettingsCheck?: Pick<Options, 'cwd' | 'settingSources'>
+  private sandboxed = false
   private _usageCapture?: AgentSessionUsageCapture
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
@@ -206,9 +206,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.connectionConfig = request.connectionConfig
     this.approvalEmitter = request.settings.approvalEmitter
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
-    this.sandboxSettingsCheck = request.options.sandbox
-      ? { cwd: request.options.cwd, settingSources: request.options.settingSources }
-      : undefined
+    this.sandboxed = request.options.sandbox !== undefined
     this.context = prepareClaudeBranch(
       this.input.sessionId,
       resolveClaudeConfigDirectory(request.options.env),
@@ -330,8 +328,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
-    // Settings were checked when this connection was built; a later turn must not trust a stale check.
-    if (this.sandboxSettingsCheck) await assertSandboxSettingsUnchanged(this.sandboxSettingsCheck)
+    // Asks the running CLI each turn: only it knows the settings tiers it loaded, and they can change.
+    if (this.sandboxed) assertSandboxSettingsUnchanged(await this.handle!.claude.settings())
 
     const sdkMessage = await toSdkUserMessage(
       withAgentContext(input.message, input.context),

@@ -90,7 +90,7 @@ import {
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
-import { assertSandboxSettingsUnchanged, toClaudeCodeSandboxSettings } from './sandboxSettings'
+import { toClaudeCodeSandboxSettings } from './sandboxSettings'
 import { buildPluginDirectoryIndex } from './skillDependencies'
 import { decisionToPermissionResult } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
@@ -204,7 +204,6 @@ export async function buildClaudeCodeSessionSettings(
   // Sealed agents exclude filesystem settings and native workspace instructions.
   const settingSources = capabilities.environment === 'sealed' ? [] : getSettingSources(provider)
   const sandboxPolicy = resolveSandboxPolicy(capabilities.sandbox, application.getPath('sys.home'))
-  if (sandboxPolicy) await assertSandboxSettingsUnchanged({ cwd, settingSources })
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
   const effectiveModelId = options?.effectiveModelId ?? session.model ?? agent.model ?? undefined
   const [agentDataPath, env, workspacePlugins] = await Promise.all([

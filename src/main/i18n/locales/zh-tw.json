@@ -50,6 +50,7 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "無法對應舊執行環境的部分停用工具。請重新設定此智能體的工具存取權限後再執行。",
   "agent.session.run_status.busy": "智能體工作階段忙碌中，請稍後再試。",
   "agent.session.run_status.unavailable": "智能體工作階段已無法使用。",
+  "agent.session.sandbox_settings_unreported": "無法驗證此智能體的命令列沙箱，因為 Claude Code 沒有回報它載入的設定（{{reason}}）。請重試，或聯絡管理員。",
   "agent.session.sandbox_unverifiable": "無法驗證此智能體的命令列沙箱，因為其他 Claude Code 設定變更了它（{{changes}}）。請移除這些設定，或聯絡管理員。",
   "agent.session.workspace_status.inaccessible": "工作區路徑無法存取：{{path}}",
   "agent.session.workspace_status.missing": "工作區路徑不存在：{{path}}",

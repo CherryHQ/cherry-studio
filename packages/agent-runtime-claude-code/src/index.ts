@@ -5,6 +5,7 @@ export type {
   ClaudeCodeRuntimeOptions,
   ClaudeCodeRuntime,
   ClaudeThreadHandle,
+  ClaudeLoadedSettings,
   ClaudeObservation,
   ClaudeInvocation,
   ClaudeObservationSink,

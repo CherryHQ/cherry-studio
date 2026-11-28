@@ -8,6 +8,7 @@ import { type HookCallback, type PermissionMode, query, type SpawnOptions } from
 import { startTestHttpServer, type TestHttpServer } from '@test-helpers/http/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import type { ClaudeLoadedSettings } from '@cherrystudio/agent-runtime-claude-code'
 import { resolveSandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
 
 import { assertSandboxSettingsUnchanged, sandboxEscapeGuidance, toClaudeCodeSandboxSettings } from '../sandboxSettings'
@@ -252,23 +253,49 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
     }
   )
 
-  it('refuses the sandbox when a real settings tier changes it (AC11)', async () => {
-    const project = path.join(root, 'project-settings')
-    await mkdir(path.join(project, '.claude'), { recursive: true })
-    const settingsFile = path.join(project, '.claude', 'settings.json')
-    const options = { cwd: project, settingSources: ['project' as const] }
+  it('refuses the sandbox when a settings tier only the CLI loads changes it (AC11)', async () => {
+    const policy = resolveSandboxPolicy({}, home)
+    if (!policy) throw new Error('expected a sandbox policy')
+    const sandbox = toClaudeCodeSandboxSettings(policy)
+    // Kept in the CLI's own config directory, which the main process never reads.
+    async function reportedWith(remoteSettings?: Record<string, unknown>) {
+      const configDir = await mkdtemp(path.join(root, 'cli-config-'))
+      if (remoteSettings) await writeFile(path.join(configDir, 'remote-settings.json'), JSON.stringify(remoteSettings))
+      const sdk = query({
+        // Never yields: only the settings are read, so no model request is made.
+        prompt: { [Symbol.asyncIterator]: () => ({ next: () => new Promise<never>(() => {}) }) },
+        options: {
+          cwd: path.join(root, 'work'),
+          // No ANTHROPIC_BASE_URL: the CLI reads its policy cache only for the first-party API.
+          env: {
+            PATH: process.env.PATH,
+            HOME: process.env.HOME,
+            TMPDIR: process.env.TMPDIR,
+            CLAUDE_CONFIG_DIR: configDir,
+            ANTHROPIC_API_KEY: 'sandbox-test',
+            CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+          },
+          settingSources: [],
+          sandbox
+        }
+      })
+      try {
+        const loaded = await (sdk as unknown as { getSettings(): Promise<ClaudeLoadedSettings> }).getSettings()
+        return { status: 'confirmed' as const, value: loaded }
+      } finally {
+        sdk.close()
+      }
+    }
 
-    await writeFile(settingsFile, JSON.stringify({ permissions: { allow: ['Read(*)'] } }))
-    await expect(assertSandboxSettingsUnchanged(options)).resolves.toBeUndefined()
+    const unchanged = await reportedWith()
+    const unrelated = await reportedWith({ permissions: { deny: ['WebFetch'] } })
+    const changed = await reportedWith({ sandbox: { excludedCommands: ['gh *'] } })
+    const helper = await reportedWith({ policyHelpers: { macos: { path: '/usr/local/bin/policy' } } })
 
-    await writeFile(settingsFile, JSON.stringify({ sandbox: { excludedCommands: ['gh *'] } }))
-    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('project: sandbox')
-
-    await writeFile(
-      settingsFile,
-      JSON.stringify({ permissions: { additionalDirectories: [path.join(root, 'outside')] } })
-    )
-    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('project: permissions.additionalDirectories')
+    expect(() => assertSandboxSettingsUnchanged(unchanged)).not.toThrow()
+    expect(() => assertSandboxSettingsUnchanged(unrelated)).not.toThrow()
+    expect(() => assertSandboxSettingsUnchanged(changed)).toThrow('policySettings: sandbox')
+    expect(() => assertSandboxSettingsUnchanged(helper)).toThrow('policySettings: policyHelpers')
   })
 
   it('routes a request to leave the sandbox to canUseTool and does not run it when denied (AC3)', async () => {

@@ -6,7 +6,16 @@ import type { Observation, OperationResult, Subagent, Thread } from '@cherrystud
 import { isUuid, nativeIdentity, rejected, runtimeError } from './identity'
 import { ClaudeOwner } from './owner'
 import type { ClaudeProjection } from './projection'
-import type { ClaudeCodeRuntime, ClaudeCodeRuntimeOptions, ClaudeSessionOptions, ClaudeThreadHandle } from './types'
+import type {
+  ClaudeCodeRuntime,
+  ClaudeCodeRuntimeOptions,
+  ClaudeLoadedSettings,
+  ClaudeSessionOptions,
+  ClaudeThreadHandle
+} from './types'
+
+// The SDK's Query implements `getSettings()`, but its type declaration omits it.
+type SettingsQuery = { getSettings(): Promise<ClaudeLoadedSettings> }
 
 export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): ClaudeCodeRuntime {
   options = { ...options }
@@ -150,6 +159,10 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           released || agentId
             ? Promise.resolve(rejected('setPermissionMode', agentId ? 'child-control' : 'released'))
             : owner.control(projection, 'setPermissionMode', (query) => query.setPermissionMode(mode)),
+        settings: () =>
+          released || agentId
+            ? Promise.resolve(rejected('settings', agentId ? 'child-control' : 'released'))
+            : owner.control(projection, 'settings', (query) => (query as unknown as SettingsQuery).getSettings()),
         submit,
         observe,
         archive: (options) =>

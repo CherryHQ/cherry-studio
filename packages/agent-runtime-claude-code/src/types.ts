@@ -6,6 +6,7 @@ import type {
   SDKPartialAssistantMessage,
   SDKUserMessage,
   SessionMessage,
+  Settings,
   WarmQuery
 } from '@anthropic-ai/claude-agent-sdk'
 
@@ -114,6 +115,12 @@ export interface ClaudeArchive {
   readonly retracted: readonly string[]
 }
 
+export interface ClaudeLoadedSettings {
+  readonly effective: Settings
+  /** Each settings tier that contributed, low to high precedence, e.g. `policySettings` or `flagSettings`. */
+  readonly sources: readonly { readonly source: string; readonly settings: Settings }[]
+}
+
 export interface ClaudeThreadHandle extends ThreadHandle {
   readonly claude: {
     state(): { readonly active: boolean }
@@ -132,6 +139,8 @@ export interface ClaudeThreadHandle extends ThreadHandle {
     start(warm?: { query: WarmQuery; exited: Promise<void> }): OperationResult<void>
     supportedCommands(): Promise<OperationResult<Awaited<ReturnType<Query['supportedCommands']>>>>
     setPermissionMode(mode: Parameters<Query['setPermissionMode']>[0]): Promise<OperationResult<void>>
+    /** The settings the running CLI loaded, as its `get_settings` control request reports them. */
+    settings(): Promise<OperationResult<ClaudeLoadedSettings>>
     submit(inputId: InputId, content: SDKUserMessage['message']['content'], whenBusy: BusyPolicy): Promise<SubmitResult>
     observe(
       sink: ClaudeObservationSink,

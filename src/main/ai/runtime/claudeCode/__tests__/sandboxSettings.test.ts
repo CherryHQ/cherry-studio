@@ -5,15 +5,13 @@ import { resolveSandboxPolicy, type SandboxOverlay } from '@main/ai/toolApproval
 
 import { assertSandboxSettingsUnchanged, sandboxEscapeGuidance, toClaudeCodeSandboxSettings } from '../sandboxSettings'
 
-const mocks = vi.hoisted(() => ({ isMac: true, resolveSettings: vi.fn() }))
+const mocks = vi.hoisted(() => ({ isMac: true }))
 
 vi.mock('@main/core/platform', () => ({
   get isMac() {
     return mocks.isMac
   }
 }))
-
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ resolveSettings: mocks.resolveSettings }))
 
 const home = '/Users/probe'
 
@@ -98,52 +96,60 @@ describe('overlay merge (AC10)', () => {
 })
 
 describe('assertSandboxSettingsUnchanged (AC11)', () => {
-  const options = { cwd: '/workspace/project', settingSources: [] }
-  const managed = (settings: Record<string, unknown>) => ({
-    effective: settings,
-    provenance: {},
-    sources: [{ source: 'managed', settings }]
+  const cherry = { source: 'flagSettings', settings: { sandbox: { enabled: true, filesystem: { allowWrite: ['~'] } } } }
+  const loaded = (...sources: { source: string; settings: Record<string, unknown> }[]) => ({
+    status: 'confirmed' as const,
+    value: { effective: {}, sources: [...sources, cherry] }
   })
+  const managed = (settings: Record<string, unknown>) => loaded({ source: 'policySettings', settings })
 
-  it('passes when no other settings tier touches the sandbox', async () => {
-    mocks.resolveSettings.mockResolvedValue(managed({ permissions: { allow: ['Read(*)'], deny: ['WebFetch'] } }))
-
-    await expect(assertSandboxSettingsUnchanged(options)).resolves.toBeUndefined()
+  it('passes when only Cherry sets the sandbox and other tiers leave it alone', () => {
+    expect(() =>
+      assertSandboxSettingsUnchanged(managed({ permissions: { allow: ['Read(*)'], deny: ['WebFetch'] } }))
+    ).not.toThrow()
   })
 
   it.each([
-    ['its own sandbox block', { sandbox: { excludedCommands: ['gh *'] } }, 'managed: sandbox'],
+    ['its own sandbox block', { sandbox: { excludedCommands: ['gh *'] } }, 'policySettings: sandbox'],
     [
       'a network allow rule',
       { permissions: { allow: ['WebFetch(domain:github.com)'] } },
       'WebFetch(domain:github.com)'
     ],
     ['a write allow rule', { permissions: { allow: ['Edit(~/.ssh/**)'] } }, 'Edit(~/.ssh/**)'],
-    ['a policyHelper it cannot run', { policyHelper: { command: '/usr/local/bin/policy' } }, 'managed: policyHelper'],
+    ['a policyHelper', { policyHelper: { path: '/usr/local/bin/policy' } }, 'policySettings: policyHelper'],
+    [
+      'per-OS policyHelpers',
+      { policyHelpers: { macos: { path: '/usr/local/bin/policy' } } },
+      'policySettings: policyHelpers'
+    ],
     [
       'a writable additional directory',
       { permissions: { additionalDirectories: ['~'] } },
-      'managed: permissions.additionalDirectories'
+      'policySettings: permissions.additionalDirectories'
     ]
-  ])('rejects a tier that adds %s', async (_label, settings, evidence) => {
-    mocks.resolveSettings.mockResolvedValue(managed(settings))
-
-    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow(evidence)
+  ])('rejects a tier that adds %s', (_label, settings, evidence) => {
+    expect(() => assertSandboxSettingsUnchanged(managed(settings))).toThrow(evidence)
   })
 
-  it('explains the refusal in the current app language', async () => {
-    mocks.resolveSettings.mockResolvedValue(managed({ sandbox: { enabled: false } }))
-
+  it('explains the refusal in the current app language', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('无法验证此智能体的命令行沙箱')
+    expect(() => assertSandboxSettingsUnchanged(managed({ sandbox: { enabled: false } }))).toThrow(
+      '无法验证此智能体的命令行沙箱'
+    )
     MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
-    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('cannot be verified')
+    expect(() => assertSandboxSettingsUnchanged(managed({ sandbox: { enabled: false } }))).toThrow('cannot be verified')
   })
 
-  it('rejects when the settings cannot be resolved', async () => {
-    mocks.resolveSettings.mockRejectedValue(new Error('plutil failed'))
+  it('rejects when the CLI does not report its settings', () => {
+    const unreported = {
+      status: 'unknown' as const,
+      error: { operation: 'settings', code: 'native-error', message: 'Claude Code settings: native-error' }
+    }
 
-    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('plutil failed')
+    expect(() => assertSandboxSettingsUnchanged(unreported)).toThrow(
+      'did not report the settings it loaded (Claude Code settings: native-error)'
+    )
   })
 })
 

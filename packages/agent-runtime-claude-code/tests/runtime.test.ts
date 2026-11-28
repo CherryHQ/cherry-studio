@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { rename, rm } from 'node:fs/promises'
+import { rename, rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 
 import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { expect, it } from 'vitest'
@@ -44,6 +45,25 @@ it('claims one prewarmed native process for commands, input and confirmed shutdo
     expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
   } finally {
     warm.close()
+    await test.close()
+  }
+}, 30000)
+
+it('reports the settings the running CLI loaded, including a policy tier only its config directory holds', async () => {
+  const test = await fixture()
+  try {
+    const managed = { sandbox: { allowUnsandboxedCommands: false } }
+    await writeFile(path.join(test.configDir, 'remote-settings.json'), JSON.stringify(managed))
+    // The CLI reads its remote policy cache only for the first-party API; this test sends no model request.
+    const env = { ...test.options.env }
+    delete env.ANTHROPIC_BASE_URL
+    const root = confirmed(await test.runtime().create({ ...test.options, env }))
+    confirmed(root.claude.start())
+
+    const loaded = confirmed(await root.claude.settings())
+
+    expect(loaded.sources).toContainEqual({ source: 'policySettings', settings: managed })
+  } finally {
     await test.close()
   }
 }, 30000)

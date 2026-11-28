@@ -24,9 +24,9 @@ Opening reports `native-storage-missing` when the archive is absent and
 The host may supply a reserved `sessionId` to `create`. `claude.start()` initializes
 the connection without model input, optionally taking exclusive ownership of a
 matching SDK `WarmQuery` and its process-exit Promise. The host must match its
-captured configuration and credentials. Command discovery and
-permission-mode updates use typed native methods on `claude`, without exposing
-the Query iterator to a second reader.
+captured configuration and credentials. Command discovery,
+permission-mode updates and reading the settings the CLI loaded use typed native
+methods on `claude`, without exposing the Query iterator to a second reader.
 
 `claudeThread(backendId, sessionId, agentId?)` constructs a reference from established
 native identity. Hosts store the opaque `Thread.id`; they do not parse its encoding.

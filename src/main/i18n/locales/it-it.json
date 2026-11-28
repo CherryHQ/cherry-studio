@@ -50,6 +50,7 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Non è stato possibile associare alcuni strumenti disabilitati del precedente ambiente di esecuzione. Riconfigura l'accesso agli strumenti di questo agente prima di eseguirlo.",
   "agent.session.run_status.busy": "La sessione dell'agente è occupata. Riprova tra poco.",
   "agent.session.run_status.unavailable": "La sessione dell'agente non è più disponibile.",
+  "agent.session.sandbox_settings_unreported": "Impossibile verificare la sandbox della shell di questo agente perché Claude Code non ha riportato le impostazioni caricate ({{reason}}). Riprova o contatta l’amministratore.",
   "agent.session.sandbox_unverifiable": "Impossibile verificare la sandbox della shell di questo agente perché altre impostazioni di Claude Code la modificano ({{changes}}). Rimuovi queste impostazioni o contatta l’amministratore.",
   "agent.session.workspace_status.inaccessible": "Il percorso dell'area di lavoro non è accessibile: {{path}}",
   "agent.session.workspace_status.missing": "Il percorso dell'area di lavoro non esiste: {{path}}",

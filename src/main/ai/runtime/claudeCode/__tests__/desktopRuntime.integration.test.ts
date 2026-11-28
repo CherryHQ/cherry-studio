@@ -325,7 +325,7 @@ it('re-checks sandbox settings before each turn on a live connection', async () 
   await mkdir(path.dirname(settingsFile), { recursive: true })
 
   await writeFile(settingsFile, JSON.stringify({ sandbox: { excludedCommands: ['gh *'] } }))
-  await expect(connection.send(test.input('Check the GitHub login'))).rejects.toThrow('project: sandbox')
+  await expect(connection.send(test.input('Check the GitHub login'))).rejects.toThrow('projectSettings: sandbox')
 
   await writeFile(settingsFile, JSON.stringify({}))
   await expect(connection.send(test.input('List the workspace'))).resolves.toBeUndefined()
