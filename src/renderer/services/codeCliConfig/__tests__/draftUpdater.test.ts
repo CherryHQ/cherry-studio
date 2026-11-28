@@ -42,6 +42,16 @@ const chatProvider = {
   name: 'DeepSeek',
   endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.deepseek.com/v1' } }
 } as unknown as Provider
+const anthropicProvider = {
+  id: 'anthropic',
+  name: 'Anthropic',
+  endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+} as unknown as Provider
+const geminiProvider = {
+  id: 'gemini',
+  name: 'Gemini',
+  endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
+} as unknown as Provider
 
 /** Build a managed draft via readCliConfigDraft (same builders the write path uses). */
 async function buildDraft(
