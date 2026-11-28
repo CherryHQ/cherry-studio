@@ -41,7 +41,7 @@ const PaintingStripItem: FC<{
     <div className={cn(paintingClasses.historyItem, selected && paintingClasses.historyItemActive)}>
       <button
         type="button"
-        className="absolute inset-0 z-0"
+        className="absolute inset-0 z-0 rounded-[12px]"
         aria-label={selectLabel}
         onClick={() => onSelect(painting)}>
         <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[12px]">
