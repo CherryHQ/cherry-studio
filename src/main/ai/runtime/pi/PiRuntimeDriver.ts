@@ -12,6 +12,7 @@ import { listEntries, reclaimStale } from '../orphanSessionReclaim'
 import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver, OrphanSessionReclaimOptions } from '../types'
 import { classifyPiFailure } from './failureFacts'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
+import { ensureImportedSessionHistory } from './importedSessionHistory'
 import { forkPiSession } from './piFork'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
@@ -29,6 +30,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly recoverSessions = migrateRetiredSessionHistories
 
   async validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): Promise<void> {
+    await ensureImportedSessionHistory(session.id)
     await ensureRetiredSessionHistory(session.id)
     const cwd = session.workspace?.path
     if (!cwd) {
@@ -48,6 +50,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput) {
+    await ensureImportedSessionHistory(input.sessionId)
     await ensureRetiredSessionHistory(input.sessionId)
     const connection = new PiRuntimeConnection(input)
     try {

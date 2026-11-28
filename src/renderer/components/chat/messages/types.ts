@@ -230,6 +230,9 @@ export interface MessageListItem {
   assistantId?: string
   topicId: string
   parentId?: string | null
+  /** Display-only group for adjacent imported replies and process records; every original ID stays selectable. */
+  historicalProcessGroupId?: string
+  isImportedHistory?: boolean
   createdAt: string
   updatedAt?: string
   status: MessageStatus
