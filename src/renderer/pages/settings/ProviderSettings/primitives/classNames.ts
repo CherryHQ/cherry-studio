@@ -52,7 +52,9 @@ export const providerListClasses = {
   searchInlineAddButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-2.5 pt-2.5',
-  searchWrap: 'flex h-8 items-center gap-1 rounded-[10px] border border-input bg-background py-1 pl-2.5 pr-1',
+  // Lifted while focused: the positioned rows scrolling under it would otherwise paint over the halo.
+  searchWrap:
+    'flex h-8 items-center gap-1 rounded-[10px] border border-input bg-background py-1 pl-2.5 pr-1 has-[input:focus-visible]:border-ring has-[input:focus-visible]:outline-3 has-[input:focus-visible]:relative has-[input:focus-visible]:z-10',
   searchIcon: 'mr-0.5 size-3.5 shrink-0 text-muted-foreground',
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground',
