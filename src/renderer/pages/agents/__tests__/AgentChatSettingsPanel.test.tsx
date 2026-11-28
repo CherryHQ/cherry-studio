@@ -46,6 +46,7 @@ const agentComposerPropsMock = vi.hoisted(() => ({
 const agentConversationControlsPropsMock = vi.hoisted(() => ({
   last: undefined as any
 }))
+const confirmActionShowMock = vi.hoisted(() => vi.fn())
 const conversationShellPropsMock = vi.hoisted(() => ({
   last: undefined as any
 }))
@@ -182,6 +183,10 @@ vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
   useAgentWorkspaceWarning: () => undefined
 }))
 
+vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({
+  default: { show: confirmActionShowMock }
+}))
+
 vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls', () => ({
   AgentConversationControls: (props: any) => {
     agentConversationControlsPropsMock.last = props
@@ -190,6 +195,7 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
         data-testid="agent-conversation-controls"
         data-agent-trigger-mode={props.agentTriggerMode}
         data-can-change-workspace={String(Boolean(props.onWorkspaceChange))}
+        data-workspace-disabled-reason={props.workspaceDisabledReason ?? ''}
         data-can-change-model={String(Boolean(props.canChangeModel))}>
         <button type="button" onClick={() => void props.onWorkspaceChange?.('workspace-next')}>
           change topbar workspace
@@ -382,6 +388,7 @@ describe('AgentChat settings panel', () => {
     agentRightPanePropsMock.last = undefined
     agentComposerPropsMock.last = undefined
     agentConversationControlsPropsMock.last = undefined
+    confirmActionShowMock.mockReset()
     conversationShellPropsMock.last = undefined
     updateAgentMock.updateModel.mockReset()
     updateAgentMock.updateModel.mockResolvedValue({ id: 'agent-1' })
@@ -496,7 +503,7 @@ describe('AgentChat settings panel', () => {
     await waitFor(() => expect(selectAgent).toBeEnabled())
   })
 
-  it('does not allow switching the workspace while the empty session is pending', () => {
+  it('disables workspace switching with a reason while a turn is in flight', () => {
     topicStreamStatusMock.isPending = true
     const session = {
       id: 'session-1',
@@ -510,10 +517,13 @@ describe('AgentChat settings panel', () => {
       onSessionWorkspaceChange: vi.fn()
     })
 
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    const controls = screen.getByTestId('agent-conversation-controls')
+    expect(controls).toHaveAttribute('data-can-change-workspace', 'true')
+    expect(controls).toHaveAttribute('data-workspace-disabled-reason', 'agent.session.workspace_rebind.turn_in_flight')
   })
 
-  it('does not allow switching the workspace after messages are present', () => {
+  it('asks for confirmation before switching the workspace after messages are present', () => {
+    const onSessionWorkspaceChange = vi.fn()
     partsByMessageIdMock.value = {
       'message-1': [{ type: 'text', text: 'hello' }]
     }
@@ -526,10 +536,21 @@ describe('AgentChat settings panel', () => {
 
     renderAgentChat({
       conversationBootstrap: createConversationBootstrap(session),
-      onSessionWorkspaceChange: vi.fn()
+      onSessionWorkspaceChange
     })
 
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar workspace' }))
+
+    // The rebind waits on the confirmation; nothing changes until it runs the action.
+    expect(confirmActionShowMock).toHaveBeenCalledTimes(1)
+    const confirmParams = confirmActionShowMock.mock.calls[0][0]
+    expect(confirmParams.title).toBe('agent.session.workspace_rebind.confirm_title')
+    expect(onSessionWorkspaceChange).not.toHaveBeenCalled()
+
+    confirmParams.action()
+    expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
   })
 
   it('switches the model directly when the session has no messages', async () => {

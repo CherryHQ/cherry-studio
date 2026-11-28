@@ -11,6 +11,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import type { AgentSessionMessageData, AgentSessionMessageRecord } from '@data/services/agentSessionMessageTree'
+import { agentSessionService } from '@data/services/AgentSessionService'
 
 function submissionDraft(message: AgentSessionMessageRecord, whenBusy: BusyPolicy, preparedText?: string): InputDraft {
   if (preparedText !== undefined) return { inputId: runtimeId(message.id), text: preparedText, whenBusy }
@@ -35,7 +36,12 @@ export function prepareNativeSubmission(
     const message = messages.bindInputContextTx(tx, sessionId, messageId, contextId)
     if (prepared && JSON.stringify(message.data.parts) !== JSON.stringify(prepared.parts))
       throw new Error('Native input content changed during preparation')
-    return submissionDraft(message, whenBusy, prepared?.text)
+    const draft = submissionDraft(message, whenBusy, prepared?.text)
+    // AC7 of the session workdir rebind spec: surface pending deliberate rebinds
+    // to the model ahead of this turn's text.
+    const note = agentSessionService.consumeWorkspaceChangeNoteTx(tx, sessionId)
+    if (note) return { ...draft, text: `${note}\n\n${draft.text}` }
+    return draft
   })
 }
 

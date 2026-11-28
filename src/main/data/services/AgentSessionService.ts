@@ -13,6 +13,7 @@ import {
   agentSessionTable as sessionsTable
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionWorkspaceEventTable } from '@data/db/schemas/agentSessionWorkspaceEvent'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { artifactTable } from '@data/db/schemas/artifact'
 import { pinTable } from '@data/db/schemas/pin'
@@ -1090,10 +1091,13 @@ export class AgentSessionService {
   }
 
   /**
-   * Replace a session's workspace. Only an empty session (no messages) may
-   * change its workspace; once a conversation has started the binding is
-   * permanent. Lives on `PUT /agent-sessions/:id/workspace` rather than the
-   * generic PATCH because it creates/deletes the backing system workspace row.
+   * Replace a session's workspace. A session with messages may rebind: the
+   * change applies to future turns only and is recorded on the session so a
+   * later resume can tell a deliberate rebind from an unexpected cwd change
+   * (spec: `.agents/notes/proposed/feature/2026-11-28-agent-session-workdir-rebind.md`).
+   * The caller rejects a rebind while a turn is in flight. Lives on
+   * `PUT /agent-sessions/:id/workspace` rather than the generic PATCH because it
+   * creates/deletes the backing system workspace row.
    */
   setWorkspace(id: string, source: AgentSessionWorkspaceSource): AgentSessionEntity {
     withSqliteErrors(
@@ -1110,12 +1114,11 @@ export class AgentSessionService {
 
   setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
     const current = this.getJoinedSessionRowTx(tx, id)
-    // The workspace binding is locked the moment a session has any message.
-    this.assertSessionHasNoMessagesTx(tx, id)
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
       if (workspace.id === current.session.workspaceId) return
+      this.recordWorkspaceEventTx(tx, id, current.workspace, workspace)
       // Repoint first, then drop the old system workspace so the session FK never dangles.
       tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
       if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
@@ -1130,7 +1133,65 @@ export class AgentSessionService {
       sessionId: id,
       createdAt: current.session.createdAt
     })
+    this.recordWorkspaceEventTx(tx, id, current.workspace, workspace)
     tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
+  }
+
+  /**
+   * Builds the model-facing note for workspace rebinds not yet surfaced and
+   * marks every pending event surfaced, in the same transaction that binds the
+   * next native input (AC7 of the rebind spec). Returns null when there is no
+   * pending rebind. If the submission the note rode in on is later refused, the
+   * events stay marked surfaced: the note is best-effort context, not a
+   * delivery guarantee.
+   */
+  consumeWorkspaceChangeNoteTx(tx: DbOrTx, sessionId: string): string | null {
+    const pending = tx
+      .select()
+      .from(agentSessionWorkspaceEventTable)
+      .where(
+        and(
+          eq(agentSessionWorkspaceEventTable.sessionId, sessionId),
+          isNull(agentSessionWorkspaceEventTable.surfacedAt)
+        )
+      )
+      .orderBy(asc(agentSessionWorkspaceEventTable.createdAt))
+      .all()
+    if (pending.length === 0) return null
+    tx.update(agentSessionWorkspaceEventTable)
+      .set({ surfacedAt: Date.now() })
+      .where(
+        inArray(
+          agentSessionWorkspaceEventTable.id,
+          pending.map((event) => event.id)
+        )
+      )
+      .run()
+    const latest = pending[pending.length - 1]
+    const previous = latest.previousWorkspacePath || '(no work directory)'
+    const next = latest.newWorkspacePath || '(no work directory)'
+    const earlier =
+      pending.length > 1 ? ` ${pending.length - 1} earlier workspace change(s) this session are also recorded.` : ''
+    return `[Workspace changed: "${previous}" -> "${next}". Resolve relative paths against the new directory for this and future turns.${earlier}]`
+  }
+
+  private recordWorkspaceEventTx(
+    tx: DbOrTx,
+    sessionId: string,
+    previous: AgentWorkspaceRow,
+    next: AgentWorkspaceRow
+  ): void {
+    // Recorded in the same transaction as the repoint: the event is the durable
+    // evidence that the workspace change was deliberate.
+    tx.insert(agentSessionWorkspaceEventTable)
+      .values({
+        sessionId,
+        previousWorkspaceId: previous.id,
+        previousWorkspacePath: previous.path,
+        newWorkspaceId: next.id,
+        newWorkspacePath: next.path
+      })
+      .run()
   }
 
   private getJoinedSessionRowTx(tx: DbOrTx, id: string): JoinedSessionRow {
@@ -1143,21 +1204,6 @@ export class AgentSessionService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return row
-  }
-
-  private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): void {
-    const [message] = tx
-      .select({ id: agentSessionMessageTable.id })
-      .from(agentSessionMessageTable)
-      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), sql`${agentSessionMessageTable.role} != 'root'`))
-      .limit(1)
-      .all()
-    if (message) {
-      throw DataApiErrorFactory.invalidOperation(
-        'update session workspace',
-        'workspace cannot be changed after messages are sent'
-      )
-    }
   }
 
   private insertTx(
