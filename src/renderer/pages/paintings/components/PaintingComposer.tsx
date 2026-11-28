@@ -173,9 +173,9 @@ const PaintingParamsButton: FC<{
   )
   const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
 
-  // A model without registry fields can still have the timeout control; hiding the entry
-  // point would make that setting unreachable.
-  if (configItems.length === 0 && !supportsImageRequestTimeout(painting.providerId)) return null
+  // A model without registry fields can still have the timeout control or the output-format
+  // note; hiding the entry point would make either unreachable.
+  if (configItems.length === 0 && !registrySupport && !supportsImageRequestTimeout(painting.providerId)) return null
 
   return (
     <Popover>
