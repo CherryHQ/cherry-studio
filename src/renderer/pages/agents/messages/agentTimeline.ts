@@ -75,7 +75,7 @@ export function projectAgentTimeline(
                 ? message.id
                 : `${message.id}:part:${group.ids[0]}`,
           kind: group.kind,
-          showHeader: group === visible[0] || isWaitingForOutput,
+          showHeader: isWaitingForOutput || visible.includes(group),
           message,
           parts: group.parts,
           partIds: group.ids,
