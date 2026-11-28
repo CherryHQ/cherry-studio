@@ -7,6 +7,7 @@ import { MessageEditingProvider } from '@renderer/components/chat/editing/Messag
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import type { MessageListActions, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
+import { ConversationHandoff } from '@renderer/components/chat/shell/ConversationHandoff'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import type {
   ChatComposerResolvedContext,
@@ -18,19 +19,21 @@ import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
+import { useModelById } from '@renderer/hooks/useModel'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import { endsWithProviderQuotaError } from '@renderer/utils/message/providerQuotaError'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { hasClearContextPart } from '@shared/data/types/uiParts'
 import { normalizeMaxMessages, resolveMaxMessages } from '@shared/utils/contextSettings'
 
 import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
+import { useHandoffContextPercentage } from './hooks/useHandoffContextPercentage'
 import { useTopicBranchActions } from './hooks/useTopicBranchActions'
 import { findContextWindowBoundary } from './messages/contextWindowBoundary'
 import { ContextWindowDivider } from './messages/ContextWindowDivider'
@@ -50,6 +53,7 @@ interface Props {
   providers?: Provider[]
   onConversationControlsChange?: ChatConversationControlsChangeHandler
   composerModelId?: UniqueModelId
+  composerModelCandidates?: Model[]
 }
 
 /**
@@ -74,7 +78,8 @@ const ChatContent: FC<Props> = ({
   assistantContext,
   providers,
   onConversationControlsChange,
-  composerModelId
+  composerModelId,
+  composerModelCandidates
 }) => {
   const {
     uiMessages,
@@ -106,6 +111,7 @@ const ChatContent: FC<Props> = ({
       providers={providers}
       onConversationControlsChange={onConversationControlsChange}
       composerModelId={composerModelId}
+      composerModelCandidates={composerModelCandidates}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
       displayIndex={displayIndex}
@@ -158,6 +164,7 @@ const ChatContentInner: FC<InnerProps> = ({
   providers,
   onConversationControlsChange,
   composerModelId,
+  composerModelCandidates,
   isHistoryLoading,
   isHistoryStale,
   uiMessages,
@@ -253,7 +260,7 @@ const ChatContentInner: FC<InnerProps> = ({
           'ai.topic.estimate_context',
           {
             topicId: topic.id,
-            anchorId: parentAnchorId,
+            anchorId: parentAnchorId ?? undefined,
             modelId: composerModelId,
             fillsAnchor: nextTurnFillsActiveNode
           },
@@ -265,9 +272,21 @@ const ChatContentInner: FC<InnerProps> = ({
     ([route, input]) => ipcApi.request(route, input),
     { shouldRetryOnError: false, keepPreviousData: false }
   )
+  const multiModelHandoff = !composerModelId && (composerModelCandidates?.length ?? 0) > 1
+  const { percentage: multiModelHandoffPercentage, refresh: refreshHandoffEstimate } = useHandoffContextPercentage({
+    enabled: canPreviewContextWindow && multiModelHandoff,
+    topicId: topic.id,
+    anchorId: parentAnchorId ?? undefined,
+    fillsAnchor: nextTurnFillsActiveNode,
+    candidates: composerModelCandidates,
+    revision: [maxMessages, assistant?.updatedAt, contextRevision]
+  })
   useDataChange(
     '/topics/:topicId/messages',
     () => {
+      if (canPreviewContextWindow && parentAnchorId && multiModelHandoff) {
+        void refreshHandoffEstimate(undefined, { revalidate: true }).catch(() => undefined)
+      }
       if (canPreviewContextWindow && parentAnchorId && composerModelId) {
         void mutateContextEstimate(undefined, { revalidate: true }).catch(() => undefined)
       }
@@ -282,6 +301,13 @@ const ChatContentInner: FC<InnerProps> = ({
     () => !isHistoryStale && endsWithProviderQuotaError(uiMessages, activeNodeId),
     [activeNodeId, isHistoryStale, uiMessages]
   )
+
+  // Generation targets the current composer selection, not the previous reply's
+  // model: forwarding the reply's provider after a composer switch would send the
+  // stored transcript and tool results to that provider. The usage display keeps
+  // the reply's model because its context window matches the token count.
+  const { model: handoffModel } = useModelById(composerModelId)
+  const { model: handoffUsageModel } = useModelById(contextUsage?.modelId ?? composerModelId)
 
   useEffect(() => {
     if (!locateMessageId && !locateToEnd) {
@@ -385,7 +411,25 @@ const ChatContentInner: FC<InnerProps> = ({
     <ChatWriteProvider value={runtime.chatWriteActions}>
       <SiblingsProvider value={siblingsContextValue}>
         <MessageEditingProvider>
-          <ConversationStageCenter placement={placement} main={main} composer={composer} />
+          <div className="flex h-full min-h-0 flex-col">
+            <ConversationHandoff
+              key={topic.id}
+              sessionId={topic.id}
+              assistantId={topic.assistantId}
+              onNewTopic={onCreateEmptyTopic ?? onNewTopic}
+              modelId={handoffModel?.id ?? composerModelId}
+              modelCandidates={composerModelCandidates}
+              hasMessages={Boolean(topic.activeNodeId)}
+              percentage={
+                multiModelHandoff
+                  ? multiModelHandoffPercentage
+                  : contextUsage && handoffUsageModel?.contextWindow
+                    ? (contextUsage.contextTokens / handoffUsageModel.contextWindow) * 100
+                    : null
+              }
+            />
+            <ConversationStageCenter placement={placement} main={main} composer={composer} />
+          </div>
           <ResourceEditDialogEventHost />
         </MessageEditingProvider>
       </SiblingsProvider>

@@ -660,6 +660,42 @@ describe('AgentSessionService', () => {
       expect(() => agentSessionService.getById('system-empty-old')).toThrow()
     })
 
+    it('keeps named message-less sessions out of placeholder cleanup', async () => {
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'named-keeper-workspace',
+        name: 'System',
+        path: workspacePath('named-keeper'),
+        type: 'system',
+        orderKey: 'a1'
+      })
+      await dbh.db.insert(agentSessionTable).values([
+        // A handoff destination holds its unsent draft only in the session-keyed
+        // draft cache; its durable name must exclude it from empty-placeholder cleanup.
+        {
+          id: 'named-keeper',
+          agentId: 'agent-session-test',
+          name: 'Handoff: Goals',
+          workspaceId: 'named-keeper-workspace',
+          orderKey: 'a2',
+          updatedAt: 500
+        },
+        {
+          id: 'unnamed-placeholder',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: 'named-keeper-workspace',
+          orderKey: 'a3',
+          updatedAt: 600
+        }
+      ])
+      const result = agentSessionService.reuseOrCreatePlaceholderWithImpact({
+        agentId: 'agent-session-test',
+        workspace: { type: 'system' }
+      })
+      expect(result.deletedDuplicateSessionIds).not.toContain('named-keeper')
+      expect(agentSessionService.getById('named-keeper')).toMatchObject({ id: 'named-keeper' })
+    })
+
     it('creates at most one reusable placeholder for repeated exact targets', async () => {
       const userWorkspace = await createWorkspace('create-reusable-user')
 

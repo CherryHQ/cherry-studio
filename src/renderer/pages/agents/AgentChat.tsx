@@ -16,6 +16,7 @@ import {
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
+import { ConversationHandoff } from '@renderer/components/chat/shell/ConversationHandoff'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
@@ -37,6 +38,7 @@ import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useLocalAgentSessionInfo } from '@renderer/hooks/agent/useLocalAgentSessionInfo'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -313,6 +315,7 @@ const AgentChat = ({
       conversationBootstrap.sessionSource === 'pending' ||
       conversationBootstrap.sessionSource === 'none')
   )
+  const handoffUsage = useAgentSessionContextUsage(sessionSnapshot?.id, activeModel)
   const sessionMessagesEnabled = Boolean(sessionSnapshot)
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
@@ -619,7 +622,30 @@ const AgentChat = ({
 
   return (
     <>
-      <AgentChatLayout {...layoutProps} />
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+        {runtimeSessionId ? (
+          <ConversationHandoff
+            key={runtimeSessionId}
+            sessionId={runtimeSessionId}
+            modelId={activeModel?.id}
+            hasMessages={runtimeUiMessages.length > 0}
+            percentage={handoffUsage.percentage}
+            onNewTopic={
+              onCreateEmptySession && sessionSnapshot
+                ? async (payload) => {
+                    const result = await onCreateEmptySession({
+                      agentId: sessionSnapshot.agentId,
+                      ...getNewSessionWorkspaceDefaults(sessionSnapshot),
+                      handoffDraft: payload?.handoffDraft
+                    })
+                    if (!result) throw new Error('Could not create a new conversation')
+                  }
+                : undefined
+            }
+          />
+        ) : null}
+        <AgentChatLayout {...layoutProps} />
+      </div>
       <ResourceEditDialogEventHost />
       <ConfirmDialog
         open={modelSwitchConfirmOpen}

@@ -20,6 +20,7 @@ import { sanitizeSeedreamImageParams, validateSeedreamImageParams } from '@share
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
+import type * as HandoffNoteModule from '../messages/handoffNote'
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
 import type { createRetryableWrap } from '../runtime/aiSdk/retry/createRetryableWrap'
@@ -165,6 +166,10 @@ vi.mock('../provider/listModels', async (importOriginal) => {
     listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
   }
 })
+vi.mock('../messages/handoffNote', async (importOriginal) => ({
+  ...(await importOriginal<typeof HandoffNoteModule>()),
+  readHandoffSource: vi.fn(() => 'handoff source')
+}))
 vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args),
   downloadPublicImageAsBase64: (...args: unknown[]) => mockDownloadPublicImageAsBase64(...args)
@@ -476,6 +481,20 @@ describe('AiService', () => {
   it('requires one stream topic while allowing a distinct conversation identity', () => {
     expectTypeOf<AiStreamRequest['conversation']>().toExtend<{ id: string; topicId: string }>()
     expectTypeOf<AiStreamRequest>().not.toHaveProperty('chatId')
+  })
+
+  it('pins handoff generation to the disclosed model: no retry or fallback sees the transcript', async () => {
+    const service = createService()
+    mockModelGetByKey.mockReturnValue({ ...mockModelGetByKey(), contextWindow: 128_000 })
+    const note = ['Goals', 'Confirmed decisions', 'Constraints', 'Pending questions', 'Relevant files', 'Next steps']
+      .map((heading) => `## ${heading}\n- evidence`)
+      .join('\n')
+    const generate = vi.spyOn(service, 'generateText').mockResolvedValue({ text: note, finishReason: 'stop' } as never)
+    await expect(
+      service.generateHandoff('req-1', 'session-1', createUniqueModelId('test-provider', 'test-model'))
+    ).resolves.toBe(note)
+    expect(generate).toHaveBeenCalledOnce()
+    expect(generate.mock.calls[0][0].requestOptions?.maxRetries).toBe(0)
   })
 
   it('converts MCP sampling text and media into valid AI SDK messages without enabling tools', async () => {

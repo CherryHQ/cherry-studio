@@ -176,6 +176,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const { BUTTON_HANDLE_DRAG_SENSORS, DragDropRoot } =
     await import('@cherrystudio/ui/components/composites/sortable/drag-drop-root')
   const { withManagerProbe } = await import('./__mocks__/dndDriver')
+  const { SelectDropdown } = await import('@cherrystudio/ui/components/composites/select-dropdown')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -202,6 +203,7 @@ vi.mock('@cherrystudio/ui', async () => {
   return {
     KeyboardLayerProvider,
     BarVisualizer,
+    SelectDropdown,
     createCodeHighlightPlugin,
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.

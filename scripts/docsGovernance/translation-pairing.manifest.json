@@ -5,7 +5,8 @@
     "docs/dev/i18n",
     "docs/dev/references/file/file-editing.md",
     "docs/dev/references/file/file-observation.md",
-    "docs/dev/references/job-and-scheduler/scheduled-tasks-page.md"
+    "docs/dev/references/job-and-scheduler/scheduled-tasks-page.md",
+    "docs/dev/references/chat/conversation-handoff.md"
   ],
   "excluded": [
     ".agents/notes/AGENTS.md",

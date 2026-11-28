@@ -11,6 +11,7 @@ import { AssistantResourceList } from '@renderer/components/chat/resourceList/As
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { ConversationBackButton } from '@renderer/components/chat/shell/ConversationBackButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
+import { writeChatDraftCache } from '@renderer/components/composer/variants/chat/chatDraftCache'
 import {
   createRecentTopicEntryFromTopic,
   recordGlobalSearchRecentEntry
@@ -429,7 +430,7 @@ const HomePage: FC = () => {
       const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
       const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
       const result =
-        reuseTargetAssistantId === undefined
+        reuseTargetAssistantId === undefined || payload?.handoffDraft
           ? {
               topic: await createTopic({
                 ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
@@ -454,6 +455,7 @@ const HomePage: FC = () => {
       isCreatingTopicRef.current = true
       try {
         const topic = await resolveEmptyTopic(payload, options)
+        if (payload?.handoffDraft) writeChatDraftCache(topic.id, payload.handoffDraft)
         activateCreatedTopic(topic)
         return topic
       } catch (err) {
@@ -501,7 +503,8 @@ const HomePage: FC = () => {
 
   const handleCreateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
-      await createAndActivateEmptyTopic(payload)
+      const topic = await createAndActivateEmptyTopic(payload)
+      if (payload?.handoffDraft && !topic) throw new Error('Could not create a new conversation')
     },
     [createAndActivateEmptyTopic]
   )
