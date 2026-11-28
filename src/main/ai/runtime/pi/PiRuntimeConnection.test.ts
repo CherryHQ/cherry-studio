@@ -26,14 +26,14 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { savedChildView } from '@main/ai/agentSession/childArchive'
 import { childTimelines } from '@main/ai/agentSession/childTimelines'
-import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
-import { ModelSchema } from '@shared/data/types/model'
+import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { getSentryLogContext } from '@shared/utils/sentry'
@@ -118,7 +118,7 @@ beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode:
 describe('desktop Pi root connection', () => {
   const dbh = setupTestDatabase()
   let directory: string
-  let input: AgentRuntimeConnectInput
+  let input: AgentRuntimeConnectInput & { modelId: UniqueModelId }
   let snapshot: PiConnectionSnapshot
   let script: ReturnType<typeof scriptedModel>
   const connections: PiRuntimeConnection[] = []
@@ -1402,7 +1402,7 @@ describe('desktop Pi root connection', () => {
   it('never initializes a missing file for a prepared but unresolved submission', async () => {
     const user = message('uncertain dispatch')
     const context = preparePiBranch(input.sessionId)
-    prepareNativeSubmission(input.sessionId, user.id, context.id, 'reject')
+    prepareNativeSubmission(input.sessionId, user.id, context.id)
     expect(context.bindingState).toBe('pending')
     await expect(new PiRuntimeConnection(input).start()).resolves.toMatchObject({
       status: 'native-context-unavailable',
@@ -1514,7 +1514,10 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: first })
     await expect.poll(() => text(events)).toBe('before steer')
     const followup = message('follow up')
-    expect(connection.redirect({ message: followup })).toBe(true)
+    bindNativeInput(input.sessionId, connection.contextId!, followup)
+    await expect(
+      connection.threadInput!.steer!.submit({ inputId: runtimeId(followup.id), message: followup })
+    ).resolves.toMatchObject({ status: 'acknowledged' })
     await expect
       .poll(() => nativeInputs.some((state) => state.inputId === followup.id && state.facts.includes('queued')))
       .toBe(true)
@@ -1538,7 +1541,10 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: message('first') })
     await expect.poll(() => text(events)).toBe('waiting')
     const followup = message('never placed')
-    expect(connection.redirect({ message: followup })).toBe(true)
+    bindNativeInput(input.sessionId, connection.contextId!, followup)
+    await expect(
+      connection.threadInput!.steer!.submit({ inputId: runtimeId(followup.id), message: followup })
+    ).resolves.toMatchObject({ status: 'acknowledged' })
     await expect
       .poll(() => nativeInputs.some((state) => state.inputId === followup.id && state.facts.includes('queued')))
       .toBe(true)
@@ -1564,13 +1570,9 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: message('another fact') })
     await expect.poll(() => events.filter((event) => event.type === 'turn-complete')).toHaveLength(2)
     const before = events.length
-    const compact = message('/compact keep the important facts')
-    await connection.send({ message: compact })
-    await expect.poll(() => events.slice(before).some((event) => event.type === 'turn-complete')).toBe(true)
-    expect(events.slice(before).filter((event) => event.type === 'error')).toEqual([])
+    await expect(connection.compact!('keep the important facts')).resolves.toMatchObject({ status: 'confirmed' })
+    expect(events.slice(before).filter((event) => event.type === 'error' || event.type === 'turn-complete')).toEqual([])
     expect(text(events.slice(before))).toBe('')
-    expect(messages.inputBinding(input.sessionId, compact.id)).toBeUndefined()
-    expect(events.slice(before).some((event) => event.type === 'compaction-complete')).toBe(true)
     expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('keep the important facts')
     expect(script.calls.at(-1)!.tools).toEqual([])
   })

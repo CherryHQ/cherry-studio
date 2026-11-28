@@ -264,7 +264,7 @@ it('keeps history available after warming a fresh native identity and stops rebu
   const current = save('user', [{ type: 'text', text: 'Continue' }])
   const history = await readSessionHistory('session', current.id, context.id)
   expect(history?.length).toBeGreaterThan(0)
-  const draft = prepareNativeSubmission('session', current.id, context.id, 'reject', {
+  const draft = prepareNativeSubmission('session', current.id, context.id, {
     text: buildAgentUserContent(current, history),
     parts: current.data.parts
   })
@@ -278,7 +278,7 @@ it('retains history across a local command whose reply owns the fresh context an
   const local = save('user', [{ type: 'text', text: '/goal' }])
   const notice = save('assistant', [{ type: 'text', text: 'Local command notice' }])
   const context = prepareDurableBranch('session', notice.id)
-  const draft = prepareNativeSubmission('session', local.id, context.id, 'reject')
+  const draft = prepareNativeSubmission('session', local.id, context.id)
   applyNativeSubmissionResult('session', context.id, {
     status: 'acknowledged',
     inputId: draft.inputId,
@@ -311,7 +311,7 @@ it('does not accept a caller-authored local-command marker as evidence of non-mo
     }
   })
   const context = prepareDurableBranch('session', head)
-  prepareNativeSubmission('session', current.id, context.id, 'reject')
+  prepareNativeSubmission('session', current.id, context.id)
   const next = save('user', [{ type: 'text', text: 'Follow up' }])
   expect(await readSessionHistory('session', next.id, context.id)).toBeUndefined()
 })

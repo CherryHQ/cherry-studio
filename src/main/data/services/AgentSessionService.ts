@@ -19,6 +19,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
@@ -50,6 +51,7 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { AgentSessionImportMetadata } from '@shared/data/types/conversationImport'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { sanitizeConversationTitle } from '@shared/utils/conversationTitle'
 import { createNameComparator } from '@shared/utils/nameOrdering'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
@@ -245,7 +247,12 @@ export class AgentSessionService {
     this.notifyReadModelChange(sessionIds, 'membership')
     notifyDataApiDataChange([
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
-      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' }
+      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' },
+      { endpoint: '/ai-usage-records/local', kind: 'membership' },
+      ...sessionIds.map((sessionId) => ({
+        endpoint: '/agent-sessions/:sessionId/cost' as const,
+        routeParams: { sessionId }
+      }))
     ])
   }
 
@@ -376,6 +383,9 @@ export class AgentSessionService {
     if (dto.model !== undefined && dto.model !== null && !isUniqueModelId(dto.model)) {
       throw DataApiErrorFactory.invalidOperation('create session', `unknown model: ${dto.model}`)
     }
+    const [owner] = tx.select({ type: agentsTable.type }).from(agentsTable).where(eq(agentsTable.id, dto.agentId)).all()
+    if (owner?.type === 'local' && !agentProviderService.isEnabledTx(tx, dto.agentId))
+      throw DataApiErrorFactory.invalidOperation('create session', 'Local agent is disabled')
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -472,6 +482,34 @@ export class AgentSessionService {
 
   getById(id: string, options?: { includeTaskReuse: boolean }) {
     return this.readById(id, undefined, options?.includeTaskReuse)
+  }
+
+  isOrdinaryConversation(id: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(
+          and(eq(sessionsTable.id, id), conversationFilter, ordinaryConversationFilter, isNull(sessionsTable.deletedAt))
+        )
+        .get()
+    )
+  }
+
+  isOneOffTaskSession(id: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(
+          and(eq(sessionsTable.id, id), isNotNull(sessionsTable.taskId), eq(sessionsTable.isTaskReuseTarget, false))
+        )
+        .get()
+    )
   }
 
   private readById(id: string, scope?: SQL, includeTaskReuse = false) {
@@ -1031,6 +1069,30 @@ export class AgentSessionService {
     return { items: items.map((i) => i.session), nextCursor }
   }
 
+  updateGeneratedName(id: string, title: string): boolean {
+    const name = sanitizeConversationTitle(title)
+    if (!name) return false
+    const result = application
+      .get('DbService')
+      .getDb()
+      .update(sessionsTable)
+      .set({ name, updatedAt: Date.now() })
+      .where(
+        and(
+          eq(sessionsTable.id, id),
+          isNull(sessionsTable.deletedAt),
+          eq(sessionsTable.isNameManuallyEdited, false),
+          sql`${sessionsTable.name} != ${name}`
+        )
+      )
+      .run()
+    if (!result.changes) return false
+    this.notifyReadModelChange([id], 'projection')
+    notifyDataApiDataChange([{ endpoint: '/ai-usage-records/local', kind: 'projection' }])
+    this.sessionUpdated.fire({ sessionId: id })
+    return true
+  }
+
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {
     const patch: UpdateAgentSessionDto = {}
     if (dto.name !== undefined) {
@@ -1054,6 +1116,7 @@ export class AgentSessionService {
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     const effects = agentSessionReadModelEffects([id], 'projection')
     if (result.artifactOwnershipChanged) effects.push({ endpoint: '/agents/:agentId/artifacts', kind: 'membership' })
+    if (dto.name !== undefined) effects.push({ endpoint: '/ai-usage-records/local', kind: 'projection' })
     notifyDataApiDataChange(effects)
     this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
@@ -1082,31 +1145,38 @@ export class AgentSessionService {
 
     const previousAgentId = current.agentId
     const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
-    if (reassigned && patch.model === undefined && current.model != null) {
-      // A cross-runtime reassignment may make the override unservable, so clear it atomically;
-      // same-runtime reassignment keeps the override.
-      const agentTypes = tx
+    if (reassigned) {
+      const owners = tx
         .select({ id: agentsTable.id, type: agentsTable.type })
         .from(agentsTable)
         .where(
           inArray(
             agentsTable.id,
-            previousAgentId != null ? [previousAgentId, patch.agentId as string] : [patch.agentId as string]
+            [previousAgentId, patch.agentId].filter((value): value is string => typeof value === 'string')
           )
         )
         .all()
-      const typeOf = new Map(agentTypes.map((row) => [row.id, row.type]))
-      if (previousAgentId != null) {
-        if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
+      if (owners.some((owner) => owner.type === 'local')) this.assertSessionHasNoMessagesTx(tx, id)
+      const target = owners.find((owner) => owner.id === patch.agentId)
+      if (target?.type === 'local' && !agentProviderService.isEnabledTx(tx, target.id)) {
+        throw DataApiErrorFactory.invalidOperation('change agent', 'Local agent is disabled')
+      }
+      if (patch.model === undefined && current.model != null) {
+        // A cross-runtime reassignment may make the override unservable, so clear it atomically;
+        // same-runtime reassignment keeps the override.
+        const typeOf = new Map(owners.map((row) => [row.id, row.type]))
+        if (previousAgentId != null) {
+          if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
+            patch.model = null
+          }
+        } else if (
+          ['pi', 'pi-durable'].includes(typeOf.get(patch.agentId as string) ?? '') &&
+          !isPiServableUniqueModel(current.model)
+        ) {
+          // A deleted parent leaves no runtime type to compare; discard an override the new Pi agent
+          // cannot serve so the session can use its default.
           patch.model = null
         }
-      } else if (
-        ['pi', 'pi-durable'].includes(typeOf.get(patch.agentId as string) ?? '') &&
-        !isPiServableUniqueModel(current.model)
-      ) {
-        // A deleted parent leaves no runtime type to compare; discard an override the new Pi agent
-        // cannot serve so the session can use its default.
-        patch.model = null
       }
     }
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []

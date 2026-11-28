@@ -124,6 +124,9 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     : positionedMessages
   const tools = converter.toAiSdkTools?.(effectiveParams, endpoint.endpointType)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
+  if (streamOptions.maxOutputTokens !== undefined && model.maxOutputTokens !== undefined) {
+    streamOptions.maxOutputTokens = Math.min(streamOptions.maxOutputTokens, model.maxOutputTokens)
+  }
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const extractedProviderOptions =
@@ -154,9 +157,20 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     ...(claudeCodeSession && {
       captureReplay: (blocks) => saveClaudeCodeReplay(claudeCodeSession, modelAddress, endpoint.endpointType, blocks)
     }),
-    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
+    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {}),
+    ...(converter.resolveClientToolCall
+      ? { resolveClientToolCall: converter.resolveClientToolCall.bind(converter) }
+      : {})
   }
-  return { ...request, messages, convertedMessages, callOverrides, adapterOptions, internal }
+  return {
+    ...request,
+    messages,
+    convertedMessages,
+    callOverrides,
+    adapterOptions,
+    internal,
+    modelString: request.modelString
+  }
 }
 
 export function gatewayPromptOptions(

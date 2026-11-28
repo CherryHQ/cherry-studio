@@ -39,6 +39,8 @@ export interface AgentGatewayContext {
  */
 export interface MessageConfig {
   provider?: Provider
+  /** Route-owned default when the caller did not supply internal reasoning options. */
+  defaultReasoningEffort?: ReasoningEffortOption
   modelId?: string
   /** Internal Agent-session hint carried by the Claude Code SDK gateway route. */
   fastMode?: boolean
@@ -108,7 +110,7 @@ export function readGatewayRequest(config: MessageConfig) {
     : isInternalRequest
       ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER)
       : null
-  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? undefined)
+  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? config.defaultReasoningEffort)
   const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
   if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
     throw asClientError(new Error('Invalid internal Agent request options'))

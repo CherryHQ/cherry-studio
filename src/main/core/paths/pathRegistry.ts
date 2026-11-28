@@ -92,6 +92,9 @@ export function buildPathRegistry() {
     'app.session': appSession,
     'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
     'app.session.webview': path.join(appSession, 'Partitions', 'webview'), // persist:webview Chromium partition
+    'app.pi_acp.file': app.isPackaged
+      ? path.join(appExtraResources, 'pi-acp', 'index.mjs')
+      : path.join(app.getAppPath(), 'out', 'pi-acp', 'index.mjs'),
     'app.extra_resources': appExtraResources, // electron-builder extraResources output root
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
@@ -255,6 +258,7 @@ export function buildPathRegistry() {
     // (not a joined path) so the orphan sweep can never be pointed at the user's ~/.claude.
     'feature.agents.claude.projects': path.join(appUserDataData, 'Agents', '.claude', 'projects'),
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
+    'feature.agents.launch_overlays': path.join(appUserDataData, 'Agents', 'LaunchOverlays'), // per-launch CLI homes; reconciled and removed by LocalAgentOverlayService
     // NOTE(app-managed-dirs): pi dirs are new in this PR and freely relocatable —
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
@@ -359,6 +363,53 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    'external.uv.user_config_file': path.join(
+      isWin ? app.getPath('appData') : path.join(sysHome, '.config'),
+      'uv',
+      'uv.toml'
+    ),
+    'external.uv.system_config_file': path.join(
+      isWin ? process.env.PROGRAMDATA || 'C:\\ProgramData' : '/etc',
+      'uv',
+      'uv.toml'
+    ),
+    'feature.acp.agents': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'Programs', 'ACP', 'agents')
+      : path.join(sysHome, '.local', 'share', 'acp', 'agents'),
+    'external.acp.bin': path.join(sysHome, '.local', 'bin'),
+    'external.codebuddy.web_ui_ports.file': path.join(sysHome, '.codebuddy', 'web-ui-port.json'),
+    'external.cursor.sdk_auth.file': path.join(sysHome, '.cursor', 'sdk', 'auth.json'),
+    'external.kiro.state.file': path.join(
+      isMac ? path.join(sysHome, 'Library', 'Application Support') : path.join(sysHome, '.local', 'share'),
+      'kiro-cli',
+      'data.sqlite3'
+    ),
+    'external.antigravity.cli.file': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'agy', 'bin', 'agy.exe')
+      : path.join(sysHome, '.local', 'bin', 'agy'),
+    'external.xdg.config': path.join(sysHome, '.config'),
+    'external.windows.roaming': path.join(sysHome, 'AppData', 'Roaming'),
+    'external.omp.config': path.join(sysHome, '.omp'),
+    'external.omp.agent': path.join(sysHome, '.omp', 'agent'),
+    'external.zcode_acp.config': path.join(sysHome, '.config', 'zcode-acp'),
+    'external.glm_acp.config': path.join(sysHome, '.config', 'glm-acp-agent'),
+    'external.cline.data': path.join(sysHome, '.cline', 'data'),
+    'external.kilo.config': path.join(sysHome, '.config', 'kilo'),
+    'external.goose.config': isWin
+      ? path.join(sysHome, 'AppData', 'Roaming', 'Block', 'goose', 'config')
+      : path.join(sysHome, '.config', 'goose'),
+    'external.devin.config': isWin
+      ? path.join(sysHome, 'AppData', 'Roaming', 'devin')
+      : path.join(sysHome, '.config', 'devin'),
+    'external.trae.installation': path.join(
+      process.env.XDG_DATA_HOME || path.join(sysHome, '.local', 'share'),
+      'traecli'
+    ),
+    'external.trae.config': isWin
+      ? path.join(sysHome, 'AppData', 'Roaming', 'trae_cli')
+      : isMac
+        ? path.join(sysHome, 'Library', 'Application Support', 'trae_cli')
+        : path.join(sysHome, '.config', 'trae_cli'),
     'external.agents.skills': path.join(sysHome, '.agents', 'skills'),
     'external.opencode.data': path.join(process.env.XDG_DATA_HOME || path.join(sysHome, '.local', 'share'), 'opencode'),
     'external.workbuddy.home': process.env.WORKBUDDY_CONFIG_DIR || path.join(sysHome, '.workbuddy'),
@@ -447,6 +498,7 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.acp.agents',
   'feature.agents.command_parser_assets',
   'feature.agents.pi.sessions',
   'feature.agents.durable.stores',

@@ -19,28 +19,30 @@ export function useAgentPromptSuggestion({
   sessionId,
   messages = EMPTY_MESSAGES,
   model,
+  localModelId,
   busy,
   blocked
 }: {
   sessionId: string
   messages?: readonly CherryUIMessage[]
   model?: Model
+  localModelId?: string
   busy: boolean
   blocked: boolean
 }) {
   const [enabled] = usePreference('agent.input.suggestions.enabled')
   const lastMessage = messages.at(-1)
-  const turnKey = `${sessionId}:${lastMessage?.id ?? ''}:${model?.id ?? ''}`
+  const turnKey = JSON.stringify([sessionId, lastMessage?.id, model?.id, localModelId])
   const replyId = lastMessage?.id
   const modelId = model?.id
   const reasoningEffort = model ? (resolveReasoningEffortForModel(model, 'none') ?? 'none') : 'none'
-  const owner = useMemo(() => Symbol(`${sessionId}:${modelId}`), [sessionId, modelId])
+  const owner = useMemo(() => Symbol(`${sessionId}:${localModelId ?? modelId}`), [sessionId, modelId, localModelId])
   const observedBusyOwner = useRef<symbol>(undefined)
   const attempted = useRef<string>(undefined)
   const [dismissedTurn, setDismissedTurn] = useState<string>()
   const [result, setResult] = useState<{ turnKey: string; owner: symbol; text: string }>()
   const context = useMemo(() => {
-    if (busy) return ''
+    if (busy || !modelId) return ''
     return JSON.stringify(
       messages.slice(-4).map((message) => ({
         role: message.role,
@@ -51,12 +53,12 @@ export function useAgentPromptSuggestion({
           .slice(-1000)
       }))
     )
-  }, [busy, messages])
+  }, [busy, messages, modelId])
   const eligible =
     enabled &&
     !busy &&
     !blocked &&
-    !!model &&
+    !!(modelId || localModelId) &&
     lastMessage?.role === 'assistant' &&
     lastMessage.metadata?.status === 'success' &&
     turnKey !== dismissedTurn
@@ -73,17 +75,19 @@ export function useAgentPromptSuggestion({
   }, [blocked, busy, turnKey])
 
   useEffect(() => {
-    if (!eligible || !modelId || !replyId || attempted.current === turnKey) return
+    if (!eligible || !replyId || attempted.current === turnKey) return
+    const target = localModelId ? { localModelId } : modelId ? { modelId } : undefined
+    if (!target) return
     let cancelled = false
     let requestId: string | undefined
     const timer = setTimeout(() => {
       attempted.current = turnKey
       requestId = crypto.randomUUID()
       void ipcApi
-        .request('ai.agent.session.predict_prompt', { sessionId, replyId, modelId, requestId })
+        .request('ai.agent.session.predict_prompt', { sessionId, replyId, requestId, ...target })
         .then((prediction) => {
           if (prediction.supported || cancelled) return prediction
-          if (observedBusyOwner.current !== owner) return { text: '' }
+          if (!modelId || observedBusyOwner.current !== owner) return { text: '' }
           return ipcApi
             .request('ai.text.generate', {
               requestId,
@@ -112,7 +116,7 @@ export function useAgentPromptSuggestion({
         void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
       }
     }
-  }, [context, eligible, replyId, modelId, reasoningEffort, sessionId, turnKey, owner])
+  }, [context, eligible, replyId, modelId, localModelId, reasoningEffort, sessionId, turnKey, owner])
 
   const dismiss = useCallback(() => setDismissedTurn(turnKey), [turnKey])
   return { text: eligible && result?.turnKey === turnKey && result.owner === owner ? result.text : '', dismiss }

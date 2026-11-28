@@ -21,9 +21,9 @@ import {
   type MessageListRuntime,
   type MessageListSelectAllPagination,
   type MessageListState,
-  type MessageUserProfile,
   type MessageRuntime,
-  type MessageStreamingLayers
+  type MessageStreamingLayers,
+  type MessageUserProfile
 } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
@@ -49,6 +49,7 @@ import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
+import { AgentErrorUpgrade } from './AgentErrorUpgrade'
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import { agentSessionForkAvailability, agentSessionForkReasonLabel } from './agentSessionFork'
 import {
@@ -138,8 +139,9 @@ interface AgentMessageListParams {
   historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: MessageUserProfile & { id?: string }
+  assistantProfile?: MessageUserProfile
   assistantId?: string
+  providerErrorSettingsPath?: string
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -157,6 +159,7 @@ interface AgentMessageListParams {
   setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
+  supportsNativeFork?: boolean
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   navigateToForkSource?: NavigateToForkSource
@@ -211,6 +214,7 @@ export function useAgentMessageListProviderValue({
   streamingLayers,
   assistantProfile,
   assistantId,
+  providerErrorSettingsPath,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -368,6 +372,14 @@ export function useAgentMessageListProviderValue({
     getDoctorSubject,
     selectAllPagination
   })
+  const { navigateErrorTarget: navigateToErrorTarget } = errorActions
+  const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
+    (target) =>
+      navigateToErrorTarget?.(
+        providerErrorSettingsPath && target === '/settings/provider' ? providerErrorSettingsPath : target
+      ),
+    [navigateToErrorTarget, providerErrorSettingsPath]
+  )
   // The conversation's current Assistant / Agent, not the snapshot each message header shows.
   const toggleAuthorProfile = useProfilePaneToggle()?.toggle
 
@@ -628,6 +640,11 @@ export function useAgentMessageListProviderValue({
       canDeleteMessage,
       ...exportActions,
       ...errorActions,
+      renderLocalAgentUpgrade:
+        normalInteractionsEnabled && resolvedAgentId
+          ? () => <AgentErrorUpgrade agentId={resolvedAgentId} />
+          : undefined,
+      navigateErrorTarget: providerErrorSettingsPath ? navigateErrorTarget : errorActions.navigateErrorTarget,
       ...pickMessageLeafActions(leafCapabilities),
       openBrowserUrl,
       openExternalUrl: openExternalUrl ?? leafCapabilities.openExternalUrl,
@@ -673,6 +690,9 @@ export function useAgentMessageListProviderValue({
       bindMessageRuntime,
       deleteMessage,
       errorActions,
+      navigateErrorTarget,
+      providerErrorSettingsPath,
+      resolvedAgentId,
       exportActions,
       headerCapabilities,
       toggleAuthorProfile,
