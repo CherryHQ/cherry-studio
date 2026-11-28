@@ -54,7 +54,10 @@ overrides:
   "source-map-js@<1.2.2": "1.2.2"
   "fast-uri@>=3.0.0 <3.1.5": "3.1.5"
   "ip-address@<10.3.1": "10.3.1"
-  "js-yaml@>=3.0.0 <3.15.0": "3.15.0"
+  # CVE-2026-39244: crafted ZIP declaring a huge uncompressed size forced an unbounded Buffer.alloc (#348).
+  "adm-zip@<0.6.0": "0.6.1"
+  # CVE-2026-84375: maxTotalMergeKeys does not limit CPU use for empty merge sources (#503).
+  "js-yaml@>=3.0.0 <3.15.2": "3.15.2"
   "js-yaml@>=4.0.0 <4.3.0": "4.3.0"
   "linkify-it@>=5.0.0 <5.0.2": "5.0.2"
   "lodash-es@<4.18.1": "4.18.1"
