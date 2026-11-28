@@ -50,7 +50,7 @@ describe('plantUml.worker', () => {
     expect('svg' in sequence && sequence.svg).toContain('<svg')
   })
 
-  it('settles unbundled theme, emoji, and openiconic requests without blocking later Graphviz renders', async () => {
+  it('renders bundled themes and icons after an unbundled emoji request', async () => {
     const themed = await renderInWorker('@startuml\n!theme cerulean\nAlice -> Bob\n@enduml')
     expect('svg' in themed && themed.svg).toContain('<svg')
 
@@ -61,7 +61,7 @@ describe('plantUml.worker', () => {
     expect(emoji).toMatchObject({ error: expect.stringContaining('emoji.js') })
 
     const openiconic = await renderInWorker('@startuml\nAlice -> Bob : <&person>\n@enduml')
-    expect(openiconic).toMatchObject({ error: expect.stringContaining('openiconic.js') })
+    expect('svg' in openiconic && openiconic.svg).toContain('<path')
 
     const graphvizClass = await renderInWorker('@startuml\nclass User {\n  +id: string\n}\n@enduml')
     expect('svg' in graphvizClass && graphvizClass.svg).toContain('<svg')

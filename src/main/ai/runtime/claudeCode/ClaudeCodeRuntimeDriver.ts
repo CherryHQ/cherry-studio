@@ -12,6 +12,7 @@ import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/clau
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
+import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -87,7 +88,7 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
     this.context = this.prepareContext(
       request.options.env,
-      request.options.resume ?? this.input.nativeSessionId,
+      storedResume ?? request.options.resume ?? this.input.nativeSessionId,
       this.input.branchHead,
       true
     )
@@ -144,7 +145,12 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
       request.connectionConfig?.live.toolPolicy.mcps ?? [],
       this.mcpToolMetadata
     )
-    return this.startSdk(options, this.context, request.contextWindow, consumedWarmQuery)
+    try {
+      return await this.startSdk(options, this.context, request.contextWindow, consumedWarmQuery)
+    } catch (error) {
+      if (error instanceof LocalAgentSessionRestoreError) return unavailableNativeContext(this.context, error.message)
+      throw error
+    }
   }
 
   async reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult> {

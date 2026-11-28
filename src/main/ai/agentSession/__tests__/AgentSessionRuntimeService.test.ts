@@ -154,6 +154,7 @@ vi.mock('@data/services/AgentSessionMessageService', async (importOriginal) => {
       findStoredToolOwners: mocks.findStoredToolOwners,
       hasSessionMessages: mocks.hasSessionMessages,
       hasSessionMessage: mocks.hasSessionMessage,
+      hasContextModelInput: agentSessionMessageService.hasContextModelInput.bind(agentSessionMessageService),
       applyToolApprovalDecision: mocks.applyToolApprovalDecision,
       applyPendingToolApprovalDecision: mocks.applyPendingToolApprovalDecision,
       retireAbandonedApproval: mocks.retireAbandonedApproval,
@@ -6452,7 +6453,6 @@ describe('AgentSessionRuntimeService', () => {
 
       await vi.waitFor(() =>
         expect(connection.send).toHaveBeenCalledWith({
-          inputId: 'user-2',
           message: userMessage('user-2'),
           systemReminder: true
         })
@@ -6651,6 +6651,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('treats a reordered knowledge scope as unchanged and still folds the steer', async () => {
+      const steerId = randomUUID()
       // Scope identity is a set, not a sequence. If it ever degrades to an index-wise comparison this
       // steer gets queued as a whole new turn and the warm connection is torn down for nothing.
       const events = createAsyncQueue<any>()
@@ -6658,7 +6659,7 @@ describe('AgentSessionRuntimeService', () => {
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2', ['kb-2', 'kb-1'])),
+        contextId: saveSteerInputs(userMessage(steerId, ['kb-2', 'kb-1'])),
         threadInput: steering(submitSteer),
         close: vi.fn(async () => {
           events.end()
@@ -6680,7 +6681,7 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const reorderedScopeMessage = userMessage('user-2', ['kb-2', 'kb-1'])
+      const reorderedScopeMessage = userMessage(steerId, ['kb-2', 'kb-1'])
       service.enqueueUserMessage('session-1', reorderedScopeMessage)
 
       expect(submitSteer).toHaveBeenCalledWith({
@@ -6744,6 +6745,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('lets a static Agent binding override different composer selections for steer matching', async () => {
+      const steerId = randomUUID()
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         type: 'test-runtime',
@@ -6755,7 +6757,7 @@ describe('AgentSessionRuntimeService', () => {
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2', ['kb-2'])),
+        contextId: saveSteerInputs(userMessage(steerId, ['kb-2'])),
         threadInput: steering(submitSteer),
         close: vi.fn(async () => {
           events.end()
@@ -6777,7 +6779,7 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const sameEffectiveScopeMessage = userMessage('user-2', ['kb-2'])
+      const sameEffectiveScopeMessage = userMessage(steerId, ['kb-2'])
       service.enqueueUserMessage('session-1', sameEffectiveScopeMessage)
 
       expect(submitSteer).toHaveBeenCalledWith({
@@ -6791,12 +6793,13 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('folds a live steer into the current turn without opening a second turn', async () => {
+      const steerId = randomUUID()
       const events = createAsyncQueue<any>()
       const submitSteer = vi.fn<Steer>(steering().steer.submit)
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2')),
+        contextId: saveSteerInputs(userMessage(steerId)),
         threadInput: steering(submitSteer),
         close: vi.fn(async () => {
           events.end()
@@ -6825,10 +6828,10 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       // Steer on a live turn → redirect injects it into the running turn: not queued, no new turn.
-      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      service.enqueueUserMessage('session-1', userMessage(steerId))
       expect(submitSteer).toHaveBeenCalledWith({
-        inputId: 'user-2',
-        message: userMessage('user-2'),
+        inputId: steerId,
+        message: userMessage(steerId),
         systemReminder: true
       })
       expect(getEntry(service).pendingTurns).toHaveLength(0)
@@ -6838,11 +6841,12 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('queues a steer explicitly refused by the runtime with its original scope', async () => {
+      const steerId = randomUUID()
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2', ['kb-1'])),
+        contextId: saveSteerInputs(userMessage(steerId, ['kb-1'])),
         threadInput: steering(async ({ inputId }) => refuseSteer(inputId)),
         close: vi.fn(async () => {
           events.end()
@@ -6865,7 +6869,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
       // Steer redirected (stashed), but the turn calls no tool → the connection hands it back.
-      service.enqueueUserMessage('session-1', userMessage('user-2', ['kb-1']))
+      service.enqueueUserMessage('session-1', userMessage(steerId, ['kb-1']))
       expect(getEntry(service).pendingTurns).toHaveLength(0)
 
       await vi.waitFor(() => expect(getEntry(service).pendingTurns).toHaveLength(1))
@@ -6880,11 +6884,12 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('retains unknown input context across reconnect, resolves once, and fences retired callbacks', async () => {
+      const steerId = randomUUID()
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
       const lookup = createDeferred<any>()
       const commands: string[] = []
-      const contextId = saveSteerInputs(userMessage('unknown-input'))
+      const contextId = saveSteerInputs(userMessage(steerId))
       const original = {
         events: oldEvents.iterable,
         send: (input: any) => {
@@ -6938,7 +6943,7 @@ describe('AgentSessionRuntimeService', () => {
         name: 'Captured author',
         model: { id: 'claude-sonnet-4-5', name: 'Model', provider: 'claude-code' }
       }
-      service.enqueueUserMessage('session-1', userMessage('unknown-input'), {
+      service.enqueueUserMessage('session-1', userMessage(steerId), {
         messageSnapshot: snapshot,
         headless: false
       })
@@ -6948,20 +6953,20 @@ describe('AgentSessionRuntimeService', () => {
       await service.closeSession('session-1')
       expect(getEntry(service)).toBe(entry)
       const reconnect = (service as any).ensureConnection(entry)
-      await vi.waitFor(() => expect(queried).toEqual({ contextId, inputId: 'unknown-input' }))
-      expect(entry.pendingInputs.get('unknown-input').input).toMatchObject({
+      await vi.waitFor(() => expect(queried).toEqual({ contextId, inputId: steerId }))
+      expect(entry.pendingInputs.get(steerId).input).toMatchObject({
         headless: false,
         messageSnapshot: { name: 'Captured author' }
       })
-      callbacks.onSteerInjected(['unknown-input'])
-      expect(entry.pendingInputs.get('unknown-input').contextId).toBe(contextId)
+      callbacks.onSteerInjected([steerId])
+      expect(entry.pendingInputs.get(steerId).contextId).toBe(contextId)
       expect(entry.runtimeState.execution.kind).toBe('idle')
       lookup.resolve({
         status: 'confirmed',
         value: {
           found: true,
           input: {
-            inputId: 'unknown-input',
+            inputId: steerId,
             facts: ['accepted', 'placed'],
             outcome: 'completed'
           }
@@ -6970,8 +6975,8 @@ describe('AgentSessionRuntimeService', () => {
       await reconnect
       expect(entry.pendingInputs.size).toBe(0)
       expect(entry.pendingTurns).toEqual([])
-      expect(commands).toEqual(['user-1', 'unknown-input'])
-      callbacks.onSteerInjected(['unknown-input'])
+      expect(commands).toEqual(['user-1', steerId])
+      callbacks.onSteerInjected([steerId])
       expect(entry.runtimeState.execution.kind).toBe('idle')
       await service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
@@ -6988,6 +6993,7 @@ describe('AgentSessionRuntimeService', () => {
       },
       {
         label: 'confirmed found=false',
+        resend: true,
         lookup: () => Promise.resolve({ status: 'confirmed' as const, value: { found: false as const } })
       },
       {
@@ -7007,31 +7013,36 @@ describe('AgentSessionRuntimeService', () => {
           })
       },
       {
-        label: 'confirmed unplaced input without outcome',
-        lookup: () =>
+        label: 'confirmed queued input without outcome',
+        lookup: (_contextId: string, inputId: string) =>
           Promise.resolve({
             status: 'confirmed' as const,
-            value: { found: true as const, input: { inputId: 'steer-input', facts: ['accepted', 'queued'] as const } }
+            value: { found: true as const, input: { inputId, facts: ['accepted', 'queued'] as const } }
           })
       },
       {
         label: 'lookupInput rejection',
         lookup: () => Promise.reject(new Error('lookup failed'))
       }
-    ])('recovers an unplaced steer across reconnect on $label without orphaning pendingInputs', async ({ lookup }) => {
+    ])('reconciles an unplaced steer across reconnect on $label', async ({ lookup, resend }) => {
+      const steer = userMessage(randomUUID())
+      const contextId = saveSteerInputs(steer)
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
       const sentOnSuccessor: any[] = []
       const original = {
         events: oldEvents.iterable,
         send: vi.fn(),
-        redirect: vi.fn().mockReturnValue(true),
+        contextId,
+        threadInput: steering(),
+        lookupInput: vi.fn(),
         close: vi.fn(async () => {
           oldEvents.end()
         })
       }
       const successor = {
         events: newEvents.iterable,
+        contextId,
         send: vi.fn((input: any) => {
           sentOnSuccessor.push(input)
         }),
@@ -7067,16 +7078,15 @@ describe('AgentSessionRuntimeService', () => {
         name: 'Steer author',
         model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
       } as any
-      service.enqueueUserMessage('session-1', userMessage('steer-input'), {
+      service.enqueueUserMessage('session-1', steer, {
         messageSnapshot: steerSnapshot,
         reasoningEffort: 'high',
         fastMode: true
       })
-      connect.mock.calls[0]?.[0].onInputPrepared('steer-input', 'original-context')
 
       const entry = getEntry(service)
       await service.closeSession('session-1')
-      expect(entry.pendingInputs?.has('steer-input')).toBe(true)
+      expect(entry.pendingInputs?.has(steer.id)).toBe(true)
 
       mocks.startRuntimeTurn.mockImplementationOnce((startInput: any) => {
         openChunkStream(service, {
@@ -7090,52 +7100,51 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       await (service as any).ensureConnection(entry)
-      expect(successor.lookupInput).toHaveBeenCalledWith('original-context', 'steer-input')
-      expect(entry.pendingInputs?.size ?? 0).toBe(0)
-
-      await vi.waitFor(() =>
-        expect(sentOnSuccessor).toEqual([{ message: userMessage('steer-input'), systemReminder: true }])
-      )
-      expect(mocks.startRuntimeTurn).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          request: expect.objectContaining({
-            reasoningEffort: 'high',
-            fastMode: true
+      expect(successor.lookupInput).toHaveBeenCalledWith(contextId, steer.id)
+      if (resend) {
+        expect(entry.pendingInputs?.size ?? 0).toBe(0)
+        await vi.waitFor(() => expect(sentOnSuccessor).toEqual([{ message: steer, systemReminder: true }]))
+        expect(mocks.startRuntimeTurn).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            request: expect.objectContaining({
+              reasoningEffort: 'high',
+              fastMode: true
+            })
           })
-        })
-      )
+        )
+      } else {
+        expect(entry.pendingInputs?.has(steer.id)).toBe(true)
+        expect(realMessages.inputBinding('session-1', steer.id)?.contextId).toBe(contextId)
+        expect(sentOnSuccessor).toEqual([])
+      }
       await service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
-    it('recovers a stale steer when onInputPrepared never ran or successor omits lookupInput', async () => {
+    it('retains a bound steer across reconnect when the successor cannot look it up', async () => {
+      const steer = userMessage(randomUUID())
+      const contextId = saveSteerInputs(steer)
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
-      const sentOnSuccessor: any[] = []
       const original = {
         events: oldEvents.iterable,
         send: vi.fn(),
-        redirect: vi.fn().mockReturnValue(true),
+        contextId,
+        threadInput: steering(),
         close: vi.fn(async () => {
           oldEvents.end()
         })
       }
       const successor = {
         events: newEvents.iterable,
-        send: vi.fn((input: any) => {
-          sentOnSuccessor.push(input)
-        }),
-        reconcile: vi.fn().mockResolvedValue('current'),
+        send: vi.fn(),
+        contextId,
         close: vi.fn(async () => {
           newEvents.end()
         })
       }
       const connect = vi.fn().mockResolvedValueOnce(original).mockResolvedValueOnce(successor)
-      runtimeDriverRegistry.register({
-        type: 'test-runtime',
-        connect,
-        validateSession: vi.fn()
-      })
+      runtimeDriverRegistry.register({ type: 'test-runtime', connect, validateSession: vi.fn() })
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
       const reader = openChunkStream(service, {
@@ -7146,44 +7155,29 @@ describe('AgentSessionRuntimeService', () => {
       await reader.read()
       await vi.waitFor(() => expect(original.send).toHaveBeenCalledOnce())
 
-      service.enqueueUserMessage('session-1', userMessage('steer-no-context'))
-      service.enqueueUserMessage('session-1', userMessage('steer-no-lookup'))
-      connect.mock.calls[0]?.[0].onInputPrepared('steer-no-lookup', 'original-context')
-
+      service.enqueueUserMessage('session-1', steer)
       const entry = getEntry(service)
       await service.closeSession('session-1')
-
-      mocks.startRuntimeTurn.mockImplementation((startInput: any) => {
-        const nextReader = openChunkStream(service, {
-          sessionId: 'session-1',
-          turnId: startInput.request.runtime.turnId,
-          signal: new AbortController().signal
-        }).getReader()
-        void nextReader.read().catch(() => undefined)
-      })
-
       await (service as any).ensureConnection(entry)
-      expect(entry.pendingInputs?.size ?? 0).toBe(0)
-      await vi.waitFor(() =>
-        expect(sentOnSuccessor).toContainEqual({ message: userMessage('steer-no-context'), systemReminder: true })
-      )
-      service.markTurnTerminal('session-1', 'success')
-      await vi.waitFor(() =>
-        expect(sentOnSuccessor).toContainEqual({ message: userMessage('steer-no-lookup'), systemReminder: true })
-      )
-      expect(entry.pendingInputs?.size ?? 0).toBe(0)
+
+      expect(entry.pendingInputs?.has(steer.id)).toBe(true)
+      expect(realMessages.inputBinding('session-1', steer.id)?.contextId).toBe(contextId)
+      expect(successor.send).not.toHaveBeenCalled()
       await service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
     })
 
     it('recovers an unplaced steer when an agent model update rebuilds the connection', async () => {
+      const steer = userMessage(randomUUID())
+      const contextId = saveSteerInputs(steer)
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
       const sentOnSuccessor: any[] = []
       const original = {
         events: oldEvents.iterable,
         send: vi.fn(),
-        redirect: vi.fn().mockReturnValue(true),
+        contextId,
+        threadInput: steering(),
         reconcile: vi.fn().mockResolvedValue('rebuild'),
         close: vi.fn(async () => {
           oldEvents.end()
@@ -7191,14 +7185,12 @@ describe('AgentSessionRuntimeService', () => {
       }
       const successor = {
         events: newEvents.iterable,
+        contextId,
         send: vi.fn((input: any) => {
           sentOnSuccessor.push(input)
         }),
         reconcile: vi.fn().mockResolvedValue('current'),
-        lookupInput: vi.fn().mockResolvedValue({
-          status: 'unknown',
-          error: { operation: 'lookup-input', code: 'unavailable', message: 'unavailable' }
-        }),
+        lookupInput: vi.fn().mockResolvedValue({ status: 'confirmed', value: { found: false } }),
         close: vi.fn(async () => {
           newEvents.end()
         })
@@ -7219,8 +7211,7 @@ describe('AgentSessionRuntimeService', () => {
       await reader.read()
       await vi.waitFor(() => expect(original.send).toHaveBeenCalledOnce())
 
-      service.enqueueUserMessage('session-1', userMessage('steer-rebuild'))
-      connect.mock.calls[0]?.[0].onInputPrepared('steer-rebuild', 'original-context')
+      service.enqueueUserMessage('session-1', steer)
 
       // Turn 1 settles without placing the steer; then an agent update triggers a rebuild.
       service.markTurnTerminal('session-1', 'success')
@@ -7241,9 +7232,7 @@ describe('AgentSessionRuntimeService', () => {
       )
 
       const entry = getEntry(service)
-      await vi.waitFor(() =>
-        expect(sentOnSuccessor).toEqual([{ message: userMessage('steer-rebuild'), systemReminder: true }])
-      )
+      await vi.waitFor(() => expect(sentOnSuccessor).toEqual([{ message: steer, systemReminder: true }]))
       expect(entry.pendingInputs?.size ?? 0).toBe(0)
       expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ modelId: switchedModelId }))
       await service.closeSession('session-1')
@@ -7251,27 +7240,28 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('recovers an unplaced steer across stop-and-resume behind the resumed turn without orphaning pendingInputs', async () => {
+      const steer = userMessage(randomUUID())
+      const contextId = saveSteerInputs(steer)
       const oldEvents = createAsyncQueue<any>()
       const newEvents = createAsyncQueue<any>()
       const sentOnSuccessor: any[] = []
       const original = {
         events: oldEvents.iterable,
         send: vi.fn(),
-        redirect: vi.fn().mockReturnValue(true),
+        contextId,
+        threadInput: steering(),
         close: vi.fn(async () => {
           oldEvents.end()
         })
       }
       const successor = {
         events: newEvents.iterable,
+        contextId,
         send: vi.fn((input: any) => {
           sentOnSuccessor.push(input)
         }),
         reconcile: vi.fn().mockResolvedValue('current'),
-        lookupInput: vi.fn().mockResolvedValue({
-          status: 'unknown',
-          error: { operation: 'lookup-input', code: 'unavailable', message: 'unavailable' }
-        }),
+        lookupInput: vi.fn().mockResolvedValue({ status: 'confirmed', value: { found: false } }),
         close: vi.fn(async () => {
           newEvents.end()
         })
@@ -7292,8 +7282,7 @@ describe('AgentSessionRuntimeService', () => {
       await reader1.read()
       await vi.waitFor(() => expect(original.send).toHaveBeenCalledOnce())
 
-      service.enqueueUserMessage('session-1', userMessage('steer-before-stop'))
-      connect.mock.calls[0]?.[0].onInputPrepared('steer-before-stop', 'original-context')
+      service.enqueueUserMessage('session-1', steer)
       await service.stopSession('session-1', 'user-requested')
 
       const handle2 = service.beginTurn({
@@ -7329,7 +7318,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(sentOnSuccessor).toEqual([
           { message: userMessage('user-2'), systemReminder: false },
-          { message: userMessage('steer-before-stop'), systemReminder: true }
+          { message: steer, systemReminder: true }
         ])
       )
       expect(entry.pendingInputs?.size ?? 0).toBe(0)
@@ -7338,7 +7327,7 @@ describe('AgentSessionRuntimeService', () => {
       await reader2.cancel().catch(() => undefined)
     })
 
-    it('recovers stale-generation steer-undelivered without dropping it in pendingInputValues', () => {
+    it('retains an old-generation input when placement is reported by a new generation', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
       const entry = getEntry(service)
@@ -7347,22 +7336,23 @@ describe('AgentSessionRuntimeService', () => {
         ['stale-steer', { input: { message: userMessage('stale-steer'), systemReminder: true }, generation: 'old-gen' }]
       ])
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'steer-undelivered', inputIds: ['stale-steer'] })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'steer-boundary', inputIds: ['stale-steer'] })
 
-      expect(entry.pendingInputs.size).toBe(0)
-      expect(entry.pendingTurns).toEqual([
-        expect.objectContaining({ message: expect.objectContaining({ id: 'stale-steer' }), steer: true })
-      ])
+      expect(entry.pendingInputs.has('stale-steer')).toBe(true)
+      expect(entry.currentTurn.taskIds).toEqual(['user-1'])
+      expect(entry.pendingTurns).toEqual([])
       void service.closeSession('session-1')
     })
 
     it('keeps gateway attribution on the active run before and after steer placement', async () => {
+      const steerId = randomUUID()
+      const secondSteerId = randomUUID()
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
         usageCapture: { owner: 'provider-calls' as const },
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2'), userMessage('user-3')),
+        contextId: saveSteerInputs(userMessage(steerId), userMessage(secondSteerId)),
         threadInput: steering(vi.fn<Steer>(steering().steer.submit)),
         close: vi.fn(async () => {
           events.end()
@@ -7394,8 +7384,8 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const steerMessage = userMessage('user-2')
-      const secondSteerMessage = userMessage('user-3')
+      const steerMessage = userMessage(steerId)
+      const secondSteerMessage = userMessage(secondSteerId)
       const continuationSnapshot = {
         id: 'agent-1',
         name: 'Renamed Before Steer',
@@ -7420,7 +7410,6 @@ describe('AgentSessionRuntimeService', () => {
       events.push({ type: 'steer-boundary', inputIds: injected })
       await vi.waitFor(() => expect(getEntry(service).currentTurn.taskIds).toEqual(['user-1', ...injected]))
       expect(service.getActiveUsageContext('session-1')?.assistantMessageId).toBe('assistant-1')
-      expect(getEntry(service).pendingInputs.size).toBe(0)
       events.push({ type: 'turn-complete' })
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
@@ -7429,12 +7418,13 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('settles the original run when native completion arrives before the queued placement event', async () => {
+      const steerId = randomUUID()
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
         usageCapture: { owner: 'provider-calls' as const },
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2')),
+        contextId: saveSteerInputs(userMessage(steerId)),
         threadInput: steering(vi.fn<Steer>(steering().steer.submit)),
         close: vi.fn(async () => {
           events.end()
@@ -7456,7 +7446,7 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const steerMessage = userMessage('user-2')
+      const steerMessage = userMessage(steerId)
       service.enqueueUserMessage('session-1', steerMessage)
       connect.mock.calls[0]?.[0].onSteerInjected([steerMessage.id])
       expect(getEntry(service).runtimeState.execution).toMatchObject({
@@ -7474,6 +7464,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('streams post-steer updates and usage through the original run', async () => {
+      const steerId = randomUUID()
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
@@ -7494,7 +7485,7 @@ describe('AgentSessionRuntimeService', () => {
           ]
         },
         send: vi.fn(),
-        contextId: saveSteerInputs(userMessage('user-2')),
+        contextId: saveSteerInputs(userMessage(steerId)),
         threadInput: steering(vi.fn<Steer>(steering().steer.submit)),
         close: vi.fn(async () => {
           events.end()
@@ -7545,8 +7536,8 @@ describe('AgentSessionRuntimeService', () => {
         )
       )
 
-      service.enqueueUserMessage('session-1', userMessage('user-2'))
-      events.push({ type: 'steer-boundary', inputIds: ['user-2'] })
+      service.enqueueUserMessage('session-1', userMessage(steerId))
+      events.push({ type: 'steer-boundary', inputIds: [steerId] })
       events.push(turnUsage(2))
       await expect(reader.read()).resolves.toMatchObject({
         value: { type: 'message-metadata', messageMetadata: { totalTokens: 2 } },

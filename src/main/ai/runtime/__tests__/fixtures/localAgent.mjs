@@ -19,6 +19,14 @@ const fixtureModelOption = {
     _meta: { fixture: { modalities: ['image'] } }
   })
 }
+const fixtureModelConfig = (currentValue) => ({
+  id: 'model',
+  category: 'model',
+  name: 'Model',
+  type: 'select',
+  currentValue,
+  options: [fixtureModelOption]
+})
 if (process.env.FIXTURE_LOG) {
   writeFileSync(`${process.env.FIXTURE_LOG}.pid`, String(process.pid))
   writeFileSync(`${process.env.FIXTURE_LOG}.argv.json`, JSON.stringify(process.argv))
@@ -644,10 +652,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       secondaryValues[message.params.configId] = message.params.value
       return reply(id, { configOptions: nativePermissionOptions[scenario]() })
     }
-    if (scenario === 'model-setup-update') {
-      update({ sessionUpdate: 'config_option_update', configOptions: [thought()] })
-      update({ sessionUpdate: 'compaction_update', compactionId: 'replayed', status: 'in_progress' })
-    }
     if (scenario === 'config-semantics') return reply(id, { configOptions: [extraConfig()[1], mode()] })
     if (scenario === 'config-multiple') {
       secondaryValues[message.params.configId] = message.params.value
@@ -680,19 +684,15 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         }, 40)
       }
       thoughtValue = message.params.value
+      if (scenario === 'thought' || scenario === 'thought-uncategorized') {
+        return reply(id, {
+          configOptions: [thought(), fixtureModelConfig('fixture-default')]
+        })
+      }
       return reply(id, { configOptions: scenario === 'thought-removed' ? [] : [thought()] })
     }
     reply(id, {
-      configOptions: [
-        {
-          id: 'model',
-          category: 'model',
-          name: 'Model',
-          type: 'select',
-          currentValue: message.params.value,
-          options: [fixtureModelOption]
-        }
-      ]
+      configOptions: [fixtureModelConfig(message.params.value)]
     })
   } else if (method === 'model/list') {
     const efforts = [
